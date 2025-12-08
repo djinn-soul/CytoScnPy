@@ -1,5 +1,8 @@
 # Bugs Found During Benchmarking
 
+> **Status:** Tracking document for known issues  
+> **Last Updated:** 2025-12-07
+
 ## 2. False Positives (Tool Errors)
 
 The tool flagged several classes as "unused" that are actually **USED**. These are genuine bugs in the tool's reference counting logic:

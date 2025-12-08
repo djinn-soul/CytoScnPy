@@ -7,9 +7,6 @@
 This comprehensive document details the complete development roadmap for CytoScnPy - a high-performance Python static analyzer written in Rust with Python integration.
 
 **Performance Highlights:**
-
-- **79x faster** than pure Python implementation (0.18s vs 14.22s)
-- **3.7x less memory** (~40MB vs ~150MB)
 - **Hybrid distribution** - pip installable with both Python API and CLI
 
 ---
@@ -68,6 +65,7 @@ This comprehensive document details the complete development roadmap for CytoScn
 - Rich CLI output with tables and colors
 - JSON output for CI/CD integration
 - Progress spinner and file statistics
+- Taint analysis (`--taint` flag)
 
 ---
 

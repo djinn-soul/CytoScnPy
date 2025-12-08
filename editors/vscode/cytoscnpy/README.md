@@ -6,6 +6,7 @@
 
 - **Real-time Analysis**: Automatically scans your Python files for unused code, security vulnerabilities, and quality issues as you type or save.
 - **Security Scanning**: Detects hardcoded secrets (API keys, tokens), SQL injection risks, and dangerous code patterns (`eval`, `exec`).
+- **Taint Analysis**: Tracks data flow from untrusted sources to dangerous sinks to detect SQL injection, command injection, and code execution vulnerabilities.
 - **Quality Metrics**: Calculates Cyclomatic Complexity, Halstead Metrics, and Maintainability Index.
 - **Inline Diagnostics**: View errors and warnings directly in your editor with detailed hover information.
 

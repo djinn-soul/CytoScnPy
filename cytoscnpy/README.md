@@ -13,13 +13,17 @@ The primary, user-facing CLI executable is provided by the `cytoscnpy-cli` crate
 
 ### Key Files
 
--   `src/lib.rs` - Library root, PyO3 module definition, and core logic.
--   `src/main.rs` - The entry point for the `cytoscnpy-bin` binary.
--   `src/python_bindings.rs` - PyO3 function implementations for the Python extension.
--   `src/analyzer.rs` - Main analysis orchestration logic.
--   `src/visitor.rs` - The core AST traversal and analysis logic.
--   `src/rules/` - Directory containing modules for specific checks (e.g., security, quality).
--   `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
+- `src/lib.rs` - Library root, PyO3 module definition, and core logic.
+- `src/main.rs` - The entry point for the `cytoscnpy-bin` binary.
+- `src/python_bindings.rs` - PyO3 function implementations for the Python extension.
+- `src/analyzer/` - Main analysis orchestration logic and dead code detection.
+- `src/visitor.rs` - The core AST traversal and analysis logic.
+- `src/rules/` - Directory containing modules for specific checks (secrets, danger, quality).
+- `src/taint/` - Taint analysis engine (intraprocedural, interprocedural, cross-file).
+- `src/complexity.rs` - Cyclomatic complexity calculation.
+- `src/halstead.rs` - Halstead metrics calculation.
+- `src/raw_metrics.rs` - Raw code metrics (LOC, SLOC, etc.).
+- `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
 
 ## Building
 
@@ -44,8 +48,9 @@ cargo build --release
 ```
 
 This will produce:
--   The Rust library in `target/release/libcytoscnpy.rlib`.
--   The binary executable at `target/release/cytoscnpy-bin`.
+
+- The Rust library in `target/release/libcytoscnpy.rlib`.
+- The binary executable at `target/release/cytoscnpy-bin`.
 
 ## Testing
 

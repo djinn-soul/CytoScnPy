@@ -1,0 +1,18 @@
+{
+  "test_id": "issue_11",
+  "title": "Dictionary Usage Reference",
+  "description": "Tests that functions referenced in dictionaries are considered used",
+  "category": "bugfix",
+  "difficulty": "trivial",
+  "files": {
+    "file1.py": {
+      "dead_items": []
+    },
+    "file2.py": {
+      "dead_items": []
+    },
+    "file3.py": {
+      "dead_items": []
+    }
+  }
+}

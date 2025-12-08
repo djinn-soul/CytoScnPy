@@ -1,0 +1,69 @@
+{
+  "test_id": "advanced_06",
+  "title": "Advanced Python Features",
+  "description": "Tests used/unused detection for Python 3.10+ features and complex scoping",
+  "category": "advanced",
+  "difficulty": "hard",
+  "files": {
+    "pattern_matching.py": {
+      "dead_items": [
+        {
+          "type": "variable",
+          "name": "filename",
+          "line_start": 13,
+          "reason": "Bound in case pattern ['save', filename] but never used in block"
+        },
+        {
+          "type": "variable",
+          "name": "a",
+          "line_start": 27,
+          "reason": "Bound in pattern [a, b] but unused"
+        },
+        {
+          "type": "variable",
+          "name": "b",
+          "line_start": 27,
+          "reason": "Bound in pattern [a, b] but unused"
+        }
+      ]
+    },
+    "type_hints.py": {
+      "dead_items": [
+        {
+          "type": "import",
+          "name": "sys",
+          "line_start": 7,
+          "reason": "Imported in TYPE_CHECKING block but never used"
+        },
+         {
+          "type": "import",
+          "name": "re",
+          "line_start": 30,
+          "reason": "Imported locally but only used in string annotation (if tool doesn't resolve string hints locally, this is dead. If it does, strictly speaking 're' name is not loaded at runtime so it IS dead at runtime, but alive for static analysis? Usually considered dead code if not used at runtime or effectively for type checkers. Let's mark as dead for now as it's a tricky edge case)"
+        }
+      ]
+    },
+    "complex_scoping.py": {
+      "dead_items": [
+        {
+          "type": "variable",
+          "name": "y",
+          "line_start": 13,
+          "reason": "Global y is shadowed by local y in f2, and global y is never used"
+        },
+        {
+            "type": "variable",
+            "name": "val",
+            "line_start": 64,
+            "reason": "Local val defined in method but self.val is returned. Local val is unused shadowing."
+        },
+         {
+          "type": "variable",
+          "name": "x",
+          "line_start": 52,
+          "reason": "Iteration variable x in list comp is unused (could be _)"
+        }
+      ]
+    }
+  }
+}

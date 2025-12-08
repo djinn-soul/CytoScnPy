@@ -1,0 +1,110 @@
+{
+  "files": {
+    "complex_logic.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "complex_function",
+          "line_start": 1,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "class",
+          "name": "ComplexClass",
+          "line_start": 29,
+          "reason": "Class defined but never instantiated"
+        },
+        {
+          "type": "method",
+          "name": "ComplexClass.method_a",
+          "line_start": 30,
+          "reason": "Method of unused class"
+        },
+        {
+          "type": "method",
+          "name": "ComplexClass.method_b",
+          "line_start": 35,
+          "reason": "Method of unused class"
+        },
+        {
+          "type": "method",
+          "name": "ComplexClass.recursive",
+          "line_start": 38,
+          "reason": "Method of unused class"
+        }
+      ]
+    },
+    "halstead_heavy.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "calculate_stuff",
+          "line_start": 3,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "variable",
+          "name": "filtered",
+          "line_start": 12,
+          "reason": "Variable assigned but never used"
+        },
+        {
+          "type": "variable",
+          "name": "keys",
+          "line_start": 15,
+          "reason": "Variable assigned but never used"
+        },
+        {
+          "type": "variable",
+          "name": "values",
+          "line_start": 16,
+          "reason": "Variable assigned but never used"
+        }
+      ]
+    },
+    "modern_python.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "async_func",
+          "line_start": 1,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "match_example",
+          "line_start": 6,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "walrus_example",
+          "line_start": 17,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "pos_only",
+          "line_start": 21,
+          "reason": "Function defined but never called"
+        }
+      ]
+    },
+    "raw_messy.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "func",
+          "line_start": 8,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "variable",
+          "name": "y",
+          "line_start": 12,
+          "reason": "Local variable assigned but never used"
+        }
+      ]
+    }
+  }
+}

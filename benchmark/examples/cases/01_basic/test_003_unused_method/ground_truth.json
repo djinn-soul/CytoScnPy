@@ -1,0 +1,58 @@
+{
+    "test_id": "basic_003",
+    "title": "Unused Method Detection",
+    "description": "Tests detection of unused methods in a class",
+    "category": "basic",
+    "difficulty": "easy",
+    "files": {
+      "code.py": {
+        "dead_items": [
+          {
+            "type": "method",
+            "name": "TestClass.unused_method",
+            "line_start": 12,
+            "line_end": 14,
+            "reason": "Method is defined but never called",
+            "detectable_by_static_analysis": true
+          }
+        ],
+        "live_items": [
+          {
+            "type": "class",
+            "name": "TestClass",
+            "line_start": 1,
+            "line_end": 22,
+            "reason": "Instantiated on line 25"
+          },
+          {
+            "type": "method",
+            "name": "TestClass.__init__",
+            "line_start": 4,
+            "line_end": 6,
+            "reason": "Called when class is instantiated on line 25"
+          },
+          {
+            "type": "method",
+            "name": "TestClass.used_method",
+            "line_start": 8,
+            "line_end": 10,
+            "reason": "Called on line 26"
+          },
+          {
+            "type": "method",
+            "name": "TestClass.used_by_other_method",
+            "line_start": 16,
+            "line_end": 18,
+            "reason": "Called by method_calling_other on line 22"
+          },
+          {
+            "type": "method",
+            "name": "TestClass.method_calling_other",
+            "line_start": 20,
+            "line_end": 22,
+            "reason": "Called on line 27"
+          }
+        ]
+      }
+    }
+  }

@@ -1,0 +1,85 @@
+{
+    "test_id": "meta_001",
+    "title": "Decorator Patterns",
+    "description": "Tests detection of functions and methods with decorators",
+    "category": "metaprogramming",
+    "difficulty": "medium",
+    "files": {
+      "code.py": {
+        "dead_items": [
+          {
+            "type": "function",
+            "name": "unused_decorator",
+            "line_start": 19,
+            "line_end": 26,
+            "reason": "Decorator function is never used",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "function",
+            "name": "decorated_but_unused",
+            "line_start": 41,
+            "line_end": 43,
+            "reason": "Function is decorated but never called",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "method",
+            "name": "DecoratedClass.unused_decorated_method",
+            "line_start": 55,
+            "line_end": 57,
+            "reason": "Method is decorated but never called",
+            "detectable_by_static_analysis": true
+          }
+        ],
+        "live_items": [
+          {
+            "type": "function",
+            "name": "decorator",
+            "line_start": 9,
+            "line_end": 16,
+            "reason": "Used as a decorator on lines 29, 40, 49, and 54"
+          },
+          {
+            "type": "function",
+            "name": "decorated_function",
+            "line_start": 30,
+            "line_end": 32,
+            "reason": "Called on line 65"
+          },
+          {
+            "type": "function",
+            "name": "undecorated_function",
+            "line_start": 35,
+            "line_end": 37,
+            "reason": "Called on line 66"
+          },
+          {
+            "type": "class",
+            "name": "DecoratedClass",
+            "line_start": 46,
+            "line_end": 61,
+            "reason": "Instantiated on line 68"
+          },
+          {
+            "type": "method",
+            "name": "DecoratedClass.decorated_method",
+            "line_start": 50,
+            "line_end": 52,
+            "reason": "Called on line 69"
+          },
+          {
+            "type": "method",
+            "name": "DecoratedClass.regular_method",
+            "line_start": 59,
+            "line_end": 61,
+            "reason": "Called on line 70"
+          }
+        ]
+      }
+    },
+    "challenges": [
+      "Tests tool's ability to track usage through decorators",
+      "Tests differentiation between used and unused decorated functions"
+    ]
+  }

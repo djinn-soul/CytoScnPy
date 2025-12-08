@@ -1,0 +1,51 @@
+# Pre-commit hooks provided by CytoScnPy
+# Users can reference these hooks in their .pre-commit-config.yaml
+# See: https://pre-commit.com/#creating-new-hooks
+#
+# CytoScnPy now supports analyzing multiple file paths directly,
+# so hooks efficiently analyze only the changed files.
+
+- id: cytoscnpy-check
+  name: CytoScnPy Check
+  description: Run full CytoScnPy static analysis (security, quality, and danger checks)
+  entry: cytoscnpy
+  language: python
+  types: [python]
+  pass_filenames: true
+  args: ["--danger", "--quality", "--secrets"]
+
+- id: cytoscnpy-danger
+  name: CytoScnPy Danger Check
+  description: Check for dangerous code patterns (eval, exec, shell injection, etc.)
+  entry: cytoscnpy
+  language: python
+  types: [python]
+  pass_filenames: true
+  args: ["--danger"]
+
+- id: cytoscnpy-secrets
+  name: CytoScnPy Secrets Scan
+  description: Scan for hardcoded secrets, API keys, and credentials
+  entry: cytoscnpy
+  language: python
+  types: [python]
+  pass_filenames: true
+  args: ["--secrets"]
+
+- id: cytoscnpy-quality
+  name: CytoScnPy Quality Check
+  description: Check code quality (complexity, unused code, etc.)
+  entry: cytoscnpy
+  language: python
+  types: [python]
+  pass_filenames: true
+  args: ["--quality"]
+
+- id: cytoscnpy-security
+  name: CytoScnPy Security Scan
+  description: Run security-focused analysis with high confidence threshold
+  entry: cytoscnpy
+  language: python
+  types: [python]
+  pass_filenames: true
+  args: ["--danger", "--secrets", "--confidence", "70"]

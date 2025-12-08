@@ -1,0 +1,14 @@
+{
+  "files": {
+    "data_science.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "unsafe_pandas_sql",
+          "line_start": 25,
+          "reason": "Function defined but never called"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "test_id": "frameworks_05",
+  "title": "Framework Support",
+  "description": "Tests used/unused detection in Flask and FastAPI applications",
+  "category": "frameworks",
+  "difficulty": "medium",
+  "files": {
+    "flask_example.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "helper_dead",
+          "line_start": 8,
+          "reason": "Marked as dead in comments"
+        }
+      ]
+    },
+    "fastapi_example.py": {
+      "dead_items": [
+        {
+          "type": "class",
+          "name": "UnusedModel",
+          "line_start": 24,
+          "reason": "Marked as dead in comments"
+        },
+        {
+          "type": "function",
+          "name": "dep",
+          "line_start": 29,
+          "reason": "Marked as dead in comments"
+        },
+        {
+          "type": "function",
+          "name": "unused_helper",
+          "line_start": 34,
+          "reason": "Marked as dead in comments"
+        },
+        {
+          "type": "import",
+          "name": "Any",
+          "line_start": 3,
+          "reason": "Imported but not used"
+        }
+      ]
+    }
+  }
+}

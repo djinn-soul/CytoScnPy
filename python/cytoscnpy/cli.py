@@ -1,0 +1,15 @@
+import sys
+from cytoscnpy import run
+
+
+def main():
+    args = sys.argv[1:]
+    try:
+        rc = run(args)
+        raise SystemExit(int(rc))
+    except Exception as e:
+        print(f"cytoscnpy error: {e}", file=sys.stderr)
+        raise SystemExit(1)
+
+if __name__ == "__main__":
+    main()

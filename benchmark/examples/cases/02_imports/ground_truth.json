@@ -1,0 +1,12 @@
+{
+  "test_id": "imports_004",
+  "title": "Itertools Chaining",
+  "description": "Tests usage of itertools.chain",
+  "category": "imports",
+  "difficulty": "trivial",
+  "files": {
+    "test_004_itertools_chaining.py": {
+      "dead_items": []
+    }
+  }
+}

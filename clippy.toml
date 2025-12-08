@@ -1,0 +1,40 @@
+# clippy.toml — CytoScnPy stricter recommendations
+# https://rust-lang.github.io/rust-clippy/master/index.html
+# Keep this file in version control and update `msrv` when you bump toolchain.
+
+# Minimum Supported Rust Version used for Clippy feature decisions.
+msrv = "1.70.0"              # update this when you officially bump MSRV
+
+# Complexity thresholds (stricter than baseline)
+# Lowering these will surface potential complexity issues earlier.
+cognitive-complexity-threshold = 20   # functions with >20 cognitive complexity should be reviewed
+type-complexity-threshold = 200      # warn on very large types (bytes)
+single-char-binding-names-threshold = 2
+too-many-arguments-threshold = 6     # encourage grouping into structs where appropriate
+too-many-lines-threshold = 120       # long files often need refactoring
+
+# Identifier rules
+allowed-idents-below-min-chars = ["i", "j", "k", "n", "x", "y", "_"]
+
+# Acronym handling
+# When true, acronyms in type/const names will be treated as ALLCAPS aggressively.
+upper-case-acronyms-aggressive = false
+
+# Avoid accidental exported API breakage — Clippy won't suggest breaking changes
+avoid-breaking-exported-api = false
+
+# Documentation-related guidance (tunable)
+# Require at least this ratio of public items to be documented (value 0.0..1.0).
+# Note: Clippy only exposes some doc-related checks as options; use external tooling for strict doc coverage.
+doc-valid-idents = ["CytoScnPy", "PyO3", "AST"]
+
+# Allowlist of wildcard-import patterns (use sparingly)
+allowed-wildcard-imports = ["tests::*", "bench::*"] 
+
+# Allow certain test-only unwrap/expect patterns by name (keeps test ergonomics)
+# This isn't a builtin Clippy option in all versions — keep as documentation for the team
+# allowed-unwrap-patterns = ["test_fixture", "from_str_unwrap_test"]
+
+# NOTES:
+# - clippy.toml controls numeric/config options. Most lints (unwrap_used, pedantic, nursery)
+#   are enabled/denied via crate attributes or CI flags (see repo examples below).

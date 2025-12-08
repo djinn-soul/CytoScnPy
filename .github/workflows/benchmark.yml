@@ -1,0 +1,71 @@
+name: Continuous Benchmarking
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "cytoscnpy/**"
+      - "benchmark/**"
+      - ".github/workflows/benchmark.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "cytoscnpy/**"
+      - "benchmark/**"
+      - ".github/workflows/benchmark.yml"
+
+jobs:
+  benchmark:
+    name: Performance & Regression Test
+    runs-on: ubuntu-latest
+    env:
+      PYO3_PYTHON: python
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          pip install -r benchmark/requirements.txt
+          pip install -e .
+
+      - name: Build CytoScnPy (Rust)
+        run: |
+          cd cytoscnpy
+          cargo build --release --verbose
+
+      - name: Run Benchmark Check
+        run: python benchmark/benchmark_and_verify.py --check
+
+      - name: Run Benchmark & Compare
+        run: |
+          # If linux baseline exists, run with comparison
+          if [ -f "benchmark/baseline_linux.json" ]; then
+            echo "Baseline found. Running regression test..."
+            python benchmark/benchmark_and_verify.py --compare-json benchmark/baseline_linux.json
+          else
+            echo "No Linux baseline found. Generating initial baseline..."
+            python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_linux.json
+          fi
+
+      - name: Save Current Run Results
+        if: always()
+        run: python benchmark/benchmark_and_verify.py --save-json benchmark/current_run_linux.json
+
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-artifacts
+          path: |
+            benchmark/baseline_linux.json
+            benchmark/current_run_linux.json

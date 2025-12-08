@@ -1,0 +1,607 @@
+# CytoScnPy - Complete Roadmap & Development Guide
+
+> **Last Updated:** 2025-12-07
+> **Architecture:** Hybrid PyO3 + Standalone CLI
+> **Status:** Production-ready core, active development
+
+This comprehensive document details the complete development roadmap for CytoScnPy - a high-performance Python static analyzer written in Rust with Python integration.
+
+**Performance Highlights:**
+
+- **79x faster** than pure Python implementation (0.18s vs 14.22s)
+- **3.7x less memory** (~40MB vs ~150MB)
+- **Hybrid distribution** - pip installable with both Python API and CLI
+
+---
+
+## 📋 Table of Contents
+
+1. [Project Status](#project-status)
+2. [Phase 1: Critical Fixes](#phase-1-critical-fixes-done)
+3. [Phase 2: Feature Parity](#phase-2-feature-parity-done)
+4. [Phase 3: Advanced Features](#phase-3-advanced-features-done)
+5. [Phase 4: Code Architecture](#phase-4-code-architecture-done)
+6. [Phase 5: Radon Metrics Integration](#phase-5-radon-metrics-integration-done)
+7. [Phase 6: Editor Integration](#phase-6-editor-integration-done)
+8. [Phase 7: Infrastructure & Quality](#phase-7-infrastructure--quality-done)
+9. [Future Roadmap](#future-roadmap)
+   - [Phase 8: Advanced Framework Support](#phase-8-advanced-framework-support)
+   - [Phase 9: Developer Experience](#phase-9-developer-experience)
+   - [Phase 10: Deep Analysis & Security](#phase-10-deep-analysis--security)
+   - [Phase 11: Auto-Remediation](#phase-11-auto-remediation)
+
+---
+
+## Project Status
+
+### Current Capabilities ✅
+
+**Core Detection:**
+
+- Unused functions, classes, methods
+- Unused imports (with aliasing support)
+- Unused variables and parameters
+- Cross-module reference tracking
+- Entry point detection (`if __name__ == "__main__"`)
+
+**Security Analysis:**
+
+- Hardcoded secrets (API keys, tokens, private keys)
+- SQL injection risks
+- Command injection patterns
+- Dangerous code (`eval`, `exec`, `pickle`, `yaml.unsafe_load`)
+- Weak cryptography (`md5`, `sha1`)
+
+**Code Quality:**
+
+- Cyclomatic complexity (with A-F ranking)
+- Halstead metrics (vocabulary, volume, difficulty, effort)
+- Raw metrics (LOC, LLOC, SLOC, comments)
+- Maintainability Index (0-100 score)
+- Nesting depth analysis
+- Argument count detection
+
+**Configuration & UX:**
+
+- `.cytoscnpy.toml` and `pyproject.toml` support
+- Inline pragma support (`# pragma: no cytoscnpy`)
+- Rich CLI output with tables and colors
+- JSON output for CI/CD integration
+- Progress spinner and file statistics
+
+---
+
+## Phase 1: Critical Fixes ✅ DONE
+
+These foundational fixes were essential for accuracy and addressed the largest sources of false positives.
+
+### 1.1 Import Resolution (Aliasing) ✅ **COMPLETED**
+
+**Problem:** Rust didn't track import aliases, causing false positives:
+
+```python
+import pandas as pd
+df = pd.DataFrame()  # Rust reported 'pandas' as unused
+```
+
+**Solution:**
+
+- Added `alias_map: HashMap<String, String>` to `CytoScnPyVisitor`
+- Tracks `Import` and `ImportFrom` aliases during AST traversal
+- Resolves aliases during reference collection
+
+**Implementation Details:**
+
+```rust
+// In visit_import()
+if let Some(alias) = &alias.asname {
+    self.alias_map.insert(alias.id.to_string(), name.id.to_string());
+}
+// In visit_name()
+let resolved_name = self.alias_map.get(id).unwrap_or(id);
+```
+
+**Impact:** Eliminated ~79 false positives in test suite
+**Files Modified:** `src/visitor.rs`
+**Test Coverage:** `import_resolution_test.rs`
+
+---
+
+### 1.2 Method and Class Context ✅ **COMPLETED**
+
+**Problem:** Methods weren't qualified with class names:
+
+```python
+class MyClass:
+    def method(self): pass
+    def caller(self):
+        self.method()  # Rust didn't recognize this as using 'method'
+```
+
+**Solution:**
+
+- Added `class_stack: Vec<String>` to track class nesting
+- Qualify method definitions: `MyClass.method`
+- Qualify `self.method()` calls with current class context
+- Added decorator visitation to handle `@property`, etc.
+
+**Implementation Details:**
+
+```rust
+// Entering class
+self.class_stack.push(class_name.clone());
+
+// Method definition
+let qualified_name = if let Some(class_name) = self.class_stack.last() {
+    format!("{}.{}", class_name, func_name)
+} else {
+    func_name.clone()
+};
+```
+
+**Impact:** Eliminated ~184 false positives
+**Files Modified:** `src/visitor.rs`
+**Test Coverage:** `method_context_test.rs`, `class_context_test.rs`
+
+---
+
+### 1.3 Qualified Name Matching ✅ **COMPLETED**
+
+**Problem:** References didn't always match definitions due to different qualification levels.
+
+**Solution:**
+
+- Implemented smart name resolution in `resolve_name()`
+- Checks multiple qualification levels:
+  1. Exact match
+  2. Module.name match
+  3. Class.method match
+  4. Partial qualified match
+
+**Impact:** Improved accuracy by ~15%
+**Files Modified:** `src/visitor.rs`
+
+---
+
+## Phase 2: Feature Parity ✅ DONE
+
+Bringing Rust implementation to feature parity with the Python version.
+
+### 2.1 Pragma Support ✅ **COMPLETED**
+
+**Feature:** Inline suppression of warnings
+
+```python
+def unused_function():  # pragma: no cytoscnpy
+    pass  # Won't be reported as unused
+```
+
+**Implementation:**
+
+- Created `get_ignored_lines()` in `src/utils.rs`
+- Scans file for `# pragma: no cytoscnpy` comments
+- Returns `HashSet<usize>` of ignored line numbers
+- Integrated into penalty system (confidence = 0 for ignored lines)
+
+**Files:** `src/utils.rs`, `src/analyzer.rs`
+**Test Coverage:** `pragma_test.rs`
+
+---
+
+### 2.2 Configuration File Support ✅ **COMPLETED**
+
+**Feature:** Project-level configuration via `.cytoscnpy.toml` or `pyproject.toml`.
+
+**Implementation:**
+
+- Created `src/config.rs` with `CytoScnPyConfig` struct
+- Searches for `.cytoscnpy.toml` in project root
+- Falls back to `pyproject.toml` under `[tool.cytoscnpy]`
+- Merges config with CLI arguments (CLI takes precedence)
+
+**Priority Order:**
+
+1. CLI arguments (highest priority)
+2. `.cytoscnpy.toml`
+3. `pyproject.toml` (`[tool.cytoscnpy]`)
+4. Defaults
+
+**Files:** `src/config.rs`
+**Test Coverage:** `config_test.rs`
+
+---
+
+### 2.3 Unused Parameter Detection ✅ **COMPLETED**
+
+**Feature:** Detect function parameters that are never used.
+
+```python
+def process(data, unused_param):  # 'unused_param' flagged
+    return data
+```
+
+**Implementation:**
+
+- Added `function_stack` and `function_params` map
+- Extracts all parameter types (positional, keyword, \*args, \*\*kwargs)
+- Automatically skips `self` and `cls`
+- Applied **70% confidence** (vs 100% for other code)
+
+**Files:** `src/visitor.rs`
+**Test Coverage:** `parameter_test.rs`
+
+---
+
+### 2.4 Advanced Heuristics ✅ **COMPLETED**
+
+Multiple heuristics to reduce false positives for common patterns.
+
+1.  **Settings/Config Classes:**
+
+    - **Pattern:** Uppercase variables in classes named `*Settings` or `*Config`.
+    - **Action:** Set confidence = 0 (effectively ignored).
+
+2.  **Visitor Pattern:**
+
+    - **Pattern:** Methods starting with `visit_`, `leave_`, `transform_`.
+    - **Action:** Increment reference count (always used).
+
+3.  **Dataclass Fields:**
+
+    - **Pattern:** Fields in `@dataclass` decorated classes.
+    - **Action:** Mark all class-level annotations as used.
+
+4.  **Dunder Methods:**
+    - **Pattern:** `__init__`, `__str__`, etc.
+    - **Action:** Lower confidence penalty.
+
+**Files:** `src/visitor.rs`, `src/analyzer.rs`
+**Test Coverage:** `heuristics_test.rs`
+
+---
+
+### 2.5 `__all__` Export Detection ✅ **COMPLETED**
+
+**Feature:** Respect module exports defined in `__all__`.
+
+**Implementation:**
+
+- Parse `__all__ = [...]` assignments in AST
+- Extract string literals from the list
+- Mark corresponding definitions as exported (used)
+
+**Files:** `src/visitor.rs`
+
+---
+
+### 2.6 Rich CLI Output ✅ **COMPLETED**
+
+**Feature:** Professional, colored, tabular output matching Python version.
+
+**Features:**
+
+- **Progress Spinner:** `indicatif`
+- **Tabular Results:** `comfy-table` with box-drawing characters
+- **Severity Coloring:** Red (Critical), Yellow (Medium), Blue (Info)
+- **Organized Sections:** Summary, Unused Code, Security, Quality
+
+**Files:** `src/output.rs`, `src/main.rs`
+
+---
+
+## Phase 3: Advanced Features ✅ DONE
+
+Features exceeding the original Python implementation.
+
+### 3.1 Local Scope Tracking ✅ **COMPLETED 2025-11-29**
+
+**Problem:** Local variables not properly qualified across nested scopes.
+
+**Solution:**
+
+- Added `local_var_map: HashMap<String, String>` to `Scope` struct.
+- Maps unqualified name → fully qualified name per scope.
+- Enhanced `resolve_name()` to check `local_var_map` first.
+
+**Implementation:**
+
+```rust
+pub struct Scope {
+    pub name: String,
+    pub scope_type: ScopeType,
+    pub local_var_map: HashMap<String, String>,  // NEW
+}
+```
+
+**Impact:** Accurate variable tracking in complex scopes.
+**Files:** `src/visitor.rs`
+**Test Coverage:** `local_scope_test.rs`
+
+---
+
+### 3.2 Dynamic Code Patterns ✅ **COMPLETED 2025-11-29**
+
+1.  **Globals Tracking:**
+
+    - **Pattern:** `globals()["var"]`
+    - **Action:** Mark calling module as having dynamic references.
+
+2.  **Eval/Exec Detection:**
+
+    - **Pattern:** `eval(code)`, `exec(code)`
+    - **Action:** Mark module as dynamic (lower confidence for all definitions).
+
+3.  **Hasattr Pattern:**
+    - **Pattern:** `hasattr(obj, "attr")`
+    - **Action:** Add reference to the attribute name.
+
+**Files:** `src/visitor.rs`
+**Test Coverage:** `dynamic_patterns_test.rs`
+
+---
+
+## Phase 4: Code Architecture ✅ DONE
+
+### 4.0 Modular Rule System ✅ **COMPLETED 2025-11-28**
+
+**Problem:** Monolithic visitors were hard to extend and test.
+
+**Solution:** Refactored into a trait-based architecture.
+
+```rust
+pub trait Rule {
+    fn name(&self) -> &str;
+    fn enter_stmt(&mut self, stmt: &Stmt) -> Option<Finding>;
+    fn leave_stmt(&mut self, stmt: &Stmt) -> Option<Finding>;
+    fn visit_expr(&mut self, expr: &Expr) -> Option<Finding>;
+}
+```
+
+**Implemented Rules:**
+
+- **Danger:** Eval/Exec, Pickle, Yaml, Hashlib, Requests, Subprocess, SQL Injection, Command Injection.
+- **Quality:** Complexity, Nesting, Argument Count.
+
+**Files:** `src/rules/mod.rs`, `src/linter.rs`
+
+---
+
+### 4.1 Hybrid PyO3 Distribution ✅ **COMPLETED 2025-12-01**
+
+**Architecture:** Python package with Rust extension + Standalone CLI.
+
+**Components:**
+
+1.  **`cytoscnpy/` (Rust Library):** Core logic + `#[pymodule]`.
+2.  **`python/cytoscnpy/` (Python Wrapper):** CLI wrapper calling Rust.
+3.  **`cytoscnpy-cli/` (Standalone Binary):** Minimal binary wrapper.
+
+**Benefits:** Single codebase, multiple interfaces (Python API, CLI, Standalone).
+
+---
+
+## Phase 5: Radon Metrics Integration ✅ DONE
+
+Integration of code metrics compatible with `radon`.
+
+### 5.1 Raw Metrics (LOC/LLOC/SLOC) ✅ **COMPLETED 2025-11-29**
+
+**Feature:** Radon-compatible line counting.
+
+- **LOC:** Total lines
+- **LLOC:** Logical lines (statements)
+- **SLOC:** Source lines (code only)
+
+**Files:** `src/raw_metrics.rs`
+
+### 5.2 Halstead Metrics ✅ **COMPLETED 2025-11-29**
+
+**Feature:** Program vocabulary and complexity.
+
+- **Metrics:** Vocabulary, Volume, Difficulty, Effort, Bugs.
+- **Implementation:** AST visitor to count operators and operands.
+
+**Files:** `src/halstead.rs`
+
+### 5.3 Maintainability Index (MI) ✅ **COMPLETED 2025-11-29**
+
+**Feature:** Visual Studio-style Maintainability Index (0-100).
+
+- **Formula:** Based on Halstead Volume, Cyclomatic Complexity, SLOC, and Comments.
+- **Ranking:** A (>19), B (10-19), C (<10).
+
+### 5.4 Cyclomatic Complexity Enhancements ✅ **COMPLETED 2025-11-29**
+
+**Feature:** McCabe complexity with A-F ranking.
+
+- **Ranks:** A (1-5), B (6-10), C (11-20), D (21-30), E (31-40), F (41+).
+
+### 5.5 CLI Integration ✅ **COMPLETED 2025-11-30**
+
+**Feature:** Full CLI parity with `radon` commands.
+
+- `cytoscnpy cc`, `raw`, `hal`, `mi`
+- Flags: `--average`, `--total-average`, `--min`, `--max`, `--json`, `--xml`.
+
+### 5.6 Quality Gates & Failure Thresholds ✅ **COMPLETED 2025-12-07**
+
+**Feature:** CI/CD integration with exit code 1 on failure.
+
+- `cc --fail-threshold <N>`: Fail if complexity > N
+- `mi --fail-under <N>`: Fail if MI < N
+- `mi --average`: Show average MI
+- `--fail-on-quality`: Integrated check in main analysis
+
+---
+
+## Phase 6: Editor Integration ✅ DONE
+
+### 6.1 VS Code Extension ✅ **COMPLETED 2025-12-02**
+
+- **Verification:** Verified extension code, compilation, and bundled binary.
+- **File Switching:** Implemented `onDidChangeActiveTextEditor` to trigger analysis on tab switch.
+- **Build Guide:** Created comprehensive guide for cross-platform builds.
+
+---
+
+## Phase 7: Infrastructure & Quality ✅ DONE
+
+### 7.2 Error Handling ✅ **COMPLETED 2025-12-03**
+
+**Problem:** Silently skipped files with syntax errors.
+**Solution:**
+
+- Implemented `ParseError` struct.
+- Modified `analyzer.rs` to capture `rustpython_parser` errors.
+- Updated `output.rs` to display a "Parse Errors" table.
+
+---
+
+## Phase 7.5: Performance Optimizations ✅ DONE
+
+_Systematic performance improvements achieving 55% speed improvement._
+
+### 7.5.1 Compiler Optimizations ✅ **COMPLETED 2025-12-07**
+
+**Feature:** Aggressive release profile settings.
+
+```toml
+[profile.release]
+lto = "thin"
+codegen-units = 1
+opt-level = 3
+strip = true
+```
+
+**Impact:** ~15% performance improvement.
+**Files:** `Cargo.toml`
+
+### 7.5.2 Fast Hashing (FxHashMap) ✅ **COMPLETED 2025-12-07**
+
+**Problem:** `std::collections::HashMap` uses SipHash (cryptographic, slower).
+
+**Solution:** Replaced with `rustc-hash::FxHashMap` and `FxHashSet` throughout.
+
+**Impact:** ~10-15% faster hash operations.
+**Files:** `src/visitor.rs`, `src/analyzer/`
+
+### 7.5.3 Reference Counting Optimization ✅ **COMPLETED 2025-12-07**
+
+**Problem:** References stored as `Vec<(String, PathBuf)>` - PathBuf was never used.
+
+**Solution:** Changed to `FxHashMap<String, usize>` for direct counting.
+
+**Impact:** ~20% faster, 40-60% less memory.
+**Files:** `src/visitor.rs`, `src/analyzer/processing.rs`
+
+### 7.5.4 LineIndex Byte Iteration ✅ **COMPLETED 2025-12-07**
+
+**Problem:** `char_indices()` iterates Unicode characters.
+
+**Solution:** Use `as_bytes().iter()` since `\n` is always single byte in UTF-8.
+
+**Impact:** ~5-10% faster LineIndex creation.
+**Files:** `src/utils.rs`
+
+### 7.5.5 Analyzer Module Refactor ✅ **COMPLETED 2025-12-07**
+
+**Problem:** Monolithic `analyzer.rs` (1100+ lines).
+
+**Solution:** Split into modular structure:
+
+- `analyzer/mod.rs` - CytoScnPy struct + builders
+- `analyzer/types.rs` - ParseError, AnalysisResult, AnalysisSummary
+- `analyzer/heuristics.rs` - apply_penalties, apply_heuristics
+- `analyzer/processing.rs` - Core processing methods
+
+**Impact:** Improved maintainability, no performance regression.
+
+### 7.5.6 lazy_static → OnceLock ✅ **COMPLETED 2025-12-07**
+
+**Problem:** Using `lazy_static!` crate for static initialization.
+
+**Solution:** Migrated to `std::sync::OnceLock` (Rust 1.70+).
+
+**Impact:** Removes dependency, slightly faster initialization.
+**Files:** `src/constants.rs`, `src/framework.rs`, `src/rules/secrets.rs`
+
+### Performance Summary
+
+| Stage                              | Time        | Improvement |
+| ---------------------------------- | ----------- | ----------- |
+| Baseline                           | 5.223 s     | -           |
+| Phase 1 (LTO + FxHashMap)          | 4.044 s     | 22.6%       |
+| Phase 2 (Reference counts)         | 3.059 s     | 41.4%       |
+| **Phase 3 (LineIndex + OnceLock)** | **2.357 s** | **54.9%**   |
+
+---
+
+## Future Roadmap
+
+### Phase 8: Advanced Framework Support
+
+_Deepen understanding of popular Python frameworks to reduce false positives._
+
+- [x] **Django Support** ✅ COMPLETED 2025-12-07
+
+  - **URL Patterns:** Parse `urlpatterns` to find view functions referenced as strings.
+  - **Admin:** Detect `admin.site.register(Model)` to mark models as used.
+  - **Signals:** Detect `pre_save.connect(receiver)` to mark receivers.
+
+- [x] **FastAPI Support** ✅ COMPLETED 2025-12-07
+
+  - **Dependencies:** Scan `Depends(func)` in route handlers to mark dependency functions.
+
+- [x] **Pydantic Support** ✅ COMPLETED 2025-12-07
+  - **Field Tracking:** Explicitly track fields in `BaseModel` subclasses to avoid marking them as unused variables.
+
+### Phase 9: Developer Experience
+
+_Tools to improve the workflow around CytoScnPy._
+
+- [ ] **LSP Server (Language Server Protocol)**
+
+  - Implement a real-time LSP server for VS Code, Neovim, and Zed.
+  - Provide instant diagnostics without saving or running CLI.
+
+- [ ] **Git Integration**
+
+  - **Blame Analysis:** Identify who introduced unused code.
+  - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
+
+- [x] **Continuous Benchmarking** ✅ COMPLETED 2025-12-07
+  - Created benchmark suite with regression detection in `benchmark/`.
+
+### Phase 10: Deep Analysis & Security
+
+_Pushing the boundaries of static analysis._
+
+- [x] **Taint Analysis** ✅ COMPLETED 2025-12-07
+
+  - Track data flow from user inputs (e.g., Flask `request.args`) to dangerous sinks (`eval`, `subprocess`, SQL).
+  - Move beyond heuristic-based security checks.
+
+- [x] **Secret Scanning 2.0** ✅ COMPLETED 2025-12-07
+
+  - Enhance regex scanning with entropy analysis to reduce false positives for API keys.
+
+- [x] **Type Inference (Lightweight)** ✅ COMPLETED 2025-12-07
+
+  - **Strategy:** Focus on fast, local, heuristic-based inference (e.g., literal tracking) to catch obvious errors (`str.append`).
+  - **Non-Goal:** Do not attempt full constraint-based type solving (generics, cross-module). Leave that to dedicated tools like `mypy` or `ty`.
+  - Basic inference for method misuse detection.
+
+- [ ] **Dependency Graph**
+
+  - Generate DOT/Mermaid graphs of module dependencies to aid refactoring.
+
+- [ ] **License Compliance**
+  - Scan `requirements.txt` and `Cargo.toml` for incompatible licenses.
+
+### Phase 11: Auto-Remediation
+
+_Safe, automated code fixes._
+
+- [ ] **Safe Code Removal (`--fix`)**
+  - **Challenge:** Standard AST parsers discard whitespace/comments.
+  - **Strategy:** Use `RustPython` AST byte ranges or `tree-sitter` to identify ranges, then perform precise string manipulation to preserve formatting.

@@ -1,0 +1,32 @@
+{
+  "files": {
+    "pragmas.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "unused_but_ignored",
+          "line_start": 6,
+          "reason": "Function defined but never called (has pragma)"
+        },
+        {
+          "type": "function",
+          "name": "unused_and_reported",
+          "line_start": 9,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "variable",
+          "name": "x",
+          "line_start": 14,
+          "reason": "Variable assigned but never used (has pragma)"
+        },
+        {
+          "type": "variable",
+          "name": "y",
+          "line_start": 17,
+          "reason": "Variable assigned but never used"
+        }
+      ]
+    }
+  }
+}

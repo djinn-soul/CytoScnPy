@@ -1,0 +1,103 @@
+{
+  "name": "cytoscnpy",
+  "publisher": "djinn09",
+  "displayName": "CytoScnPy",
+  "description": "Integrates CytoScnPy to provide real-time static analysis, dead    ",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/djinn09/CytoScnPy"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/djinn09/CytoScnPy/issues"
+  },
+  "homepage": "https://github.com/djinn09/CytoScnPy#readme",
+  "engines": {
+    "vscode": "^1.106.1"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Other"
+  ],
+  "activationEvents": ["onLanguage:python"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cytoscnpy.analyzeCurrentFile",
+        "title": "CytoScnPy: Analyze Current File"
+      },
+      {
+        "command": "cytoscnpy.complexity",
+        "title": "CytoScnPy: Calculate Cyclomatic Complexity (cc)"
+      },
+      {
+        "command": "cytoscnpy.halstead",
+        "title": "CytoScnPy: Calculate Halstead Metrics (hal)"
+      },
+      {
+        "command": "cytoscnpy.maintainability",
+        "title": "CytoScnPy: Calculate Maintainability Index (mi)"
+      }
+    ],
+    "configuration": {
+      "title": "CytoScnPy Configuration",
+      "properties": {
+        "cytoscnpy.path": {
+          "type": "string",
+          "default": "cytoscnpy",
+          "description": "Path to the CytoScnPy executable. Use the full path if not in your system's PATH."
+        },
+        "cytoscnpy.enableSecretsScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable scanning for hardcoded secrets."
+        },
+        "cytoscnpy.enableDangerScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable scanning for dangerous code patterns."
+        },
+        "cytoscnpy.enableQualityScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable scanning for code quality issues."
+        },
+        "cytoscnpy.confidenceThreshold": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "all"],
+          "default": "all",
+          "description": "Minimum confidence level of findings to report."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.106.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.46.3",
+    "eslint": "^9.39.1",
+    "esbuild": "^0.27.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}

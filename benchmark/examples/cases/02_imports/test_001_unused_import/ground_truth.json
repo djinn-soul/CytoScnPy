@@ -1,0 +1,86 @@
+{
+    "test_id": "imports_001",
+    "title": "Unused Import Detection",
+    "description": "Tests detection of various types of unused imports",
+    "category": "imports",
+    "difficulty": "easy",
+    "files": {
+      "code.py": {
+        "dead_items": [
+          {
+            "type": "import",
+            "name": "json",
+            "line_start": 3,
+            "reason": "Module is imported but never used",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "import",
+            "name": "datetime",
+            "line_start": 4,
+            "reason": "Module is imported but never used",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "import",
+            "name": "np",
+            "line_start": 8,
+            "reason": "Aliased import is never used",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "import",
+            "name": "chain",
+            "line_start": 12,
+            "reason": "Imported name is never used",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "import",
+            "name": "repeat",
+            "line_start": 12,
+            "reason": "Imported name is never used",
+            "detectable_by_static_analysis": true
+          }
+        ],
+        "live_items": [
+          {
+            "type": "import",
+            "name": "os",
+            "line_start": 1,
+            "reason": "Used on lines 18, 19, and 21"
+          },
+          {
+            "type": "import",
+            "name": "sys",
+            "line_start": 2,
+            "reason": "Used on line 23"
+          },
+          {
+            "type": "import",
+            "name": "pd",
+            "line_start": 7,
+            "reason": "Used on line 21"
+          },
+          {
+            "type": "import",
+            "name": "defaultdict",
+            "line_start": 11,
+            "reason": "Used on line 24"
+          },
+          {
+            "type": "import",
+            "name": "Counter",
+            "line_start": 11,
+            "reason": "Used on line 23"
+          },
+          {
+            "type": "import",
+            "name": "cycle",
+            "line_start": 12,
+            "reason": "Used on line 27"
+          }
+        ]
+      }
+    }
+  }

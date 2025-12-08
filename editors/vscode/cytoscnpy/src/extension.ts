@@ -1,0 +1,264 @@
+// The module 'vscode' contains the VS Code extensibility API
+// Import the module and reference it with the alias vscode in your code below
+import * as vscode from "vscode";
+import * as os from "os";
+import * as path from "path";
+import { runCytoScnPyAnalysis, CytoScnPyConfig } from "./analyzer";
+import { exec } from "child_process"; // Import exec for metric commands
+
+// Create a diagnostic collection for CytoScnPy issues
+const cytoscnpyDiagnostics =
+  vscode.languages.createDiagnosticCollection("cytoscnpy");
+// Create an output channel for metric commands
+const cytoscnpyOutputChannel =
+  vscode.window.createOutputChannel("CytoScnPy Metrics");
+
+function getExecutablePath(context: vscode.ExtensionContext): string {
+  const platform = os.platform();
+  let executableName: string;
+
+  switch (platform) {
+    case "win32":
+      executableName = "cytoscnpy-cli-win32.exe";
+      break;
+    case "linux":
+      executableName = "cytoscnpy-cli-linux";
+      break;
+    case "darwin":
+      executableName = "cytoscnpy-cli-darwin";
+      break;
+    default:
+      throw new Error(`Unsupported platform: ${platform}`);
+  }
+
+  return path.join(context.extensionPath, "bin", executableName);
+}
+
+// Helper function to get configuration
+function getCytoScnPyConfiguration(
+  context: vscode.ExtensionContext
+): CytoScnPyConfig {
+  const config = vscode.workspace.getConfiguration("cytoscnpy");
+  const pathSetting = config.inspect<string>("path");
+
+  const userSetPath = pathSetting?.globalValue || pathSetting?.workspaceValue;
+
+  return {
+    path: userSetPath || getExecutablePath(context),
+    enableSecretsScan: config.get<boolean>("enableSecretsScan") || false,
+    enableDangerScan: config.get<boolean>("enableDangerScan") || false,
+    enableQualityScan: config.get<boolean>("enableQualityScan") || false,
+    confidenceThreshold: config.get<string>("confidenceThreshold") || "all",
+  };
+}
+
+export function activate(context: vscode.ExtensionContext) {
+  console.log('Congratulations, your extension "cytoscnpy" is now active!');
+  try {
+    // Function to refresh diagnostics for the active document
+    async function refreshDiagnostics(document: vscode.TextDocument) {
+      if (document.languageId !== "python") {
+        return; // Only analyze Python files
+      }
+
+      const filePath = document.uri.fsPath;
+      const config = getCytoScnPyConfiguration(context); // Get current configuration
+
+      try {
+        const result = await runCytoScnPyAnalysis(filePath, config); // Pass config
+        const diagnostics: vscode.Diagnostic[] = result.findings.map(
+          (finding) => {
+            const range = new vscode.Range(
+              new vscode.Position(finding.line_number - 1, 0), // line_number is 1-based
+              new vscode.Position(
+                finding.line_number - 1,
+                document.lineAt(finding.line_number - 1).text.length
+              )
+            );
+            let severity: vscode.DiagnosticSeverity;
+            switch (finding.severity) {
+              case "error":
+                severity = vscode.DiagnosticSeverity.Error;
+                break;
+              case "warning":
+                severity = vscode.DiagnosticSeverity.Warning;
+                break;
+              case "info":
+                severity = vscode.DiagnosticSeverity.Information;
+                break;
+              default:
+                severity = vscode.DiagnosticSeverity.Information;
+            }
+            return new vscode.Diagnostic(
+              range,
+              `${finding.message} [${finding.rule_id}]`,
+              severity
+            );
+          }
+        );
+        cytoscnpyDiagnostics.set(document.uri, diagnostics);
+      } catch (error: any) {
+        console.error(
+          `Error refreshing CytoScnPy diagnostics: ${error.message}`
+        );
+        vscode.window.showErrorMessage(
+          `CytoScnPy analysis failed: ${error.message}`
+        );
+      }
+    }
+
+    // Initial analysis when a document is opened or becomes active
+    if (vscode.window.activeTextEditor) {
+      refreshDiagnostics(vscode.window.activeTextEditor.document);
+    }
+
+    // Analyze document on change with debounce
+    let debounceTimer: NodeJS.Timeout;
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeTextDocument((event) => {
+        if (event.document.languageId === "python") {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            refreshDiagnostics(event.document);
+          }, 500);
+        }
+      })
+    );
+
+    // Analyze when the active editor changes (switching tabs)
+    context.subscriptions.push(
+      vscode.window.onDidChangeActiveTextEditor((editor) => {
+        if (editor && editor.document.languageId === "python") {
+          refreshDiagnostics(editor.document);
+        }
+      })
+    );
+
+    // Re-analyze all visible documents when configuration changes
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration("cytoscnpy")) {
+          vscode.window.visibleTextEditors.forEach((editor) => {
+            if (editor.document.languageId === "python") {
+              refreshDiagnostics(editor.document);
+            }
+          });
+        }
+      })
+    );
+
+    // Clear diagnostics when a document is closed
+    context.subscriptions.push(
+      vscode.workspace.onDidCloseTextDocument((document) => {
+        cytoscnpyDiagnostics.delete(document.uri);
+      })
+    );
+
+    // Register a command to manually trigger analysis (e.g., from command palette)
+    const disposableAnalyze = vscode.commands.registerCommand(
+      "cytoscnpy.analyzeCurrentFile",
+      () => {
+        if (vscode.window.activeTextEditor) {
+          refreshDiagnostics(vscode.window.activeTextEditor.document);
+          vscode.window.showInformationMessage("CytoScnPy analysis triggered.");
+        } else {
+          vscode.window.showWarningMessage("No active text editor to analyze.");
+        }
+      }
+    );
+
+    context.subscriptions.push(disposableAnalyze);
+
+    // Helper function to run metric commands
+    async function runMetricCommand(
+      context: vscode.ExtensionContext,
+      commandType: "cc" | "hal" | "mi",
+      commandName: string
+    ) {
+      if (
+        !vscode.window.activeTextEditor ||
+        vscode.window.activeTextEditor.document.languageId !== "python"
+      ) {
+        vscode.window.showWarningMessage(
+          `No active Python file to run ${commandName} on.`
+        );
+        return;
+      }
+
+      const filePath = vscode.window.activeTextEditor.document.uri.fsPath;
+      const config = getCytoScnPyConfiguration(context);
+      const command = `${config.path} ${commandType} "${filePath}"`;
+
+      cytoscnpyOutputChannel.clear();
+      cytoscnpyOutputChannel.show();
+      cytoscnpyOutputChannel.appendLine(`Running: ${command}\n`);
+
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          cytoscnpyOutputChannel.appendLine(
+            `Error running ${commandName}: ${error.message}`
+          );
+          cytoscnpyOutputChannel.appendLine(`Stderr: ${stderr}`);
+          vscode.window.showErrorMessage(
+            `CytoScnPy ${commandName} failed: ${error.message}`
+          );
+          return;
+        }
+        if (stderr) {
+          cytoscnpyOutputChannel.appendLine(
+            `Stderr for ${commandName}:\n${stderr}`
+          );
+        }
+        cytoscnpyOutputChannel.appendLine(
+          `Stdout for ${commandName}:\n${stdout}`
+        );
+      });
+    }
+
+    // Register metric commands
+    context.subscriptions.push(
+      vscode.commands.registerCommand("cytoscnpy.complexity", () =>
+        runMetricCommand(context, "cc", "Cyclomatic Complexity")
+      )
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("cytoscnpy.halstead", () =>
+        runMetricCommand(context, "hal", "Halstead Metrics")
+      )
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("cytoscnpy.maintainability", () =>
+        runMetricCommand(context, "mi", "Maintainability Index")
+      )
+    );
+
+    // Register a HoverProvider for Python files
+    context.subscriptions.push(
+      vscode.languages.registerHoverProvider("python", {
+        provideHover(document, position, token) {
+          const diagnostics = cytoscnpyDiagnostics.get(document.uri);
+          if (!diagnostics) {
+            return;
+          }
+
+          for (const diagnostic of diagnostics) {
+            if (diagnostic.range.contains(position)) {
+              // Return the diagnostic message as markdown for better formatting
+              return new vscode.Hover(
+                new vscode.MarkdownString(diagnostic.message)
+              );
+            }
+          }
+          return;
+        },
+      })
+    );
+  } catch (error) {
+    console.error("Error during extension activation:", error);
+  }
+}
+
+export function deactivate() {
+  cytoscnpyDiagnostics.dispose(); // Clean up diagnostics when extension is deactivated
+  cytoscnpyOutputChannel.dispose(); // Clean up output channel
+}

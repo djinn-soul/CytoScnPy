@@ -1,0 +1,29 @@
+# Example configuration file for CytoScnPy
+# Place this in your project root as .cytoscnpy.toml
+
+[cytoscnpy]
+# Confidence threshold (0-100)
+confidence = 60
+
+# Enable/Disable rule sets
+secrets = true
+danger = true
+quality = true
+
+# Exclude folders
+exclude_folders = ["venv", "build", "dist", "node_modules"]
+
+# Force-include folders (overrides default exclusions)
+include_folders = [".github"]
+
+# Include test files in analysis
+include_tests = false
+
+# Rule-specific configurations
+max_lines = 50
+max_args = 5
+complexity = 10
+nesting = 3
+
+# Ignore specific rules globally
+ignore = ["CSP-L001"]

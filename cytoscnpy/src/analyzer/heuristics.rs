@@ -1,0 +1,111 @@
+//! Heuristics for adjusting confidence scores on definitions.
+
+use crate::constants::{AUTO_CALLED, PENALTIES};
+use crate::framework::FrameworkAwareVisitor;
+use crate::test_utils::TestAwareVisitor;
+use crate::visitor::Definition;
+use std::collections::HashSet;
+
+/// Applies penalty-based confidence adjustments to definitions.
+///
+/// This function lowers confidence for:
+/// - Ignored lines (pragma: no cytoscnpy).
+/// - Test files and test-decorated functions.
+/// - Framework decorations (lowers confidence for framework-managed code).
+/// - Private naming conventions (lowers confidence for internal helpers).
+/// - Dunder methods (ignores magic methods).
+pub fn apply_penalties<S: ::std::hash::BuildHasher>(
+    def: &mut Definition,
+    fv: &FrameworkAwareVisitor,
+    tv: &TestAwareVisitor,
+    ignored_lines: &HashSet<usize, S>,
+    include_tests: bool,
+) {
+    // Pragma: no cytoscnpy (highest priority - always skip)
+    // If the line is marked to be ignored, set confidence to 0.
+    if ignored_lines.contains(&def.line) {
+        def.confidence = 0;
+        return;
+    }
+
+    // Test files: confidence 0 (ignore)
+    // We don't want to report unused code in test files usually.
+    if !include_tests && (tv.is_test_file || tv.test_decorated_lines.contains(&def.line)) {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("test_related").unwrap_or(&100));
+        if def.confidence == 0 {
+            return;
+        }
+    }
+
+    // Framework decorated: confidence 0 (ignore) or lower
+    // Frameworks often use dependency injection or reflection, making static analysis hard.
+    if fv.framework_decorated_lines.contains(&def.line) {
+        def.confidence = *PENALTIES().get("framework_magic").unwrap_or(&40); // Low confidence
+    }
+
+    // Private names
+    // Names starting with _ are often internal and might not be used externally,
+    // but might be used implicitly. We lower confidence.
+    if def.simple_name.starts_with('_') && !def.simple_name.starts_with("__") {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("private_name").unwrap_or(&80));
+    }
+
+    // Dunder methods
+    // Magic methods like __init__, __str__ are called by Python internals.
+    if def.simple_name.starts_with("__") && def.simple_name.ends_with("__") {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("dunder_or_magic").unwrap_or(&100));
+    }
+
+    // Auto-called methods
+    if AUTO_CALLED().contains(def.simple_name.as_str()) {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("dunder_or_magic").unwrap_or(&100));
+    }
+
+    // In __init__.py
+    if def.file.file_name().is_some_and(|n| n == "__init__.py") {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("in_init_file").unwrap_or(&15));
+    }
+}
+
+/// Apply advanced heuristics to definitions to reduce false positives.
+pub fn apply_heuristics(def: &mut Definition) {
+    // 1. Settings/Config Class Heuristic
+    // If a variable is in a class ending with "Settings" or "Config" and is uppercase, ignore it.
+    if def.def_type == "variable" && def.full_name.contains('.') {
+        if let Some((class_part, var_name)) = def.full_name.rsplit_once('.') {
+            // Check if variable is uppercase (convention for constants/settings)
+            if var_name.chars().all(|c| c.is_uppercase() || c == '_') {
+                // Extract simple class name
+                let class_simple = class_part.split('.').next_back().unwrap_or("");
+                if class_simple == "Settings"
+                    || class_simple == "Config"
+                    || class_simple.ends_with("Settings")
+                    || class_simple.ends_with("Config")
+                {
+                    def.confidence = 0;
+                }
+            }
+        }
+    }
+
+    // 2. Visitor Pattern Heuristic
+    // Methods starting with "visit_", "leave_", or "transform_" are often dynamically called.
+    if def.def_type == "method"
+        && (def.simple_name.starts_with("visit_")
+            || def.simple_name.starts_with("leave_")
+            || def.simple_name.starts_with("transform_"))
+    {
+        // Mark as used by incrementing references
+        def.references += 1;
+    }
+}

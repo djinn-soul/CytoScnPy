@@ -1,0 +1,61 @@
+{
+    "test_id": "basic_004",
+    "title": "Nested Function Detection",
+    "description": "Tests detection of unused nested functions",
+    "category": "basic",
+    "difficulty": "medium",
+    "files": {
+      "code.py": {
+        "dead_items": [
+          {
+            "type": "function",
+            "name": "unused_inner",
+            "line_start": 8,
+            "line_end": 10,
+            "reason": "Nested function is defined but never called",
+            "detectable_by_static_analysis": true,
+            "notes": "This is in outer_function"
+          },
+          {
+            "type": "function",
+            "name": "unused_inner",
+            "line_start": 23,
+            "line_end": 25,
+            "reason": "Nested function is defined but never called or returned",
+            "detectable_by_static_analysis": true,
+            "notes": "This is in outer_with_return"
+          }
+        ],
+        "live_items": [
+          {
+            "type": "function",
+            "name": "outer_function",
+            "line_start": 1,
+            "line_end": 13,
+            "reason": "Called on line 30"
+          },
+          {
+            "type": "function",
+            "name": "used_inner",
+            "line_start": 4,
+            "line_end": 6,
+            "reason": "Called within outer_function on line 12"
+          },
+          {
+            "type": "function",
+            "name": "outer_with_return",
+            "line_start": 16,
+            "line_end": 27,
+            "reason": "Called on line 32"
+          },
+          {
+            "type": "function",
+            "name": "inner_returned",
+            "line_start": 19,
+            "line_end": 21,
+            "reason": "Returned by outer_with_return and called on line 33"
+          }
+        ]
+      }
+    }
+  }

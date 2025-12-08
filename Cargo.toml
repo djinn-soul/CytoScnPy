@@ -1,0 +1,55 @@
+[workspace]
+members = ["cytoscnpy", "cytoscnpy-cli"]
+resolver = "2"
+
+# Workspace-wide Clippy lint configuration
+[workspace.lints.rust]
+unsafe_code = "warn"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+# Enable pedantic lints for stricter code quality
+pedantic = { level = "warn", priority = -1 }
+
+# Specific lints to enforce
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "allow"
+print_stderr = "allow"
+
+# Code clarity
+clone_on_ref_ptr = "warn"
+redundant_clone = "warn"
+inefficient_to_string = "warn"
+str_to_string = "warn"
+# string_to_string is removed in newer clippy, covered by implicit_clone
+
+# Error handling
+result_large_err = "warn"
+error_impl_error = "warn"
+
+# Performance
+large_futures = "warn"
+large_stack_arrays = "warn"
+large_types_passed_by_value = "warn"
+
+# Allow common pedantic false positives
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+too_many_lines = "allow"
+struct_excessive_bools = "allow"
+cast_precision_loss = "allow"
+return_self_not_must_use = "allow"
+
+# Release profile optimizations for better performance
+[profile.release]
+lto = "thin"      # Link-time optimization
+codegen-units = 1 # Better optimization, slower compile
+opt-level = 3     # Maximum optimization
+strip = true      # Strip debug symbols

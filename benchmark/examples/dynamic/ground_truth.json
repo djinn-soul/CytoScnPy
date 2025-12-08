@@ -1,0 +1,10 @@
+{
+  "files": {
+    "dynamic_patterns.py": {
+      "dead_items": []
+    },
+    "metaprogramming.py": {
+      "dead_items": []
+    }
+  }
+}

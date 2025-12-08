@@ -1,0 +1,46 @@
+# Sample pre-commit configuration for CytoScnPy
+# Copy this file to your project root and run:
+#   pip install pre-commit
+#   pre-commit install
+#
+# For more information, see: https://pre-commit.com
+
+repos:
+  # CytoScnPy - Python Static Analysis
+  - repo: https://github.com/djinn09/CytoScnPy
+    rev: v1.0.0 # Use the latest release tag
+    hooks:
+      # Full analysis (recommended)
+      - id: cytoscnpy-check
+        # Uncomment to customize:
+        # args: ['--confidence', '50']
+
+      # Or use individual hooks:
+      # - id: cytoscnpy-danger   # Dangerous code patterns
+      # - id: cytoscnpy-secrets  # Hardcoded secrets
+      # - id: cytoscnpy-quality  # Code quality checks
+      # - id: cytoscnpy-security # High-confidence security scan
+
+  # Standard pre-commit hooks (recommended additions)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # Python formatting (optional)
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+
+  # Python linting (optional)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.4
+    hooks:
+      - id: ruff
+        args: [--fix]

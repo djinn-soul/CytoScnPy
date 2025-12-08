@@ -1,0 +1,169 @@
+{
+    "test_id": "imports_005",
+    "title": "Package Import Patterns",
+    "description": "Tests detection of imports across package boundaries, including re-exports",
+    "category": "imports",
+    "difficulty": "hard",
+    "files": {
+      "__init__.py": {
+        "dead_items": [
+          {
+            "type": "function",
+            "name": "unused_package_function",
+            "line_start": 12,
+            "line_end": 14,
+            "reason": "Function is defined at package level but never used",
+            "detectable_by_static_analysis": true
+          }
+        ],
+        "live_items": [
+          {
+            "type": "import",
+            "name": "exported_function",
+            "line_start": 1,
+            "reason": "Imported and re-exported as package_function, used in use_package.py"
+          },
+          {
+            "type": "import",
+            "name": "ExportedClass",
+            "line_start": 2,
+            "reason": "Imported and re-exported, used in use_package.py"
+          },
+          {
+            "type": "variable",
+            "name": "PACKAGE_CONSTANT",
+            "line_start": 4,
+            "reason": "Used in use_package.py on line 7"
+          },
+          {
+            "type": "function",
+            "name": "package_level_function",
+            "line_start": 7,
+            "line_end": 9,
+            "reason": "Called in use_package.py on line 9"
+          }
+        ]
+      },
+      "submodule_a.py": {
+        "dead_items": [
+          {
+            "type": "function",
+            "name": "unused_function",
+            "line_start": 11,
+            "line_end": 13,
+            "reason": "Function is never used internally or exported",
+            "detectable_by_static_analysis": true
+          }
+        ],
+        "live_items": [
+          {
+            "type": "function",
+            "name": "exported_function",
+            "line_start": 1,
+            "line_end": 3,
+            "reason": "Exported via __init__.py and used in use_package.py"
+          },
+          {
+            "type": "function",
+            "name": "internal_function",
+            "line_start": 6,
+            "line_end": 8,
+            "reason": "Called internally on line 16"
+          }
+        ]
+      },
+      "submodule_b.py": {
+        "dead_items": [
+          {
+            "type": "class",
+            "name": "UnusedClass",
+            "line_start": 27,
+            "line_end": 35,
+            "reason": "Class is never used internally or exported",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "method",
+            "name": "UnusedClass.method",
+            "line_start": 33,
+            "line_end": 35,
+            "reason": "Method of unused class",
+            "detectable_by_static_analysis": true
+          },
+          {
+            "type": "method",
+            "name": "ExportedClass.unused_method",
+            "line_start": 11,
+            "line_end": 13,
+            "reason": "Method is never called by importers",
+            "detectable_by_static_analysis": true
+          }
+        ],
+        "live_items": [
+          {
+            "type": "class",
+            "name": "ExportedClass",
+            "line_start": 1,
+            "line_end": 13,
+            "reason": "Exported via __init__.py and instantiated in use_package.py"
+          },
+          {
+            "type": "method",
+            "name": "ExportedClass.method",
+            "line_start": 7,
+            "line_end": 9,
+            "reason": "Called in use_package.py on line 16"
+          },
+          {
+            "type": "class",
+            "name": "InternalClass",
+            "line_start": 16,
+            "line_end": 24,
+            "reason": "Instantiated internally on line 38"
+          },
+          {
+            "type": "method",
+            "name": "InternalClass.method",
+            "line_start": 22,
+            "line_end": 24,
+            "reason": "Called internally on line 39"
+          }
+        ]
+      },
+      "use_package.py": {
+        "dead_items": [],
+        "live_items": [
+          {
+            "type": "import",
+            "name": "package",
+            "line_start": 1,
+            "reason": "Used on lines 7, 9"
+          },
+          {
+            "type": "import",
+            "name": "package_function",
+            "line_start": 2,
+            "reason": "Used on line 12"
+          },
+          {
+            "type": "import",
+            "name": "ExportedClass",
+            "line_start": 2,
+            "reason": "Used on line 15"
+          },
+          {
+            "type": "function",
+            "name": "main",
+            "line_start": 5,
+            "line_end": 19,
+            "reason": "Called on line 23"
+          }
+        ]
+      }
+    },
+    "challenges": [
+      "Tests tool's ability to detect usage patterns across package boundaries",
+      "Tests understanding of package re-exports",
+      "Requires analyzing an entire package structure"
+    ]
+  }

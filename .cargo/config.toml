@@ -1,0 +1,31 @@
+# Cargo configuration for CytoScnPy workspace
+
+[alias]
+# Run clippy with all targets
+lint = "clippy --all-targets --all-features"
+# Run clippy and fix auto-fixable issues
+lint-fix = "clippy --all-targets --all-features --fix --allow-dirty --allow-staged"
+
+# Development workflow (cargo-watch)
+watch-check = "watch -x check" # Auto-run check on file changes
+watch-test = "watch -x test"   # Auto-run tests on file changes
+watch-lint = "watch -x clippy" # Auto-run clippy on file changes
+
+# Testing tools
+coverage = "tarpaulin --out Html --output-dir coverage" # Generate HTML coverage report
+mutants = "mutants --jobs 4" # Run mutation testing (verify test quality)
+semver = "semver-checks" # Check for semver violations after upgrades
+
+# Note: cargo audit, cargo outdated, cargo deny work directly as installed subcommands
+
+[build]
+# Build with all available cores
+jobs = -1
+# rustflags = ["-W", "missing-docs"]
+
+# PyO3 will automatically detect Python from VIRTUAL_ENV
+# This works cross-platform (Windows, Linux, macOS)
+[env]
+VIRTUAL_ENV = { value = ".venv", relative = true }
+# Enable colored output
+CARGO_TERM_COLOR = "always"

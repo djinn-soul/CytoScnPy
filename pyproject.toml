@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "cytoscnpy"
+description = "High-performance static analysis tool for Python (Rust implementation)"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dynamic = ["version"]
+
+[tool.maturin]
+bindings = "pyo3"
+strip = true
+module-name = "cytoscnpy"
+python-source = "python"
+manifest-path = "cytoscnpy/Cargo.toml"
+
+
+[project.scripts]
+cytoscnpy = "cytoscnpy.cli:main"

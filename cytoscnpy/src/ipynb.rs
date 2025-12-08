@@ -1,0 +1,60 @@
+use anyhow::Result;
+use nbformat::{parse_notebook, Notebook};
+use std::fs;
+use std::path::Path;
+
+/// Extract Python code from all code cells in a notebook
+pub fn extract_notebook_code(path: &Path) -> Result<String> {
+    let notebook_json = fs::read_to_string(path)?;
+    let notebook = parse_notebook(&notebook_json)?;
+
+    let code_cells: Vec<String> = match notebook {
+        Notebook::V4(nb) => nb
+            .cells
+            .iter()
+            .filter_map(|cell| match cell {
+                nbformat::v4::Cell::Code { source, .. } => Some(source.join("")),
+                _ => None,
+            })
+            .collect(),
+        Notebook::Legacy(nb) => nb
+            .cells
+            .iter()
+            .filter_map(|cell| match cell {
+                nbformat::legacy::Cell::Code { source, .. } => Some(source.join("")),
+                _ => None,
+            })
+            .collect(),
+    };
+
+    Ok(code_cells.join("\n\n"))
+}
+
+/// Extract code cells with their indices for cell-level reporting
+pub fn extract_notebook_cells(path: &Path) -> Result<Vec<(usize, String)>> {
+    let notebook_json = fs::read_to_string(path)?;
+    let notebook = parse_notebook(&notebook_json)?;
+
+    let cells: Vec<(usize, String)> = match notebook {
+        Notebook::V4(nb) => nb
+            .cells
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, cell)| match cell {
+                nbformat::v4::Cell::Code { source, .. } => Some((idx, source.join(""))),
+                _ => None,
+            })
+            .collect(),
+        Notebook::Legacy(nb) => nb
+            .cells
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, cell)| match cell {
+                nbformat::legacy::Cell::Code { source, .. } => Some((idx, source.join(""))),
+                _ => None,
+            })
+            .collect(),
+    };
+
+    Ok(cells)
+}

@@ -1,0 +1,68 @@
+{
+  "files": {
+    "security_risks.py": {
+      "dead_items": [
+        {
+          "type": "import",
+          "name": "os",
+          "line_start": 6,
+          "reason": "Import unused"
+        },
+        {
+          "type": "function",
+          "name": "unsafe_eval",
+          "line_start": 14,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "unsafe_exec",
+          "line_start": 18,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "unsafe_pickle",
+          "line_start": 22,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "unsafe_yaml",
+          "line_start": 26,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "weak_hash",
+          "line_start": 30,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "unsafe_request",
+          "line_start": 34,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "unsafe_subprocess",
+          "line_start": 38,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "variable",
+          "name": "AWS_KEY",
+          "line_start": 42,
+          "reason": "Variable assigned but never used"
+        },
+        {
+          "type": "variable",
+          "name": "STRIPE_KEY",
+          "line_start": 43,
+          "reason": "Variable assigned but never used"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "files": {
+    "basic_dead_code.py": {
+      "dead_items": [
+        {
+          "type": "import",
+          "name": "sys",
+          "line_start": 7,
+          "reason": "Import unused"
+        },
+        {
+          "type": "function",
+          "name": "unused_function",
+          "line_start": 12,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "method",
+          "name": "UsedClass.unused_method",
+          "line_start": 19,
+          "reason": "Method defined but never called"
+        },
+        {
+          "type": "class",
+          "name": "UnusedClass",
+          "line_start": 22,
+          "reason": "Class defined but never instantiated"
+        },
+        {
+          "type": "variable",
+          "name": "unused_var",
+          "line_start": 31,
+          "reason": "Variable assigned but never used"
+        }
+      ]
+    },
+    "quality_issues.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "append_to",
+          "line_start": 7,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "too_many_args",
+          "line_start": 12,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "deep_nesting",
+          "line_start": 16,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "bare_except",
+          "line_start": 24,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "dangerous_comparison",
+          "line_start": 31,
+          "reason": "Function defined but never called"
+        },
+        {
+          "type": "function",
+          "name": "complex_function",
+          "line_start": 38,
+          "reason": "Function defined but never called"
+        }
+      ]
+    }
+  }
+}

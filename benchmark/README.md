@@ -2,7 +2,6 @@
 
 ---
 
-
 This benchmark evaluates **10 dead code detection tools** against a curated Python test suite containing **126 ground truth items** across 6 categories. The goal is to measure detection accuracy (precision, recall, F1), performance (execution time, memory), and identify the best tools for different use cases.
 
 ### Key Highlights
@@ -309,6 +308,60 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 - **Method detection** requires tracking inheritance, `super()`, and dynamic dispatch
 - **Variable detection** is limited by scoping complexity and pattern matching
 - **Dynamic patterns** (`getattr`, `globals()`, `eval`) defeat all static analyzers
+
+---
+
+## 🔄 Alternative Tools (Not Yet Benchmarked)
+
+The following tools could be considered for future benchmark additions. They offer different approaches or specialized capabilities for dead code detection.
+
+### Static Analyzers
+
+| Tool                                                           | Type               | Description                                                | Why Consider                                          |
+| -------------------------------------------------------------- | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------- |
+| **[Pyflakes](https://github.com/PyCQA/pyflakes)**              | Lightweight Linter | Fast, minimal static analysis focusing on errors not style | Faster than Flake8, focuses only on logical errors    |
+| **[deadcode](https://github.com/albertas/deadcode)**           | Dead Code Detector | Enhanced Vulture alternative with `--fix` auto-removal     | Better scope tracking, automatic code removal support |
+| **[Prospector](https://github.com/prospector-dev/prospector)** | Meta-Linter        | Aggregates Pylint, Pyflakes, Vulture in one tool           | All-in-one solution, highly customizable              |
+| **[Fixit](https://github.com/Instagram/Fixit)**                | Auto-fixer         | Facebook's lint framework with auto-fix capabilities       | Can automatically remove detected dead code           |
+| **[Semgrep](https://github.com/semgrep/semgrep)**              | Pattern Matcher    | Customizable pattern-based code analysis                   | User-defined dead code patterns, multi-language       |
+| **[Bandit](https://github.com/PyCQA/bandit)**                  | Security Linter    | Security-focused analysis (includes some dead code)        | Catches security-related unused code patterns         |
+
+### Dynamic Analyzers
+
+| Tool                                                        | Type             | Description                             | Why Consider                     |
+| ----------------------------------------------------------- | ---------------- | --------------------------------------- | -------------------------------- |
+| **[Coverage.py](https://github.com/coveragepy/coveragepy)** | Runtime Coverage | Measures code execution during tests    | 100% accuracy for executed paths |
+| **[Figleaf](https://github.com/ctb/figleaf)**               | Trace Analyzer   | Monitors code execution at runtime      | Fine-grained execution tracking  |
+| **[py-spy](https://github.com/benfred/py-spy)**             | Profiler         | Sampling profiler showing executed code | Low overhead, production-safe    |
+
+### Specialized Tools
+
+| Tool                                                                     | Type            | Description                                      | Why Consider                                 |
+| ------------------------------------------------------------------------ | --------------- | ------------------------------------------------ | -------------------------------------------- |
+| **[autoflake](https://github.com/PyCQA/autoflake)**                      | Import Cleaner  | Removes unused imports & variables automatically | Auto-fix focused, integrates with pre-commit |
+| **[unimport](https://github.com/hakancelikdev/unimport)**                | Import Analyzer | Specialized unused import detector               | More import patterns than Ruff/Flake8        |
+| **[pycln](https://github.com/hadialqattan/pycln)**                       | Import Cleaner  | Formatter for import cleanup                     | Respects `__all__`, type-checking imports    |
+| **[absolufy-imports](https://github.com/MarcoGorelli/absolufy-imports)** | Import Analyzer | Converts relative to absolute imports            | Helps with cross-module analysis             |
+
+### IDE/Editor Extensions
+
+| Tool                                                                                        | Platform    | Description                                                 |
+| ------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------- |
+| **[Pylance](https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance)** | VS Code     | Microsoft's Python language server with unused code graying |
+| **[PyCharm Inspector](https://www.jetbrains.com/pycharm/)**                                 | PyCharm IDE | Built-in dead code detection with quick-fixes               |
+| **[Sourcery](https://sourcery.ai/)**                                                        | Multiple    | AI-powered refactoring with dead code detection             |
+
+### Why These Aren't Included Yet
+
+| Reason                                       | Tools Affected                 |
+| -------------------------------------------- | ------------------------------ |
+| **Dynamic analysis** (requires running code) | Coverage.py, Figleaf, py-spy   |
+| **Meta-tools** (wrap existing tools)         | Prospector, Deadcode Detective |
+| **Different focus** (security, formatting)   | Bandit, autoflake, pycln       |
+| **IDE-only** (not standalone CLI)            | Pylance, PyCharm               |
+| **Commercial/SaaS**                          | Sourcery, DeepSource           |
+
+> **💡 Tip**: For the most comprehensive dead code detection, combine a static analyzer (Vulture/CytoScnPy) with a dynamic analyzer (Coverage.py) and an import linter (Ruff/autoflake).
 
 ---
 

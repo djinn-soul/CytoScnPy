@@ -1,4 +1,4 @@
-# CytoScnPy-RS Test Suite
+# CytoScnPy Test Suite
 
 This directory contains tests for the Rust implementation of CytoScnPy.
 
@@ -137,7 +137,7 @@ cargo test --test visitor_test
 #### Windows
 
 ```powershell
-cd cytoscnpy-rs
+cd cytoscnpy
 cargo test --test edge_cases_test
 
 # Or with verbose output
@@ -147,7 +147,7 @@ cargo test --test edge_cases_test -- --nocapture
 #### Linux/macOS
 
 ```bash
-cd cytoscnpy-rs
+cd cytoscnpy
 cargo test --test edge_cases_test
 
 # Or with verbose output

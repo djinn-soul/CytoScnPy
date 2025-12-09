@@ -12,8 +12,18 @@ This is a thin wrapper around the `cytoscnpy` library crate that provides a stan
 # Build
 cargo build --release --package cytoscnpy-cli
 
-# Run from source
+# Run dead code analysis
+cargo run --package cytoscnpy-cli -- /path/to/project
+
+# Run with all security checks
+cargo run --package cytoscnpy-cli -- /path/to/project --secrets --danger --taint
+
+# JSON output for CI/CD
 cargo run --package cytoscnpy-cli -- /path/to/project --json
+
+# Metric subcommands
+cargo run --package cytoscnpy-cli -- cc /path/to/project  # Cyclomatic complexity
+cargo run --package cytoscnpy-cli -- mi /path/to/project  # Maintainability index
 ```
 
 ## Structure

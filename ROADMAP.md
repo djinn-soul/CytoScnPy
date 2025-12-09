@@ -8,8 +8,6 @@ This comprehensive document details the complete development roadmap for CytoScn
 
 **Performance Highlights:**
 
-- **79x faster** than pure Python implementation (0.18s vs 14.22s)
-- **3.7x less memory** (~40MB vs ~150MB)
 - **Hybrid distribution** - pip installable with both Python API and CLI
 
 ---
@@ -68,6 +66,7 @@ This comprehensive document details the complete development roadmap for CytoScn
 - Rich CLI output with tables and colors
 - JSON output for CI/CD integration
 - Progress spinner and file statistics
+- Taint analysis (`--taint` flag)
 
 ---
 
@@ -571,6 +570,27 @@ _Tools to improve the workflow around CytoScnPy._
 
 - [x] **Continuous Benchmarking** ✅ COMPLETED 2025-12-07
   - Created benchmark suite with regression detection in `benchmark/`.
+
+#### Benchmarking Infrastructure Ideas
+
+| Component                   | Description                             | Tools/Approaches             |
+| --------------------------- | --------------------------------------- | ---------------------------- |
+| **Containerized Execution** | Isolated, reproducible environments     | Docker, Podman               |
+| **Cross-Platform Matrix**   | Test on Windows, Linux, macOS           | GitHub Actions matrix        |
+| **Python Version Matrix**   | Test with Python 3.8-3.12               | tox, nox                     |
+| **Memory Profiling**        | Track peak RSS, allocations             | tracemalloc, memory_profiler |
+| **CPU Profiling**           | Identify bottlenecks                    | py-spy, cProfile             |
+| **Differential Testing**    | Compare outputs between tool versions   | Custom diff scripts          |
+| **Regression Testing**      | Detect accuracy/performance regressions | Baseline JSON comparison     |
+
+#### Suggested Future Improvements
+
+1. **Expand Ground Truth**: Add more test cases for edge cases (decorators, type hints, async code)
+2. **Real-World Validation**: Run on popular open-source projects (Django, Flask, requests)
+3. **Add MCC Metric**: Better handles imbalanced detection categories
+4. **Per-File Breakdown**: Show which specific test files each tool struggles with
+5. **Confidence Threshold Sweep**: Test Vulture at multiple confidence levels (0%, 30%, 60%, 90%)
+6. **Cross-Language Comparison**: Compare Python tools with similar tools for other languages
 
 ### Phase 10: Deep Analysis & Security
 

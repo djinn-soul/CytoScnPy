@@ -119,7 +119,7 @@ CytoScnPy/
 │       ├── python_bindings.rs # PyO3 implementation (modular)
 │       ├── entry_point.rs    # Core CLI logic
 │       ├── config.rs         # Configuration (.cytoscnpy.toml)
-│       ├── analyzer.rs       # Main analysis engine
+│       ├── analyzer/         # Main analysis engine (dead code detection)
 │       ├── visitor.rs        # AST traversal
 │       ├── framework.rs      # Framework-aware patterns
 │       ├── test_utils.rs     # Test file detection
@@ -313,14 +313,15 @@ See [`ROADMAP.md`](ROADMAP.md) for the detailed roadmap.
 
 **High Priority:**
 
-- **Import Resolution:** Improving the matching of imports to usages (e.g., `import sys` vs `sys.exit()`).
-- **Method/Class Context:** Tracking class scope to correctly resolve `self.method()` calls.
-- **Advanced Heuristics:** Porting visitor patterns and auto-called method detection from Python.
+- **Cross-File Analysis:** Improving cross-module import resolution and dead code detection across files.
+- **Variable Scope Tracking:** Better detection of unused variables (currently lowest F1 score in benchmarks).
+- **Import Detection:** Improving precision/recall for unused import detection.
 
 **Medium Priority:**
 
-- **Unused Parameter Detection:** Detecting parameters that are defined but never used.
-- **Dataclass Field Tracking:** Better support for `@dataclass`.
+- **Type Inference:** Expanding basic type inference for method misuse detection.
+- **Framework Support:** Adding more framework patterns (Celery, SQLAlchemy, Pydantic).
+- **Performance:** Optimizing for very large codebases (1M+ lines).
 
 ## 🔧 Development Tooling
 
@@ -524,7 +525,7 @@ The Rust implementation is validated against a comprehensive Python test suite (
 - **72 tests** across 10+ categories
 - **56 project fixtures** (isolated temporary projects)
 - **Covers advanced Python patterns** (decorators, async/await, metaclasses, etc.)
-- **Tests all CLI flags** (--danger, --quality, --secrets, --confidence)
+- **Tests all CLI flags** (--danger, --quality, --secrets, --taint, --confidence)
 - **Parametrized tests** for different confidence thresholds
 
 #### **Running Python Tests:**

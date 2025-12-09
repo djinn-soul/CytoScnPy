@@ -11,7 +11,7 @@ use std::time::Duration;
 /// Print the exclusion list in styled format
 pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std::io::Result<()> {
     if folders.is_empty() {
-        writeln!(writer, "{}", "✓ No folders excluded".green())?;
+        writeln!(writer, "{}", "[OK] No folders excluded".green())?;
     } else {
         let list = folders
             .iter()
@@ -28,7 +28,7 @@ pub fn create_spinner() -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+            .tick_chars("-\\|/")
             .template("{spinner:.cyan} {msg}")
             .expect("Invalid progress style template"),
     );
@@ -76,21 +76,21 @@ pub fn print_summary_pills(
     writeln!(
         writer,
         "{}  {}  {}  {}  {}",
-        pill("🔍 Unreachable", result.unused_functions.len()),
-        pill("📦 Imports", result.unused_imports.len()),
-        pill("🔧 Params", result.unused_parameters.len()),
-        pill("📊 Vars", result.unused_variables.len()),
-        pill("🏗️  Classes", result.unused_classes.len()),
+        pill("Unreachable", result.unused_functions.len()),
+        pill("Imports", result.unused_imports.len()),
+        pill("Params", result.unused_parameters.len()),
+        pill("Vars", result.unused_variables.len()),
+        pill("Classes", result.unused_classes.len()),
     )?;
 
     // Second row: Security and Quality
     writeln!(
         writer,
         "{}  {}  {}  {}",
-        pill("🔒 Security", result.danger.len()),
-        pill("🔑 Secrets", result.secrets.len()),
-        pill("⭐ Quality", result.quality.len()),
-        pill("🌊 Taint", result.taint_findings.len()),
+        pill("Security", result.danger.len()),
+        pill("Secrets", result.secrets.len()),
+        pill("Quality", result.quality.len()),
+        pill("Taint", result.taint_findings.len()),
     )?;
 
     writeln!(writer)?;

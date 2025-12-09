@@ -423,6 +423,20 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
 
+                // Visit keyword arguments (e.g., metaclass=SomeClass)
+                // This ensures classes used as metaclasses are tracked as "used"
+                for keyword in &node.keywords {
+                    self.visit_expr(&keyword.value);
+                    // Also add direct reference for simple name metaclasses
+                    if let Expr::Name(name) = &keyword.value {
+                        self.add_ref(name.id.to_string());
+                        if !self.module_name.is_empty() {
+                            let qualified_name = format!("{}.{}", self.module_name, name.id);
+                            self.add_ref(qualified_name);
+                        }
+                    }
+                }
+
                 // Push class name to stack for nested definitions (methods/inner classes).
                 self.class_stack.push(name.to_string());
                 self.dataclass_stack.push(is_dataclass);

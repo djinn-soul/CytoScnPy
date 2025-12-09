@@ -1021,7 +1021,8 @@ def main():
             if "platform" in baseline and baseline["platform"] != sys.platform:
                  print(f"[!] WARNING: Baseline platform ({baseline['platform']}) does not match current system ({sys.platform}). Performance comparison may be inaccurate.")
 
-            regressions = []
+            cytoscnpy_regressions = []
+            other_regressions = []
             
             for current in final_report["results"]:
                 # specific tool matching
@@ -1030,13 +1031,20 @@ def main():
                     print(f"    [?] New tool found (no baseline): {current['name']}")
                     continue
                 
+                # Determine if this is CytoScnPy or a comparison tool
+                is_cytoscnpy = "CytoScnPy" in current['name']
+                
                 # Check Time
                 time_diff = current["time"] - base["time"]
                 time_ratio = time_diff / base["time"] if base["time"] > 0 else 0
                 if time_ratio > args.threshold:
                     # Ignore small time increases (< 1.0s) to avoid noise
                     if time_diff > 1.0:
-                        regressions.append(f"{current['name']} Time: {base['time']:.3f}s -> {current['time']:.3f}s (+{time_ratio*100:.1f}%)")
+                        regression_msg = f"{current['name']} Time: {base['time']:.3f}s -> {current['time']:.3f}s (+{time_ratio*100:.1f}%)"
+                        if is_cytoscnpy:
+                            cytoscnpy_regressions.append(regression_msg)
+                        else:
+                            other_regressions.append(regression_msg)
 
                 # Check Memory
                 mem_diff = current["memory_mb"] - base["memory_mb"]
@@ -1044,20 +1052,35 @@ def main():
                 if mem_ratio > args.threshold:
                     # Optional: Ignore small memory increases (< 5MB)
                     if mem_diff > 5.0:
-                        regressions.append(f"{current['name']} Memory: {base['memory_mb']:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio*100:.1f}%)")
+                        regression_msg = f"{current['name']} Memory: {base['memory_mb']:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio*100:.1f}%)"
+                        if is_cytoscnpy:
+                            cytoscnpy_regressions.append(regression_msg)
+                        else:
+                            other_regressions.append(regression_msg)
 
                 # Check F1 Score (Regression if strictly lower, handling float precision)
                 f1_diff = base["f1_score"] - current["f1_score"]
                 if f1_diff > 0.001: # Tolerance for float comparison
-                     regressions.append(f"{current['name']} F1 Score: {base['f1_score']:.4f} -> {current['f1_score']:.4f} (-{f1_diff:.4f})")
+                    regression_msg = f"{current['name']} F1 Score: {base['f1_score']:.4f} -> {current['f1_score']:.4f} (-{f1_diff:.4f})"
+                    if is_cytoscnpy:
+                        cytoscnpy_regressions.append(regression_msg)
+                    else:
+                        other_regressions.append(regression_msg)
             
-            if regressions:
-                print("\n[!] PERFORMANCE REGRESSIONS DETECTED:")
-                for r in regressions:
+            # Report comparison tool regressions as warnings (informational, non-blocking)
+            if other_regressions:
+                print("\n[!] WARNING: Comparison tool regressions detected (informational only):")
+                for r in other_regressions:
+                    print(f"    - {r}")
+            
+            # Only fail CI/CD if CytoScnPy itself regressed
+            if cytoscnpy_regressions:
+                print("\n[!] CYTOSCNPY PERFORMANCE REGRESSIONS DETECTED:")
+                for r in cytoscnpy_regressions:
                     print(f"    - {r}")
                 sys.exit(1)
             else:
-                print("\n[OK] No regressions detected.")
+                print("\n[OK] No CytoScnPy regressions detected.")
 
         except FileNotFoundError:
             print(f"[-] Baseline file not found: {args.compare_json}")

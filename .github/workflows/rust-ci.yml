@@ -39,3 +39,15 @@ jobs:
         run: cargo test --verbose
         env:
           PYO3_PYTHON: python3
+
+      - name: Install Python dependencies
+        run: |
+          cd ..
+          pip install -e ".[dev]"
+        env:
+          PYO3_PYTHON: python3
+
+      - name: Run Python CLI tests
+        run: |
+          cd ..
+          pytest python/tests/ -v

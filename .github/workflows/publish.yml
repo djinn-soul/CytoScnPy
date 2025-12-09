@@ -37,7 +37,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     # Only run for test tags like v1.0.0-test, v1.0.0-rc1 (not main branch)
-    if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-')
+    if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -63,7 +63,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
     steps:
       - uses: actions/download-artifact@v4
         with:

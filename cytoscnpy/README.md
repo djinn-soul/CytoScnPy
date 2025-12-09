@@ -25,6 +25,71 @@ The primary, user-facing CLI executable is provided by the `cytoscnpy-cli` crate
 - `src/raw_metrics.rs` - Raw code metrics (LOC, SLOC, etc.).
 - `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
 
+- `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
+
+## 🔒 Security Analysis
+
+CytoScnPy includes a powerful security engine written in Rust.
+
+### Taint Analysis (v1.0.0)
+
+Tracks data flow from untrusted sources to dangerous sinks:
+
+- **Intraprocedural**: Checks flows within single functions.
+- **Interprocedural**: Checks flows across functions in the same file.
+- **Cross-file**: Checks flows across module boundaries.
+- **Detections**: SQL injection, command injection, code execution, path traversal.
+
+### Secret Scanning
+
+- Uses regex patterns for AWS keys, API tokens, private keys.
+- **Shannon Entropy Analysis**: Reduces false positives by analyzing the randomness of the string.
+- Detects high-entropy strings that look like real secrets but don't match known prefixes.
+
+### Dangerous Code Patterns
+
+- `eval()`, `exec()`, `compile()` detection.
+- `pickle` deserialization warnings.
+- `subprocess` shell injection risks.
+
+## 🏗️ Architecture
+
+```
+CytoScnPy/
+├── cytoscnpy/                    # Rust core library
+│   └── src/
+│       ├── analyzer/             # Core analysis engine
+│       ├── visitor.rs            # AST visitor implementation
+│       ├── rules/                # Security & quality rules
+│       │   ├── danger.rs         # Dangerous code detection
+│       │   ├── secrets.rs        # Secret scanning + entropy
+│       │   └── quality.rs        # Code quality checks
+│       ├── taint/                # Taint analysis engine
+│       │   ├── sources.rs        # User input sources
+│       │   ├── sinks.rs          # Dangerous sinks
+│       │   ├── intraprocedural.rs
+│       │   ├── interprocedural.rs
+│       │   └── crossfile.rs
+│       ├── complexity.rs         # Cyclomatic complexity
+│       ├── halstead.rs           # Halstead metrics
+│       ├── raw_metrics.rs        # LOC/SLOC counting
+│       └── python_bindings.rs    # PyO3 integration
+│
+├── cytoscnpy-cli/                # Standalone CLI binary
+├── python/                       # Python package wrapper
+└── benchmark/                    # 126-item ground truth suite
+```
+
+### Technology Stack
+
+| Component           | Technology                                         |
+| ------------------- | -------------------------------------------------- |
+| **Parser**          | `rustpython-parser` (Python 3.12 compatible)       |
+| **Parallelization** | `rayon` for multi-threaded file processing         |
+| **CLI**             | `clap` with derive macros                          |
+| **Python Bindings** | `PyO3` + `maturin` build system                    |
+| **Output**          | `colored` + `comfy-table` for rich terminal output |
+
 ## Building
 
 This library is a dependency of the main `cytoscnpy` Python package and the `cytoscnpy-cli` tool.

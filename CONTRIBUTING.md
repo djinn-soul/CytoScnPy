@@ -514,6 +514,26 @@ RUST_LOG=debug cargo test
 
 # Run tests in parallel
 cargo test -- --test-threads=4
+
+# Run with specific features
+cargo test --features python-tests  # Requires Python in PATH
+```
+
+### Python CLI Wrapper Tests
+
+The Python CLI wrapper (`python/cytoscnpy`) has its own test suite:
+
+```bash
+# Install dev dependencies
+uv pip install -e ".[dev]"
+
+# Run all Python CLI tests
+pytest python/tests/ -v
+
+# Run specific test file
+pytest python/tests/test_cli.py -v
+pytest python/tests/test_integration.py -v
+pytest python/tests/test_json_output.py -v
 ```
 
 ### Python Edge Case Test Suite

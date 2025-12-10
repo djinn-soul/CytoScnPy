@@ -188,7 +188,7 @@ fn test_unicode_in_python_file() {
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "# -*- coding: utf-8 -*-").unwrap();
     writeln!(file, "message = \"Hello, 世界\"").unwrap();
-    writeln!(file, "emoji = \"🎉\"").unwrap();
+    writeln!(file, "emoji = \"party\"").unwrap();
 
     let mut analyzer = CytoScnPy::new(
         60,

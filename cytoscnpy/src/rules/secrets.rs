@@ -249,10 +249,16 @@ fn extract_string_literals(line: &str) -> Vec<&str> {
 
 /// Redacts a secret value for safe display (shows first 4 and last 4 chars).
 fn redact_value(s: &str) -> String {
-    if s.len() <= 12 {
-        return "*".repeat(s.len());
-    }
-    format!("{}...{}", &s[..4], &s[s.len() - 4..])
+    let start: String = s.chars().take(4).collect();
+    let end: String = s
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    format!("{}...{}", start, end)
 }
 
 // ============================================================================

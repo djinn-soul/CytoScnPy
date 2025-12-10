@@ -25,6 +25,7 @@ The primary, user-facing CLI executable is provided by the `cytoscnpy-cli` crate
 - `src/raw_metrics.rs` - Raw code metrics (LOC, SLOC, etc.).
 - `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
 
+
 - `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
 
 ## 🔒 Security Analysis
@@ -89,6 +90,7 @@ CytoScnPy/
 | **CLI**             | `clap` with derive macros                          |
 | **Python Bindings** | `PyO3` + `maturin` build system                    |
 | **Output**          | `colored` + `comfy-table` for rich terminal output |
+
 
 ## Building
 

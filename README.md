@@ -33,9 +33,8 @@ maturin develop -m cytoscnpy/Cargo.toml
 
 ### Command Line
 
-### Command Line
-
 ```bash
+
 # Basic usage
 cytoscnpy [PATHS]... [OPTIONS]
 
@@ -84,6 +83,55 @@ cytoscnpy mi .
 cytoscnpy mi . --json
 
 > **Note**: Average Complexity and Maintainability Index are automatically calculated and shown in the summary of the main `cytoscnpy .` command.
+
+# Basic dead code analysis
+cytoscnpy /path/to/project
+
+# Enable all security checks
+cytoscnpy . --secrets --danger --quality --taint
+
+# Taint analysis (detect SQL injection, command injection, code execution)
+cytoscnpy . --taint
+
+# Secret scanning with entropy analysis
+cytoscnpy . --secrets
+
+# Dangerous code detection (eval, exec, pickle, subprocess)
+cytoscnpy . --danger
+
+# Code quality analysis
+cytoscnpy . --quality
+
+# Set confidence threshold (0-100)
+cytoscnpy . --confidence 80
+
+# JSON output for CI/CD pipelines
+cytoscnpy . --json
+
+# Include/exclude paths
+cytoscnpy . --exclude-folder venv --exclude-folder build
+cytoscnpy . --include-folder specific_venv  # Override default exclusions
+cytoscnpy . --include-tests
+
+# Jupyter notebook support
+cytoscnpy . --include-ipynb
+cytoscnpy . --include-ipynb --ipynb-cells  # Report per cell
+```
+
+### Metric Subcommands
+
+```bash
+# Raw metrics (LOC, LLOC, SLOC, Comments, Blanks)
+cytoscnpy raw . --json
+
+# Cyclomatic Complexity (McCabe)
+cytoscnpy cc . --json
+
+# Halstead Metrics (difficulty, effort, volume)
+cytoscnpy hal . --json
+
+# Maintainability Index
+cytoscnpy mi . --json
 ```
 
 ## ✨ Features
@@ -105,6 +153,25 @@ CytoScnPy comes with built-in security features to keep your codebase safe:
 - **Dangerous Code**: Alerts you to unsafe usage of `eval()`, `pickle`, and `subprocess`.
 
 > For deep technical details on how the security engine works, see [cytoscnpy/README.md](cytoscnpy/README.md#security-analysis).
+
+Track data flow from untrusted sources to dangerous sinks:
+
+- **Intraprocedural**: Within single functions
+- **Interprocedural**: Across functions in the same file
+- **Cross-file**: Across module boundaries
+- Detects SQL injection, command injection, code execution vulnerabilities
+
+#### Secret Scanning
+
+- Regex patterns for AWS keys, API tokens, private keys
+- **Shannon entropy analysis** to reduce false positives
+- Detects high-entropy strings that look like real secrets
+
+#### Dangerous Code Patterns
+
+- `eval()`, `exec()`, `compile()` detection
+- `pickle` deserialization warnings
+- `subprocess` shell injection risks
 
 ### Code Quality Metrics
 
@@ -131,12 +198,22 @@ CytoScnPy comes with built-in security features to keep your codebase safe:
 - **Visitor pattern methods** (`visit_*`, `leave_*`, `transform_*`) marked as used
 - **`__all__` exports** prevent flagging as unused
 - **Base class tracking** for inheritance-aware analysis
-
-### Configuration
-
 ### Configuration
 
 Create `.cytoscnpy.toml` or add to `pyproject.toml`:
+
+```toml
+[tool.cytoscnpy]
+confidence = 60
+exclude_folders = ["venv", ".tox", "build", "node_modules"]
+include_tests = false
+secrets = true
+danger = true
+quality = true
+fail_threshold = 10.0 # Fail if >10% of code is unused
+
+# Zero Tolerance Policy
+# fail_threshold = 0.0
 
 ```toml
 [tool.cytoscnpy]
@@ -171,6 +248,22 @@ scan_comments = true     # Scan comments for secrets
 name = "Slack Token"
 regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
+```
+
+
+### Fail Threshold
+
+You can configure a fail threshold for unused code. If the percentage of unused definitions (functions, classes, etc.) exceeds this threshold, the CLI will exit with code `1`.
+
+- **Default**: `100.0` (never fails unless 100% of code is unused, effectively disabled).
+- **Zero Tolerance**: Set to `0.0` to fail if _any_ unused code is found.
+
+This can be set in the config file or via the `CYTOSCNPY_FAIL_THRESHOLD` environment variable:
+
+```bash
+# Fail if more than 5% of code is unused
+export CYTOSCNPY_FAIL_THRESHOLD=5.0
+cytoscnpy .
 ```
 
 ## 📊 Performance

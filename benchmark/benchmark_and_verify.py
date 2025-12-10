@@ -413,17 +413,22 @@ class Verification:
             try:
                 data = json.loads(output)
                 # CytoScnPy outputs arrays by type
-                key_map = {
+                # Map JSON keys to fallback types (used if def_type field is missing)
+                key_to_fallback_type = {
                     "unused_functions": "function",
+                    "unused_methods": "method",
                     "unused_imports": "import",
                     "unused_classes": "class",
                     "unused_variables": "variable"
                 }
                 
-                for key, type_name in key_map.items():
+                for key, fallback_type in key_to_fallback_type.items():
                     for item in data.get(key, []):
                         fpath = normalize_path(item.get("file", ""))
                         item_name = item.get("simple_name") or (item.get("name", "").split(".")[-1] if item.get("name") else "")
+                        # Use def_type from JSON if available (e.g., "method" vs "function")
+                        # Fall back to key-based type for backward compatibility
+                        type_name = item.get("def_type", fallback_type)
                         findings.add((fpath, item.get("line"), type_name, item_name))
             except json.JSONDecodeError as e:
                 print(f"[-] JSON Decode Error for {name}: {e}")
@@ -763,7 +768,7 @@ def main():
     parser.add_argument("-e", "--exclude", nargs="+", help="Exclude specific tools (substring match, case-insensitive)")
     parser.add_argument("--save-json", help="Save benchmark results to a JSON file")
     parser.add_argument("--compare-json", help="Compare current results against a baseline JSON file")
-    parser.add_argument("--threshold", type=float, default=0.10, help="Regression threshold ratio (default: 0.10 = 10%)")
+    parser.add_argument("--threshold", type=float, default=0.10, help="Regression threshold ratio (default: 0.10 = 10%%)")
     args = parser.parse_args()
 
     # Define tools to run
@@ -1022,8 +1027,7 @@ def main():
                  print(f"[!] WARNING: Baseline platform ({baseline['platform']}) does not match current system ({sys.platform}). Performance comparison may be inaccurate.")
 
             cytoscnpy_regressions = []
-            other_regressions = []
-            
+            other_regressions = []            
             for current in final_report["results"]:
                 # specific tool matching
                 base = next((b for b in baseline["results"] if b["name"] == current["name"]), None)
@@ -1033,7 +1037,6 @@ def main():
                 
                 # Determine if this is CytoScnPy or a comparison tool
                 is_cytoscnpy = "CytoScnPy" in current['name']
-                
                 # Check Time
                 time_diff = current["time"] - base["time"]
                 time_ratio = time_diff / base["time"] if base["time"] > 0 else 0

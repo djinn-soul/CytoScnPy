@@ -40,6 +40,8 @@ pub struct CytoScnPyConfig {
     pub min_mi: Option<f64>,
     /// List of rule codes to ignore.
     pub ignore: Option<Vec<String>>,
+    /// Fail threshold percentage (0.0-100.0).
+    pub fail_threshold: Option<f64>,
     /// Advanced secrets scanning configuration.
     #[serde(default)]
     pub secrets_config: SecretsConfig,

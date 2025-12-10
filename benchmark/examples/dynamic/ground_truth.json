@@ -5,6 +5,41 @@
     },
     "metaprogramming.py": {
       "dead_items": []
+    },
+    "metaclass_patterns.py": {
+      "dead_items": [
+        {
+          "name": "UnusedMeta",
+          "type": "class",
+          "line": 121,
+          "note": "Genuinely unused - never used as metaclass"
+        },
+        {
+          "name": "AbstractStyleClass",
+          "type": "class",
+          "line": 51,
+          "note": "Defined but not instantiated"
+        },
+        {
+          "name": "ValidatedModel",
+          "type": "class",
+          "line": 88,
+          "note": "Defined but not instantiated"
+        },
+        {
+          "name": "ValidatedModel.validate_name",
+          "type": "function",
+          "line": 90,
+          "note": "Method never called"
+        },
+        {
+          "name": "MultiKeywordClass.name",
+          "type": "variable",
+          "line": 131,
+          "note": "Attribute never read"
+        }
+      ],
+      "notes": "All false positives fixed: ConcretePlugin, MultiKeywordClass (metaclass inheritance), args param (starred expr)"
     }
   }
 }

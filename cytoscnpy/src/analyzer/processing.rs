@@ -411,10 +411,13 @@ impl CytoScnPy {
         }
 
         let mut unused_functions = Vec::new();
+        let mut unused_methods = Vec::new();
         let mut unused_classes = Vec::new();
         let mut unused_imports = Vec::new();
         let mut unused_variables = Vec::new();
         let mut unused_parameters = Vec::new();
+
+        let total_definitions = all_defs.len();
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
@@ -431,7 +434,8 @@ impl CytoScnPy {
 
             if def.references == 0 {
                 match def.def_type.as_str() {
-                    "function" | "method" => unused_functions.push(def),
+                    "function" => unused_functions.push(def),
+                    "method" => unused_methods.push(def),
                     "class" => unused_classes.push(def),
                     "import" => unused_imports.push(def),
                     "variable" => unused_variables.push(def),
@@ -471,6 +475,7 @@ impl CytoScnPy {
 
         Ok(AnalysisResult {
             unused_functions,
+            unused_methods,
             unused_imports,
             unused_classes,
             unused_variables,
@@ -488,6 +493,7 @@ impl CytoScnPy {
                 taint_count,
                 parse_errors_count: all_parse_errors.len(),
                 total_lines_analyzed: self.total_lines_analyzed,
+                total_definitions,
                 average_complexity: if files_with_quality_metrics > 0 {
                     total_complexity / f64::from(files_with_quality_metrics)
                 } else {
@@ -524,8 +530,8 @@ impl CytoScnPy {
                 let name = entry.file_name().to_string_lossy();
 
                 // Check if this folder is explicitly included
-                let is_force_included = entry.file_type().is_dir()
-                    && self.include_folders.iter().any(|f| f == &name);
+                let is_force_included =
+                    entry.file_type().is_dir() && self.include_folders.iter().any(|f| f == &name);
 
                 // Check against both default excludes and user-provided excludes
                 // BUT skip exclusion if the folder is force-included
@@ -602,10 +608,13 @@ impl CytoScnPy {
 
         // Categorize unused definitions.
         let mut unused_functions = Vec::new();
+        let mut unused_methods = Vec::new();
         let mut unused_classes = Vec::new();
         let mut unused_imports = Vec::new();
         let mut unused_variables = Vec::new();
         let mut unused_parameters = Vec::new();
+
+        let total_definitions = all_defs.len();
 
         for mut def in all_defs {
             // Update the reference count for the definition.
@@ -628,7 +637,8 @@ impl CytoScnPy {
             // If reference count is 0, it is unused.
             if def.references == 0 {
                 match def.def_type.as_str() {
-                    "function" | "method" => unused_functions.push(def),
+                    "function" => unused_functions.push(def),
+                    "method" => unused_methods.push(def),
                     "class" => unused_classes.push(def),
                     "import" => unused_imports.push(def),
                     "variable" => unused_variables.push(def),
@@ -672,6 +682,7 @@ impl CytoScnPy {
         // Construct and return the final result.
         Ok(AnalysisResult {
             unused_functions,
+            unused_methods,
             unused_imports,
             unused_classes,
             unused_variables,
@@ -689,6 +700,7 @@ impl CytoScnPy {
                 taint_count,
                 parse_errors_count: all_parse_errors.len(),
                 total_lines_analyzed: self.total_lines_analyzed,
+                total_definitions,
                 average_complexity: if files_with_quality_metrics > 0 {
                     total_complexity / f64::from(files_with_quality_metrics)
                 } else {
@@ -803,11 +815,13 @@ impl CytoScnPy {
         }
 
         // Aggregate (single file)
+        let total_definitions = visitor.definitions.len();
         let all_defs = visitor.definitions;
         // References are already counted by the visitor
         let ref_counts = visitor.references;
 
         let mut unused_functions = Vec::new();
+        let mut unused_methods = Vec::new();
         let mut unused_classes = Vec::new();
         let mut unused_imports = Vec::new();
         let mut unused_variables = Vec::new();
@@ -828,7 +842,8 @@ impl CytoScnPy {
 
             if def.references == 0 {
                 match def.def_type.as_str() {
-                    "function" | "method" => unused_functions.push(def),
+                    "function" => unused_functions.push(def),
+                    "method" => unused_methods.push(def),
                     "class" => unused_classes.push(def),
                     "import" => unused_imports.push(def),
                     "variable" => unused_variables.push(def),
@@ -840,6 +855,7 @@ impl CytoScnPy {
 
         AnalysisResult {
             unused_functions,
+            unused_methods,
             unused_imports,
             unused_classes,
             unused_variables,
@@ -857,6 +873,7 @@ impl CytoScnPy {
                 taint_count: 0,
                 parse_errors_count: parse_errors.len(),
                 total_lines_analyzed: source.lines().count(),
+                total_definitions,
                 average_complexity: 0.0,
                 average_mi: 0.0,
             },

@@ -138,6 +138,8 @@ pub struct CytoScnPyVisitor<'a> {
     pub scope_stack: Vec<Scope>,
     /// Whether the current file is considered dynamic (e.g., uses eval/exec).
     pub is_dynamic: bool,
+    /// Set of class names that have a metaclass (used to detect metaclass inheritance).
+    pub metaclass_classes: FxHashSet<String>,
 }
 
 impl<'a> CytoScnPyVisitor<'a> {
@@ -160,6 +162,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             in_type_checking_block: false,
             scope_stack: vec![Scope::new(ScopeType::Module)],
             is_dynamic: false,
+            metaclass_classes: FxHashSet::default(),
         }
     }
 
@@ -408,7 +411,16 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
 
-                self.add_def_with_bases(qualified_name, "class", line, base_classes.clone());
+                self.add_def_with_bases(
+                    qualified_name.clone(),
+                    "class",
+                    line,
+                    base_classes.clone(),
+                );
+
+                // Register class in local scope so nested classes can be resolved
+                // This is critical for classes defined inside functions
+                self.add_local_def(name.to_string(), qualified_name.clone());
 
                 // Add references for base classes because inheriting uses them.
                 for base in &node.bases {
@@ -425,15 +437,38 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 // Visit keyword arguments (e.g., metaclass=SomeClass)
                 // This ensures classes used as metaclasses are tracked as "used"
+                let mut has_metaclass = false;
                 for keyword in &node.keywords {
                     self.visit_expr(&keyword.value);
+                    // Check if this is a metaclass keyword
+                    if keyword.arg.as_ref().map(|a| a.as_str()) == Some("metaclass") {
+                        has_metaclass = true;
+                    }
                     // Also add direct reference for simple name metaclasses
-                    if let Expr::Name(name) = &keyword.value {
-                        self.add_ref(name.id.to_string());
+                    if let Expr::Name(kw_name) = &keyword.value {
+                        self.add_ref(kw_name.id.to_string());
                         if !self.module_name.is_empty() {
-                            let qualified_name = format!("{}.{}", self.module_name, name.id);
-                            self.add_ref(qualified_name);
+                            let qualified_kw = format!("{}.{}", self.module_name, kw_name.id);
+                            self.add_ref(qualified_kw);
                         }
+                    }
+                }
+
+                // Track classes that have a metaclass (for inheritance detection)
+                if has_metaclass {
+                    self.metaclass_classes.insert(name.to_string());
+                    // Also add qualified name
+                    self.metaclass_classes.insert(qualified_name.clone());
+                }
+
+                // Check if this class inherits from a metaclass class (registry pattern)
+                // If so, mark this class as implicitly used (side-effect registration)
+                for base_class in &base_classes {
+                    if self.metaclass_classes.contains(base_class) {
+                        // This class is registered via metaclass side-effect, mark as used
+                        self.add_ref(qualified_name.clone());
+                        self.add_ref(name.to_string());
+                        break;
                     }
                 }
 
@@ -1098,6 +1133,11 @@ impl<'a> CytoScnPyVisitor<'a> {
                 if let Some(step) = &node.step {
                     self.visit_expr(step);
                 }
+            }
+            // Handle starred expressions (*args in function calls)
+            // This ensures when *args is passed to a function, args is marked as used
+            Expr::Starred(node) => {
+                self.visit_expr(&node.value);
             }
             _ => {}
         }

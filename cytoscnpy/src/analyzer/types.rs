@@ -21,6 +21,8 @@ pub struct ParseError {
 pub struct AnalysisResult {
     /// List of functions that were defined but never used.
     pub unused_functions: Vec<Definition>,
+    /// List of methods that were defined but never used.
+    pub unused_methods: Vec<Definition>,
     /// List of imports that were imported but never used.
     pub unused_imports: Vec<Definition>,
     /// List of classes that were defined but never used.
@@ -60,6 +62,8 @@ pub struct AnalysisSummary {
     pub parse_errors_count: usize,
     /// Total number of lines analyzed.
     pub total_lines_analyzed: usize,
+    /// Total number of definitions found (for percentage calculation).
+    pub total_definitions: usize,
     /// Average Cyclomatic Complexity across all functions/files.
     pub average_complexity: f64,
     /// Average Maintainability Index across all files.

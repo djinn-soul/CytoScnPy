@@ -3,7 +3,7 @@ name: Build and Publish to PyPI
 on:
   push:
     tags:
-      - "v*"
+      - "v*" # Only run for tags
 
 jobs:
   build:
@@ -24,9 +24,16 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "wheels-${{ matrix.os }}"
+      - name: Disable Windows Defender (CI only)
+        if: runner.os == 'Windows' # Only run for Windows
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
       - name: Install maturin
         run: pip install maturin
-      - name: Build wheel
+      - name: Build wheel (Windows - skip 3.14)
+        if: runner.os == 'Windows' # Only run for Windows
+        run: maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
+      - name: Build wheel (Linux/macOS)
+        if: runner.os != 'Windows' # Only run for Linux and macOS
         run: maturin build --release --out dist --find-interpreter
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -59,7 +66,9 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           user: __token__
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-
+          skip-existing: true
+  
+  # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
   publish-pypi:
     name: Publish to PyPI
     needs: build

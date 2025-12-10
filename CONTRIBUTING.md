@@ -168,6 +168,27 @@ CytoScnPy/
 └── target/                    # Build artifacts (gitignored)
 ```
 
+## 🔄 GitHub Actions Workflows
+
+The project includes several CI/CD workflows in `.github/workflows/`:
+
+| Workflow      | File            | Trigger         | Purpose                                     |
+| ------------- | --------------- | --------------- | ------------------------------------------- |
+| **Rust CI**   | `rust-ci.yml`   | Push/PR to main | Build, test, and lint Rust code             |
+| **Benchmark** | `benchmark.yml` | Push/PR to main | Run accuracy benchmarks, detect regressions |
+| **Coverage**  | `coverage.yml`  | Push/PR to main | Generate and upload code coverage reports   |
+| **Publish**   | `publish.yml`   | Git tags (`v*`) | Build wheels and publish to PyPI/TestPyPI   |
+
+### Running Workflows Locally
+
+You can test workflows locally using [act](https://github.com/nektos/act):
+
+```bash
+# Install act (requires Docker)
+# Test the rust-ci workflow
+act -W .github/workflows/rust-ci.yml
+```
+
 ## 🔄 Development Workflow
 
 1. **Create a Branch:**

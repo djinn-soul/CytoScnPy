@@ -122,6 +122,9 @@ nesting = 4           # Max indentation depth
 min_mi = 65.0         # Minimum Maintainability Index
 ignore = ["R001"]     # Ignore specific rule IDs
 
+# CI/CD Integration
+fail_threshold = 5.0  # Exit with code 1 if unused code % exceeds this
+
 # Advanced Secret Scanning
 [tool.cytoscnpy.secrets_config]
 entropy_enabled = true

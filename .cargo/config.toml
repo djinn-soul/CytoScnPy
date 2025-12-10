@@ -29,3 +29,7 @@ jobs = -1
 VIRTUAL_ENV = { value = ".venv", relative = true }
 # Enable colored output
 CARGO_TERM_COLOR = "always"
+
+# Use faster linker on Windows for CI builds
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"

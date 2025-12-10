@@ -2,8 +2,6 @@ name: Build and Publish to PyPI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
 
@@ -22,6 +20,10 @@ jobs:
           python-version: "3.x"
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "wheels-${{ matrix.os }}"
       - name: Install maturin
         run: pip install maturin
       - name: Build wheel

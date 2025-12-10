@@ -1,12 +1,6 @@
 name: Continuous Benchmarking
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "cytoscnpy/**"
-      - "benchmark/**"
-      - ".github/workflows/benchmark.yml"
   pull_request:
     branches: ["main"]
     paths:

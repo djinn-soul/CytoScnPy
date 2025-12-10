@@ -243,7 +243,7 @@ vsce package
 This will generate `cytoscnpy-0.0.1.vsix`.
 
 **Publishing:**
-See the VS Code extension development section above for detailed instructions on packaging and publishing.
+To publish to the VS Code Marketplace, run `vsce publish` after authentication with `vsce login <publisher>`.
 
 ## 🐍 Python Integration (PyO3)
 

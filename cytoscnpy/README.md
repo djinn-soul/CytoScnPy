@@ -25,8 +25,6 @@ The primary, user-facing CLI executable is provided by the `cytoscnpy-cli` crate
 - `src/raw_metrics.rs` - Raw code metrics (LOC, SLOC, etc.).
 - `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
 
-- `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
-
 ## 🔒 Security Analysis
 
 CytoScnPy includes a powerful security engine written in Rust.
@@ -65,11 +63,17 @@ CytoScnPy/
 │       │   ├── secrets.rs        # Secret scanning + entropy
 │       │   └── quality.rs        # Code quality checks
 │       ├── taint/                # Taint analysis engine
+│       │   ├── mod.rs            # Module exports
+│       │   ├── analyzer.rs       # Main taint analyzer
+│       │   ├── types.rs          # TaintFinding, TaintInfo, VulnType
 │       │   ├── sources.rs        # User input sources
 │       │   ├── sinks.rs          # Dangerous sinks
-│       │   ├── intraprocedural.rs
-│       │   ├── interprocedural.rs
-│       │   └── crossfile.rs
+│       │   ├── propagation.rs    # Taint state tracking
+│       │   ├── intraprocedural.rs # Statement-level analysis
+│       │   ├── interprocedural.rs # Cross-function analysis
+│       │   ├── crossfile.rs      # Cross-module analysis
+│       │   ├── call_graph.rs     # Call graph construction
+│       │   └── summaries.rs      # Function taint summaries
 │       ├── complexity.rs         # Cyclomatic complexity
 │       ├── halstead.rs           # Halstead metrics
 │       ├── raw_metrics.rs        # LOC/SLOC counting

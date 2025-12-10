@@ -33,8 +33,6 @@ maturin develop -m cytoscnpy/Cargo.toml
 
 ### Command Line
 
-### Command Line
-
 ```bash
 # Basic usage
 cytoscnpy [PATHS]... [OPTIONS]
@@ -134,8 +132,6 @@ CytoScnPy comes with built-in security features to keep your codebase safe:
 
 ### Configuration
 
-### Configuration
-
 Create `.cytoscnpy.toml` or add to `pyproject.toml`:
 
 ```toml
@@ -159,6 +155,9 @@ nesting = 4           # Max indentation depth
 min_mi = 65.0         # Minimum Maintainability Index
 ignore = ["R001"]     # Ignore specific rule IDs
 
+# CI/CD Integration
+fail_threshold = 5.0  # Exit with code 1 if unused code % exceeds this
+
 # Advanced Secret Scanning
 [tool.cytoscnpy.secrets_config]
 entropy_enabled = true
@@ -173,14 +172,22 @@ regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
 ```
 
+#### Environment Variables
+
+You can also configure CytoScnPy via environment variables (useful for CI/CD):
+
+| Variable                   | Description                         |
+| -------------------------- | ----------------------------------- |
+| `CYTOSCNPY_FAIL_THRESHOLD` | Fail threshold % (overrides config) |
+
 ## 📊 Performance
 
 ### Speed Comparison
 
-| Metric | Pure Python | Rust (CytoScnPy) | Improvement      |
-| ------ | ----------- | ---------------- | ---------------- |
-| Time   | 14.22s      | **0.07s**        | **~200x faster** |
-| Memory | ~150MB      | **~14MB**        | **~10x less**    |
+| Metric | CytoScnPy |
+| ------ | --------- |
+| Time   | **0.07s** |
+| Memory | **~14MB** |
 
 ### Accuracy (Benchmark Suite: 126 items)
 
@@ -193,7 +200,7 @@ severity = "HIGH"
 | Variables      | 0.25      | 0.16     | 0.19     |
 | **Overall**    | **0.61**  | **0.57** | **0.59** |
 
-> See [BENCHMARK.md](benchmark/BENCHMARK.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
+> See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
 ## 🏗️ Architecture
 

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "cytoscnpy"
-description = "High-performance static analysis tool for Python (Rust implementation)"
+description = "High-performance dead code elimination analysis tool for Python."
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",

@@ -113,43 +113,58 @@ CytoScnPy/
 │       └── cli.py             # CLI wrapper calling Rust
 │
 ├── cytoscnpy/                 # Rust library with PyO3 bindings
-│   ├── Cargo.toml            # Library + cdylib configuration
+│   ├── Cargo.toml             # Library + cdylib configuration
+│   ├── tests/                 # Rust integration tests
 │   └── src/
-│       ├── lib.rs            # Crate root + #[pymodule]
+│       ├── lib.rs             # Crate root + #[pymodule]
+│       ├── main.rs            # Binary entry point (cytoscnpy-bin)
 │       ├── python_bindings.rs # PyO3 implementation (modular)
-│       ├── entry_point.rs    # Core CLI logic
-│       ├── config.rs         # Configuration (.cytoscnpy.toml)
-│       ├── analyzer/         # Main analysis engine (dead code detection)
-│       ├── visitor.rs        # AST traversal
-│       ├── framework.rs      # Framework-aware patterns
-│       ├── test_utils.rs     # Test file detection
-│       ├── utils.rs          # Utilities
-│       ├── cli.rs            # Command-line argument parsing
-│       ├── commands.rs       # Radon-compatible commands
-│       ├── complexity.rs     # Cyclomatic complexity
-│       ├── halstead.rs       # Halstead metrics
-│       ├── raw_metrics.rs    # LOC, SLOC metrics
-│       ├── output.rs         # Rich CLI output
-│       ├── rules/
-│           ├── mod.rs        # Rules module
-│           ├── secrets.rs    # Secrets scanning
-│           ├── danger.rs     # Dangerous code detection
-│           └── quality.rs    # Code quality checks
+│       ├── entry_point.rs     # Core CLI logic
+│       ├── config.rs          # Configuration (.cytoscnpy.toml)
+│       ├── cli.rs             # Command-line argument parsing
+│       ├── commands.rs        # Radon-compatible commands
+│       ├── output.rs          # Rich CLI output
+│       ├── linter.rs          # Rule-based linting engine
+│       ├── constants.rs       # Shared constants
+│       ├── analyzer/          # Main analysis engine
+│       │   ├── mod.rs         # Module exports
+│       │   ├── types.rs       # AnalysisResult, ParseError types
+│       │   ├── heuristics.rs  # Penalty and heuristic logic
+│       │   └── processing.rs  # Core processing methods
+│       ├── visitor.rs         # AST traversal
+│       ├── framework.rs       # Framework-aware patterns
+│       ├── test_utils.rs      # Test file detection
+│       ├── utils.rs           # Utilities
+│       ├── ipynb.rs           # Jupyter notebook support
+│       ├── metrics.rs         # Metrics types
+│       ├── complexity.rs      # Cyclomatic complexity
+│       ├── halstead.rs        # Halstead metrics
+│       ├── raw_metrics.rs     # LOC, SLOC metrics
+│       ├── rules/             # Security & quality rules
+│       │   ├── mod.rs         # Rules module
+│       │   ├── secrets.rs     # Secrets scanning + entropy
+│       │   ├── danger.rs      # Dangerous code detection
+│       │   ├── danger/        # Danger rule helpers
+│       │   └── quality.rs     # Code quality checks
 │       └── taint/             # Taint analysis module
-│           ├── mod.rs        # Module exports
-│           ├── analyzer.rs   # Main taint analyzer + plugin registry
-│           ├── types.rs      # TaintFinding, TaintInfo, VulnType
-│           ├── sources.rs    # Source detection (input, request.*)
-│           ├── sinks.rs      # Sink detection (eval, subprocess, SQL)
+│           ├── mod.rs         # Module exports
+│           ├── types.rs       # TaintFinding, TaintInfo, VulnType
+│           ├── analyzer.rs    # Main taint analyzer
+│           ├── sources.rs     # Source detection (input, request.*)
+│           ├── sinks.rs       # Sink detection (eval, subprocess, SQL)
 │           ├── propagation.rs # Taint state tracking
-│           └── intraprocedural.rs # Statement-level analysis
+│           ├── intraprocedural.rs  # Statement-level analysis
+│           ├── interprocedural.rs  # Cross-function analysis
+│           ├── crossfile.rs   # Cross-module analysis
+│           ├── call_graph.rs  # Function call graph
+│           └── summaries.rs   # Function summaries
 │
 ├── cytoscnpy-cli/             # Standalone Rust binary (optional)
 │   ├── Cargo.toml
 │   └── src/
-│       └── main.rs           # Calls cytoscnpy::entry_point
+│       └── main.rs            # Calls cytoscnpy::entry_point
 │
-├── tests/                     # Integration tests
+├── benchmark/                 # 126-item ground truth suite
 └── target/                    # Build artifacts (gitignored)
 ```
 

@@ -25,9 +25,6 @@ The primary, user-facing CLI executable is provided by the `cytoscnpy-cli` crate
 - `src/raw_metrics.rs` - Raw code metrics (LOC, SLOC, etc.).
 - `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
 
-
-- `src/config.rs` - Logic for handling configuration from `pyproject.toml` or `.cytoscnpy.toml`.
-
 ## 🔒 Security Analysis
 
 CytoScnPy includes a powerful security engine written in Rust.
@@ -60,17 +57,28 @@ CytoScnPy/
 ├── cytoscnpy/                    # Rust core library
 │   └── src/
 │       ├── analyzer/             # Core analysis engine
+│       │   ├── mod.rs            # Module exports
+│       │   ├── types.rs          # AnalysisResult, ParseError
+│       │   ├── heuristics.rs     # Penalty and heuristic logic
+│       │   └── processing.rs     # Core processing methods
 │       ├── visitor.rs            # AST visitor implementation
 │       ├── rules/                # Security & quality rules
+│       │   ├── mod.rs            # Rules module
 │       │   ├── danger.rs         # Dangerous code detection
 │       │   ├── secrets.rs        # Secret scanning + entropy
 │       │   └── quality.rs        # Code quality checks
 │       ├── taint/                # Taint analysis engine
+│       │   ├── mod.rs            # Module exports
+│       │   ├── types.rs          # TaintFinding, VulnType
+│       │   ├── analyzer.rs       # Main taint analyzer
 │       │   ├── sources.rs        # User input sources
 │       │   ├── sinks.rs          # Dangerous sinks
+│       │   ├── propagation.rs    # Taint state tracking
 │       │   ├── intraprocedural.rs
 │       │   ├── interprocedural.rs
-│       │   └── crossfile.rs
+│       │   ├── crossfile.rs      # Cross-module analysis
+│       │   ├── call_graph.rs     # Function call graph
+│       │   └── summaries.rs      # Function summaries
 │       ├── complexity.rs         # Cyclomatic complexity
 │       ├── halstead.rs           # Halstead metrics
 │       ├── raw_metrics.rs        # LOC/SLOC counting
@@ -90,7 +98,6 @@ CytoScnPy/
 | **CLI**             | `clap` with derive macros                          |
 | **Python Bindings** | `PyO3` + `maturin` build system                    |
 | **Output**          | `colored` + `comfy-table` for rich terminal output |
-
 
 ## Building
 

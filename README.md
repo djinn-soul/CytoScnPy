@@ -30,121 +30,68 @@ maturin develop -m cytoscnpy/Cargo.toml
 
 ## ✨ Features
 
-### Dead Code Detection
-
-- **Unused functions, classes, methods** with cross-module tracking
-- **Unused imports and variables** with scope-aware analysis
-- **Entry point detection** (`if __name__ == "__main__"`) to prevent false positives
-- **Dynamic pattern recognition** (`hasattr`, `getattr`, `globals()`)
-- **Pragma support** (`# pragma: no cytoscnpy` to suppress findings)
-
-### Security Analysis
-
-- **Taint Analysis**: Tracks untrusted user input (intraprocedural, interprocedural, cross-file) to detect SQL injection, command injection, and code execution vulnerabilities
-- **Secret Scanning**: Regex patterns + Shannon entropy analysis to find API keys, tokens, and credentials
-- **Dangerous Code Detection**: Alerts on `eval()`, `exec()`, `pickle`, `subprocess` usage
-
-> For technical details on the security engine, see [cytoscnpy/README.md](cytoscnpy/README.md#security-analysis).
-
-### Code Quality Metrics
-
-| Metric                    | Description                                           |
-| ------------------------- | ----------------------------------------------------- |
-| **Raw Metrics**           | LOC, LLOC, SLOC, Comments, Multi-line strings, Blanks |
-| **Cyclomatic Complexity** | Control flow complexity (McCabe)                      |
-| **Halstead Metrics**      | Difficulty, Effort, Volume, Bugs, Time                |
-| **Maintainability Index** | Combined metric (0-100 scale)                         |
-| **Nesting Depth**         | Maximum indentation level analysis                    |
-
-### Framework Support
-
-| Framework   | Detected Patterns                                         |
-| ----------- | --------------------------------------------------------- |
-| **Flask**   | `@app.route`, `request` object sources, `render_template` |
-| **Django**  | `request` handling, ORM patterns, template rendering      |
-| **FastAPI** | `@app.get/post/...`, `Request` parameter sources          |
-
-### Smart Heuristics
-
-- **Dataclass fields** automatically marked as used
-- **Settings/Config classes** with uppercase variables ignored
-- **Visitor pattern methods** (`visit_*`, `leave_*`, `transform_*`) marked as used
-- **`__all__` exports** prevent flagging as unused
-- **Base class tracking** for inheritance-aware analysis
+- **Dead Code Detection**: Unused functions, classes, imports, and variables with cross-module tracking.
+- **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys), and dangerous code patterns (`eval`, `exec`).
+- **Code Quality Metrics**: Cyclomatic complexity, Halstead metrics, Maintainability Index, and raw metrics (LOC, SLOC).
+- **Framework Support**: Native understanding of Flask, Django, and FastAPI patterns.
+- **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
 
 ## 🛠️ Usage
 
 ### Command Line
 
 ```bash
-# Basic usage
 cytoscnpy [PATHS]... [OPTIONS]
-
-# Examples
-cytoscnpy .                                     # Analyze current directory
-cytoscnpy /path/to/project --json               # Output as JSON
-cytoscnpy . --secrets --danger --quality        # Enable specific checks
-cytoscnpy . --taint                             # Enable taint analysis
-
-# Options
-#   -c, --confidence <CONFIDENCE>      Set confidence threshold (0-100)
-#       --secrets                      Scan for secrets
-#       --danger                       Scan for dangerous code patterns
-#       --quality                      Scan for code quality issues
-#       --taint                        Enable taint analysis
-#       --json                         Output results as JSON
-#       --include-tests                Include test files in analysis
-#       --exclude-folders <FOLDERS>    Exclude specific folders
-#       --include-folders <FOLDERS>    Force include specific folders
-#       --include-ipynb                Include Jupyter notebooks
-#       --ipynb-cells                  Report findings per cell
-#   -h, --help                         Print help
-#   -V, --version                      Print version
 ```
+
+**Examples:**
+
+```bash
+# Dead code analysis
+cytoscnpy .                                     # Analyze current directory
+cytoscnpy /path/to/project --json               # JSON output for CI/CD
+
+# Security checks
+cytoscnpy . --secrets --danger --quality --taint
+
+# Confidence threshold (0-100)
+cytoscnpy . --confidence 80
+
+# Path filtering
+cytoscnpy . --exclude-folder venv --exclude-folder build
+cytoscnpy . --include-folder specific_venv      # Override defaults
+cytoscnpy . --include-tests
+
+# Jupyter notebooks
+cytoscnpy . --include-ipynb --ipynb-cells
+```
+
+**Options:**
+
+| Flag                     | Description                            |
+| ------------------------ | -------------------------------------- |
+| `-c, --confidence <N>`   | Set confidence threshold (0-100)       |
+| `--secrets`              | Scan for API keys, tokens, credentials |
+| `--danger`               | Scan for dangerous code patterns       |
+| `--quality`              | Scan for code quality issues           |
+| `--taint`                | Enable taint analysis                  |
+| `--json`                 | Output results as JSON                 |
+| `--include-tests`        | Include test files in analysis         |
+| `--exclude-folder <DIR>` | Exclude specific folders               |
+| `--include-folder <DIR>` | Force include folders                  |
+| `--include-ipynb`        | Include Jupyter notebooks              |
+| `--ipynb-cells`          | Report findings per notebook cell      |
 
 ### Metric Subcommands
 
 ```bash
-# Raw Metrics (LOC, SLOC, Comments)
-cytoscnpy raw .
-cytoscnpy raw . --json --exclude-folder venv
-
-# Cyclomatic Complexity (McCabe)
-cytoscnpy cc .
-cytoscnpy cc /path/to/file.py --json
-
-# Halstead Metrics (Difficulty, Effort, Volume, Bugs, Time)
-cytoscnpy hal .
-cytoscnpy hal . --exclude-folder tests
-
-# Maintainability Index (0-100: <65 = Hard, >85 = Easy to maintain)
-cytoscnpy mi .
-cytoscnpy mi . --json
+cytoscnpy raw .                    # Raw Metrics (LOC, SLOC, Comments)
+cytoscnpy cc .                     # Cyclomatic Complexity
+cytoscnpy hal .                    # Halstead Metrics
+cytoscnpy mi .                     # Maintainability Index
 ```
 
-> **Note**: Average Complexity and Maintainability Index are also shown in the summary of the main `cytoscnpy .` command.
-
-### Command Line Workflows
-
-```bash
-# Enable all security checks
-cytoscnpy . --secrets --danger --quality --taint
-
-# Set confidence threshold (0-100)
-cytoscnpy . --confidence 80
-
-# JSON output for CI/CD pipelines
-cytoscnpy . --json
-
-# Include/exclude paths
-cytoscnpy . --exclude-folder venv --exclude-folder build
-cytoscnpy . --include-folder specific_venv  # Override default exclusions
-cytoscnpy . --include-tests
-
-# Jupyter notebook support
-cytoscnpy . --include-ipynb
-cytoscnpy . --include-ipynb --ipynb-cells  # Report per cell
-```
+> **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories.
 
 ## ⚙️ Configuration
 
@@ -196,8 +143,6 @@ Configure a fail threshold for unused code. If the percentage exceeds this thres
 - **Default**: `100.0` (effectively disabled)
 - **Zero Tolerance**: Set to `0.0` to fail on any unused code
 
-
-
 ## 📊 Performance
 
 ### Speed Comparison
@@ -218,7 +163,7 @@ Configure a fail threshold for unused code. If the percentage exceeds this thres
 | Variables      | 0.25      | 0.16     | 0.19     |
 | **Overall**    | **0.61**  | **0.57** | **0.59** |
 
-> See [BENCHMARK.md](benchmark/BENCHMARK.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
+> See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
 ## 🏗️ Architecture
 
@@ -239,7 +184,7 @@ Apache-2.0 License - see [License](License) file for details.
 ## 🔗 Links
 
 - [Rust Core Documentation](cytoscnpy/README.md)
-- [Benchmarks & Accuracy](benchmark/BENCHMARK.md)
+- [Benchmarks & Accuracy](benchmark/README.md)
 - [Roadmap](ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)

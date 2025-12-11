@@ -330,6 +330,49 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     &mut stdout,
                 )?
             }
+            Commands::Stats {
+                path,
+                all,
+                secrets,
+                danger,
+                quality,
+                json,
+                output,
+                exclude,
+            } => {
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                crate::commands::run_stats(
+                    path,
+                    all,
+                    secrets,
+                    danger,
+                    quality,
+                    json,
+                    output,
+                    exclude,
+                    &mut stdout,
+                )?
+            }
+            Commands::Files {
+                path,
+                json,
+                exclude,
+            } => {
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                crate::commands::run_files(path, json, exclude, &mut stdout)?
+            }
         }
         Ok(0)
     } else {

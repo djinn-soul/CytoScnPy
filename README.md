@@ -89,6 +89,9 @@ cytoscnpy raw .                    # Raw Metrics (LOC, SLOC, Comments)
 cytoscnpy cc .                     # Cyclomatic Complexity
 cytoscnpy hal .                    # Halstead Metrics
 cytoscnpy mi .                     # Maintainability Index
+cytoscnpy stats . --all            # Full project report (secrets, danger, quality)
+cytoscnpy stats . --all -o report.md  # Save report to file
+cytoscnpy files .                  # Per-file metrics table
 ```
 
 > **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories.

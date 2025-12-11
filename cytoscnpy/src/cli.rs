@@ -122,4 +122,52 @@ pub enum Commands {
         #[arg(long, alias = "exclude-folder")]
         exclude: Vec<String>,
     },
+    /// Generate comprehensive project statistics report
+    Stats {
+        /// Path to analyze
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Enable all analysis: secrets, danger, quality, and per-file metrics
+        #[arg(long)]
+        all: bool,
+
+        /// Scan for API keys/secrets
+        #[arg(long)]
+        secrets: bool,
+
+        /// Scan for dangerous code patterns
+        #[arg(long)]
+        danger: bool,
+
+        /// Scan for code quality issues
+        #[arg(long)]
+        quality: bool,
+
+        /// Output JSON instead of markdown
+        #[arg(long)]
+        json: bool,
+
+        /// Output file path
+        #[arg(long, short = 'o')]
+        output: Option<String>,
+
+        /// Exclude folders
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
+    },
+    /// Show per-file metrics table
+    Files {
+        /// Path to analyze
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Output JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Exclude folders
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
+    },
 }

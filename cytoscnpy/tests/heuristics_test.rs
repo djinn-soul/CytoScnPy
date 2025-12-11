@@ -77,17 +77,17 @@ class MyVisitor:
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = analyzer.analyze(dir.path()).unwrap();
 
-    let unused_methods: Vec<String> = result
-        .unused_functions
+    let unused_method_names: Vec<String> = result
+        .unused_methods
         .iter()
         .map(|d| d.simple_name.clone())
         .collect();
 
-    assert!(!unused_methods.contains(&"visit_node".to_owned()));
-    assert!(!unused_methods.contains(&"leave_node".to_owned()));
-    assert!(!unused_methods.contains(&"transform_node".to_owned()));
+    assert!(!unused_method_names.contains(&"visit_node".to_owned()));
+    assert!(!unused_method_names.contains(&"leave_node".to_owned()));
+    assert!(!unused_method_names.contains(&"transform_node".to_owned()));
 
-    assert!(unused_methods.contains(&"other_method".to_owned()));
+    assert!(unused_method_names.contains(&"other_method".to_owned()));
 }
 
 #[test]

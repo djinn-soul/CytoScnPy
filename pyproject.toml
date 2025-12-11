@@ -4,36 +4,19 @@ build-backend = "maturin"
 
 [project]
 name = "cytoscnpy"
-description = "High-performance dead code elimination analysis tool for Python (Rust implementation)."
+description = "High-performance dead code elimination analysis tool for Python."
 requires-python = ">=3.8"
-authors = [{ name = "djinn09" }]
-license = { file = "License" }
-readme = "README.md"
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Quality Assurance",
+    "Dead Code Detection",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
-
-[project.urls]
-"Homepage" = "https://github.com/djinn09/cytoscnpy"
-"Repository" = "https://github.com/djinn09/cytoscnpy"
-"Bug Tracker" = "https://github.com/djinn09/cytoscnpy/issues"
+dev = ["pytest>=7.0", "pytest-cov>=4.0"]
 
 [tool.maturin]
 bindings = "pyo3"
@@ -45,3 +28,6 @@ manifest-path = "cytoscnpy/Cargo.toml"
 
 [project.scripts]
 cytoscnpy = "cytoscnpy.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]

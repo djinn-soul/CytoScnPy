@@ -173,21 +173,32 @@ impl<'a> FrameworkAwareVisitor<'a> {
 
                     if let Some(id) = &id {
                         let id_lower = id.to_lowercase();
-                        if id_lower.contains("view")
-                            || id_lower.contains("model")
-                            || id_lower.contains("schema")
-                        {
-                            self.is_framework_file = true;
-                            is_framework_class = true;
-                            // Mark this class as framework-related.
-                            let line = self.line_index.line_index(node.range.start());
-                            self.framework_decorated_lines.insert(line);
+                        // Only mark as framework class if we've already detected a framework import
+                        // This prevents user-defined classes (like a custom BaseModel) from
+                        // incorrectly triggering framework detection
+                        if self.is_framework_file {
+                            // Django views, schemas (serializers), etc.
+                            if id_lower.contains("view") || id_lower.contains("schema") {
+                                is_framework_class = true;
+                                let line = self.line_index.line_index(node.range.start());
+                                self.framework_decorated_lines.insert(line);
+                            }
+                            // Django Model (exact match, not just contains "model")
+                            if id == "Model" {
+                                is_framework_class = true;
+                                let line = self.line_index.line_index(node.range.start());
+                                self.framework_decorated_lines.insert(line);
+                            }
                         }
                         // Check specifically for Pydantic BaseModel
+                        // This DOES set is_framework_file because Pydantic is a real framework
                         if id == "BaseModel" || id_lower == "basemodel" {
-                            self.is_framework_file = true;
-                            self.detected_frameworks.insert("pydantic".to_owned());
-                            is_pydantic_model = true;
+                            // Only treat as Pydantic if we've already detected pydantic import
+                            if self.detected_frameworks.contains("pydantic") {
+                                is_pydantic_model = true;
+                            }
+                            // Note: We don't set is_framework_file or is_framework_class here
+                            // for user-defined BaseModel classes
                         }
                     }
                 }

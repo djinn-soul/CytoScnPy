@@ -233,34 +233,59 @@ impl Rule for SubprocessRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if name == "os.system"
-                    && !is_literal(&call.args) {
-                        return Some(vec![create_finding(
-                            "Potential command injection (os.system with dynamic arg)",
-                            self.code(),
-                            context,
-                            call.range().start(),
-                            "CRITICAL",
-                        )]);
-                    }
+                if name == "os.system" && !is_literal(&call.args) {
+                    return Some(vec![create_finding(
+                        "Potential command injection (os.system with dynamic arg)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "CRITICAL",
+                    )]);
+                }
                 if name.starts_with("subprocess.") {
+                    let mut is_shell_true = false;
+                    let mut args_keyword_expr: Option<&Expr> = None;
+
                     for keyword in &call.keywords {
                         if let Some(arg) = &keyword.arg {
-                            if arg == "shell" {
-                                if let Expr::Constant(c) = &keyword.value {
-                                    if let ast::Constant::Bool(true) = c.value {
-                                        // Check if args are dynamic
-                                        if !is_literal(&call.args) {
-                                            return Some(vec![create_finding(
-                                                "Potential command injection (subprocess with shell=True and dynamic args)",
-                                                self.code(),
-                                                context,
-                                                call.range().start(),
-                                                "CRITICAL",
-                                            )]);
+                            match arg.as_str() {
+                                "shell" => {
+                                    if let Expr::Constant(c) = &keyword.value {
+                                        if let ast::Constant::Bool(true) = c.value {
+                                            is_shell_true = true;
                                         }
                                     }
                                 }
+                                "args" => {
+                                    args_keyword_expr = Some(&keyword.value);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+
+                    if is_shell_true {
+                        // Check positional args
+                        if !call.args.is_empty() && !is_literal(&call.args) {
+                            return Some(vec![create_finding(
+                                SUBPROCESS_INJECTION_MSG,
+                                self.code(),
+                                context,
+                                call.range().start(),
+                                "CRITICAL",
+                            )]);
+                        }
+
+                        // Check keyword args (args=...)
+                        if let Some(expr) = args_keyword_expr {
+                            if !is_literal_expr(expr) {
+                                return Some(vec![create_finding(
+                                    SUBPROCESS_INJECTION_MSG,
+                                    self.code(),
+                                    context,
+                                    call.range().start(),
+                                    "CRITICAL",
+                                )]);
                             }
                         }
                     }
@@ -324,20 +349,21 @@ impl Rule for PathTraversalRule {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if (name == "open" || name.starts_with("os.path.") || name.starts_with("shutil."))
-                    && !is_literal(&call.args) {
-                        // This is a heuristic, assuming non-literal args might be tainted.
-                        // Real taint analysis is needed for high confidence.
-                        // For now, we only flag if it looks like user input might be involved (not implemented here)
-                        // or just flag all dynamic paths as HIGH risk if we want to be strict.
-                        // Given the user request, we should implement a basic check.
-                        return Some(vec![create_finding(
-                            "Potential path traversal (dynamic file path)",
-                            self.code(),
-                            context,
-                            call.range.start(),
-                            "HIGH",
-                        )]);
-                    }
+                    && !is_literal(&call.args)
+                {
+                    // This is a heuristic, assuming non-literal args might be tainted.
+                    // Real taint analysis is needed for high confidence.
+                    // For now, we only flag if it looks like user input might be involved (not implemented here)
+                    // or just flag all dynamic paths as HIGH risk if we want to be strict.
+                    // Given the user request, we should implement a basic check.
+                    return Some(vec![create_finding(
+                        "Potential path traversal (dynamic file path)",
+                        self.code(),
+                        context,
+                        call.range.start(),
+                        "HIGH",
+                    )]);
+                }
             }
         }
         None
@@ -358,15 +384,16 @@ impl Rule for SSRFRule {
                 if (name.starts_with("requests.")
                     || name.starts_with("httpx.")
                     || name == "urllib.request.urlopen")
-                    && !is_literal(&call.args) {
-                        return Some(vec![create_finding(
-                            "Potential SSRF (dynamic URL)",
-                            self.code(),
-                            context,
-                            call.range.start(),
-                            "CRITICAL",
-                        )]);
-                    }
+                    && !is_literal(&call.args)
+                {
+                    return Some(vec![create_finding(
+                        "Potential SSRF (dynamic URL)",
+                        self.code(),
+                        context,
+                        call.range.start(),
+                        "CRITICAL",
+                    )]);
+                }
             }
         }
         None
@@ -387,15 +414,16 @@ impl Rule for SqlInjectionRawRule {
                 if (name == "sqlalchemy.text"
                     || name == "pandas.read_sql"
                     || name.ends_with(".objects.raw"))
-                    && !is_literal(&call.args) {
-                        return Some(vec![create_finding(
-                            "Potential SQL injection (dynamic raw SQL)",
-                            self.code(),
-                            context,
-                            call.range.start(),
-                            "CRITICAL",
-                        )]);
-                    }
+                    && !is_literal(&call.args)
+                {
+                    return Some(vec![create_finding(
+                        "Potential SQL injection (dynamic raw SQL)",
+                        self.code(),
+                        context,
+                        call.range.start(),
+                        "CRITICAL",
+                    )]);
+                }
             }
         }
         None
@@ -414,15 +442,16 @@ impl Rule for XSSRule {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if (name == "flask.render_template_string" || name == "jinja2.Markup")
-                    && !is_literal(&call.args) {
-                        return Some(vec![create_finding(
-                            "Potential XSS (dynamic template/markup)",
-                            self.code(),
-                            context,
-                            call.range.start(),
-                            "CRITICAL",
-                        )]);
-                    }
+                    && !is_literal(&call.args)
+                {
+                    return Some(vec![create_finding(
+                        "Potential XSS (dynamic template/markup)",
+                        self.code(),
+                        context,
+                        call.range.start(),
+                        "CRITICAL",
+                    )]);
+                }
             }
         }
         None
@@ -430,6 +459,10 @@ impl Rule for XSSRule {
 }
 
 // Helper functions
+
+/// Message for subprocess command injection findings
+const SUBPROCESS_INJECTION_MSG: &str =
+    "Potential command injection (subprocess with shell=True and dynamic args)";
 
 fn get_call_name(func: &Expr) -> Option<String> {
     match func {
@@ -447,9 +480,22 @@ fn get_call_name(func: &Expr) -> Option<String> {
 
 fn is_literal(args: &[Expr]) -> bool {
     if let Some(arg) = args.first() {
-        matches!(arg, Expr::Constant(_))
+        is_literal_expr(arg)
     } else {
         true // No args is "literal" in the sense of safe
+    }
+}
+
+/// Check if a single expression is a literal (constant value).
+/// Returns false for dynamic values like variables, f-strings, concatenations, etc.
+fn is_literal_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Constant(_) => true,
+        Expr::List(list) => list.elts.iter().all(is_literal_expr),
+        Expr::Tuple(tuple) => tuple.elts.iter().all(is_literal_expr),
+        // f-strings, concatenations, variables, calls, etc. are NOT literal
+        Expr::JoinedStr(_) | Expr::BinOp(_) | Expr::Name(_) | Expr::Call(_) => false,
+        _ => false,
     }
 }
 

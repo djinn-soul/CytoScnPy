@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/djinn09/CytoScnPy)
 
-A lightning-fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics include cyclomatic complexity, Halstead metrics, maintainability index, nesting depth, and more.
+A lightning-fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed.Code quality metrics are also provided.
 
 ## 🚀 Why CytoScnPy?
 
@@ -19,7 +19,6 @@ A lightning-fast static analysis tool for Python codebases, powered by Rust with
 ## 📦 Installation
 
 ```bash
-# Install from PyPI (when published)
 pip install cytoscnpy
 
 # Or install from source
@@ -29,108 +28,72 @@ pip install maturin
 maturin develop -m cytoscnpy/Cargo.toml
 ```
 
+## ✨ Features
+
+- **Dead Code Detection**: Unused functions, classes, imports, and variables with cross-module tracking.
+- **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys), and dangerous code patterns (`eval`, `exec`).
+- **Code Quality Metrics**: Cyclomatic complexity, Halstead metrics, Maintainability Index, and raw metrics (LOC, SLOC).
+- **Framework Support**: Native understanding of Flask, Django, and FastAPI patterns.
+- **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
+
 ## 🛠️ Usage
 
 ### Command Line
 
 ```bash
-# Basic usage
 cytoscnpy [PATHS]... [OPTIONS]
-
-# Examples:
-cytoscnpy .                                     # Analyze current directory
-cytoscnpy /path/to/project --json               # Output as JSON
-cytoscnpy . --secrets --danger --quality        # Enable specific checks
-cytoscnpy . --taint                             # Enable taint analysis
-
-# Options:
-#   -c, --confidence <CONFIDENCE>      Set confidence threshold (0-100)
-#       --secrets                      Scan for secrets
-#       --danger                       Scan for dangerous code patterns
-#       --quality                      Scan for code quality issues
-#       --taint                        Enable taint analysis
-#       --json                         Output results as JSON
-#       --include-tests                Include test files in analysis
-#       --exclude-folders <FOLDERS>    Exclude specific folders
-#       --include-folders <FOLDERS>    Force include specific folders
-#       --include-ipynb                Include Jupyter notebooks
-#       --ipynb-cells                  Report findings per cell
-#   -h, --help                         Print help
-#   -V, --version                      Print version
-
-# Subcommands
-# -----------------------------------------------------------------------
-# Raw Metrics (LOC, SLOC, Comments)
-cytoscnpy raw /path/to/project
-cytoscnpy raw . --json --exclude-folder venv
-
-# Cyclomatic Complexity (McCabe)
-# Calculates complexity for each function/method
-cytoscnpy cc .
-cytoscnpy cc /path/to/file.py --json
-
-# Halstead Metrics
-# Calculates Difficulty, Effort, Volume, Bugs, Time
-cytoscnpy hal .
-cytoscnpy hal . --exclude-folder tests
-
-# Maintainability Index
-# Combined metric (0-100) indicating code maintainability
-# < 65 = Hard to maintain
-# > 85 = Easy to maintain
-cytoscnpy mi .
-cytoscnpy mi . --json
-
-> **Note**: Average Complexity and Maintainability Index are automatically calculated and shown in the summary of the main `cytoscnpy .` command.
 ```
 
-## ✨ Features
+**Examples:**
 
-### Dead Code Detection
+```bash
+# Dead code analysis
+cytoscnpy .                                     # Analyze current directory
+cytoscnpy /path/to/project --json               # JSON output for CI/CD
 
-- **Unused functions, classes, methods** with cross-module tracking
-- **Unused imports and variables** with scope-aware analysis
-- **Entry point detection** (`if __name__ == "__main__"`) to prevent false positives
-- **Dynamic pattern recognition** (`hasattr`, `getattr`, `globals()`)
-- **Pragma support** (`# pragma: no cytoscnpy` to suppress findings)
+# Security checks
+cytoscnpy . --secrets --danger --quality --taint
 
-### Security Analysis
+# Confidence threshold (0-100)
+cytoscnpy . --confidence 80
 
-CytoScnPy comes with built-in security features to keep your codebase safe:
+# Path filtering
+cytoscnpy . --exclude-folder venv --exclude-folder build
+cytoscnpy . --include-folder specific_venv      # Override defaults
+cytoscnpy . --include-tests
 
-- **Taint Analysis**: Tracks untrusted user input to prevent SQL Injection and XSS.
-- **Secret Scanning**: Finds hardcoded API keys and credentials using high-entropy checks.
-- **Dangerous Code**: Alerts you to unsafe usage of `eval()`, `pickle`, and `subprocess`.
+# Jupyter notebooks
+cytoscnpy . --include-ipynb --ipynb-cells
+```
 
-> For deep technical details on how the security engine works, see [cytoscnpy/README.md](cytoscnpy/README.md#security-analysis).
+**Options:**
 
-### Code Quality Metrics
+| Flag                     | Description                            |
+| ------------------------ | -------------------------------------- |
+| `-c, --confidence <N>`   | Set confidence threshold (0-100)       |
+| `--secrets`              | Scan for API keys, tokens, credentials |
+| `--danger`               | Scan for dangerous code patterns       |
+| `--quality`              | Scan for code quality issues           |
+| `--taint`                | Enable taint analysis                  |
+| `--json`                 | Output results as JSON                 |
+| `--include-tests`        | Include test files in analysis         |
+| `--exclude-folder <DIR>` | Exclude specific folders               |
+| `--include-folder <DIR>` | Force include folders                  |
+| `--include-ipynb`        | Include Jupyter notebooks              |
+| `--ipynb-cells`          | Report findings per notebook cell      |
 
-| Metric                    | Description                                           |
-| ------------------------- | ----------------------------------------------------- |
-| **Raw Metrics**           | LOC, LLOC, SLOC, Comments, Multi-line strings, Blanks |
-| **Cyclomatic Complexity** | Control flow complexity (McCabe)                      |
-| **Halstead Metrics**      | Difficulty, Effort, Volume, Bugs, Time                |
-| **Maintainability Index** | Combined metric (0-100 scale)                         |
-| **Nesting Depth**         | Maximum indentation level analysis                    |
+### Metric Subcommands
 
-### Framework Support
+```bash
+cytoscnpy raw .                    # Raw Metrics (LOC, SLOC, Comments)
+cytoscnpy cc .                     # Cyclomatic Complexity
+cytoscnpy hal .                    # Halstead Metrics
+cytoscnpy mi .                     # Maintainability Index
+```
 
-| Framework   | Detected Patterns                                         |
-| ----------- | --------------------------------------------------------- |
-| **Flask**   | `@app.route`, `request` object sources, `render_template` |
-| **Django**  | `request` handling, ORM patterns, template rendering      |
-| **FastAPI** | `@app.get/post/...`, `Request` parameter sources          |
+> **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories.
 
-### Smart Heuristics
-
-- **Dataclass fields** automatically marked as used
-- **Settings/Config classes** with uppercase variables ignored
-- **Visitor pattern methods** (`visit_*`, `leave_*`, `transform_*`) marked as used
-- **`__all__` exports** prevent flagging as unused
-- **Base class tracking** for inheritance-aware analysis
-
-### Configuration
+## ⚙️ Configuration
 
 Create `.cytoscnpy.toml` or add to `pyproject.toml`:
 
@@ -139,13 +102,17 @@ Create `.cytoscnpy.toml` or add to `pyproject.toml`:
 # General Settings
 confidence = 60  # Minimum confidence threshold (0-100)
 exclude_folders = ["venv", ".tox", "build", "node_modules", ".git"]
-include_folders = ["src", "tests"] # Optional: whitelist folders
+include_folders = ["src", "tests"]  # Optional: whitelist folders
 include_tests = false
 
 # Analysis Features
 secrets = true
 danger = true
 quality = true
+
+# Fail Threshold (exit code 1 if exceeded)
+fail_threshold = 10.0  # Fail if >10% of code is unused
+# fail_threshold = 0.0  # Zero tolerance: fail on any unused code
 
 # Code Quality Thresholds
 max_lines = 100       # Max lines per function
@@ -172,22 +139,21 @@ regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
 ```
 
-#### Environment Variables
+### Fail Threshold
 
-You can also configure CytoScnPy via environment variables (useful for CI/CD):
+Configure a fail threshold for unused code. If the percentage exceeds this threshold, the CLI exits with code `1`.
 
-| Variable                   | Description                         |
-| -------------------------- | ----------------------------------- |
-| `CYTOSCNPY_FAIL_THRESHOLD` | Fail threshold % (overrides config) |
+- **Default**: `100.0` (effectively disabled)
+- **Zero Tolerance**: Set to `0.0` to fail on any unused code
 
 ## 📊 Performance
 
 ### Speed Comparison
 
-| Metric | CytoScnPy |
-| ------ | --------- |
-| Time   | **0.07s** |
-| Memory | **~14MB** |
+| Metric | Rust (CytoScnPy) |
+| ------ | ---------------- |
+| Time   | **0.07s**        |
+| Memory | **~14MB**        |
 
 ### Accuracy (Benchmark Suite: 126 items)
 
@@ -220,15 +186,15 @@ Apache-2.0 License - see [License](License) file for details.
 
 ## 🔗 Links
 
-- **Rust Core Documentation**: [cytoscnpy/README.md](cytoscnpy/README.md)
-- **Benchmarks & Accuracy**: [BENCHMARK.md](benchmark/BENCHMARK.md)
-- **Roadmap**: [ROADMAP.md](ROADMAP.md)
-- **Changelog**: [CHANGELOG.md](CHANGELOG.md)
-- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
+- [Rust Core Documentation](cytoscnpy/README.md)
+- [Benchmarks & Accuracy](benchmark/README.md)
+- [Roadmap](ROADMAP.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## 📚 References
 
-CytoScnPy's design and implementation in Rust are inspired by and reference the following Python libraries:
+CytoScnPy's design and implementation are inspired by:
 
 - [**Skylos**](https://github.com/duriantaco/skylos)
 - [**Radon**](https://github.com/rubik/radon)

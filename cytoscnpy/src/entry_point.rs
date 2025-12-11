@@ -234,57 +234,114 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 json,
                 exclude,
             } => {
-                crate::commands::run_raw(path, json, exclude, Vec::new(), false, None, &mut stdout)?;
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                crate::commands::run_raw(
+                    path,
+                    json,
+                    exclude,
+                    Vec::new(),
+                    false,
+                    None,
+                    &mut stdout,
+                )?;
             }
             Commands::Cc {
                 path,
                 json,
                 exclude,
-            } => crate::commands::run_cc(
-                path,
-                json,
-                exclude,
-                Vec::new(),
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                false,
-                false,
-                None, // fail_threshold
-                None, // output_file
-                &mut stdout,
-            )?,
+            } => {
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                crate::commands::run_cc(
+                    path,
+                    json,
+                    exclude,
+                    Vec::new(),
+                    None,
+                    None,
+                    false,
+                    false,
+                    false,
+                    None,
+                    false,
+                    false,
+                    None, // fail_threshold
+                    None, // output_file
+                    &mut stdout,
+                )?
+            }
             Commands::Hal {
                 path,
                 json,
                 exclude,
             } => {
-                crate::commands::run_hal(path, json, exclude, Vec::new(), false, None, &mut stdout)?;
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                crate::commands::run_hal(
+                    path,
+                    json,
+                    exclude,
+                    Vec::new(),
+                    false,
+                    None,
+                    &mut stdout,
+                )?;
             }
             Commands::Mi {
                 path,
                 json,
                 exclude,
-            } => crate::commands::run_mi(
-                path,
-                json,
-                exclude,
-                Vec::new(),
-                None,
-                None,
-                false,
-                false,
-                false, // average
-                None,  // fail_under
-                None,  // output_file
-                &mut stdout,
-            )?,
+            } => {
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                crate::commands::run_mi(
+                    path,
+                    json,
+                    exclude,
+                    Vec::new(),
+                    None,
+                    None,
+                    false,
+                    false,
+                    false, // average
+                    None,  // fail_under
+                    None,  // output_file
+                    &mut stdout,
+                )?
+            }
         }
         Ok(0)
     } else {
+        for path in &cli_var.paths {
+            if !path.exists() {
+                eprintln!(
+                    "Error: The file or directory '{}' does not exist.",
+                    path.display()
+                );
+                return Ok(1);
+            }
+        }
         let config_path = cli_var
             .paths
             .first()
@@ -328,7 +385,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             cli_var.include_ipynb,
             cli_var.ipynb_cells,
             danger || cli_var.taint, // taint enabled with --danger or --taint
-            config,
+            config.clone(),
         );
         let result = analyzer.analyze_paths(&cli_var.paths)?;
 
@@ -341,6 +398,38 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         } else {
             let mut stdout = std::io::stdout();
             crate::output::print_report(&mut stdout, &result)?;
+        }
+
+        // Check for fail threshold
+        let fail_threshold = config
+            .cytoscnpy
+            .fail_threshold
+            .or_else(|| {
+                std::env::var("CYTOSCNPY_FAIL_THRESHOLD")
+                    .ok()
+                    .and_then(|v| v.parse::<f64>().ok())
+            })
+            .unwrap_or(100.0); // Default to 100% (never fail unless 0.0 is passed explicitly)
+
+        // Calculate unused percentage
+        if result.analysis_summary.total_definitions > 0 {
+            let total_unused = result.unused_functions.len()
+                + result.unused_methods.len()
+                + result.unused_classes.len()
+                + result.unused_imports.len()
+                + result.unused_variables.len()
+                + result.unused_parameters.len();
+
+            let percentage =
+                (total_unused as f64 / result.analysis_summary.total_definitions as f64) * 100.0;
+
+            if percentage > fail_threshold {
+                eprintln!(
+                    "Error: Unused code percentage ({:.2}%) exceeds threshold ({:.2}%).",
+                    percentage, fail_threshold
+                );
+                return Ok(1);
+            }
         }
 
         Ok(0)

@@ -57,23 +57,28 @@ CytoScnPy/
 ├── cytoscnpy/                    # Rust core library
 │   └── src/
 │       ├── analyzer/             # Core analysis engine
+│       │   ├── mod.rs            # Module exports
+│       │   ├── types.rs          # AnalysisResult, ParseError
+│       │   ├── heuristics.rs     # Penalty and heuristic logic
+│       │   └── processing.rs     # Core processing methods
 │       ├── visitor.rs            # AST visitor implementation
 │       ├── rules/                # Security & quality rules
+│       │   ├── mod.rs            # Rules module
 │       │   ├── danger.rs         # Dangerous code detection
 │       │   ├── secrets.rs        # Secret scanning + entropy
 │       │   └── quality.rs        # Code quality checks
 │       ├── taint/                # Taint analysis engine
 │       │   ├── mod.rs            # Module exports
+│       │   ├── types.rs          # TaintFinding, VulnType
 │       │   ├── analyzer.rs       # Main taint analyzer
-│       │   ├── types.rs          # TaintFinding, TaintInfo, VulnType
 │       │   ├── sources.rs        # User input sources
 │       │   ├── sinks.rs          # Dangerous sinks
 │       │   ├── propagation.rs    # Taint state tracking
-│       │   ├── intraprocedural.rs # Statement-level analysis
-│       │   ├── interprocedural.rs # Cross-function analysis
+│       │   ├── intraprocedural.rs
+│       │   ├── interprocedural.rs
 │       │   ├── crossfile.rs      # Cross-module analysis
-│       │   ├── call_graph.rs     # Call graph construction
-│       │   └── summaries.rs      # Function taint summaries
+│       │   ├── call_graph.rs     # Function call graph
+│       │   └── summaries.rs      # Function summaries
 │       ├── complexity.rs         # Cyclomatic complexity
 │       ├── halstead.rs           # Halstead metrics
 │       ├── raw_metrics.rs        # LOC/SLOC counting

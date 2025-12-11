@@ -57,14 +57,14 @@ if hasattr(obj, "unused_method"):
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
     let result = cytoscnpy.analyze(dir.path()).unwrap();
 
-    let unused_funcs: Vec<String> = result
-        .unused_functions // Methods are in unused_functions
+    let unused_methods: Vec<String> = result
+        .unused_methods
         .iter()
         .map(|f| f.simple_name.clone())
         .collect();
 
     assert!(
-        !unused_funcs.contains(&"unused_method".to_owned()),
+        !unused_methods.contains(&"unused_method".to_owned()),
         "Hasattr failed to mark method as used"
     );
 }

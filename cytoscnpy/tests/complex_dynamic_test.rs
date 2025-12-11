@@ -131,18 +131,18 @@ def process():
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
     let result = cytoscnpy.analyze(dir.path()).unwrap();
 
-    let unused_methods: Vec<String> = result
-        .unused_functions // methods are here too
+    let unused_method_names: Vec<String> = result
+        .unused_methods
         .iter()
         .map(|f| f.simple_name.clone())
         .collect();
 
     assert!(
-        !unused_methods.contains(&"save".to_owned()),
+        !unused_method_names.contains(&"save".to_owned()),
         "User.save should be used via hasattr"
     );
     assert!(
-        unused_methods.contains(&"delete".to_owned()),
+        unused_method_names.contains(&"delete".to_owned()),
         "User.delete should be unused"
     );
 }

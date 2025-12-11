@@ -560,6 +560,10 @@ cargo test --features python-tests  # Requires Python in PATH
 The Python CLI wrapper (`python/cytoscnpy`) has its own test suite:
 
 ```bash
+# Quick run with uv (recommended - builds and tests in one command)
+uv run --with pytest pytest python/tests
+
+# Or with virtual environment activated
 # Install dev dependencies
 uv pip install -e ".[dev]"
 

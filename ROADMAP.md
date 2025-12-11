@@ -1,6 +1,5 @@
 # CytoScnPy - Complete Roadmap & Development Guide
 
-> **Last Updated:** 2025-12-10
 > **Architecture:** Hybrid PyO3 + Standalone CLI
 > **Status:** Production-ready core, active development
 
@@ -74,7 +73,7 @@ This comprehensive document details the complete development roadmap for CytoScn
 
 These foundational fixes were essential for accuracy and addressed the largest sources of false positives.
 
-### 1.1 Import Resolution (Aliasing) ✅ **COMPLETED**
+### 1.1 Import Resolution (Aliasing) ✅
 
 **Problem:** Rust didn't track import aliases, causing false positives:
 
@@ -106,7 +105,7 @@ let resolved_name = self.alias_map.get(id).unwrap_or(id);
 
 ---
 
-### 1.2 Method and Class Context ✅ **COMPLETED**
+### 1.2 Method and Class Context ✅
 
 **Problem:** Methods weren't qualified with class names:
 
@@ -144,8 +143,7 @@ let qualified_name = if let Some(class_name) = self.class_stack.last() {
 
 ---
 
-### 1.3 Qualified Name Matching ✅ **COMPLETED**
-
+### 1.3 Qualified Name Matching ✅
 **Problem:** References didn't always match definitions due to different qualification levels.
 
 **Solution:**
@@ -166,7 +164,7 @@ let qualified_name = if let Some(class_name) = self.class_stack.last() {
 
 Bringing Rust implementation to feature parity with the Python version.
 
-### 2.1 Pragma Support ✅ **COMPLETED**
+### 2.1 Pragma Support ✅
 
 **Feature:** Inline suppression of warnings
 
@@ -187,7 +185,7 @@ def unused_function():  # pragma: no cytoscnpy
 
 ---
 
-### 2.2 Configuration File Support ✅ **COMPLETED**
+### 2.2 Configuration File Support ✅
 
 **Feature:** Project-level configuration via `.cytoscnpy.toml` or `pyproject.toml`.
 
@@ -210,7 +208,7 @@ def unused_function():  # pragma: no cytoscnpy
 
 ---
 
-### 2.3 Unused Parameter Detection ✅ **COMPLETED**
+### 2.3 Unused Parameter Detection ✅
 
 **Feature:** Detect function parameters that are never used.
 
@@ -231,7 +229,7 @@ def process(data, unused_param):  # 'unused_param' flagged
 
 ---
 
-### 2.4 Advanced Heuristics ✅ **COMPLETED**
+### 2.4 Advanced Heuristics ✅
 
 Multiple heuristics to reduce false positives for common patterns.
 
@@ -259,7 +257,7 @@ Multiple heuristics to reduce false positives for common patterns.
 
 ---
 
-### 2.5 `__all__` Export Detection ✅ **COMPLETED**
+### 2.5 `__all__` Export Detection ✅
 
 **Feature:** Respect module exports defined in `__all__`.
 
@@ -273,7 +271,7 @@ Multiple heuristics to reduce false positives for common patterns.
 
 ---
 
-### 2.6 Rich CLI Output ✅ **COMPLETED**
+### 2.6 Rich CLI Output ✅
 
 **Feature:** Professional, colored, tabular output matching Python version.
 
@@ -292,7 +290,7 @@ Multiple heuristics to reduce false positives for common patterns.
 
 Features exceeding the original Python implementation.
 
-### 3.1 Local Scope Tracking ✅ **COMPLETED 2025-11-29**
+### 3.1 Local Scope Tracking ✅
 
 **Problem:** Local variables not properly qualified across nested scopes.
 
@@ -318,7 +316,7 @@ pub struct Scope {
 
 ---
 
-### 3.2 Dynamic Code Patterns ✅ **COMPLETED 2025-11-29**
+### 3.2 Dynamic Code Patterns ✅ 
 
 1.  **Globals Tracking:**
 
@@ -341,7 +339,7 @@ pub struct Scope {
 
 ## Phase 4: Code Architecture ✅ DONE
 
-### 4.0 Modular Rule System ✅ **COMPLETED 2025-11-28**
+### 4.0 Modular Rule System ✅
 
 **Problem:** Monolithic visitors were hard to extend and test.
 
@@ -365,7 +363,7 @@ pub trait Rule {
 
 ---
 
-### 4.1 Hybrid PyO3 Distribution ✅ **COMPLETED 2025-12-01**
+### 4.1 Hybrid PyO3 Distribution ✅
 
 **Architecture:** Python package with Rust extension + Standalone CLI.
 
@@ -383,7 +381,7 @@ pub trait Rule {
 
 Integration of code metrics compatible with `radon`.
 
-### 5.1 Raw Metrics (LOC/LLOC/SLOC) ✅ **COMPLETED 2025-11-29**
+### 5.1 Raw Metrics (LOC/LLOC/SLOC) ✅ 
 
 **Feature:** Radon-compatible line counting.
 
@@ -393,7 +391,7 @@ Integration of code metrics compatible with `radon`.
 
 **Files:** `src/raw_metrics.rs`
 
-### 5.2 Halstead Metrics ✅ **COMPLETED 2025-11-29**
+### 5.2 Halstead Metrics ✅
 
 **Feature:** Program vocabulary and complexity.
 
@@ -402,27 +400,27 @@ Integration of code metrics compatible with `radon`.
 
 **Files:** `src/halstead.rs`
 
-### 5.3 Maintainability Index (MI) ✅ **COMPLETED 2025-11-29**
+### 5.3 Maintainability Index (MI) ✅
 
 **Feature:** Visual Studio-style Maintainability Index (0-100).
 
 - **Formula:** Based on Halstead Volume, Cyclomatic Complexity, SLOC, and Comments.
 - **Ranking:** A (>19), B (10-19), C (<10).
 
-### 5.4 Cyclomatic Complexity Enhancements ✅ **COMPLETED 2025-11-29**
+### 5.4 Cyclomatic Complexity Enhancements ✅
 
 **Feature:** McCabe complexity with A-F ranking.
 
 - **Ranks:** A (1-5), B (6-10), C (11-20), D (21-30), E (31-40), F (41+).
 
-### 5.5 CLI Integration ✅ **COMPLETED 2025-11-30**
+### 5.5 CLI Integration ✅ 
 
 **Feature:** Full CLI parity with `radon` commands.
 
 - `cytoscnpy cc`, `raw`, `hal`, `mi`
 - Flags: `--average`, `--total-average`, `--min`, `--max`, `--json`, `--xml`.
 
-### 5.6 Quality Gates & Failure Thresholds ✅ **COMPLETED 2025-12-07**
+### 5.6 Quality Gates & Failure Thresholds ✅ 
 
 **Feature:** CI/CD integration with exit code 1 on failure.
 
@@ -435,7 +433,7 @@ Integration of code metrics compatible with `radon`.
 
 ## Phase 6: Editor Integration ✅ DONE
 
-### 6.1 VS Code Extension ✅ **COMPLETED 2025-12-02**
+### 6.1 VS Code Extension ✅
 
 - **Verification:** Verified extension code, compilation, and bundled binary.
 - **File Switching:** Implemented `onDidChangeActiveTextEditor` to trigger analysis on tab switch.
@@ -445,7 +443,7 @@ Integration of code metrics compatible with `radon`.
 
 ## Phase 7: Infrastructure & Quality ✅ DONE
 
-### 7.2 Error Handling ✅ **COMPLETED 2025-12-03**
+### 7.2 Error Handling ✅
 
 **Problem:** Silently skipped files with syntax errors.
 **Solution:**
@@ -460,7 +458,7 @@ Integration of code metrics compatible with `radon`.
 
 _Systematic performance improvements achieving 55% speed improvement._
 
-### 7.5.1 Compiler Optimizations ✅ **COMPLETED 2025-12-07**
+### 7.5.1 Compiler Optimizations ✅
 
 **Feature:** Aggressive release profile settings.
 
@@ -475,7 +473,7 @@ strip = true
 **Impact:** ~15% performance improvement.
 **Files:** `Cargo.toml`
 
-### 7.5.2 Fast Hashing (FxHashMap) ✅ **COMPLETED 2025-12-07**
+### 7.5.2 Fast Hashing (FxHashMap) ✅
 
 **Problem:** `std::collections::HashMap` uses SipHash (cryptographic, slower).
 
@@ -484,7 +482,7 @@ strip = true
 **Impact:** ~10-15% faster hash operations.
 **Files:** `src/visitor.rs`, `src/analyzer/`
 
-### 7.5.3 Reference Counting Optimization ✅ **COMPLETED 2025-12-07**
+### 7.5.3 Reference Counting Optimization ✅
 
 **Problem:** References stored as `Vec<(String, PathBuf)>` - PathBuf was never used.
 
@@ -493,7 +491,7 @@ strip = true
 **Impact:** ~20% faster, 40-60% less memory.
 **Files:** `src/visitor.rs`, `src/analyzer/processing.rs`
 
-### 7.5.4 LineIndex Byte Iteration ✅ **COMPLETED 2025-12-07**
+### 7.5.4 LineIndex Byte Iteration ✅
 
 **Problem:** `char_indices()` iterates Unicode characters.
 
@@ -502,7 +500,7 @@ strip = true
 **Impact:** ~5-10% faster LineIndex creation.
 **Files:** `src/utils.rs`
 
-### 7.5.5 Analyzer Module Refactor ✅ **COMPLETED 2025-12-07**
+### 7.5.5 Analyzer Module Refactor ✅
 
 **Problem:** Monolithic `analyzer.rs` (1100+ lines).
 
@@ -515,7 +513,7 @@ strip = true
 
 **Impact:** Improved maintainability, no performance regression.
 
-### 7.5.6 lazy_static → OnceLock ✅ **COMPLETED 2025-12-07**
+### 7.5.6 lazy_static → OnceLock ✅
 
 **Problem:** Using `lazy_static!` crate for static initialization.
 
@@ -541,17 +539,17 @@ strip = true
 
 _Deepen understanding of popular Python frameworks to reduce false positives._
 
-- [x] **Django Support** ✅ COMPLETED 2025-12-07
+- [x] **Django Support** ✅
 
   - **URL Patterns:** Parse `urlpatterns` to find view functions referenced as strings.
   - **Admin:** Detect `admin.site.register(Model)` to mark models as used.
   - **Signals:** Detect `pre_save.connect(receiver)` to mark receivers.
 
-- [x] **FastAPI Support** ✅ COMPLETED 2025-12-07
+- [x] **FastAPI Support** ✅
 
   - **Dependencies:** Scan `Depends(func)` in route handlers to mark dependency functions.
 
-- [x] **Pydantic Support** ✅ COMPLETED 2025-12-07
+- [x] **Pydantic Support** ✅
   - **Field Tracking:** Explicitly track fields in `BaseModel` subclasses to avoid marking them as unused variables.
 
 ### Phase 9: Developer Experience
@@ -568,7 +566,7 @@ _Tools to improve the workflow around CytoScnPy._
   - **Blame Analysis:** Identify who introduced unused code.
   - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
 
-- [x] **Continuous Benchmarking** ✅ COMPLETED 2025-12-07
+- [x] **Continuous Benchmarking**
   - Created benchmark suite with regression detection in `benchmark/`.
 
 #### Benchmarking Infrastructure Ideas
@@ -596,16 +594,16 @@ _Tools to improve the workflow around CytoScnPy._
 
 _Pushing the boundaries of static analysis._
 
-- [x] **Taint Analysis** ✅ COMPLETED 2025-12-07
+- [x] **Taint Analysis**
 
   - Track data flow from user inputs (e.g., Flask `request.args`) to dangerous sinks (`eval`, `subprocess`, SQL).
   - Move beyond heuristic-based security checks.
 
-- [x] **Secret Scanning 2.0** ✅ COMPLETED 2025-12-07
+- [x] **Secret Scanning 2.0**
 
   - Enhance regex scanning with entropy analysis to reduce false positives for API keys.
 
-- [x] **Type Inference (Lightweight)** ✅ COMPLETED 2025-12-07
+- [x] **Type Inference (Lightweight)**
 
   - **Strategy:** Focus on fast, local, heuristic-based inference (e.g., literal tracking) to catch obvious errors (`str.append`).
   - **Non-Goal:** Do not attempt full constraint-based type solving (generics, cross-module). Leave that to dedicated tools like `mypy` or `ty`.

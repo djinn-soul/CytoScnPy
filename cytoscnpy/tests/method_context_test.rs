@@ -24,15 +24,15 @@ class MyClass:
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = cytoscnpy.analyze(dir.path()).unwrap();
 
-    let unused_funcs: Vec<String> = result
-        .unused_functions
+    let unused_methods: Vec<String> = result
+        .unused_methods
         .iter()
         .map(|f| f.simple_name.clone())
         .collect();
 
     // 'helper' should be used because 'self.helper()' is called inside 'main'
     assert!(
-        !unused_funcs.contains(&"helper".to_owned()),
+        !unused_methods.contains(&"helper".to_owned()),
         "MyClass.helper should be used via self.helper()"
     );
 }
@@ -57,14 +57,14 @@ class Outer:
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = cytoscnpy.analyze(dir.path()).unwrap();
 
-    let unused_funcs: Vec<String> = result
-        .unused_functions
+    let unused_methods: Vec<String> = result
+        .unused_methods
         .iter()
         .map(|f| f.simple_name.clone())
         .collect();
 
     assert!(
-        !unused_funcs.contains(&"inner_helper".to_owned()),
+        !unused_methods.contains(&"inner_helper".to_owned()),
         "Inner.inner_helper should be used"
     );
 }
@@ -89,14 +89,14 @@ class Child(Parent):
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = cytoscnpy.analyze(dir.path()).unwrap();
 
-    let unused_funcs: Vec<String> = result
-        .unused_functions
+    let unused_methods: Vec<String> = result
+        .unused_methods
         .iter()
         .map(|f| f.simple_name.clone())
         .collect();
 
     assert!(
-        !unused_funcs.contains(&"parent_method".to_owned()),
+        !unused_methods.contains(&"parent_method".to_owned()),
         "Parent.parent_method should be used via self.parent_method in Child"
     );
 }
@@ -125,18 +125,18 @@ class MyClass:
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = cytoscnpy.analyze(dir.path()).unwrap();
 
-    let unused_funcs: Vec<String> = result
-        .unused_functions
+    let unused_methods: Vec<String> = result
+        .unused_methods
         .iter()
         .map(|f| f.simple_name.clone())
         .collect();
 
     assert!(
-        !unused_funcs.contains(&"static_func".to_owned()),
+        !unused_methods.contains(&"static_func".to_owned()),
         "static_func should be used via cls.static_func"
     );
     assert!(
-        !unused_funcs.contains(&"class_func".to_owned()),
+        !unused_methods.contains(&"class_func".to_owned()),
         "class_func should be used via self.class_func"
     );
 }

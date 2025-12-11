@@ -19,22 +19,32 @@ fn test_complex_real_data() {
         .iter()
         .map(|f| f.simple_name.clone())
         .collect();
+
+    let unused_methods: Vec<String> = result
+        .unused_methods
+        .iter()
+        .map(|f| f.simple_name.clone())
+        .collect();
+
     // Debug
     println!("Unused functions: {unused_funcs:?}");
+    println!("Unused methods: {unused_methods:?}");
 
-    // Scenario A: Handlers (hasattr)
+    // Scenario A: Handlers (hasattr) - these are METHODS in Handler class
     assert!(
-        !unused_funcs.contains(&"handle_login".to_owned()),
+        !unused_methods.contains(&"handle_login".to_owned()),
         "handle_login should be used"
     );
     assert!(
-        !unused_funcs.contains(&"handle_logout".to_owned()),
+        !unused_methods.contains(&"handle_logout".to_owned()),
         "handle_logout should be used"
     );
     assert!(
-        unused_funcs.contains(&"handle_unused".to_owned()),
+        unused_methods.contains(&"handle_unused".to_owned()),
         "handle_unused should be unused"
     );
+
+    // Scenario B: State handlers - these are standalone FUNCTIONS in state_handlers.py
     assert!(
         !unused_funcs.contains(&"handle_state_start".to_owned()),
         "handle_state_start should be used"

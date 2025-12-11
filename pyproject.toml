@@ -11,8 +11,9 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Quality Assurance",
-    "Dead Code Detection",
 ]
+readme = "README.md"
+
 dynamic = ["version"]
 
 [project.optional-dependencies]

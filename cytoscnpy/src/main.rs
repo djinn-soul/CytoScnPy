@@ -1,7 +1,7 @@
 //! Main binary entry point for the `CytoScnPy` static analysis tool.
 
 use cytoscnpy::analyzer::CytoScnPy;
-use cytoscnpy::commands::{run_cc, run_hal, run_mi, run_raw};
+use cytoscnpy::commands::{run_cc, run_files, run_hal, run_mi, run_raw, run_stats};
 use cytoscnpy::config::Config;
 
 use anyhow::Result;
@@ -247,6 +247,54 @@ enum Commands {
         #[arg(long, short = 'O')]
         output_file: Option<String>,
     },
+    /// Generate comprehensive project statistics report
+    Stats {
+        /// Path to analyze
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Enable all analysis: secrets, danger, quality, and per-file metrics
+        #[arg(long)]
+        all: bool,
+
+        /// Scan for API keys/secrets
+        #[arg(long)]
+        secrets: bool,
+
+        /// Scan for dangerous code patterns
+        #[arg(long)]
+        danger: bool,
+
+        /// Scan for code quality issues
+        #[arg(long)]
+        quality: bool,
+
+        /// Output JSON instead of markdown
+        #[arg(long, short = 'j')]
+        json: bool,
+
+        /// Output file path (default: stats_report.md or stats_report.json)
+        #[arg(long, short = 'o')]
+        output: Option<String>,
+
+        /// Exclude folders
+        #[arg(long, short = 'e', alias = "exclude-folder")]
+        exclude: Vec<String>,
+    },
+    /// Show per-file metrics table (code, comments, empty lines, size)
+    Files {
+        /// Path to analyze
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Output JSON
+        #[arg(long, short = 'j')]
+        json: bool,
+
+        /// Exclude folders
+        #[arg(long, short = 'e', alias = "exclude-folder")]
+        exclude: Vec<String>,
+    },
 }
 
 /// Main entry point of the application.
@@ -347,6 +395,31 @@ fn main() -> Result<()> {
                 output_file,
                 &mut stdout,
             ),
+            Commands::Stats {
+                path,
+                all,
+                secrets,
+                danger,
+                quality,
+                json,
+                output,
+                exclude,
+            } => run_stats(
+                path,
+                all,
+                secrets,
+                danger,
+                quality,
+                json,
+                output,
+                exclude,
+                &mut stdout,
+            ),
+            Commands::Files {
+                path,
+                json,
+                exclude,
+            } => run_files(path, json, exclude, &mut stdout),
         }
     } else {
         // Default behavior: Run full analysis

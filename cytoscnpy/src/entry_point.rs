@@ -281,7 +281,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     None, // fail_threshold
                     None, // output_file
                     &mut stdout,
-                )?
+                )?;
             }
             Commands::Hal {
                 path,
@@ -332,7 +332,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     None,  // fail_under
                     None,  // output_file
                     &mut stdout,
-                )?
+                )?;
             }
         }
         Ok(0)
@@ -429,8 +429,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
 
             if percentage > fail_threshold {
                 eprintln!(
-                    "Error: Unused code percentage ({:.2}%) exceeds threshold ({:.2}%).",
-                    percentage, fail_threshold
+                    "Error: Unused code percentage ({percentage:.2}%) exceeds threshold ({fail_threshold:.2}%)."
                 );
                 return Ok(1);
             }

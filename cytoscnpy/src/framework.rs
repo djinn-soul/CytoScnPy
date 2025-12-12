@@ -479,9 +479,9 @@ impl<'a> FrameworkAwareVisitor<'a> {
 ///
 /// # Arguments
 /// * `line` - The line number where the definition starts
-/// * `simple_name` - The simple name of the definition (e.g., "get_users")
+/// * `simple_name` - The simple name of the definition (e.g., "`get_users`")
 /// * `def_type` - The type of definition ("function", "method", "class", "variable")
-/// * `visitor` - Optional reference to the FrameworkAwareVisitor for the file
+/// * `visitor` - Optional reference to the `FrameworkAwareVisitor` for the file
 ///
 /// # Returns
 /// * `Some(100)` - If the definition is a decorated framework endpoint (confidence = 1.0)

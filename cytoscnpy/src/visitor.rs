@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Defines the type of scope (Module, Class, Function).
-/// Uses CompactString for names - stores up to 24 bytes inline without heap allocation.
+/// Uses `CompactString` for names - stores up to 24 bytes inline without heap allocation.
 pub enum ScopeType {
     /// Global module scope.
     Module,
@@ -490,7 +490,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for keyword in &node.keywords {
                     self.visit_expr(&keyword.value);
                     // Check if this is a metaclass keyword
-                    if keyword.arg.as_ref().map(|a| a.as_str()) == Some("metaclass") {
+                    if keyword.arg.as_ref().map(rustpython_ast::Identifier::as_str) == Some("metaclass") {
                         has_metaclass = true;
                     }
                     // Also add direct reference for simple name metaclasses
@@ -515,7 +515,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for base_class in &base_classes {
                     if self.metaclass_classes.contains(base_class) {
                         // This class is registered via metaclass side-effect, mark as used
-                        self.add_ref(qualified_name.clone());
+                        self.add_ref(qualified_name);
                         self.add_ref(name.to_string());
                         break;
                     }

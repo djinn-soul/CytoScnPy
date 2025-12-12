@@ -1,4 +1,5 @@
 use crate::utils::LineIndex;
+use compact_str::CompactString;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustpython_ast::{self as ast, Expr, Stmt};
 use serde::{Deserialize, Serialize};
@@ -6,13 +7,14 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Defines the type of scope (Module, Class, Function).
+/// Uses CompactString for names - stores up to 24 bytes inline without heap allocation.
 pub enum ScopeType {
     /// Global module scope.
     Module,
     /// Class scope with its name.
-    Class(String),
+    Class(CompactString),
     /// Function scope with its name.
-    Function(String),
+    Function(CompactString),
 }
 
 #[derive(Debug, Clone)]
@@ -191,6 +193,7 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Looks up a variable in the scope stack and returns its fully qualified name if found.
+    /// Optimized to minimize allocations.
     fn resolve_name(&self, name: &str) -> Option<String> {
         for (i, scope) in self.scope_stack.iter().enumerate().rev() {
             // Class scopes are not visible to inner scopes (methods, nested classes).
@@ -201,29 +204,48 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
             }
 
-            // **NEW**: Check local_var_map first (for function scopes with local variables)
-            // This allows us to differentiate between `x` in `func_a` and `x` in `func_b`
+            // Check local_var_map first (for function scopes with local variables)
             if let Some(qualified) = scope.local_var_map.get(name) {
                 return Some(qualified.clone());
             }
 
             // Fallback: construct qualified name if variable exists in scope
             if scope.variables.contains(name) {
-                // Found it! Construct qualified name.
-                let mut parts = Vec::new();
+                // Pre-calculate length for capacity
+                let mut total_len = name.len();
                 if !self.module_name.is_empty() {
-                    parts.push(self.module_name.clone());
+                    total_len += self.module_name.len() + 1;
                 }
-
-                // Add all scope names up to this scope
-                for scope in self.scope_stack.iter().take(i + 1).skip(1) {
-                    match &scope.kind {
-                        ScopeType::Class(n) | ScopeType::Function(n) => parts.push(n.clone()),
+                for s in self.scope_stack.iter().take(i + 1).skip(1) {
+                    match &s.kind {
+                        ScopeType::Class(n) | ScopeType::Function(n) => {
+                            total_len += n.len() + 1;
+                        }
                         ScopeType::Module => {}
                     }
                 }
-                parts.push(name.to_owned());
-                return Some(parts.join("."));
+
+                // Build string directly
+                let mut result = String::with_capacity(total_len);
+                if !self.module_name.is_empty() {
+                    result.push_str(&self.module_name);
+                }
+                for s in self.scope_stack.iter().take(i + 1).skip(1) {
+                    match &s.kind {
+                        ScopeType::Class(n) | ScopeType::Function(n) => {
+                            if !result.is_empty() {
+                                result.push('.');
+                            }
+                            result.push_str(n);
+                        }
+                        ScopeType::Module => {}
+                    }
+                }
+                if !result.is_empty() {
+                    result.push('.');
+                }
+                result.push_str(name);
+                return Some(result);
             }
         }
         None
@@ -291,22 +313,49 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Constructs a qualified name based on the current scope stack.
+    /// Optimized to minimize allocations by pre-calculating capacity.
     fn get_qualified_name(&self, name: &str) -> String {
-        let mut parts = Vec::new();
+        // Pre-calculate total length to avoid reallocations
+        let mut total_len = name.len();
+
         if !self.module_name.is_empty() {
-            parts.push(self.module_name.clone());
+            total_len += self.module_name.len() + 1; // +1 for '.'
         }
 
-        // Skip the first scope (Module) as we already added module_name
         for scope in self.scope_stack.iter().skip(1) {
             match &scope.kind {
-                ScopeType::Class(n) | ScopeType::Function(n) => parts.push(n.clone()),
+                ScopeType::Class(n) | ScopeType::Function(n) => {
+                    total_len += n.len() + 1;
+                }
                 ScopeType::Module => {}
             }
         }
 
-        parts.push(name.to_owned());
-        parts.join(".")
+        // Build string with pre-allocated capacity
+        let mut result = String::with_capacity(total_len);
+
+        if !self.module_name.is_empty() {
+            result.push_str(&self.module_name);
+        }
+
+        for scope in self.scope_stack.iter().skip(1) {
+            match &scope.kind {
+                ScopeType::Class(n) | ScopeType::Function(n) => {
+                    if !result.is_empty() {
+                        result.push('.');
+                    }
+                    result.push_str(n);
+                }
+                ScopeType::Module => {}
+            }
+        }
+
+        if !result.is_empty() {
+            result.push('.');
+        }
+        result.push_str(name);
+
+        result
     }
 
     /// Visits function arguments (defaults and annotations).
@@ -477,7 +526,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.dataclass_stack.push(is_dataclass);
 
                 // Enter class scope
-                self.enter_scope(ScopeType::Class(name.to_string()));
+                self.enter_scope(ScopeType::Class(CompactString::from(name.as_str())));
 
                 // Visit class body.
                 for stmt in &node.body {
@@ -789,7 +838,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         self.add_def(qualified_name.clone(), def_type, line);
 
         // Enter function scope
-        self.enter_scope(ScopeType::Function(name.to_owned()));
+        self.enter_scope(ScopeType::Function(CompactString::from(name)));
 
         // Track parameters
         let mut param_names = FxHashSet::default();

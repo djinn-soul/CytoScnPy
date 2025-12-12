@@ -258,7 +258,7 @@ fn redact_value(s: &str) -> String {
         .chars()
         .rev()
         .collect();
-    format!("{}...{}", start, end)
+    format!("{start}...{end}")
 }
 
 // ============================================================================

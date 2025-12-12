@@ -50,7 +50,7 @@ pub fn analyze_complexity(
 }
 
 /// Calculates the total cyclomatic complexity of a module (sum of all blocks).
-/// Note: Uses no_assert=false as this is typically used for MI calculation.
+/// Note: Uses `no_assert=false` as this is typically used for MI calculation.
 pub fn calculate_module_complexity(code: &str) -> Option<usize> {
     if let Ok(ast) = rustpython_parser::parse(code, rustpython_parser::Mode::Module, "<unknown>") {
         if let rustpython_ast::Mod::Module(m) = ast {

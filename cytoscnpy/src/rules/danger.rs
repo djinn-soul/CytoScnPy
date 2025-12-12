@@ -540,7 +540,7 @@ fn create_finding(
 }
 
 /// Checks if an expression looks like it's related to tarfile operations.
-/// Used to reduce false positives from unrelated .extractall() calls.
+/// Used to reduce false positives from unrelated .`extractall()` calls.
 fn is_likely_tarfile_receiver(receiver: &Expr) -> bool {
     match receiver {
         // tarfile.open(...).extractall() -> receiver is Call to tarfile.open

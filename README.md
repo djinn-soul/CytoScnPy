@@ -51,8 +51,8 @@ cytoscnpy [PATHS]... [OPTIONS]
 cytoscnpy .                                     # Analyze current directory
 cytoscnpy /path/to/project --json               # JSON output for CI/CD
 
-# Security checks
-cytoscnpy . --secrets --danger --quality --taint
+# Security checks (--danger includes taint analysis)
+cytoscnpy . --secrets --danger --quality
 
 # Confidence threshold (0-100)
 cytoscnpy . --confidence 80
@@ -68,19 +68,18 @@ cytoscnpy . --include-ipynb --ipynb-cells
 
 **Options:**
 
-| Flag                     | Description                            |
-| ------------------------ | -------------------------------------- |
-| `-c, --confidence <N>`   | Set confidence threshold (0-100)       |
-| `--secrets`              | Scan for API keys, tokens, credentials |
-| `--danger`               | Scan for dangerous code patterns       |
-| `--quality`              | Scan for code quality issues           |
-| `--taint`                | Enable taint analysis                  |
-| `--json`                 | Output results as JSON                 |
-| `--include-tests`        | Include test files in analysis         |
-| `--exclude-folder <DIR>` | Exclude specific folders               |
-| `--include-folder <DIR>` | Force include folders                  |
-| `--include-ipynb`        | Include Jupyter notebooks              |
-| `--ipynb-cells`          | Report findings per notebook cell      |
+| Flag                     | Description                              |
+| ------------------------ | ---------------------------------------- |
+| `-c, --confidence <N>`   | Set confidence threshold (0-100)         |
+| `--secrets`              | Scan for API keys, tokens, credentials   |
+| `--danger`               | Scan for dangerous code + taint analysis |
+| `--quality`              | Scan for code quality issues             |
+| `--json`                 | Output results as JSON                   |
+| `--include-tests`        | Include test files in analysis           |
+| `--exclude-folder <DIR>` | Exclude specific folders                 |
+| `--include-folder <DIR>` | Force include folders                    |
+| `--include-ipynb`        | Include Jupyter notebooks                |
+| `--ipynb-cells`          | Report findings per notebook cell        |
 
 ### Metric Subcommands
 

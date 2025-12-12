@@ -8,7 +8,7 @@ use colored::Colorize;
 use comfy_table::Table;
 use rayon::prelude::*;
 use rustpython_parser::{parse, Mode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -163,7 +163,7 @@ pub fn run_cc<W: Write>(
     total_average: bool,
     show_complexity: bool,
     order: Option<String>,
-    _no_assert: bool,
+    no_assert: bool,
     xml: bool,
     fail_threshold: Option<usize>,
     output_file: Option<String>,
@@ -177,8 +177,7 @@ pub fn run_cc<W: Write>(
         .par_iter()
         .flat_map(|file_path| {
             let code = fs::read_to_string(file_path).unwrap_or_default();
-            // TODO: Pass no_assert to analyze_complexity if implemented
-            let findings = analyze_complexity(&code, file_path);
+            let findings = analyze_complexity(&code, file_path, no_assert);
             findings
                 .into_iter()
                 .map(|f| CcResult {
@@ -415,7 +414,7 @@ pub fn run_hal<W: Write>(
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct MiResult {
     file: String,
     mi: f64,
@@ -430,7 +429,7 @@ pub fn run_mi<W: Write>(
     ignore: Vec<String>,
     min_rank: Option<char>,
     max_rank: Option<char>,
-    _multi: bool,
+    multi: bool,
     show: bool,
     average: bool,
     fail_under: Option<f64>,
@@ -460,11 +459,13 @@ pub fn run_mi<W: Write>(
 
             let complexity = crate::complexity::calculate_module_complexity(&code).unwrap_or(1);
 
-            // TODO: Use 'multi' flag to adjust comment counting if needed
-            // Currently raw_metrics handles comments, we might need to pass a flag there too
-            // or adjust here. For now, using standard raw.comments.
+            let comments = if multi {
+                raw.comments + raw.multi
+            } else {
+                raw.comments
+            };
 
-            let mi = mi_compute(volume, complexity, raw.sloc, raw.comments);
+            let mi = mi_compute(volume, complexity, raw.sloc, comments);
             let rank = mi_rank(mi);
 
             MiResult {
@@ -550,15 +551,14 @@ fn find_python_files(root: &Path, exclude: &[String]) -> Vec<PathBuf> {
         .filter_map(std::result::Result::ok)
         .filter(|e| {
             let path = e.path();
+            // Skip excluded directories
             if path.is_dir() {
-                // Check exclusions
-                if exclude.iter().any(|ex| path.to_string_lossy().contains(ex)) {
-                    return false;
-                }
-                return true;
+                return !exclude.iter().any(|ex| path.to_string_lossy().contains(ex));
             }
+            // Only include .py files
             path.extension().is_some_and(|ext| ext == "py")
         })
+        .filter(|e| e.path().is_file()) // Exclude directories from results
         .map(|e| e.path().to_path_buf())
         .collect()
 }

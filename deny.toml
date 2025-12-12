@@ -52,7 +52,9 @@ ignore = [
     # =====================================================================
     # Unmaintained unic-* crates from rustpython-parser
     # These are transitive dependencies we can't control directly.
-    # Will be resolved when we upgrade to rustpython-parser 0.4.x
+    # rustpython-parser 0.4.0 (latest) still depends on these crates.
+    # Will be resolved when rustpython-parser removes these dependencies.
+    # Tracking: https://github.com/RustPython/Parser/issues
     # =====================================================================
     "RUSTSEC-2025-0075", # unic-char-range
     "RUSTSEC-2025-0080", # unic-common  
@@ -60,19 +62,6 @@ ignore = [
     "RUSTSEC-2025-0090", # unic-emoji-char
     "RUSTSEC-2025-0100", # unic-ucd-ident
     "RUSTSEC-2025-0098", # unic-ucd-version
-
-    # =====================================================================
-    # Unmaintained `paste` from malachite-bigint (via rustpython-parser)
-    # Will be resolved when we upgrade to rustpython-parser 0.4.x
-    # =====================================================================
-    "RUSTSEC-2024-0436", # paste - no longer maintained
-
-    # =====================================================================
-    # PyO3 vulnerability - REQUIRES ACTION
-    # TODO: Upgrade pyo3 from 0.18.3 to 0.24.1+ to fix buffer overflow risk
-    # See: https://rustsec.org/advisories/RUSTSEC-2025-0020
-    # =====================================================================
-    "RUSTSEC-2025-0020", # pyo3 buffer overflow - upgrade to 0.24.1+
 ]
 
 # =============================================================================

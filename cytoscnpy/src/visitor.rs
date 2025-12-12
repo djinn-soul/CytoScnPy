@@ -505,11 +505,10 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             // Handle 'from ... import'
             Stmt::ImportFrom(node) => {
-                // FIX: Ignore __future__ imports to stop "unused import annotations"
+                // Ignore __future__ imports to prevent false "unused import" positives.
                 // `from __future__ import ...` is a compiler directive, not a real import.
                 if let Some(module) = &node.module {
                     if module == "__future__" {
-                        // Skip adding definitions for future imports
                         return;
                     }
                 }
@@ -695,9 +694,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
                 }
-                for handler in &node.handlers {
-                    // Fix: Unwrap the Excepthandler enum
-                    let ast::ExceptHandler::ExceptHandler(handler_node) = handler;
+                for ast::ExceptHandler::ExceptHandler(handler_node) in &node.handlers {
                     if let Some(exc) = &handler_node.type_ {
                         self.visit_expr(exc);
                     }
@@ -716,9 +713,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
                 }
-                for handler in &node.handlers {
-                    // Fix: Unwrap the Excepthandler enum
-                    let ast::ExceptHandler::ExceptHandler(handler_node) = handler;
+                for ast::ExceptHandler::ExceptHandler(handler_node) in &node.handlers {
                     if let Some(exc) = &handler_node.type_ {
                         self.visit_expr(exc);
                     }
@@ -904,17 +899,17 @@ impl<'a> CytoScnPyVisitor<'a> {
                         }
                     }
 
-                    // Check aliases
-                    // Fix: Clone the string to avoid holding borrow of self.alias_map while calling self.add_ref
-                    let original_opt = self.alias_map.get(&name).cloned();
-                    if let Some(original) = original_opt {
-                        self.add_ref(original.clone());
-                        // Also add simple name of original if it's qualified
+                    // Check aliases - resolve aliased imports to their original names.
+                    // Clone to release borrow of alias_map before calling add_ref (borrow checker fix).
+                    if let Some(original) = self.alias_map.get(&name).cloned() {
+                        // Add simple name first if original is qualified (e.g., "os.path" -> "path")
                         if let Some(simple) = original.split('.').next_back() {
                             if simple != original {
                                 self.add_ref(simple.to_owned());
                             }
                         }
+                        // Now move the owned string (no clone needed)
+                        self.add_ref(original);
                     }
                 }
             }
@@ -971,7 +966,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let base_id = name_node.id.as_str();
 
                     // Check if base_id is an alias
-                    // Fix: Clone the string to avoid holding borrow of self.alias_map while calling self.add_ref
+                    // Fix: Done Clone the string to avoid holding borrow of self.alias_map while calling self.add_ref
                     let original_base_opt = self.alias_map.get(base_id).cloned();
                     if let Some(original_base) = original_base_opt {
                         // e.g. l -> lib
@@ -1008,7 +1003,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
                 self.visit_expr(&node.value);
             }
-            // FIX: Dynamic Dispatch / String References
+            // FIX: Done Dynamic Dispatch / String References
             Expr::Constant(node) => {
                 if let ast::Constant::Str(s) = &node.value {
                     // Heuristic: If a string looks like a simple identifier or dotted path (no spaces),

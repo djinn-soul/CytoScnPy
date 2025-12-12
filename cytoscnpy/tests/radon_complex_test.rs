@@ -12,7 +12,7 @@ use std::path::PathBuf;
 fn test_complex_logic_cc() {
     let path = PathBuf::from("../benchmark/examples/complex/radon_complex/complex_logic.py");
     let code = fs::read_to_string(&path).expect("Failed to read complex_logic.py");
-    let findings = analyze_complexity(&code, &path);
+    let findings = analyze_complexity(&code, &path, false);
 
     // Find complex_function
     let func = findings

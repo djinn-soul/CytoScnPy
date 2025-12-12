@@ -8,7 +8,7 @@ use std::path::PathBuf;
 fn test_modern_python_features() {
     let path = PathBuf::from("../benchmark/examples/complex/radon_complex/modern_python.py");
     let code = fs::read_to_string(&path).expect("Failed to read modern_python.py");
-    let findings = analyze_complexity(&code, &path);
+    let findings = analyze_complexity(&code, &path, false);
 
     // async_func
     let async_func = findings

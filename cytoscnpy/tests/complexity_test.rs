@@ -12,7 +12,7 @@ def simple():
     else:
         print("no")
 "#;
-    let findings = analyze_complexity(code, Path::new("test.py"));
+    let findings = analyze_complexity(code, Path::new("test.py"), false);
     assert_eq!(findings.len(), 1);
     let f = &findings[0];
     assert_eq!(f.name, "simple");
@@ -35,7 +35,7 @@ def nested(x):
         return -1
     return 0
 ";
-    let findings = analyze_complexity(code, Path::new("test.py"));
+    let findings = analyze_complexity(code, Path::new("test.py"), false);
     assert_eq!(findings.len(), 1);
     let f = &findings[0];
     assert_eq!(f.name, "nested");
@@ -56,7 +56,7 @@ def loops():
         while i > 0:
             i -= 1
 ";
-    let findings = analyze_complexity(code, Path::new("test.py"));
+    let findings = analyze_complexity(code, Path::new("test.py"), false);
     assert_eq!(findings.len(), 1);
     let f = &findings[0];
     assert_eq!(f.name, "loops");
@@ -71,7 +71,7 @@ def boolean(a, b, c):
     if a and b or c:
         pass
 ";
-    let findings = analyze_complexity(code, Path::new("test.py"));
+    let findings = analyze_complexity(code, Path::new("test.py"), false);
     assert_eq!(findings.len(), 1);
     let f = &findings[0];
     assert_eq!(f.name, "boolean");
@@ -91,7 +91,7 @@ class MyClass:
         if True:
             pass
 ";
-    let findings = analyze_complexity(code, Path::new("test.py"));
+    let findings = analyze_complexity(code, Path::new("test.py"), false);
     // Should find Class and Method
     assert_eq!(findings.len(), 2);
 
@@ -113,4 +113,26 @@ class MyClass:
     assert_eq!(method_f.type_, "method");
     // Method: Base 1 + If 1 = 2
     assert_eq!(method_f.complexity, 2);
+}
+
+#[test]
+fn test_no_assert_flag() {
+    let code = r"
+def test_func():
+    assert x > 0
+    assert y > 0
+    if z:
+        pass
+";
+    // With no_assert=false, assert statements add to complexity
+    let findings_with_assert = analyze_complexity(code, Path::new("test.py"), false);
+    let f_with = &findings_with_assert[0];
+    // Base 1 + assert 1 + assert 1 + if 1 = 4
+    assert_eq!(f_with.complexity, 4, "With no_assert=false, asserts should add complexity");
+
+    // With no_assert=true, assert statements DON'T add to complexity
+    let findings_no_assert = analyze_complexity(code, Path::new("test.py"), true);
+    let f_no = &findings_no_assert[0];
+    // Base 1 + if 1 = 2 (asserts ignored)
+    assert_eq!(f_no.complexity, 2, "With no_assert=true, asserts should NOT add complexity");
 }

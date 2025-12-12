@@ -1,4 +1,8 @@
-// src/main_cli.rs
+//! Command line interface configuration using `clap`.
+//!
+//! This is the single source of truth for CLI definitions.
+//! Both the library's `entry_point` and the binary `main.rs` use this.
+
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -7,8 +11,8 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
-    /// The subcommand to execute.
     #[command(subcommand)]
+    /// The subcommand to execute (e.g., raw, cc, hal).
     pub command: Option<Commands>,
 
     /// Paths to analyze (files or directories).
@@ -26,17 +30,13 @@ pub struct Cli {
     #[arg(long)]
     pub secrets: bool,
 
-    /// Scan for dangerous code.
+    /// Scan for dangerous code (includes taint analysis).
     #[arg(long)]
     pub danger: bool,
 
     /// Scan for code quality issues.
     #[arg(long)]
     pub quality: bool,
-
-    /// Enable taint analysis (data flow tracking).
-    #[arg(long)]
-    pub taint: bool,
 
     /// Output raw JSON.
     #[arg(long)]
@@ -61,10 +61,29 @@ pub struct Cli {
     /// Report findings at cell level for notebooks.
     #[arg(long)]
     pub ipynb_cells: bool,
+
+    /// Exit with code 1 if finding percentage exceeds this threshold (0-100).
+    /// For CI/CD integration: --fail-under 5 fails if >5% of definitions are unused.
+    #[arg(long)]
+    pub fail_under: Option<f64>,
+
+    /// Set maximum allowed Cyclomatic Complexity (overrides config).
+    /// Findings with complexity > N will be reported.
+    #[arg(long)]
+    pub max_complexity: Option<usize>,
+
+    /// Set minimum allowed Maintainability Index.
+    /// Files with MI < N will be reported.
+    #[arg(long)]
+    pub min_mi: Option<f64>,
+
+    /// Exit with code 1 if any quality issues are found.
+    #[arg(long)]
+    pub fail_on_quality: bool,
 }
 
-/// Helper enum for the available subcommands.
 #[derive(Subcommand, Debug)]
+/// Available subcommands for specific metric calculations.
 pub enum Commands {
     /// Calculate raw metrics (LOC, LLOC, SLOC, Comments, Multi, Blank)
     Raw {
@@ -73,12 +92,24 @@ pub enum Commands {
         path: PathBuf,
 
         /// Output JSON
-        #[arg(long)]
+        #[arg(long, short = 'j')]
         json: bool,
 
         /// Exclude folders
-        #[arg(long, alias = "exclude-folder")]
+        #[arg(long, short = 'e', alias = "exclude-folder")]
         exclude: Vec<String>,
+
+        /// Ignore directories matching glob pattern
+        #[arg(long, short = 'i')]
+        ignore: Vec<String>,
+
+        /// Show summary of gathered metrics
+        #[arg(long, short = 's')]
+        summary: bool,
+
+        /// Save output to file
+        #[arg(long, short = 'O')]
+        output_file: Option<String>,
     },
     /// Calculate Cyclomatic Complexity
     Cc {
@@ -87,12 +118,56 @@ pub enum Commands {
         path: PathBuf,
 
         /// Output JSON
-        #[arg(long)]
+        #[arg(long, short = 'j')]
         json: bool,
 
         /// Exclude folders
-        #[arg(long, alias = "exclude-folder")]
+        #[arg(long, short = 'e', alias = "exclude-folder")]
         exclude: Vec<String>,
+
+        /// Ignore directories matching glob pattern
+        #[arg(long, short = 'i')]
+        ignore: Vec<String>,
+
+        /// Set minimum complexity rank (A-F)
+        #[arg(long, short = 'n', alias = "min")]
+        min_rank: Option<char>,
+
+        /// Set maximum complexity rank (A-F)
+        #[arg(long, short = 'x', alias = "max")]
+        max_rank: Option<char>,
+
+        /// Show average complexity
+        #[arg(long, short = 'a')]
+        average: bool,
+
+        /// Show total average complexity
+        #[arg(long)]
+        total_average: bool,
+
+        /// Show complexity score with rank
+        #[arg(long, short = 's')]
+        show_complexity: bool,
+
+        /// Ordering function (score, lines, alpha)
+        #[arg(long, short = 'o')]
+        order: Option<String>,
+
+        /// Do not count assert statements
+        #[arg(long)]
+        no_assert: bool,
+
+        /// Output XML
+        #[arg(long)]
+        xml: bool,
+
+        /// Exit with code 1 if any block has complexity higher than this value
+        #[arg(long)]
+        fail_threshold: Option<usize>,
+
+        /// Save output to file
+        #[arg(long, short = 'O')]
+        output_file: Option<String>,
     },
     /// Calculate Halstead Metrics
     Hal {
@@ -101,12 +176,24 @@ pub enum Commands {
         path: PathBuf,
 
         /// Output JSON
-        #[arg(long)]
+        #[arg(long, short = 'j')]
         json: bool,
 
         /// Exclude folders
-        #[arg(long, alias = "exclude-folder")]
+        #[arg(long, short = 'e', alias = "exclude-folder")]
         exclude: Vec<String>,
+
+        /// Ignore directories matching glob pattern
+        #[arg(long, short = 'i')]
+        ignore: Vec<String>,
+
+        /// Compute metrics on function level
+        #[arg(long, short = 'f')]
+        functions: bool,
+
+        /// Save output to file
+        #[arg(long, short = 'O')]
+        output_file: Option<String>,
     },
     /// Calculate Maintainability Index
     Mi {
@@ -115,11 +202,43 @@ pub enum Commands {
         path: PathBuf,
 
         /// Output JSON
-        #[arg(long)]
+        #[arg(long, short = 'j')]
         json: bool,
 
         /// Exclude folders
-        #[arg(long, alias = "exclude-folder")]
+        #[arg(long, short = 'e', alias = "exclude-folder")]
         exclude: Vec<String>,
+
+        /// Ignore directories matching glob pattern
+        #[arg(long, short = 'i')]
+        ignore: Vec<String>,
+
+        /// Set minimum MI rank (A-C)
+        #[arg(long, short = 'n', alias = "min")]
+        min_rank: Option<char>,
+
+        /// Set maximum MI rank (A-C)
+        #[arg(long, short = 'x', alias = "max")]
+        max_rank: Option<char>,
+
+        /// Count multiline strings as comments (enabled by default)
+        #[arg(long, short = 'm', default_value = "true", action = clap::ArgAction::Set)]
+        multi: bool,
+
+        /// Show actual MI value
+        #[arg(long, short = 's')]
+        show: bool,
+
+        /// Show average MI
+        #[arg(long, short = 'a')]
+        average: bool,
+
+        /// Exit with code 1 if any file has MI lower than this value
+        #[arg(long)]
+        fail_under: Option<f64>,
+
+        /// Save output to file
+        #[arg(long, short = 'O')]
+        output_file: Option<String>,
     },
 }

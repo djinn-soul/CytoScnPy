@@ -11,7 +11,16 @@ use std::time::Duration;
 /// Print the exclusion list in styled format
 pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std::io::Result<()> {
     if folders.is_empty() {
-        writeln!(writer, "{}", "[OK] No folders excluded".green())?;
+        let defaults = crate::constants::DEFAULT_EXCLUDE_FOLDERS();
+        let mut sorted_defaults: Vec<&str> = defaults.iter().copied().collect();
+        sorted_defaults.sort_unstable();
+        let list = sorted_defaults.join(", ");
+        writeln!(
+            writer,
+            "{} {}",
+            "[OK] Using default exclusions only:".green(),
+            list.dimmed()
+        )?;
     } else {
         let list = folders
             .iter()

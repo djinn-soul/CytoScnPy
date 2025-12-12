@@ -738,7 +738,7 @@ impl CytoScnPy {
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
 
-        match parse(&source, Mode::Module, file_path.to_str().unwrap()) {
+        match parse(&source, Mode::Module, &file_path.to_string_lossy()) {
             Ok(ast) => {
                 if let rustpython_ast::Mod::Module(module) = &ast {
                     for stmt in &module.body {

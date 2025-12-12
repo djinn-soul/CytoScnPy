@@ -30,6 +30,12 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "cytoscnpy -> target"
+          cache-on-failure: true
+
       - name: Build
         run: cargo build --verbose
         env:

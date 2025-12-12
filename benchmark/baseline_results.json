@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-13 00:11:31",
+  "timestamp": "2025-12-13 00:43:49",
   "platform": "Windows-11-10.0.26200-SP0",
   "tool": "hyperfine",
   "results": [
@@ -7,50 +7,50 @@
       "dataset": "large_django",
       "files": 2886,
       "lines": 506403,
-      "mean_seconds": 1.4514717499999996,
-      "stddev_seconds": 0.39483925688570715,
-      "min_seconds": 0.9763603700000001,
-      "max_seconds": 2.09640037,
+      "mean_seconds": 1.58118894,
+      "stddev_seconds": 0.35216662074483013,
+      "min_seconds": 0.9698582800000001,
+      "max_seconds": 2.11146078,
       "runs": 20
     },
     {
       "dataset": "massive_tensorflow",
       "files": 3147,
       "lines": 1216986,
-      "mean_seconds": 3.6978736639999994,
-      "stddev_seconds": 0.9937436582206332,
-      "min_seconds": 2.598973834,
-      "max_seconds": 6.175771534000001,
+      "mean_seconds": 3.460941750000001,
+      "stddev_seconds": 0.7186258817386201,
+      "min_seconds": 2.1945947500000003,
+      "max_seconds": 5.15841675,
       "runs": 20
     },
     {
       "dataset": "medium_fastapi",
       "files": 1279,
       "lines": 114154,
-      "mean_seconds": 0.2841031610000001,
-      "stddev_seconds": 0.024513729024048952,
-      "min_seconds": 0.253521796,
-      "max_seconds": 0.36971999600000005,
+      "mean_seconds": 0.38118167699999994,
+      "stddev_seconds": 0.08835241923816997,
+      "min_seconds": 0.294070482,
+      "max_seconds": 0.6068184820000001,
       "runs": 20
     },
     {
       "dataset": "small_requests",
       "files": 36,
       "lines": 11248,
-      "mean_seconds": 0.072617305,
-      "stddev_seconds": 0.019337961725478695,
-      "min_seconds": 0.05259839,
-      "max_seconds": 0.12500039000000002,
+      "mean_seconds": 0.09534733000000001,
+      "stddev_seconds": 0.02496241073692287,
+      "min_seconds": 0.06259122000000002,
+      "max_seconds": 0.15248182000000002,
       "runs": 20
     },
     {
       "dataset": "tiny_flask",
       "files": 83,
       "lines": 18240,
-      "mean_seconds": 0.06928671100000001,
-      "stddev_seconds": 0.006899108411524904,
-      "min_seconds": 0.060264925999999996,
-      "max_seconds": 0.086513526,
+      "mean_seconds": 0.11410277199999999,
+      "stddev_seconds": 0.01862495393829415,
+      "min_seconds": 0.08707073200000001,
+      "max_seconds": 0.155007232,
       "runs": 20
     }
   ]

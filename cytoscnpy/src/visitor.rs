@@ -3,6 +3,7 @@ use compact_str::CompactString;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustpython_ast::{self as ast, Expr, Stmt};
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,23 +122,28 @@ pub struct CytoScnPyVisitor<'a> {
     /// The module name derived from the file path.
     pub module_name: String,
     /// Current scope stack (not fully used currently but good for tracking nested scopes).
-    pub current_scope: Vec<String>,
+    /// Uses SmallVec for stack allocation (most code has < 4 nested scopes).
+    pub current_scope: SmallVec<[String; 4]>,
     /// Stack of class names to track current class context.
-    pub class_stack: Vec<String>,
+    /// Uses SmallVec - most code has < 4 nested classes.
+    pub class_stack: SmallVec<[String; 4]>,
     /// Helper for line number mapping.
     pub line_index: &'a LineIndex,
     /// Map of import aliases to their original names (alias -> original).
     pub alias_map: FxHashMap<String, String>,
     /// Stack of function names to track which function we're currently inside.
-    pub function_stack: Vec<String>,
+    /// Uses SmallVec - most code has < 4 nested functions.
+    pub function_stack: SmallVec<[String; 4]>,
     /// Map of function qualified name -> set of parameter names for that function.
     pub function_params: FxHashMap<String, FxHashSet<String>>,
     /// Stack to track if we are inside a dataclass.
-    pub dataclass_stack: Vec<bool>,
+    /// Uses SmallVec - most code has < 4 nested dataclasses.
+    pub dataclass_stack: SmallVec<[bool; 4]>,
     /// Whether we are currently inside an `if TYPE_CHECKING:` block.
     pub in_type_checking_block: bool,
     /// Stack of scopes for variable resolution.
-    pub scope_stack: Vec<Scope>,
+    /// Uses SmallVec - most code has < 8 nested scopes.
+    pub scope_stack: SmallVec<[Scope; 8]>,
     /// Whether the current file is considered dynamic (e.g., uses eval/exec).
     pub is_dynamic: bool,
     /// Set of class names that have a metaclass (used to detect metaclass inheritance).
@@ -154,15 +160,15 @@ impl<'a> CytoScnPyVisitor<'a> {
             dynamic_imports: Vec::new(),
             file_path,
             module_name,
-            current_scope: Vec::new(),
-            class_stack: Vec::new(),
+            current_scope: SmallVec::new(),
+            class_stack: SmallVec::new(),
             line_index,
             alias_map: FxHashMap::default(),
-            function_stack: Vec::new(),
+            function_stack: SmallVec::new(),
             function_params: FxHashMap::default(),
-            dataclass_stack: Vec::new(),
+            dataclass_stack: SmallVec::new(),
             in_type_checking_block: false,
-            scope_stack: vec![Scope::new(ScopeType::Module)],
+            scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
             is_dynamic: false,
             metaclass_classes: FxHashSet::default(),
         }
@@ -490,7 +496,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for keyword in &node.keywords {
                     self.visit_expr(&keyword.value);
                     // Check if this is a metaclass keyword
-                    if keyword.arg.as_ref().map(rustpython_ast::Identifier::as_str) == Some("metaclass") {
+                    if keyword.arg.as_ref().map(rustpython_ast::Identifier::as_str)
+                        == Some("metaclass")
+                    {
                         has_metaclass = true;
                     }
                     // Also add direct reference for simple name metaclasses

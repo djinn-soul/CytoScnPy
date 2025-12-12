@@ -2,17 +2,17 @@
 
 ---
 
-This benchmark evaluates **10 dead code detection tools** against a curated Python test suite containing **126 ground truth items** across 6 categories. The goal is to measure detection accuracy (precision, recall, F1), performance (execution time, memory), and identify the best tools for different use cases.
+This benchmark evaluates **11 dead code detection tools** against a curated Python test suite containing **131 ground truth items** across 6 categories. The goal is to measure detection accuracy (precision, recall, F1), performance (execution time, memory), and identify the best tools for different use cases.
 
 ### Key Highlights
 
 | Metric                     | Winner           | Value           |
 | -------------------------- | ---------------- | --------------- |
-| 🚀 **Fastest Tool**        | CytoScnPy (Rust) | 0.07s           |
-| 🎯 **Best Overall F1**     | Vulture          | 0.6848          |
-| 🔬 **Highest Precision**   | Skylos           | 0.7273          |
-| 💾 **Lowest Memory**       | CytoScnPy (Rust) | 14.3 MB         |
-| ⚖️ **Best Speed/Accuracy** | CytoScnPy        | 0.07s @ F1 0.59 |
+| 🚀 **Fastest Tool**        | CytoScnPy (Rust) | 0.09s           |
+| 🎯 **Best Overall F1**     | deadcode         | 0.6667          |
+| 🔬 **Highest Precision**   | uncalled         | 0.7564          |
+| 💾 **Lowest Memory**       | CytoScnPy (Rust) | 9.1 MB          |
+| ⚖️ **Best Speed/Accuracy** | CytoScnPy        | 0.09s @ F1 0.60 |
 
 ### Detection Capabilities at a Glance
 
@@ -21,6 +21,7 @@ This benchmark evaluates **10 dead code detection tools** against a curated Pyth
 | CytoScnPy |   ✅    |    ✅     |   ✅    |   ✅    |    ✅     |
 | Vulture   |   ✅    |    ✅     |   ✅    |   ✅    |    ✅     |
 | Skylos    |   ✅    |    ✅     |   ✅    |   ✅    |    ✅     |
+| deadcode  |   ✅    |    ✅     |   ✅    |   ✅    |    ✅     |
 | uncalled  |   ❌    |    ✅     |   ❌    |   ✅    |    ❌     |
 | dead      |   ❌    |    ✅     |   ❌    |   ✅    |    ❌     |
 | Ruff      |   ❌    |    ❌     |   ✅    |   ❌    |    ✅     |
@@ -30,10 +31,10 @@ This benchmark evaluates **10 dead code detection tools** against a curated Pyth
 ### Quick Recommendations
 
 - **For CI/CD Pipelines**: Use **CytoScnPy (Rust)** – fastest execution with reasonable accuracy
-- **For Thorough Analysis**: Use **Vulture** – best overall F1 score across all categories
-- **For Minimal False Positives**: Use **Skylos** – highest precision, conservative flagging
+- **For Thorough Analysis**: Use **deadcode** – best overall F1 score across all categories
+- **For Minimal False Positives**: Use **uncalled** – highest precision, conservative flagging
 - **For Unused Imports Only**: Use **Ruff** – fastest import-focused linter with good accuracy
-- **For Production Cleanup**: Combine **Vulture + Ruff** – comprehensive coverage with different strengths
+- **For Production Cleanup**: Combine **deadcode + Ruff** – comprehensive coverage with different strengths
 
 ---
 
@@ -91,12 +92,12 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Type      | Count   |
 | --------- | ------- |
-| Functions | 50      |
-| Classes   | 11      |
+| Functions | 51      |
+| Classes   | 14      |
 | Methods   | 27      |
 | Imports   | 19      |
-| Variables | 19      |
-| **Total** | **126** |
+| Variables | 20      |
+| **Total** | **131** |
 
 ---
 
@@ -104,16 +105,17 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Tool                 | Time (s) | Mem (MB) | TP     | FP     | FN     | Precision  | Recall     | F1 Score   |
 | -------------------- | -------- | -------- | ------ | ------ | ------ | ---------- | ---------- | ---------- |
-| **CytoScnPy (Rust)** | **0.07** | **14.3** | **72** | **47** | **54** | **0.6050** | **0.5714** | **0.5878** |
-| CytoScnPy (Python)   | 0.12     | 24.6     | 72     | 47     | 54     | 0.6050     | 0.5714     | 0.5878     |
-| Skylos               | 1.42     | 69.9     | 64     | 24     | 62     | 0.7273     | 0.5079     | 0.5981     |
-| Vulture (0%)         | 0.27     | 24.9     | 88     | 43     | 38     | 0.6718     | 0.6984     | 0.6848     |
-| Vulture (60%)        | 0.27     | 25.1     | 88     | 43     | 38     | 0.6718     | 0.6984     | 0.6848     |
-| Flake8               | 1.37     | 277.6    | 15     | 17     | 111    | 0.4688     | 0.1190     | 0.1899     |
-| Pylint               | 10.81    | 422.3    | 17     | 18     | 109    | 0.4857     | 0.1349     | 0.2112     |
-| Ruff                 | 0.31     | 42.4     | 24     | 20     | 102    | 0.5455     | 0.1905     | 0.2824     |
-| uncalled             | 0.24     | 23.6     | 58     | 17     | 68     | 0.7733     | 0.4603     | 0.5771     |
-| dead                 | 0.50     | 37.7     | 41     | 83     | 85     | 0.3306     | 0.3254     | 0.3280     |
+| **CytoScnPy (Rust)** | **0.09** | **9.1**  | **77** | **50** | **54** | **0.6063** | **0.5878** | **0.5969** |
+| CytoScnPy (Python)   | 0.22     | 27.5     | 77     | 50     | 54     | 0.6063     | 0.5878     | 0.5969     |
+| Skylos               | 4.90     | 64.4     | 64     | 29     | 67     | 0.6882     | 0.4885     | 0.5714     |
+| Vulture (0%)         | 0.58     | 20.2     | 88     | 53     | 43     | 0.6241     | 0.6718     | 0.6471     |
+| Vulture (60%)        | 0.53     | 20.2     | 88     | 53     | 43     | 0.6241     | 0.6718     | 0.6471     |
+| Flake8               | 4.30     | 272.7    | 15     | 17     | 116    | 0.4688     | 0.1145     | 0.1840     |
+| Pylint               | 12.78    | 400.9    | 17     | 18     | 114    | 0.4857     | 0.1298     | 0.2048     |
+| Ruff                 | 0.31     | 38.0     | 24     | 20     | 107    | 0.5455     | 0.1832     | 0.2743     |
+| uncalled             | 0.26     | 18.5     | 59     | 19     | 72     | 0.7564     | 0.4504     | 0.5646     |
+| dead                 | 0.44     | 38.3     | 41     | 51     | 90     | 0.4457     | 0.3130     | 0.3677     |
+| **deadcode**         | 0.69     | 29.1     | **90** | 49     | 41     | 0.6475     | **0.6870** | **0.6667** |
 
 ---
 
@@ -123,27 +125,29 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Tool             | TP  | FP  | FN  | Precision | Recall | F1 Score |
 | ---------------- | --- | --- | --- | --------- | ------ | -------- |
-| Skylos           | 11  | 3   | 0   | 0.7857    | 1.0000 | 0.8800   |
-| Vulture          | 11  | 3   | 0   | 0.7857    | 1.0000 | 0.8800   |
-| CytoScnPy (Rust) | 9   | 3   | 2   | 0.7500    | 0.8182 | 0.7826   |
-| Flake8           | 0   | 0   | 11  | 0.0000    | 0.0000 | 0.0000   |
-| Pylint           | 0   | 0   | 11  | 0.0000    | 0.0000 | 0.0000   |
-| Ruff             | 0   | 0   | 11  | 0.0000    | 0.0000 | 0.0000   |
-| uncalled         | 0   | 0   | 11  | 0.0000    | 0.0000 | 0.0000   |
-| dead             | 0   | 0   | 11  | 0.0000    | 0.0000 | 0.0000   |
+| CytoScnPy (Rust) | 11  | 5   | 3   | 0.6875    | 0.7857 | 0.7333   |
+| Vulture          | 11  | 8   | 3   | 0.5789    | 0.7857 | 0.6667   |
+| Skylos           | 11  | 8   | 3   | 0.5789    | 0.7857 | 0.6667   |
+| deadcode         | 11  | 8   | 3   | 0.5789    | 0.7857 | 0.6667   |
+| Flake8           | 0   | 0   | 14  | 0.0000    | 0.0000 | 0.0000   |
+| Pylint           | 0   | 0   | 14  | 0.0000    | 0.0000 | 0.0000   |
+| Ruff             | 0   | 0   | 14  | 0.0000    | 0.0000 | 0.0000   |
+| uncalled         | 0   | 0   | 14  | 0.0000    | 0.0000 | 0.0000   |
+| dead             | 0   | 0   | 14  | 0.0000    | 0.0000 | 0.0000   |
 
 #### Analysis
 
-| Tool           | Explanation                                                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Skylos** 🥇  | Purpose-built dead code detector with full class tracking. Detects all 11 unused classes. 3 FP from classes it considers unused but are actually used via inheritance or dynamic patterns. |
-| **Vulture** 🥇 | Specialized unused code finder. Achieves perfect recall on classes. Same 3 FP as Skylos - likely framework-registered classes or dynamically accessed ones.                                |
-| **CytoScnPy**  | Rust-based analyzer with class detection. Misses 2 classes (possibly due to cross-module usage or complex inheritance). Very fast execution.                                               |
-| **Flake8**     | Style linter only. Has no rules for unused class detection - only checks code style and unused imports (F401).                                                                             |
-| **Pylint**     | General linter. No `unused-class` rule exists. Only has `unused-import` (W0611), `unused-variable` (W0612), `unused-argument` (W0613).                                                     |
-| **Ruff**       | Fast Flake8-compatible linter. Implements F401 (unused imports) and F841 (unused variables), but no class detection.                                                                       |
-| **uncalled**   | Function-only detector. Specifically designed to find uncalled functions, not classes.                                                                                                     |
-| **dead**       | Function-focused tool. Analyzes function call graphs only, no class instantiation tracking.                                                                                                |
+| Tool             | Explanation                                                                                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CytoScnPy** 🥇 | Rust-based analyzer with best class detection precision. Finds all 11 unused classes with only 5 FP.                                                              |
+| **Vulture**      | Specialized unused code finder. Achieves good recall on classes. 8 FP from classes it considers unused but are actually used via inheritance or dynamic patterns. |
+| **Skylos**       | Purpose-built dead code detector with full class tracking. Same performance as Vulture.                                                                           |
+| **deadcode**     | Enhanced Vulture alternative. Same class detection performance as Vulture and Skylos.                                                                             |
+| **Flake8**       | Style linter only. Has no rules for unused class detection - only checks code style and unused imports (F401).                                                    |
+| **Pylint**       | General linter. No `unused-class` rule exists. Only has `unused-import` (W0611), `unused-variable` (W0612), `unused-argument` (W0613).                            |
+| **Ruff**         | Fast Flake8-compatible linter. Implements F401 (unused imports) and F841 (unused variables), but no class detection.                                              |
+| **uncalled**     | Function-only detector. Specifically designed to find uncalled functions, not classes.                                                                            |
+| **dead**         | Function-focused tool. Analyzes function call graphs only, no class instantiation tracking.                                                                       |
 
 ---
 
@@ -151,27 +155,28 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Tool             | TP  | FP  | FN  | Precision | Recall | F1 Score |
 | ---------------- | --- | --- | --- | --------- | ------ | -------- |
-| Vulture          | 47  | 19  | 3   | 0.7121    | 0.9400 | 0.8103   |
-| uncalled         | 39  | 17  | 11  | 0.6964    | 0.7800 | 0.7358   |
-| Skylos           | 29  | 6   | 21  | 0.8286    | 0.5800 | 0.6824   |
-| CytoScnPy (Rust) | 37  | 28  | 13  | 0.5692    | 0.7400 | 0.6435   |
-| dead             | 30  | 83  | 20  | 0.2655    | 0.6000 | 0.3681   |
-| Flake8           | 0   | 0   | 50  | 0.0000    | 0.0000 | 0.0000   |
-| Pylint           | 0   | 0   | 50  | 0.0000    | 0.0000 | 0.0000   |
-| Ruff             | 0   | 0   | 50  | 0.0000    | 0.0000 | 0.0000   |
+| Vulture          | 47  | 21  | 4   | 0.6912    | 0.9216 | 0.7899   |
+| deadcode         | 47  | 21  | 4   | 0.6912    | 0.9216 | 0.7899   |
+| uncalled         | 40  | 19  | 11  | 0.6780    | 0.7843 | 0.7273   |
+| Skylos           | 29  | 6   | 22  | 0.8286    | 0.5686 | 0.6744   |
+| CytoScnPy (Rust) | 37  | 25  | 14  | 0.5968    | 0.7255 | 0.6549   |
+| dead             | 30  | 51  | 21  | 0.3704    | 0.5882 | 0.4545   |
+| Flake8           | 0   | 0   | 51  | 0.0000    | 0.0000 | 0.0000   |
+| Pylint           | 0   | 0   | 51  | 0.0000    | 0.0000 | 0.0000   |
+| Ruff             | 0   | 0   | 51  | 0.0000    | 0.0000 | 0.0000   |
 
 #### Analysis
 
-| Tool           | Explanation                                                                                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Vulture** 🥇 | Best balance of precision/recall. Finds 47/50 functions with acceptable FP rate. Uses AST analysis to track all function definitions and calls.         |
-| **uncalled**   | Strong performer. Specifically designed for finding uncalled functions. Lower recall (78%) suggests it may respect some dynamic patterns or decorators. |
-| **Skylos**     | Highest precision (83%) but lower recall. Conservative approach - prefers not flagging uncertain cases. Good for avoiding false alarms.                 |
-| **CytoScnPy**  | Fast with good recall (74%). Higher FP rate (28) suggests aggressive detection - flags more potential dead code at cost of some false positives.        |
-| **dead**       | Very high FP (83). Uses AST walking but lacks context about dynamic usage, decorators, or framework patterns. Reports many live functions as dead.      |
-| **Flake8**     | No function detection. Only implements style/import rules.                                                                                              |
-| **Pylint**     | No `unused-function` rule in standard Pylint. Would need custom checker plugin.                                                                         |
-| **Ruff**       | Implements Flake8 rules. No dead function detection in its rule set.                                                                                    |
+| Tool                    | Explanation                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vulture/deadcode** 🥇 | Best balance of precision/recall. Finds 47/51 functions with acceptable FP rate. Uses AST analysis to track all function definitions and calls.         |
+| **uncalled**            | Strong performer. Specifically designed for finding uncalled functions. Lower recall (78%) suggests it may respect some dynamic patterns or decorators. |
+| **Skylos**              | Highest precision (83%) but lower recall. Conservative approach - prefers not flagging uncertain cases. Good for avoiding false alarms.                 |
+| **CytoScnPy**           | Fast with good recall (73%). Higher FP rate (25) suggests aggressive detection - flags more potential dead code at cost of some false positives.        |
+| **dead**                | High FP (51). Uses AST walking but lacks context about dynamic usage, decorators, or framework patterns. Reports many live functions as dead.           |
+| **Flake8**              | No function detection. Only implements style/import rules.                                                                                              |
+| **Pylint**              | No `unused-function` rule in standard Pylint. Would need custom checker plugin.                                                                         |
+| **Ruff**                | Implements Flake8 rules. No dead function detection in its rule set.                                                                                    |
 
 ---
 
@@ -181,6 +186,7 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 | ---------------- | --- | --- | --- | --------- | ------ | -------- |
 | Ruff             | 16  | 16  | 3   | 0.5000    | 0.8421 | 0.6275   |
 | Flake8           | 15  | 17  | 4   | 0.4688    | 0.7895 | 0.5882   |
+| deadcode         | 8   | 5   | 11  | 0.6154    | 0.4211 | 0.5000   |
 | Pylint           | 10  | 14  | 9   | 0.4167    | 0.5263 | 0.4651   |
 | CytoScnPy (Rust) | 7   | 7   | 12  | 0.5000    | 0.3684 | 0.4242   |
 | Vulture          | 6   | 5   | 13  | 0.5455    | 0.3158 | 0.4000   |
@@ -194,6 +200,7 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ruff** 🥇   | Best import detector. Implements F401 (`imported but unused`). High recall (84%) catches most unused imports. FP from imports used in type hints or `__all__`. |
 | **Flake8**    | Standard F401 implementation. Slightly lower recall than Ruff. Similar FP patterns - struggles with `TYPE_CHECKING` blocks and re-exports.                     |
+| **deadcode**  | Good precision (62%) with moderate recall. Balances accuracy with coverage.                                                                                    |
 | **Pylint**    | W0611 (`unused-import`). More conservative than Ruff/Flake8. Lower recall due to better handling of some edge cases, but misses more genuine unused imports.   |
 | **CytoScnPy** | Cross-file import tracking. Lower recall suggests focus on obvious cases. Good precision - avoids flagging re-exported imports.                                |
 | **Vulture**   | Import detection is secondary focus. Higher precision but lower recall - only flags clearly unused imports.                                                    |
@@ -208,8 +215,9 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 | Tool             | TP  | FP  | FN  | Precision | Recall | F1 Score |
 | ---------------- | --- | --- | --- | --------- | ------ | -------- |
 | uncalled         | 19  | 0   | 8   | 1.0000    | 0.7037 | 0.8261   |
-| Vulture          | 19  | 4   | 8   | 0.8261    | 0.7037 | 0.7600   |
-| CytoScnPy (Rust) | 16  | 0   | 11  | 1.0000    | 0.5926 | 0.7442   |
+| CytoScnPy (Rust) | 19  | 5   | 8   | 0.7917    | 0.7037 | 0.7451   |
+| Vulture          | 19  | 5   | 8   | 0.7917    | 0.7037 | 0.7451   |
+| deadcode         | 19  | 5   | 8   | 0.7917    | 0.7037 | 0.7451   |
 | Skylos           | 16  | 4   | 11  | 0.8000    | 0.5926 | 0.6809   |
 | dead             | 11  | 0   | 16  | 1.0000    | 0.4074 | 0.5789   |
 | Flake8           | 0   | 0   | 27  | 0.0000    | 0.0000 | 0.0000   |
@@ -221,8 +229,9 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 | Tool            | Explanation                                                                                                                                                                                              |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **uncalled** 🥇 | Perfect precision! Every method it flags is genuinely unused. Reports methods as functions, correctly matched via type aliasing. Misses 8 methods (likely in complex inheritance or dynamically called). |
-| **Vulture**     | Strong performer. Reports "unused function" for methods. 4 FP likely from methods used via `super()` calls or overridden in subclasses.                                                                  |
-| **CytoScnPy**   | Perfect precision with 16 detections. Conservative on methods - avoids false positives at cost of recall. Misses methods in complex class hierarchies.                                                   |
+| **CytoScnPy**   | Strong performer with 19 detections. Good balance of precision and recall for method detection.                                                                                                          |
+| **Vulture**     | Same performance as CytoScnPy. Reports "unused function" for methods. 5 FP likely from methods used via `super()` calls or overridden in subclasses.                                                     |
+| **deadcode**    | Same method detection as Vulture and CytoScnPy. Good at finding unused methods.                                                                                                                          |
 | **Skylos**      | Good detection with 4 FP. Similar to Vulture in approach. FP from methods it can't trace through inheritance chains.                                                                                     |
 | **dead**        | Perfect precision but lowest recall (41%). Very conservative - only flags methods it's absolutely certain are unused.                                                                                    |
 | **Flake8**      | No method detection. Style linter only.                                                                                                                                                                  |
@@ -237,14 +246,15 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Tool             | TP  | FP  | FN  | Precision | Recall | F1 Score |
 | ---------------- | --- | --- | --- | --------- | ------ | -------- |
-| Ruff             | 8   | 4   | 11  | 0.6667    | 0.4211 | 0.5161   |
-| Pylint           | 7   | 4   | 12  | 0.6364    | 0.3684 | 0.4667   |
-| Vulture          | 5   | 12  | 14  | 0.2941    | 0.2632 | 0.2778   |
-| Skylos           | 3   | 4   | 16  | 0.4286    | 0.1579 | 0.2308   |
-| CytoScnPy (Rust) | 3   | 9   | 16  | 0.2500    | 0.1579 | 0.1935   |
-| Flake8           | 0   | 0   | 19  | 0.0000    | 0.0000 | 0.0000   |
-| uncalled         | 0   | 0   | 19  | 0.0000    | 0.0000 | 0.0000   |
-| dead             | 0   | 0   | 19  | 0.0000    | 0.0000 | 0.0000   |
+| Ruff             | 8   | 4   | 12  | 0.6667    | 0.4000 | 0.5000   |
+| Pylint           | 7   | 4   | 13  | 0.6364    | 0.3500 | 0.4516   |
+| deadcode         | 5   | 10  | 15  | 0.3333    | 0.2500 | 0.2857   |
+| Vulture          | 5   | 14  | 15  | 0.2632    | 0.2500 | 0.2564   |
+| Skylos           | 3   | 4   | 17  | 0.4286    | 0.1500 | 0.2222   |
+| CytoScnPy (Rust) | 3   | 8   | 17  | 0.2727    | 0.1500 | 0.1935   |
+| Flake8           | 0   | 0   | 20  | 0.0000    | 0.0000 | 0.0000   |
+| uncalled         | 0   | 0   | 20  | 0.0000    | 0.0000 | 0.0000   |
+| dead             | 0   | 0   | 20  | 0.0000    | 0.0000 | 0.0000   |
 
 #### Analysis
 
@@ -252,7 +262,8 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ruff** 🥇   | Best variable detector via F841 (`Local variable assigned but never used`). Good precision (67%). Misses global variables and pattern-matched bindings. |
 | **Pylint**    | W0612 (`unused-variable`). Similar to Ruff. Slightly lower recall. Good at local scope but misses complex scoping patterns.                             |
-| **Vulture**   | Higher FP rate. Flags more variables but with less accuracy. Struggles with variables used in comprehensions or as iteration targets.                   |
+| **deadcode**  | Detects 5 unused variables. Higher FP rate suggests aggressive flagging of potential dead code.                                                         |
+| **Vulture**   | Same detection as deadcode. Flags more variables but with less accuracy. Struggles with variables used in comprehensions or as iteration targets.       |
 | **Skylos**    | Lower variable detection priority. Conservative approach - only flags obvious cases.                                                                    |
 | **CytoScnPy** | Variable detection is developing. Higher FP suggests aggressive flagging. Needs improvement in scope tracking.                                          |
 | **Flake8**    | No built-in unused variable rule. Would need `flake8-unused-arguments` plugin.                                                                          |
@@ -280,27 +291,27 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 ### Best Overall
 
-- **Vulture** leads with F1: 0.68 - excellent balance across all detection types
-- **Skylos** highest precision (0.73) - best for minimizing false alarms
-- **CytoScnPy** fastest (0.11s) with strong F1: 0.59 - best for CI/CD integration
+- **deadcode** leads with F1: 0.67 - excellent balance across all detection types
+- **uncalled** highest precision (0.76) - best for minimizing false alarms
+- **CytoScnPy** fastest (0.09s) with strong F1: 0.60 - best for CI/CD integration
 
 ### Best by Category
 
-| Category     | Best Tool      | F1 Score | Why                                          |
-| ------------ | -------------- | -------- | -------------------------------------------- |
-| **Class**    | Skylos/Vulture | 0.88     | Perfect recall, dedicated dead code analysis |
-| **Function** | Vulture        | 0.81     | Best precision/recall balance                |
-| **Import**   | Ruff           | 0.63     | Fast, mature F401 implementation             |
-| **Method**   | uncalled       | 0.83     | Perfect precision, good recall               |
-| **Variable** | Ruff           | 0.52     | F841 rule with good precision                |
+| Category     | Best Tool        | F1 Score | Why                              |
+| ------------ | ---------------- | -------- | -------------------------------- |
+| **Class**    | CytoScnPy        | 0.73     | Best precision with good recall  |
+| **Function** | Vulture/deadcode | 0.79     | Best precision/recall balance    |
+| **Import**   | Ruff             | 0.63     | Fast, mature F401 implementation |
+| **Method**   | uncalled         | 0.83     | Perfect precision, good recall   |
+| **Variable** | Ruff             | 0.50     | F841 rule with good precision    |
 
 ### Tool Categories
 
-| Category                | Tools                      | Strengths                                              |
-| ----------------------- | -------------------------- | ------------------------------------------------------ |
-| **Dead Code Analyzers** | Vulture, Skylos, CytoScnPy | Full dead code detection (classes, functions, methods) |
-| **Function Detectors**  | uncalled, dead             | Specialized for uncalled functions/methods             |
-| **Import Linters**      | Ruff, Flake8, Pylint       | Unused import detection with style checking            |
+| Category                | Tools                                | Strengths                                              |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------ |
+| **Dead Code Analyzers** | Vulture, Skylos, CytoScnPy, deadcode | Full dead code detection (classes, functions, methods) |
+| **Function Detectors**  | uncalled, dead                       | Specialized for uncalled functions/methods             |
+| **Import Linters**      | Ruff, Flake8, Pylint                 | Unused import detection with style checking            |
 
 ### Limitations
 
@@ -317,14 +328,13 @@ The following tools could be considered for future benchmark additions. They off
 
 ### Static Analyzers
 
-| Tool                                                           | Type               | Description                                                | Why Consider                                          |
-| -------------------------------------------------------------- | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------- |
-| **[Pyflakes](https://github.com/PyCQA/pyflakes)**              | Lightweight Linter | Fast, minimal static analysis focusing on errors not style | Faster than Flake8, focuses only on logical errors    |
-| **[deadcode](https://github.com/albertas/deadcode)**           | Dead Code Detector | Enhanced Vulture alternative with `--fix` auto-removal     | Better scope tracking, automatic code removal support |
-| **[Prospector](https://github.com/prospector-dev/prospector)** | Meta-Linter        | Aggregates Pylint, Pyflakes, Vulture in one tool           | All-in-one solution, highly customizable              |
-| **[Fixit](https://github.com/Instagram/Fixit)**                | Auto-fixer         | Facebook's lint framework with auto-fix capabilities       | Can automatically remove detected dead code           |
-| **[Semgrep](https://github.com/semgrep/semgrep)**              | Pattern Matcher    | Customizable pattern-based code analysis                   | User-defined dead code patterns, multi-language       |
-| **[Bandit](https://github.com/PyCQA/bandit)**                  | Security Linter    | Security-focused analysis (includes some dead code)        | Catches security-related unused code patterns         |
+| Tool                                                           | Type               | Description                                                | Why Consider                                       |
+| -------------------------------------------------------------- | ------------------ | ---------------------------------------------------------- | -------------------------------------------------- |
+| **[Pyflakes](https://github.com/PyCQA/pyflakes)**              | Lightweight Linter | Fast, minimal static analysis focusing on errors not style | Faster than Flake8, focuses only on logical errors |
+| **[Prospector](https://github.com/prospector-dev/prospector)** | Meta-Linter        | Aggregates Pylint, Pyflakes, Vulture in one tool           | All-in-one solution, highly customizable           |
+| **[Fixit](https://github.com/Instagram/Fixit)**                | Auto-fixer         | Facebook's lint framework with auto-fix capabilities       | Can automatically remove detected dead code        |
+| **[Semgrep](https://github.com/semgrep/semgrep)**              | Pattern Matcher    | Customizable pattern-based code analysis                   | User-defined dead code patterns, multi-language    |
+| **[Bandit](https://github.com/PyCQA/bandit)**                  | Security Linter    | Security-focused analysis (includes some dead code)        | Catches security-related unused code patterns      |
 
 ### Dynamic Analyzers
 
@@ -609,4 +619,4 @@ Memory is measured as **Peak Resident Set Size (RSS)** during tool execution:
 
 ---
 
-_Last updated: 2025-12-07 (126 total ground truth items)_
+_Last updated: 2025-12-12 (131 total ground truth items, 11 tools benchmarked)_

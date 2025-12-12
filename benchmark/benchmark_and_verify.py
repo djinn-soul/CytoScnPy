@@ -292,7 +292,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
     result, duration, max_rss = run_command(command, cwd, env)
     print(f"    [OK] Completed in {duration:.2f}s (Memory: {max_rss:.1f} MB)")
     
-    if result.returncode != 0 and name not in ["Pylint", "Flake8", "Vulture", "uncalled", "dead"]: 
+    if result.returncode != 0 and name not in ["Pylint", "Flake8", "Vulture", "uncalled", "dead", "deadcode"]: 
         # Some tools return non-zero on finding issues, which is expected.
         # But if it crashes (like Rust build), we want to know.
         # For linters, we assume non-zero means "issues found" or "error".
@@ -331,6 +331,11 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
     elif name == "dead":
         # dead outputs lines like "func is never read, defined in file.py:line"
         issue_count = len([l for l in output.splitlines() if "is never" in l.lower() or "never read" in l.lower()])
+    elif name == "deadcode":
+        # deadcode outputs lines like "file.py:10:0: DC02 Function `func_name` is never used"
+        # DC codes range from DC01 to DC13
+        import re
+        issue_count = len([l for l in output.splitlines() if re.search(r': DC\d+', l)])
     elif name == "Skylos":
         try:
             data = json.loads(result.stdout)
@@ -627,6 +632,40 @@ class Verification:
                     # uncalled doesn't provide line numbers, so we set to None
                     findings.add((fpath, None, "function", obj_name))
 
+        elif name == "deadcode":
+            # deadcode output format: "file.py:10:0: DC02 Function `func_name` is never used"
+            # Rules: DC01=variable, DC02=function, DC03=class, DC04=method, DC05=attribute
+            #        DC06=name, DC07=import, DC08=property
+            import re
+            # Pattern: path:line:col: DCxx Type `name` is never used
+            # Note: deadcode uses backticks (`) not single quotes (')
+            pattern = r"(.+\.py):(\d+):\d+:\s*(DC\d+)\s+(\w+)\s+`([^`]+)`"
+            for line in output.splitlines():
+                match = re.search(pattern, line)
+                if match:
+                    fpath = normalize_path(match.group(1))
+                    lineno = int(match.group(2))
+                    code = match.group(3)
+                    type_raw = match.group(4).lower()  # "Function", "Variable", etc.
+                    obj_name = match.group(5)
+                    
+                    # Map deadcode types to our standard types based on official docs:
+                    # DC01=unused-variable, DC02=unused-function, DC03=unused-class,
+                    # DC04=unused-method, DC05=unused-attribute, DC06=unused-name,
+                    # DC07=unused-import, DC08=unused-property
+                    type_map = {
+                        "variable": "variable",
+                        "function": "function",
+                        "class": "class",
+                        "method": "method",
+                        "attribute": "variable",
+                        "name": "variable",  # DC06 unused-name
+                        "import": "import",
+                        "property": "method",  # DC08 - treat property like method
+                    }
+                    type_name = type_map.get(type_raw, type_raw)
+                    findings.add((fpath, lineno, type_name, obj_name))
+
         # Debug output for tools with no parsed findings
         if not findings and output.strip():
             print(f"DEBUG: {name} produced output but no findings parsed:")
@@ -883,6 +922,16 @@ def main():
             "name": "dead",
             # dead uses --files regex, not positional path. It runs from CWD.
             "command": f'cd "{target_dir_str}" && "{sys.executable}" -m dead --files ".*\\.py$"'
+        },
+        {
+            "name": "deadcode",
+            # deadcode doesn't support 'python -m deadcode', use executable directly
+            # Use --no-color to avoid ANSI codes breaking parsing
+            "command": [
+                (os.path.join(os.path.dirname(sys.executable), "deadcode") if os.name != "nt" else os.path.join(os.path.dirname(sys.executable), "deadcode.exe")),
+                target_dir_str,
+                "--no-color"
+            ]
         }
     ]
 

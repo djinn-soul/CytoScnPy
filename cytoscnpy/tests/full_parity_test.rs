@@ -95,7 +95,7 @@ fn test_path_traversal() {
     let code = "open(user_input)";
     let config = Config::default();
     let result = analyze_code(code, config);
-    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D215"));
+    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D501"));
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn test_ssrf() {
     let code = "requests.get(user_url)";
     let config = Config::default();
     let result = analyze_code(code, config);
-    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D216"));
+    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D402"));
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn test_sqli_raw() {
     let code = "sqlalchemy.text(user_sql)";
     let config = Config::default();
     let result = analyze_code(code, config);
-    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D217"));
+    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D102"));
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn test_xss() {
     let code = "flask.render_template_string(user_template)";
     let config = Config::default();
     let result = analyze_code(code, config);
-    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D226"));
+    assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D103"));
 }
 
 #[test]

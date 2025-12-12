@@ -233,6 +233,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 path,
                 json,
                 exclude,
+                ..
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -255,6 +256,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 path,
                 json,
                 exclude,
+                ..
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -285,6 +287,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 path,
                 json,
                 exclude,
+                ..
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -307,6 +310,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 path,
                 json,
                 exclude,
+                ..
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -384,7 +388,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             include_folders,
             cli_var.include_ipynb,
             cli_var.ipynb_cells,
-            danger || cli_var.taint, // taint enabled with --danger or --taint
+            danger, // taint is now automatically enabled with --danger
             config.clone(),
         );
         let result = analyzer.analyze_paths(&cli_var.paths)?;

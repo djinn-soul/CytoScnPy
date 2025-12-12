@@ -1,5 +1,3 @@
-//! Test to verify the fix for the Order class false negative bug.
-//!
 //! This test ensures that user-defined BaseModel classes don't incorrectly
 //! trigger framework detection and cause subclasses to be marked as used.
 

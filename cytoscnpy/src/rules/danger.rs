@@ -5,23 +5,45 @@ use rustpython_parser::ast::{self, Expr, Ranged};
 pub mod type_inference;
 use type_inference::MethodMisuseRule;
 
-/// Returns a list of all security/danger rules.
+/// Returns a list of all security/danger rules, organized by category.
 pub fn get_danger_rules() -> Vec<Box<dyn Rule>> {
     vec![
-        Box::new(EvalRule),
-        Box::new(ExecRule),
-        Box::new(PickleRule),
-        Box::new(YamlRule),
-        Box::new(HashlibRule),
-        Box::new(RequestsRule),
-        Box::new(SqlInjectionRule),
-        Box::new(SubprocessRule),
-        Box::new(PathTraversalRule),
-        Box::new(SSRFRule),
-        Box::new(SqlInjectionRawRule),
-        Box::new(SqlInjectionRawRule),
-        Box::new(XSSRule),
-        Box::new(MethodMisuseRule::default()),
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category 1: Code Execution (CSP-D0xx) - Highest Risk
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(EvalRule),       // CSP-D001: eval() usage
+        Box::new(ExecRule),       // CSP-D002: exec() usage
+        Box::new(SubprocessRule), // CSP-D003: Command injection
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category 2: Injection Attacks (CSP-D1xx)
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(SqlInjectionRule),    // CSP-D101: SQL injection (ORM)
+        Box::new(SqlInjectionRawRule), // CSP-D102: SQL injection (raw)
+        Box::new(XSSRule),             // CSP-D103: Cross-site scripting
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category 3: Deserialization (CSP-D2xx)
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(PickleRule), // CSP-D201: Pickle deserialization
+        Box::new(YamlRule),   // CSP-D202: YAML unsafe load
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category 4: Cryptography (CSP-D3xx)
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(HashlibRule), // CSP-D301: Weak hash algorithms
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category 5: Network/HTTP (CSP-D4xx)
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(RequestsRule), // CSP-D401: Insecure HTTP requests
+        Box::new(SSRFRule),     // CSP-D402: Server-side request forgery
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category 6: File Operations (CSP-D5xx)
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(PathTraversalRule), // CSP-D501: Path traversal attacks
+        Box::new(TarfileExtractionRule), // CSP-D502: Tar extraction vulnerabilities
+        Box::new(ZipfileExtractionRule), // CSP-D503: Zip extraction vulnerabilities
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category 7: Type Safety (CSP-D6xx)
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(MethodMisuseRule::default()), // CSP-D601: Type-based method misuse
     ]
 }
 
@@ -31,7 +53,7 @@ impl Rule for EvalRule {
         "EvalRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D201"
+        "CSP-D001"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -57,7 +79,7 @@ impl Rule for ExecRule {
         "ExecRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D202"
+        "CSP-D002"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -83,7 +105,7 @@ impl Rule for PickleRule {
         "PickleRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D203" // Default to load
+        "CSP-D201" // Default to load
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -91,7 +113,7 @@ impl Rule for PickleRule {
                 if name == "pickle.load" {
                     return Some(vec![create_finding(
                         "Avoid using pickle.load (vulnerable to RCE)",
-                        "CSP-D203",
+                        "CSP-D201",
                         context,
                         call.range().start(),
                         "CRITICAL",
@@ -99,7 +121,7 @@ impl Rule for PickleRule {
                 } else if name == "pickle.loads" {
                     return Some(vec![create_finding(
                         "Avoid using pickle.loads (vulnerable to RCE)",
-                        "CSP-D204",
+                        "CSP-D201-unsafe",
                         context,
                         call.range().start(),
                         "CRITICAL",
@@ -117,7 +139,7 @@ impl Rule for YamlRule {
         "YamlRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D205"
+        "CSP-D202"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -157,7 +179,7 @@ impl Rule for HashlibRule {
         "HashlibRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D206" // Default to MD5
+        "CSP-D301" // Default to MD5
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -165,7 +187,7 @@ impl Rule for HashlibRule {
                 if name == "hashlib.md5" {
                     return Some(vec![create_finding(
                         "Weak hashing algorithm (MD5)",
-                        "CSP-D206",
+                        "CSP-D301",
                         context,
                         call.range().start(),
                         "MEDIUM",
@@ -174,7 +196,7 @@ impl Rule for HashlibRule {
                 if name == "hashlib.sha1" {
                     return Some(vec![create_finding(
                         "Weak hashing algorithm (SHA1)",
-                        "CSP-D207",
+                        "CSP-D302",
                         context,
                         call.range().start(),
                         "MEDIUM",
@@ -192,7 +214,7 @@ impl Rule for RequestsRule {
         "RequestsRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D208"
+        "CSP-D401"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -228,7 +250,7 @@ impl Rule for SubprocessRule {
         "SubprocessRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D212"
+        "CSP-D003"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -302,7 +324,7 @@ impl Rule for SqlInjectionRule {
         "SqlInjectionRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D211"
+        "CSP-D101"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -343,7 +365,7 @@ impl Rule for PathTraversalRule {
         "PathTraversalRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D215"
+        "CSP-D501"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -376,7 +398,7 @@ impl Rule for SSRFRule {
         "SSRFRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D216"
+        "CSP-D402"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -406,7 +428,7 @@ impl Rule for SqlInjectionRawRule {
         "SqlInjectionRawRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D217"
+        "CSP-D102"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -436,7 +458,7 @@ impl Rule for XSSRule {
         "XSSRule"
     }
     fn code(&self) -> &'static str {
-        "CSP-D226"
+        "CSP-D103"
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -514,5 +536,179 @@ fn create_finding(
         line,
         col: 0,
         severity: severity.to_owned(),
+    }
+}
+
+/// Checks if an expression looks like it's related to tarfile operations.
+/// Used to reduce false positives from unrelated .extractall() calls.
+fn is_likely_tarfile_receiver(receiver: &Expr) -> bool {
+    match receiver {
+        // tarfile.open(...).extractall() -> receiver is Call to tarfile.open
+        Expr::Call(inner_call) => {
+            if let Expr::Attribute(inner_attr) = &*inner_call.func {
+                // Check for tarfile.open(...)
+                inner_attr.attr.as_str() == "open"
+                    && matches!(&*inner_attr.value, Expr::Name(n) if n.id.as_str() == "tarfile")
+            } else {
+                false
+            }
+        }
+        // Variable that might be a TarFile instance
+        Expr::Name(name) => {
+            let id = name.id.as_str().to_lowercase();
+            id == "tarfile" || id.contains("tar") || id == "tf" || id == "t"
+        }
+        // Attribute access like self.tar_file or module.tar_archive
+        Expr::Attribute(attr2) => {
+            let attr_id = attr2.attr.as_str().to_lowercase();
+            attr_id.contains("tar") || attr_id == "tf"
+        }
+        _ => false,
+    }
+}
+
+/// Checks if an expression looks like it's related to zipfile operations.
+fn is_likely_zipfile_receiver(receiver: &Expr) -> bool {
+    match receiver {
+        // zipfile.ZipFile(...).extractall() -> receiver is Call
+        Expr::Call(inner_call) => {
+            if let Expr::Attribute(inner_attr) = &*inner_call.func {
+                // Check for zipfile.ZipFile(...)
+                inner_attr.attr.as_str() == "ZipFile"
+                    && matches!(&*inner_attr.value, Expr::Name(n) if n.id.as_str() == "zipfile")
+            } else if let Expr::Name(name) = &*inner_call.func {
+                // Direct ZipFile(...) call
+                name.id.as_str() == "ZipFile"
+            } else {
+                false
+            }
+        }
+        // Variable that might be a ZipFile instance
+        Expr::Name(name) => {
+            let id = name.id.as_str().to_lowercase();
+            id == "zipfile" || id.contains("zip") || id == "zf" || id == "z"
+        }
+        // Attribute access like self.zip_file
+        Expr::Attribute(attr2) => {
+            let attr_id = attr2.attr.as_str().to_lowercase();
+            attr_id.contains("zip") || attr_id == "zf"
+        }
+        _ => false,
+    }
+}
+
+struct TarfileExtractionRule;
+impl Rule for TarfileExtractionRule {
+    fn name(&self) -> &'static str {
+        "TarfileExtractionRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D502"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            // Check for .extractall() call
+            if let Expr::Attribute(attr) = &*call.func {
+                if attr.attr.as_str() != "extractall" {
+                    return None;
+                }
+
+                // Heuristic: check if receiver looks like tarfile-related
+                let receiver = &attr.value;
+                let looks_like_tar = is_likely_tarfile_receiver(receiver);
+
+                // Find 'filter' keyword argument
+                let filter_kw = call.keywords.iter().find_map(|kw| {
+                    if kw.arg.as_ref().is_some_and(|a| a == "filter") {
+                        Some(&kw.value)
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(filter_expr) = filter_kw {
+                    // Filter is present - check if it's a safe literal value
+                    let is_safe_literal = if let Expr::Constant(c) = filter_expr {
+                        if let ast::Constant::Str(s) = &c.value {
+                            let s_lower = s.to_lowercase();
+                            // Python 3.12 doc: filter='data' or 'tar' or 'fully_trusted'
+                            s_lower == "data" || s_lower == "tar" || s_lower == "fully_trusted"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    if is_safe_literal {
+                        // Safe filter value - no finding
+                        return None;
+                    }
+                    // Filter present but not a recognized safe literal
+                    let severity = if looks_like_tar { "MEDIUM" } else { "LOW" };
+                    return Some(vec![create_finding(
+                        "extractall() with non-literal or unrecognized 'filter' - verify it safely limits extraction paths (recommended: filter='data' or 'tar' in Python 3.12+)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        severity,
+                    )]);
+                }
+                // No filter argument - high risk for tarfile, medium for unknown
+                if looks_like_tar {
+                    return Some(vec![create_finding(
+                        "Potential Zip Slip: tarfile extractall() without 'filter'. Use filter='data' or 'tar' (Python 3.12+) or validate member paths before extraction",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+                // Unknown receiver - lower severity to reduce false positives
+                return Some(vec![create_finding(
+                    "Possible unsafe extractall() call without 'filter'. If this is a tarfile, use filter='data' or 'tar' (Python 3.12+)",
+                    self.code(),
+                    context,
+                    call.range().start(),
+                    "MEDIUM",
+                )]);
+            }
+        }
+        None
+    }
+}
+
+struct ZipfileExtractionRule;
+impl Rule for ZipfileExtractionRule {
+    fn name(&self) -> &'static str {
+        "ZipfileExtractionRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D503"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Expr::Attribute(attr) = &*call.func {
+                if attr.attr.as_str() != "extractall" {
+                    return None;
+                }
+
+                let receiver = &attr.value;
+                let looks_like_zip = is_likely_zipfile_receiver(receiver);
+
+                // zipfile.ZipFile has no 'filter' parameter like tarfile
+                // The mitigation is to manually check .namelist() before extraction
+                if looks_like_zip {
+                    return Some(vec![create_finding(
+                        "Potential Zip Slip: zipfile extractall() without path validation. Check ZipInfo.filename for '..' and absolute paths before extraction",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+        None
     }
 }

@@ -18,7 +18,16 @@ pub struct ComplexityFinding {
 }
 
 /// Analyzes the cyclomatic complexity of code within a file.
-pub fn analyze_complexity(code: &str, path: &std::path::Path) -> Vec<ComplexityFinding> {
+///
+/// # Arguments
+/// * `code` - The source code to analyze
+/// * `path` - The file path (for error messages)
+/// * `no_assert` - If true, assert statements don't add to complexity
+pub fn analyze_complexity(
+    code: &str,
+    path: &std::path::Path,
+    no_assert: bool,
+) -> Vec<ComplexityFinding> {
     let mut findings = Vec::new();
     if let Ok(ast) = rustpython_parser::parse(
         code,
@@ -31,6 +40,7 @@ pub fn analyze_complexity(code: &str, path: &std::path::Path) -> Vec<ComplexityF
                 findings: Vec::new(),
                 line_index: &line_index,
                 class_stack: Vec::new(),
+                no_assert,
             };
             visitor.visit_body(&m.body);
             findings = visitor.findings;
@@ -40,10 +50,11 @@ pub fn analyze_complexity(code: &str, path: &std::path::Path) -> Vec<ComplexityF
 }
 
 /// Calculates the total cyclomatic complexity of a module (sum of all blocks).
+/// Note: Uses no_assert=false as this is typically used for MI calculation.
 pub fn calculate_module_complexity(code: &str) -> Option<usize> {
     if let Ok(ast) = rustpython_parser::parse(code, rustpython_parser::Mode::Module, "<unknown>") {
         if let rustpython_ast::Mod::Module(m) = ast {
-            return Some(calculate_complexity(&m.body));
+            return Some(calculate_complexity(&m.body, false));
         }
     }
     None
@@ -53,6 +64,7 @@ struct ComplexityVisitor<'a> {
     findings: Vec<ComplexityFinding>,
     line_index: &'a LineIndex,
     class_stack: Vec<String>,
+    no_assert: bool,
 }
 
 impl ComplexityVisitor<'_> {
@@ -65,7 +77,7 @@ impl ComplexityVisitor<'_> {
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::FunctionDef(node) => {
-                let complexity = calculate_complexity(&node.body);
+                let complexity = calculate_complexity(&node.body, self.no_assert);
                 let rank = cc_rank(complexity);
                 let line = self.line_index.line_index(node.range.start());
                 let type_ = if self.class_stack.is_empty() {
@@ -86,7 +98,7 @@ impl ComplexityVisitor<'_> {
                 self.visit_body(&node.body);
             }
             Stmt::AsyncFunctionDef(node) => {
-                let complexity = calculate_complexity(&node.body);
+                let complexity = calculate_complexity(&node.body, self.no_assert);
                 let rank = cc_rank(complexity);
                 let line = self.line_index.line_index(node.range.start());
                 let type_ = if self.class_stack.is_empty() {
@@ -106,7 +118,7 @@ impl ComplexityVisitor<'_> {
                 self.visit_body(&node.body);
             }
             Stmt::ClassDef(node) => {
-                let complexity = calculate_complexity(&node.body);
+                let complexity = calculate_complexity(&node.body, self.no_assert);
                 let rank = cc_rank(complexity);
                 let line = self.line_index.line_index(node.range.start());
 
@@ -171,14 +183,18 @@ impl ComplexityVisitor<'_> {
     }
 }
 
-fn calculate_complexity(body: &[Stmt]) -> usize {
-    let mut visitor = BlockComplexityVisitor { complexity: 1 };
+fn calculate_complexity(body: &[Stmt], no_assert: bool) -> usize {
+    let mut visitor = BlockComplexityVisitor {
+        complexity: 1,
+        no_assert,
+    };
     visitor.visit_body(body);
     visitor.complexity
 }
 
 struct BlockComplexityVisitor {
     complexity: usize,
+    no_assert: bool,
 }
 
 impl BlockComplexityVisitor {
@@ -248,7 +264,10 @@ impl BlockComplexityVisitor {
                 self.visit_body(&node.body);
             }
             Stmt::Assert(node) => {
-                self.complexity += 1;
+                // Only add complexity for assert if no_assert is false
+                if !self.no_assert {
+                    self.complexity += 1;
+                }
                 self.visit_expr(&node.test);
                 if let Some(msg) = &node.msg {
                     self.visit_expr(msg);

@@ -54,7 +54,7 @@ def get_file_stats(binary: Path, dataset: Path) -> tuple[int, int]:
         pass
     return files, lines
 
-def run_hyperfine_benchmark(binary: Path, dataset: Path, runs: int = 20, warmup: int = 3) -> Optional[dict]:
+def run_hyperfine_benchmark(binary: Path, dataset: Path, runs: int = 10, warmup: int = 3) -> Optional[dict]:
     """Run hyperfine and return results."""
     name = dataset.name
     json_output = Path(f"benchmark/results_{name}.json")
@@ -195,7 +195,7 @@ def main():
     print("CytoScnPy Benchmark Suite (Hyperfine)")
     print("=" * 60)
     
-    results = run_benchmark_suite(datasets_dir, runs=10, warmup=3)
+    results = run_benchmark_suite(datasets_dir, runs=20, warmup=3)
     print_results_table(results)
     
     output_file = Path("benchmark/baseline_results.json")

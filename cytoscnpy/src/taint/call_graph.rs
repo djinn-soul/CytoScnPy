@@ -2,8 +2,9 @@
 //!
 //! Builds a call graph for interprocedural analysis.
 
+use rustc_hash::FxHashSet;
 use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// A node in the call graph.
 #[derive(Debug, Clone)]
@@ -13,9 +14,9 @@ pub struct CallGraphNode {
     /// Line where function is defined
     pub line: usize,
     /// Functions called by this function
-    pub calls: HashSet<String>,
+    pub calls: FxHashSet<String>,
     /// Functions that call this function
-    pub called_by: HashSet<String>,
+    pub called_by: FxHashSet<String>,
     /// Parameter names
     pub params: Vec<String>,
 }
@@ -52,8 +53,8 @@ impl CallGraph {
                 let node = CallGraphNode {
                     name: func_name.clone(),
                     line: func.range().start().to_u32() as usize,
-                    calls: HashSet::new(),
-                    called_by: HashSet::new(),
+                    calls: FxHashSet::default(),
+                    called_by: FxHashSet::default(),
                     params,
                 };
 
@@ -72,8 +73,8 @@ impl CallGraph {
                 let node = CallGraphNode {
                     name: func_name.clone(),
                     line: func.range().start().to_u32() as usize,
-                    calls: HashSet::new(),
-                    called_by: HashSet::new(),
+                    calls: FxHashSet::default(),
+                    called_by: FxHashSet::default(),
                     params,
                 };
 
@@ -268,8 +269,8 @@ impl CallGraph {
     }
 
     /// Gets all functions that a given function can reach.
-    pub fn get_reachable(&self, func_name: &str) -> HashSet<String> {
-        let mut visited = HashSet::new();
+    pub fn get_reachable(&self, func_name: &str) -> FxHashSet<String> {
+        let mut visited = FxHashSet::default();
         let mut stack = vec![func_name.to_owned()];
 
         while let Some(current) = stack.pop() {
@@ -292,7 +293,7 @@ impl CallGraph {
 
     /// Gets topological order for analysis (reverse post-order).
     pub fn get_analysis_order(&self) -> Vec<String> {
-        let mut visited = HashSet::new();
+        let mut visited = FxHashSet::default();
         let mut order = Vec::new();
 
         for name in self.nodes.keys() {
@@ -303,7 +304,7 @@ impl CallGraph {
         order
     }
 
-    fn dfs_post_order(&self, node: &str, visited: &mut HashSet<String>, order: &mut Vec<String>) {
+    fn dfs_post_order(&self, node: &str, visited: &mut FxHashSet<String>, order: &mut Vec<String>) {
         if visited.contains(node) {
             return;
         }

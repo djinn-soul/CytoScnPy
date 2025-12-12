@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-12 23:38:08",
+  "timestamp": "2025-12-13 00:11:31",
   "platform": "Windows-11-10.0.26200-SP0",
   "tool": "hyperfine",
   "results": [
@@ -7,51 +7,51 @@
       "dataset": "large_django",
       "files": 2886,
       "lines": 506403,
-      "mean_seconds": 1.62067361,
-      "stddev_seconds": 0.41944486834239597,
-      "min_seconds": 1.071836,
-      "max_seconds": 2.2048342,
-      "runs": 10
+      "mean_seconds": 1.4514717499999996,
+      "stddev_seconds": 0.39483925688570715,
+      "min_seconds": 0.9763603700000001,
+      "max_seconds": 2.09640037,
+      "runs": 20
     },
     {
       "dataset": "massive_tensorflow",
       "files": 3147,
       "lines": 1216986,
-      "mean_seconds": 4.4476024899999995,
-      "stddev_seconds": 0.9560878558076602,
-      "min_seconds": 3.05996429,
-      "max_seconds": 6.02324529,
-      "runs": 10
+      "mean_seconds": 3.6978736639999994,
+      "stddev_seconds": 0.9937436582206332,
+      "min_seconds": 2.598973834,
+      "max_seconds": 6.175771534000001,
+      "runs": 20
     },
     {
       "dataset": "medium_fastapi",
       "files": 1279,
       "lines": 114154,
-      "mean_seconds": 0.295579964,
-      "stddev_seconds": 0.0666420285198004,
-      "min_seconds": 0.22106781400000003,
-      "max_seconds": 0.44466711400000003,
-      "runs": 10
+      "mean_seconds": 0.2841031610000001,
+      "stddev_seconds": 0.024513729024048952,
+      "min_seconds": 0.253521796,
+      "max_seconds": 0.36971999600000005,
+      "runs": 20
     },
     {
       "dataset": "small_requests",
       "files": 36,
       "lines": 11248,
-      "mean_seconds": 0.044427438,
-      "stddev_seconds": 0.017758069423676415,
-      "min_seconds": 0.031847688,
-      "max_seconds": 0.09117778800000001,
-      "runs": 10
+      "mean_seconds": 0.072617305,
+      "stddev_seconds": 0.019337961725478695,
+      "min_seconds": 0.05259839,
+      "max_seconds": 0.12500039000000002,
+      "runs": 20
     },
     {
       "dataset": "tiny_flask",
       "files": 83,
       "lines": 18240,
-      "mean_seconds": 0.07404006199999999,
-      "stddev_seconds": 0.008037480169693873,
-      "min_seconds": 0.06179230199999999,
-      "max_seconds": 0.084261802,
-      "runs": 10
+      "mean_seconds": 0.06928671100000001,
+      "stddev_seconds": 0.006899108411524904,
+      "min_seconds": 0.060264925999999996,
+      "max_seconds": 0.086513526,
+      "runs": 20
     }
   ]
 }

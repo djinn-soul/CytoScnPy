@@ -37,6 +37,10 @@ indicatif = "0.18.3"
 comfy-table = "7.1"
 pyo3 = { version = "0.27.2", features = ["extension-module"] }
 rustc-hash = "2.1.1"
+# String optimization: stack-allocated small strings (up to 24 bytes)
+compact_str = "0.9"
+# Stack-allocated small vectors to avoid heap for small collections
+smallvec = "1.15"
 
 [features]
 default = []

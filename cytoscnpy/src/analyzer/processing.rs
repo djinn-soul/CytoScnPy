@@ -277,6 +277,16 @@ impl CytoScnPy {
                         }
                     }
 
+                    // Mark names in __all__ as used (explicitly exported)
+                    let exports = visitor.exports.clone();
+                    for export_name in &exports {
+                        visitor.add_ref(export_name.clone());
+                        if !module_name.is_empty() {
+                            let qualified = format!("{module_name}.{export_name}");
+                            visitor.add_ref(qualified);
+                        }
+                    }
+
                     let mut rules = Vec::new();
                     if self.enable_danger {
                         rules.extend(crate::rules::danger::get_danger_rules());
@@ -774,6 +784,16 @@ impl CytoScnPy {
                         visitor.add_ref(fw_ref.clone());
                         if !module_name.is_empty() {
                             let qualified = format!("{module_name}.{fw_ref}");
+                            visitor.add_ref(qualified);
+                        }
+                    }
+
+                    // Mark names in __all__ as used (explicitly exported)
+                    let exports = visitor.exports.clone();
+                    for export_name in &exports {
+                        visitor.add_ref(export_name.clone());
+                        if !module_name.is_empty() {
+                            let qualified = format!("{module_name}.{export_name}");
                             visitor.add_ref(qualified);
                         }
                     }

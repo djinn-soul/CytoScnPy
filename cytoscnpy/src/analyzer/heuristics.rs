@@ -75,6 +75,14 @@ pub fn apply_penalties<S: ::std::hash::BuildHasher>(
             .confidence
             .saturating_sub(*PENALTIES().get("in_init_file").unwrap_or(&15));
     }
+
+    // TYPE_CHECKING imports/definitions are only for type hints
+    // These should not be flagged as unused since they're used statically by type checkers
+    if def.is_type_checking && def.def_type == "import" {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("type_checking_import").unwrap_or(&100));
+    }
 }
 
 /// Apply advanced heuristics to definitions to reduce false positives.

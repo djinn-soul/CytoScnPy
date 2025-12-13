@@ -882,9 +882,23 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             Stmt::Return(node) => {
                 if let Some(value) = &node.value {
+                    // Track returned function/class names as used
+                    // This handles decorator wrappers like: def decorator(): def wrapper(): ...; return wrapper
+                    if let Expr::Name(name_node) = &**value {
+                        if name_node.ctx.is_load() {
+                            let name = name_node.id.to_string();
+                            // Try to resolve to qualified name first
+                            if let Some(qualified) = self.resolve_name(&name) {
+                                self.add_ref(qualified);
+                            }
+                            // Always add simple name reference for imports/globals
+                            self.add_ref(name);
+                        }
+                    }
                     self.visit_expr(value);
                 }
             }
+
             Stmt::Assert(node) => {
                 self.visit_expr(&node.test);
                 if let Some(msg) = &node.msg {
@@ -1163,9 +1177,42 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // and stringified type hints like "models.User".
                     if !s.contains(' ') && !s.is_empty() {
                         self.add_ref(s.clone());
+
+                        // Enhanced: Extract type names from string type annotations
+                        // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
+                        // Extract alphanumeric identifiers (type names)
+                        let mut current_word = String::new();
+                        for ch in s.chars() {
+                            if ch.is_alphanumeric() || ch == '_' {
+                                current_word.push(ch);
+                            } else {
+                                if !current_word.is_empty() {
+                                    // Check if it looks like a type name (starts with uppercase)
+                                    if current_word
+                                        .chars()
+                                        .next()
+                                        .map_or(false, |c| c.is_uppercase())
+                                    {
+                                        self.add_ref(current_word.clone());
+                                    }
+                                    current_word.clear();
+                                }
+                            }
+                        }
+                        // Don't forget the last word
+                        if !current_word.is_empty() {
+                            if current_word
+                                .chars()
+                                .next()
+                                .map_or(false, |c| c.is_uppercase())
+                            {
+                                self.add_ref(current_word);
+                            }
+                        }
                     }
                 }
             }
+
             // Recursion Boilerplate - Ensure we visit children of all other expressions
             Expr::BoolOp(node) => {
                 for value in &node.values {

@@ -440,6 +440,21 @@ Integration of code metrics compatible with `radon`.
 - **File Switching:** Implemented `onDidChangeActiveTextEditor` to trigger analysis on tab switch.
 - **Build Guide:** Created comprehensive guide for cross-platform builds.
 
+### 6.2 Extension Code Audit (Pending Fixes) 🔄
+
+_Alignment with Rust CLI capabilities and compatibility fixes._
+
+- [ ] **Compatibility:** Downgrade `engines.vscode` requirement from `^1.106.1` to `^1.104.0` to support current editor versions.
+- [ ] **Metadata:** Fix version mismatch (`package.json` says `0.0.1`, changelog says `0.1.0`) and complete the description.
+- [ ] **Config Parity:**
+  - Change `confidenceThreshold` to numeric input (slider 0-100).
+  - Add `exclude_folders` and `include_folders` arrays.
+  - Add `include_tests` and `include_ipynb` booleans.
+- [ ] **JSON Parsing:**
+  - Update interface to capture `unused_methods` and `taint_findings` (currently ignored).
+  - Map `confidence` enum to numeric values if keeping enum UI.
+- [ ] **Path Handling:** Implement fallback to pip-installed `cytoscnpy` if the bundled binary is missing.
+
 ---
 
 ## Phase 7: Infrastructure & Quality ✅ DONE

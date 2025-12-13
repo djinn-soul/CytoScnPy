@@ -1,6 +1,6 @@
 [package]
 name = "cytoscnpy"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 license = "Apache-2.0"
 default-run = "cytoscnpy-bin"
@@ -37,11 +37,19 @@ indicatif = "0.18.3"
 comfy-table = "7.1"
 pyo3 = { version = "0.27.2", features = ["extension-module"] }
 rustc-hash = "2.1.1"
+# String optimization: stack-allocated small strings (up to 24 bytes)
+compact_str = "0.9"
+# Stack-allocated small vectors to avoid heap for small collections
+smallvec = "1.15"
+# Optional heap profiler
+dhat = { version = "0.3", optional = true }
 
 [features]
 default = []
 # Enable this feature to run Python binding tests (requires Python DLL in PATH)
 python-tests = ["pyo3/auto-initialize"]
+# Enable heap profiling with dhat
+heap-profile = ["dhat"]
 
 # Inherit lints from workspace
 [lints]

@@ -1118,6 +1118,26 @@ def main():
                         cytoscnpy_regressions.append(regression_msg)
                     else:
                         other_regressions.append(regression_msg)
+
+                # Check Precision (Regression if drops more than 0.01)
+                if "precision" in base and "precision" in current:
+                    prec_diff = base["precision"] - current["precision"]
+                    if prec_diff > 0.01:
+                        regression_msg = f"{current['name']} Precision: {base['precision']:.4f} -> {current['precision']:.4f} (-{prec_diff:.4f})"
+                        if is_cytoscnpy:
+                            cytoscnpy_regressions.append(regression_msg)
+                        else:
+                            other_regressions.append(regression_msg)
+
+                # Check Recall (Regression if drops more than 0.01)
+                if "recall" in base and "recall" in current:
+                    recall_diff = base["recall"] - current["recall"]
+                    if recall_diff > 0.01:
+                        regression_msg = f"{current['name']} Recall: {base['recall']:.4f} -> {current['recall']:.4f} (-{recall_diff:.4f})"
+                        if is_cytoscnpy:
+                            cytoscnpy_regressions.append(regression_msg)
+                        else:
+                            other_regressions.append(regression_msg)
             
             # Report comparison tool regressions as warnings (informational, non-blocking)
             if other_regressions:

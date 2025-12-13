@@ -30,7 +30,7 @@ maturin develop -m cytoscnpy/Cargo.toml
 
 ### 🤖 MCP Server (for AI Assistants)
 
-To use CytoScnPy with Claude Desktop or Cursor, see the **[MCP Server Documentation](cytoscnpy-mcp/README.md)** for installation instructions.
+To use CytoScnPy MCP Server, see the **[MCP Server Documentation](cytoscnpy-mcp/README.md)** for installation instructions.
 
 ## ✨ Features
 

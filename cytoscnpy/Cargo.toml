@@ -41,11 +41,15 @@ rustc-hash = "2.1.1"
 compact_str = "0.9"
 # Stack-allocated small vectors to avoid heap for small collections
 smallvec = "1.15"
+# Optional heap profiler
+dhat = { version = "0.3", optional = true }
 
 [features]
 default = []
 # Enable this feature to run Python binding tests (requires Python DLL in PATH)
 python-tests = ["pyo3/auto-initialize"]
+# Enable heap profiling with dhat
+heap-profile = ["dhat"]
 
 # Inherit lints from workspace
 [lints]

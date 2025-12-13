@@ -2,10 +2,26 @@ use crate::utils::LineIndex;
 use compact_str::CompactString;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustpython_ast::{self as ast, Expr, Stmt};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 use std::path::PathBuf;
+use std::sync::Arc;
 
+/// Serialize Arc<PathBuf> as a plain PathBuf for JSON output
+fn serialize_arc_path<S>(path: &Arc<PathBuf>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    path.as_ref().serialize(serializer)
+}
+
+/// Deserialize a plain PathBuf into Arc<PathBuf>
+fn deserialize_arc_path<'de, D>(deserializer: D) -> Result<Arc<PathBuf>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    PathBuf::deserialize(deserializer).map(Arc::new)
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Defines the type of scope (Module, Class, Function).
 /// Uses `CompactString` for names - stores up to 24 bytes inline without heap allocation.
@@ -54,7 +70,12 @@ pub struct Definition {
     /// The type of definition ("function", "class", "method", "import", "variable").
     pub def_type: String,
     /// The file path where this definition resides.
-    pub file: PathBuf,
+    /// Uses `Arc` to avoid cloning for every definition in the same file.
+    #[serde(
+        serialize_with = "serialize_arc_path",
+        deserialize_with = "deserialize_arc_path"
+    )]
+    pub file: Arc<PathBuf>,
     /// The line number where this definition starts.
     pub line: usize,
     /// A confidence score (0-100) indicating how certain we are that this is unused.
@@ -118,41 +139,47 @@ pub struct CytoScnPyVisitor<'a> {
     /// Dynamic imports detected.
     pub dynamic_imports: Vec<String>,
     /// The path of the file being visited.
-    pub file_path: PathBuf,
+    /// Uses `Arc` to share with all definitions without cloning.
+    pub file_path: Arc<PathBuf>,
     /// The module name derived from the file path.
     pub module_name: String,
     /// Current scope stack (not fully used currently but good for tracking nested scopes).
-    /// Uses SmallVec for stack allocation (most code has < 4 nested scopes).
+    /// Uses `SmallVec` for stack allocation (most code has < 4 nested scopes).
     pub current_scope: SmallVec<[String; 4]>,
     /// Stack of class names to track current class context.
-    /// Uses SmallVec - most code has < 4 nested classes.
+    /// Uses `SmallVec` - most code has < 4 nested classes.
     pub class_stack: SmallVec<[String; 4]>,
     /// Helper for line number mapping.
     pub line_index: &'a LineIndex,
     /// Map of import aliases to their original names (alias -> original).
     pub alias_map: FxHashMap<String, String>,
     /// Stack of function names to track which function we're currently inside.
-    /// Uses SmallVec - most code has < 4 nested functions.
+    /// Uses `SmallVec` - most code has < 4 nested functions.
     pub function_stack: SmallVec<[String; 4]>,
     /// Map of function qualified name -> set of parameter names for that function.
     pub function_params: FxHashMap<String, FxHashSet<String>>,
     /// Stack to track if we are inside a dataclass.
-    /// Uses SmallVec - most code has < 4 nested dataclasses.
+    /// Uses `SmallVec` - most code has < 4 nested dataclasses.
     pub dataclass_stack: SmallVec<[bool; 4]>,
     /// Whether we are currently inside an `if TYPE_CHECKING:` block.
     pub in_type_checking_block: bool,
     /// Stack of scopes for variable resolution.
-    /// Uses SmallVec - most code has < 8 nested scopes.
+    /// Uses `SmallVec` - most code has < 8 nested scopes.
     pub scope_stack: SmallVec<[Scope; 8]>,
     /// Whether the current file is considered dynamic (e.g., uses eval/exec).
     pub is_dynamic: bool,
     /// Set of class names that have a metaclass (used to detect metaclass inheritance).
     pub metaclass_classes: FxHashSet<String>,
+    /// Cached scope prefix for faster qualified name building.
+    /// Updated on scope push/pop to avoid rebuilding on every `resolve_name` call.
+    cached_scope_prefix: String,
 }
 
 impl<'a> CytoScnPyVisitor<'a> {
     /// Creates a new visitor for the given file.
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
+        let cached_prefix = module_name.clone();
+        let file_path = Arc::new(file_path); // Wrap in Arc once, share everywhere
         Self {
             definitions: Vec::new(),
             references: FxHashMap::default(),
@@ -171,6 +198,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
             is_dynamic: false,
             metaclass_classes: FxHashSet::default(),
+            cached_scope_prefix: cached_prefix,
         }
     }
 
@@ -179,14 +207,42 @@ impl<'a> CytoScnPyVisitor<'a> {
         self.add_def_with_bases(name, def_type, line, Vec::new());
     }
 
-    /// Pushes a new scope onto the stack.
+    /// Pushes a new scope onto the stack and updates cached prefix.
     fn enter_scope(&mut self, scope_type: ScopeType) {
+        // Update cached prefix based on scope type
+        match &scope_type {
+            ScopeType::Class(name) | ScopeType::Function(name) => {
+                if !self.cached_scope_prefix.is_empty() {
+                    self.cached_scope_prefix.push('.');
+                }
+                self.cached_scope_prefix.push_str(name);
+            }
+            ScopeType::Module => {}
+        }
         self.scope_stack.push(Scope::new(scope_type));
     }
 
-    /// Pops the current scope from the stack.
+    /// Pops the current scope from the stack and updates cached prefix.
     fn exit_scope(&mut self) {
-        self.scope_stack.pop();
+        if let Some(scope) = self.scope_stack.pop() {
+            // Remove this scope's contribution from cached prefix
+            match &scope.kind {
+                ScopeType::Class(name) | ScopeType::Function(name) => {
+                    // Remove ".name" or just "name" if at start
+                    let name_len = name.len();
+                    if self.cached_scope_prefix.len() > name_len {
+                        // Has a dot before it
+                        self.cached_scope_prefix
+                            .truncate(self.cached_scope_prefix.len() - name_len - 1);
+                    } else {
+                        // It's the only thing in the prefix
+                        self.cached_scope_prefix
+                            .truncate(self.cached_scope_prefix.len() - name_len);
+                    }
+                }
+                ScopeType::Module => {}
+            }
+        }
     }
 
     /// Adds a variable definition to the current scope.
@@ -199,13 +255,15 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Looks up a variable in the scope stack and returns its fully qualified name if found.
-    /// Optimized to minimize allocations.
+    /// Optimized: uses `cached_scope_prefix` for innermost scope to avoid rebuilding.
     fn resolve_name(&self, name: &str) -> Option<String> {
+        let innermost_idx = self.scope_stack.len() - 1;
+
         for (i, scope) in self.scope_stack.iter().enumerate().rev() {
             // Class scopes are not visible to inner scopes (methods, nested classes).
             // They are only visible if they are the current (innermost) scope.
             if let ScopeType::Class(_) = &scope.kind {
-                if i != self.scope_stack.len() - 1 {
+                if i != innermost_idx {
                     continue;
                 }
             }
@@ -217,7 +275,20 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             // Fallback: construct qualified name if variable exists in scope
             if scope.variables.contains(name) {
-                // Pre-calculate length for capacity
+                // Fast path: if this is the innermost scope, use cached prefix
+                if i == innermost_idx {
+                    if self.cached_scope_prefix.is_empty() {
+                        return Some(name.to_owned());
+                    }
+                    let mut result =
+                        String::with_capacity(self.cached_scope_prefix.len() + 1 + name.len());
+                    result.push_str(&self.cached_scope_prefix);
+                    result.push('.');
+                    result.push_str(name);
+                    return Some(result);
+                }
+
+                // Slow path: build prefix up to scope at index i
                 let mut total_len = name.len();
                 if !self.module_name.is_empty() {
                     total_len += self.module_name.len() + 1;
@@ -231,7 +302,6 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
 
-                // Build string directly
                 let mut result = String::with_capacity(total_len);
                 if !self.module_name.is_empty() {
                     result.push_str(&self.module_name);
@@ -299,7 +369,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             full_name: name,
             simple_name,
             def_type: def_type.to_owned(),
-            file: self.file_path.clone(),
+            file: Arc::clone(&self.file_path), // O(1) Arc clone instead of O(n) PathBuf clone
             line,
             confidence: 100,
             references,
@@ -613,6 +683,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         if name_node.id.as_str() != "__all__" {
                             let qualified_name = self.get_qualified_name(&name_node.id);
                             let line = self.line_index.line_index(node.range.start());
+                            // Clone for add_def, move to add_local_def (last use)
                             self.add_def(qualified_name.clone(), "variable", line);
                             self.add_local_def(name_node.id.to_string(), qualified_name);
                         }

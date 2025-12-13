@@ -1,5 +1,5 @@
+use rustc_hash::FxHashSet;
 use rustpython_ast::{self as ast, Expr, Stmt};
-use std::collections::HashSet;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 /// Metrics calculated using Halstead's Complexity Measures.
@@ -174,8 +174,8 @@ impl FunctionHalsteadVisitor {
 }
 
 struct HalsteadVisitor {
-    operators: HashSet<String>,
-    operands: HashSet<String>,
+    operators: FxHashSet<String>,
+    operands: FxHashSet<String>,
     total_operators: usize,
     total_operands: usize,
 }
@@ -183,8 +183,8 @@ struct HalsteadVisitor {
 impl HalsteadVisitor {
     fn new() -> Self {
         Self {
-            operators: HashSet::new(),
-            operands: HashSet::new(),
+            operators: FxHashSet::default(),
+            operands: FxHashSet::default(),
             total_operators: 0,
             total_operands: 0,
         }

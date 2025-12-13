@@ -1,14 +1,14 @@
 use crate::cli::{Cli, Commands};
 use anyhow::Result;
 use clap::Parser;
+use rustc_hash::FxHashSet;
 use rustpython_ast::{Constant, Expr, Stmt};
-use std::collections::HashSet; // allows parse_from
 /// Detects if `__name__ == "__main__"` blocks exist and extracts function calls from them.
 ///
 /// This is crucial for correctly identifying entry points in Python scripts.
 /// Functions called within this block should be considered "used" because they are the starting points of execution.
-pub fn detect_entry_point_calls(stmts: &[Stmt]) -> HashSet<String> {
-    let mut entry_point_calls = HashSet::new();
+pub fn detect_entry_point_calls(stmts: &[Stmt]) -> FxHashSet<String> {
+    let mut entry_point_calls = FxHashSet::default();
 
     // Iterate through all top-level statements in the module
     for stmt in stmts {
@@ -76,7 +76,7 @@ fn is_main_string(expr: &Expr) -> bool {
 ///
 /// This function traverses nested statements (like loops and nested ifs)
 /// to find where functions are being called.
-fn collect_function_calls(stmt: &Stmt, calls: &mut HashSet<String>) {
+fn collect_function_calls(stmt: &Stmt, calls: &mut FxHashSet<String>) {
     match stmt {
         // Handle simple expressions: func()
         Stmt::Expr(expr_stmt) => {
@@ -117,7 +117,7 @@ fn collect_function_calls(stmt: &Stmt, calls: &mut HashSet<String>) {
 /// Extracts function names from expression nodes.
 ///
 /// This looks into function calls, attribute accesses (methods), and binary operations.
-fn collect_calls_from_expr(expr: &Expr, calls: &mut HashSet<String>) {
+fn collect_calls_from_expr(expr: &Expr, calls: &mut FxHashSet<String>) {
     match expr {
         // Found a call: func(...)
         Expr::Call(call) => {
@@ -281,7 +281,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     None, // fail_threshold
                     None, // output_file
                     &mut stdout,
-                )?
+                )?;
             }
             Commands::Hal {
                 path,
@@ -332,7 +332,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     None,  // fail_under
                     None,  // output_file
                     &mut stdout,
-                )?
+                )?;
             }
         }
         Ok(0)
@@ -429,8 +429,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
 
             if percentage > fail_threshold {
                 eprintln!(
-                    "Error: Unused code percentage ({:.2}%) exceeds threshold ({:.2}%).",
-                    percentage, fail_threshold
+                    "Error: Unused code percentage ({percentage:.2}%) exceeds threshold ({fail_threshold:.2}%)."
                 );
                 return Ok(1);
             }

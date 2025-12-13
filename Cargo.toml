@@ -1,5 +1,5 @@
 [workspace]
-members = ["cytoscnpy", "cytoscnpy-cli"]
+members = ["cytoscnpy", "cytoscnpy-cli", "cytoscnpy-mcp"]
 resolver = "2"
 
 # Workspace-wide Clippy lint configuration

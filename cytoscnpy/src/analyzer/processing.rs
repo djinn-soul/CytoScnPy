@@ -759,8 +759,12 @@ impl CytoScnPy {
         let mut framework_visitor = FrameworkAwareVisitor::new(&line_index);
         let mut test_visitor = TestAwareVisitor::new(file_path.as_path(), &line_index);
 
-        let secrets = Vec::new();
+        let mut secrets = Vec::new();
         let mut danger = Vec::new();
+
+        if self.enable_secrets {
+            secrets = scan_secrets(&source, &file_path, &self.config.cytoscnpy.secrets_config);
+        }
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
 

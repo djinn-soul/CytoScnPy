@@ -1007,7 +1007,8 @@ _Safe, automated code fixes._
   - Published via `maturin publish`.
   - Available: `pip install cytoscnpy`
 
-- [ ] **Publish MCP Binary**
-  - Build cross-platform binaries (Windows, Linux, macOS).
-  - Create GitHub release with binaries.
-  - Update Claude Desktop setup docs.
+- [x] **Publish MCP Binary** ✅
+  - GitHub Actions workflow (`.github/workflows/mcp-release.yml`) for automated cross-platform builds.
+  - Installation scripts: `install.sh` (Linux/macOS), `install.ps1` (Windows).
+  - Documentation updated in `cytoscnpy-mcp/README.md`.
+  - **To release:** Push a version tag (e.g., `git tag v1.0.0 && git push origin v1.0.0`).

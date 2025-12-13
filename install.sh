@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-REPO="djinn09/CytoScnPy" # Replace with your actual username/repo
+REPO="djinn09/CytoScnPy"
 BINARY_NAME="cytoscnpy-mcp"
 INSTALL_DIR="/usr/local/bin"
 
@@ -45,4 +45,4 @@ chmod +x "$BINARY_NAME"
 echo "Installing to $INSTALL_DIR (requires sudo)..."
 sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
 
-echo "Success! Run '$BINARY_NAME --help' to verify."
+echo "Success! Configure it in your MCP client (Claude Desktop, Cursor, etc)."

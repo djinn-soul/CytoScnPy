@@ -13,6 +13,25 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) is an open standa
 
 ## Installation
 
+### Automatic Install (Recommended)
+
+**Linux / macOS:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+```
+
+> **Note**: These scripts install the **standalone MCP server binary** (`cytoscnpy-mcp`) for use with AI assistants.
+> To install the `cytoscnpy` Python library/CLI for direct use, run `pip install cytoscnpy` (see [main README](../README.md)).
+
+### Build from Source
+
 Build the release binary:
 
 ```bash
@@ -31,18 +50,11 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "cytoscnpy": {
-      "command": "E:/Github/CytoScnPy/target/release/cytoscnpy-mcp.exe"
+      "command": "/path/to/cytoscnpy-mcp"
     }
   }
 }
 ```
-
-Config file location:
-
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-Then restart Claude Desktop and ask: _"Use cytoscnpy to analyze my Python project at /path/to/project"_
 
 ### Cursor IDE
 

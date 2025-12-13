@@ -653,6 +653,79 @@ _Pushing the boundaries of static analysis._
   - **Files:** `src/visitor.rs`, `src/rules/secrets.rs`
   - **New Rule ID:** `CSP-S300` (Suspicious Variable Assignment)
 
+- [ ] **Modular Secret Recognition Engine** _(Secret Scanning 4.0)_
+
+  - **Goal:** Refactor secret detection into a pluggable, trait-based architecture with unified context-based scoring.
+
+  - **Architecture:**
+
+    ```
+    SecretScanner (Orchestrator)
+           │
+           ├── RegexRecognizer (built-in patterns)
+           ├── AstRecognizer (variable name detection)
+           ├── EntropyRecognizer (high-entropy strings)
+           └── CustomRecognizer (user-defined via TOML)
+                      │
+                      ▼
+              Context Scoring Engine
+              (proximity, file type, pragma, dedup)
+                      │
+                      ▼
+              Final Findings (scored & filtered)
+    ```
+
+  - **Pluggable Recognizers (Trait-based):**
+
+    ```rust
+    pub trait SecretRecognizer: Send + Sync {
+        fn name(&self) -> &str;
+        fn base_score(&self) -> u8;  // 0-100
+        fn scan(&self, content: &str, line: usize) -> Vec<RawFinding>;
+    }
+    ```
+
+  - **Context-Based Scoring Rules:**
+    | Signal | Adjustment | Rationale |
+    |--------|------------|-----------|
+    | Near keyword (`api_key=`) | +20 | High confidence |
+    | In test file | -50 | Likely fake |
+    | In comment | -10 | Documentation |
+    | High entropy | +15 | Random = suspicious |
+    | Known FP pattern (URL/path) | -100 | Skip |
+    | `os.environ.get()` | -100 | Not hardcoded |
+
+  - **Configuration (TOML):**
+
+    ```toml
+    [secrets]
+    min_score = 50  # Only report >= 50
+
+    [secrets.recognizers.ast]
+    suspicious_names = ["password", "secret", "key", "token"]
+
+    [[secrets.custom_recognizers]]
+    name = "Internal Token"
+    regex = "INTERNAL_[A-Z0-9]{16}"
+    score = 90
+    ```
+
+  - **Implementation Plan:**
+
+    1. **Phase 1:** Add `confidence: u8` to `SecretFinding` struct
+    2. **Phase 2:** Create `SecretRecognizer` trait in `src/rules/recognizers/mod.rs`
+    3. **Phase 3:** Refactor existing patterns into `RegexRecognizer`
+    4. **Phase 4:** Implement `AstRecognizer` (CSP-S300)
+    5. **Phase 5:** Create `ContextScorer` with scoring rules
+    6. **Phase 6:** Update `scan_secrets()` to use orchestrator pattern
+    7. **Phase 7:** Add TOML config for custom recognizers
+
+  - **Files:**
+    - `src/rules/secrets.rs` → `src/rules/secrets/mod.rs` (split)
+    - `src/rules/secrets/recognizers.rs` (new)
+    - `src/rules/secrets/scoring.rs` (new)
+    - `src/config.rs` (extend `SecretsConfig`)
+
 - [x] **Type Inference (Lightweight)**
 
   - **Strategy:** Focus on fast, local, heuristic-based inference (e.g., literal tracking) to catch obvious errors (`str.append`).

@@ -1,6 +1,6 @@
 use crate::utils::LineIndex;
+use rustc_hash::FxHashSet;
 use rustpython_ast::{Expr, Stmt};
-use std::collections::HashSet;
 use std::sync::OnceLock;
 
 /// Framework-specific decorator patterns that indicate implicit usage.
@@ -60,10 +60,10 @@ pub static FRAMEWORK_FUNCTIONS: &[&str] = &[
 ];
 
 /// Returns the set of framework import names used for detection.
-pub fn get_framework_imports() -> &'static HashSet<&'static str> {
-    static IMPORTS: OnceLock<HashSet<&'static str>> = OnceLock::new();
+pub fn get_framework_imports() -> &'static FxHashSet<&'static str> {
+    static IMPORTS: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     IMPORTS.get_or_init(|| {
-        let mut s = HashSet::new();
+        let mut s = FxHashSet::default();
         s.insert("flask");
         s.insert("fastapi");
         s.insert("django");
@@ -85,10 +85,10 @@ pub struct FrameworkAwareVisitor<'a> {
     /// Indicates if the current file uses a known framework.
     pub is_framework_file: bool,
     /// Set of detected frameworks in the file.
-    pub detected_frameworks: HashSet<String>,
+    pub detected_frameworks: FxHashSet<String>,
     /// Lines where framework-specific decorators are applied.
     /// Definitions on these lines receive a confidence penalty (are less likely to be reported as unused).
-    pub framework_decorated_lines: HashSet<usize>,
+    pub framework_decorated_lines: FxHashSet<usize>,
     /// Helper for mapping byte offsets to line numbers.
     pub line_index: &'a LineIndex,
     /// Names of functions/classes referenced by framework patterns.
@@ -102,8 +102,8 @@ impl<'a> FrameworkAwareVisitor<'a> {
     pub fn new(line_index: &'a LineIndex) -> Self {
         Self {
             is_framework_file: false,
-            detected_frameworks: HashSet::new(),
-            framework_decorated_lines: HashSet::new(),
+            detected_frameworks: FxHashSet::default(),
+            framework_decorated_lines: FxHashSet::default(),
             line_index,
             framework_references: Vec::new(),
         }
@@ -479,9 +479,9 @@ impl<'a> FrameworkAwareVisitor<'a> {
 ///
 /// # Arguments
 /// * `line` - The line number where the definition starts
-/// * `simple_name` - The simple name of the definition (e.g., "get_users")
+/// * `simple_name` - The simple name of the definition (e.g., "`get_users`")
 /// * `def_type` - The type of definition ("function", "method", "class", "variable")
-/// * `visitor` - Optional reference to the FrameworkAwareVisitor for the file
+/// * `visitor` - Optional reference to the `FrameworkAwareVisitor` for the file
 ///
 /// # Returns
 /// * `Some(100)` - If the definition is a decorated framework endpoint (confidence = 1.0)

@@ -144,6 +144,7 @@ let qualified_name = if let Some(class_name) = self.class_stack.last() {
 ---
 
 ### 1.3 Qualified Name Matching ✅
+
 **Problem:** References didn't always match definitions due to different qualification levels.
 
 **Solution:**
@@ -316,7 +317,7 @@ pub struct Scope {
 
 ---
 
-### 3.2 Dynamic Code Patterns ✅ 
+### 3.2 Dynamic Code Patterns ✅
 
 1.  **Globals Tracking:**
 
@@ -381,7 +382,7 @@ pub trait Rule {
 
 Integration of code metrics compatible with `radon`.
 
-### 5.1 Raw Metrics (LOC/LLOC/SLOC) ✅ 
+### 5.1 Raw Metrics (LOC/LLOC/SLOC) ✅
 
 **Feature:** Radon-compatible line counting.
 
@@ -413,14 +414,14 @@ Integration of code metrics compatible with `radon`.
 
 - **Ranks:** A (1-5), B (6-10), C (11-20), D (21-30), E (31-40), F (41+).
 
-### 5.5 CLI Integration ✅ 
+### 5.5 CLI Integration ✅
 
 **Feature:** Full CLI parity with `radon` commands.
 
 - `cytoscnpy cc`, `raw`, `hal`, `mi`
 - Flags: `--average`, `--total-average`, `--min`, `--max`, `--json`, `--xml`.
 
-### 5.6 Quality Gates & Failure Thresholds ✅ 
+### 5.6 Quality Gates & Failure Thresholds ✅
 
 **Feature:** CI/CD integration with exit code 1 on failure.
 
@@ -602,6 +603,128 @@ _Pushing the boundaries of static analysis._
 - [x] **Secret Scanning 2.0**
 
   - Enhance regex scanning with entropy analysis to reduce false positives for API keys.
+
+- [ ] **AST-Based Suspicious Variable Detection** _(Secret Scanning 3.0)_
+
+  - **Problem:** Current regex patterns only detect secrets when the _value_ matches a known format (e.g., `ghp_xxx`). This misses hardcoded secrets assigned to suspiciously named variables:
+    ```python
+    database_password = "hunter2"        # Missed - no pattern match
+    config['api_secret'] = some_value    # Missed - dict subscript
+    ```
+  - **Solution:** Leverage existing `CytoScnPyVisitor` AST traversal to detect assignments to suspicious variable names, regardless of the value format.
+  - **Implementation:**
+
+    ```rust
+    // In visitor.rs - when visiting Assign nodes:
+    const SUSPICIOUS_NAMES: &[&str] = &[
+        "password", "secret", "key", "token", "auth", "credential",
+        "api_key", "apikey", "private_key", "access_token", "pwd"
+    ];
+
+    fn matches_suspicious_name(name: &str) -> bool {
+        let lower = name.to_lowercase();
+        SUSPICIOUS_NAMES.iter().any(|s| lower.contains(s))
+    }
+
+    // When visiting an Assign node:
+    if matches_suspicious_name(&target_name) {
+        if let Some(string_value) = extract_string_value(&node.value) {
+            findings.push(SecretFinding {
+                message: format!("Suspicious assignment to '{}'", target_name),
+                rule_id: "CSP-S300".to_owned(),
+                file: file_path.clone(),
+                line: node.range.start.row.get(),
+                severity: "MEDIUM".to_owned(),
+                matched_value: Some(redact_value(&string_value)),
+                entropy: None,
+            });
+        }
+    }
+    ```
+
+  - **Patterns to Detect:**
+    - Simple assignments: `db_password = "secret123"`
+    - Dict subscripts: `config['api_key'] = "token"`
+    - Attribute assignments: `self.secret_key = "value"`
+  - **False Positive Mitigation:**
+    - Skip if value is `os.environ.get(...)` or `os.getenv(...)`
+    - Skip if value references another variable (non-literal)
+    - Skip if in test files (lower severity)
+  - **Files:** `src/visitor.rs`, `src/rules/secrets.rs`
+  - **New Rule ID:** `CSP-S300` (Suspicious Variable Assignment)
+
+- [ ] **Modular Secret Recognition Engine** _(Secret Scanning 4.0)_
+
+  - **Goal:** Refactor secret detection into a pluggable, trait-based architecture with unified context-based scoring.
+
+  - **Architecture:**
+
+    ```
+    SecretScanner (Orchestrator)
+           │
+           ├── RegexRecognizer (built-in patterns)
+           ├── AstRecognizer (variable name detection)
+           ├── EntropyRecognizer (high-entropy strings)
+           └── CustomRecognizer (user-defined via TOML)
+                      │
+                      ▼
+              Context Scoring Engine
+              (proximity, file type, pragma, dedup)
+                      │
+                      ▼
+              Final Findings (scored & filtered)
+    ```
+
+  - **Pluggable Recognizers (Trait-based):**
+
+    ```rust
+    pub trait SecretRecognizer: Send + Sync {
+        fn name(&self) -> &str;
+        fn base_score(&self) -> u8;  // 0-100
+        fn scan(&self, content: &str, line: usize) -> Vec<RawFinding>;
+    }
+    ```
+
+  - **Context-Based Scoring Rules:**
+    | Signal | Adjustment | Rationale |
+    |--------|------------|-----------|
+    | Near keyword (`api_key=`) | +20 | High confidence |
+    | In test file | -50 | Likely fake |
+    | In comment | -10 | Documentation |
+    | High entropy | +15 | Random = suspicious |
+    | Known FP pattern (URL/path) | -100 | Skip |
+    | `os.environ.get()` | -100 | Not hardcoded |
+
+  - **Configuration (TOML):**
+
+    ```toml
+    [secrets]
+    min_score = 50  # Only report >= 50
+
+    [secrets.recognizers.ast]
+    suspicious_names = ["password", "secret", "key", "token"]
+
+    [[secrets.custom_recognizers]]
+    name = "Internal Token"
+    regex = "INTERNAL_[A-Z0-9]{16}"
+    score = 90
+    ```
+
+  - **Implementation Plan:**
+
+    1. **Phase 1:** Add `confidence: u8` to `SecretFinding` struct
+    2. **Phase 2:** Create `SecretRecognizer` trait in `src/rules/recognizers/mod.rs`
+    3. **Phase 3:** Refactor existing patterns into `RegexRecognizer`
+    4. **Phase 4:** Implement `AstRecognizer` (CSP-S300)
+    5. **Phase 5:** Create `ContextScorer` with scoring rules
+    6. **Phase 6:** Update `scan_secrets()` to use orchestrator pattern
+    7. **Phase 7:** Add TOML config for custom recognizers
+
+  - **Files:**
+    - `src/rules/secrets.rs` → `src/rules/secrets/mod.rs` (split)
+    - `src/rules/secrets/recognizers.rs` (new)
+    - `src/rules/secrets/scoring.rs` (new)
+    - `src/config.rs` (extend `SecretsConfig`)
 
 - [x] **Type Inference (Lightweight)**
 

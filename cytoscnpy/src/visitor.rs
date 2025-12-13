@@ -1,18 +1,56 @@
 use crate::utils::LineIndex;
+use compact_str::CompactString;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustpython_ast::{self as ast, Expr, Stmt};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use smallvec::SmallVec;
 use std::path::PathBuf;
+use std::sync::Arc;
 
+/// Serialize Arc<PathBuf> as a plain PathBuf for JSON output
+fn serialize_arc_path<S>(path: &Arc<PathBuf>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    path.as_ref().serialize(serializer)
+}
+
+/// Deserialize a plain PathBuf into Arc<PathBuf>
+fn deserialize_arc_path<'de, D>(deserializer: D) -> Result<Arc<PathBuf>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    PathBuf::deserialize(deserializer).map(Arc::new)
+}
+
+/// Serialize SmallVec<[String; 2]> as a plain Vec<String> for JSON output
+fn serialize_smallvec_string<S>(
+    vec: &SmallVec<[String; 2]>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    vec.as_slice().serialize(serializer)
+}
+
+/// Deserialize a plain Vec<String> into SmallVec<[String; 2]>
+fn deserialize_smallvec_string<'de, D>(deserializer: D) -> Result<SmallVec<[String; 2]>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Vec::<String>::deserialize(deserializer).map(SmallVec::from_vec)
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Defines the type of scope (Module, Class, Function).
+/// Uses `CompactString` for names - stores up to 24 bytes inline without heap allocation.
 pub enum ScopeType {
     /// Global module scope.
     Module,
     /// Class scope with its name.
-    Class(String),
+    Class(CompactString),
     /// Function scope with its name.
-    Function(String),
+    Function(CompactString),
 }
 
 #[derive(Debug, Clone)]
@@ -51,7 +89,12 @@ pub struct Definition {
     /// The type of definition ("function", "class", "method", "import", "variable").
     pub def_type: String,
     /// The file path where this definition resides.
-    pub file: PathBuf,
+    /// Uses `Arc` to avoid cloning for every definition in the same file.
+    #[serde(
+        serialize_with = "serialize_arc_path",
+        deserialize_with = "deserialize_arc_path"
+    )]
+    pub file: Arc<PathBuf>,
     /// The line number where this definition starts.
     pub line: usize,
     /// A confidence score (0-100) indicating how certain we are that this is unused.
@@ -64,7 +107,12 @@ pub struct Definition {
     /// Whether this definition is inside an `__init__.py` file.
     pub in_init: bool,
     /// List of base classes if this is a class definition.
-    pub base_classes: Vec<String>,
+    /// Uses `SmallVec<[String; 2]>` - most classes have 0-2 base classes.
+    #[serde(
+        serialize_with = "serialize_smallvec_string",
+        deserialize_with = "deserialize_smallvec_string"
+    )]
+    pub base_classes: SmallVec<[String; 2]>,
     /// Whether this definition is inside an `if TYPE_CHECKING:` block.
     pub is_type_checking: bool,
     /// The cell number if this definition is from a Jupyter notebook (0-indexed).
@@ -115,36 +163,47 @@ pub struct CytoScnPyVisitor<'a> {
     /// Dynamic imports detected.
     pub dynamic_imports: Vec<String>,
     /// The path of the file being visited.
-    pub file_path: PathBuf,
+    /// Uses `Arc` to share with all definitions without cloning.
+    pub file_path: Arc<PathBuf>,
     /// The module name derived from the file path.
     pub module_name: String,
     /// Current scope stack (not fully used currently but good for tracking nested scopes).
-    pub current_scope: Vec<String>,
+    /// Uses `SmallVec` for stack allocation (most code has < 4 nested scopes).
+    pub current_scope: SmallVec<[String; 4]>,
     /// Stack of class names to track current class context.
-    pub class_stack: Vec<String>,
+    /// Uses `SmallVec` - most code has < 4 nested classes.
+    pub class_stack: SmallVec<[String; 4]>,
     /// Helper for line number mapping.
     pub line_index: &'a LineIndex,
     /// Map of import aliases to their original names (alias -> original).
     pub alias_map: FxHashMap<String, String>,
     /// Stack of function names to track which function we're currently inside.
-    pub function_stack: Vec<String>,
+    /// Uses `SmallVec` - most code has < 4 nested functions.
+    pub function_stack: SmallVec<[String; 4]>,
     /// Map of function qualified name -> set of parameter names for that function.
     pub function_params: FxHashMap<String, FxHashSet<String>>,
     /// Stack to track if we are inside a dataclass.
-    pub dataclass_stack: Vec<bool>,
+    /// Uses `SmallVec` - most code has < 4 nested dataclasses.
+    pub dataclass_stack: SmallVec<[bool; 4]>,
     /// Whether we are currently inside an `if TYPE_CHECKING:` block.
     pub in_type_checking_block: bool,
     /// Stack of scopes for variable resolution.
-    pub scope_stack: Vec<Scope>,
+    /// Uses `SmallVec` - most code has < 8 nested scopes.
+    pub scope_stack: SmallVec<[Scope; 8]>,
     /// Whether the current file is considered dynamic (e.g., uses eval/exec).
     pub is_dynamic: bool,
     /// Set of class names that have a metaclass (used to detect metaclass inheritance).
     pub metaclass_classes: FxHashSet<String>,
+    /// Cached scope prefix for faster qualified name building.
+    /// Updated on scope push/pop to avoid rebuilding on every `resolve_name` call.
+    cached_scope_prefix: String,
 }
 
 impl<'a> CytoScnPyVisitor<'a> {
     /// Creates a new visitor for the given file.
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
+        let cached_prefix = module_name.clone();
+        let file_path = Arc::new(file_path); // Wrap in Arc once, share everywhere
         Self {
             definitions: Vec::new(),
             references: FxHashMap::default(),
@@ -152,33 +211,62 @@ impl<'a> CytoScnPyVisitor<'a> {
             dynamic_imports: Vec::new(),
             file_path,
             module_name,
-            current_scope: Vec::new(),
-            class_stack: Vec::new(),
+            current_scope: SmallVec::new(),
+            class_stack: SmallVec::new(),
             line_index,
             alias_map: FxHashMap::default(),
-            function_stack: Vec::new(),
+            function_stack: SmallVec::new(),
             function_params: FxHashMap::default(),
-            dataclass_stack: Vec::new(),
+            dataclass_stack: SmallVec::new(),
             in_type_checking_block: false,
-            scope_stack: vec![Scope::new(ScopeType::Module)],
+            scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
             is_dynamic: false,
             metaclass_classes: FxHashSet::default(),
+            cached_scope_prefix: cached_prefix,
         }
     }
 
     /// Helper to add a definition with default parameters.
     fn add_def(&mut self, name: String, def_type: &str, line: usize) {
-        self.add_def_with_bases(name, def_type, line, Vec::new());
+        self.add_def_with_bases(name, def_type, line, SmallVec::new());
     }
 
-    /// Pushes a new scope onto the stack.
+    /// Pushes a new scope onto the stack and updates cached prefix.
     fn enter_scope(&mut self, scope_type: ScopeType) {
+        // Update cached prefix based on scope type
+        match &scope_type {
+            ScopeType::Class(name) | ScopeType::Function(name) => {
+                if !self.cached_scope_prefix.is_empty() {
+                    self.cached_scope_prefix.push('.');
+                }
+                self.cached_scope_prefix.push_str(name);
+            }
+            ScopeType::Module => {}
+        }
         self.scope_stack.push(Scope::new(scope_type));
     }
 
-    /// Pops the current scope from the stack.
+    /// Pops the current scope from the stack and updates cached prefix.
     fn exit_scope(&mut self) {
-        self.scope_stack.pop();
+        if let Some(scope) = self.scope_stack.pop() {
+            // Remove this scope's contribution from cached prefix
+            match &scope.kind {
+                ScopeType::Class(name) | ScopeType::Function(name) => {
+                    // Remove ".name" or just "name" if at start
+                    let name_len = name.len();
+                    if self.cached_scope_prefix.len() > name_len {
+                        // Has a dot before it
+                        self.cached_scope_prefix
+                            .truncate(self.cached_scope_prefix.len() - name_len - 1);
+                    } else {
+                        // It's the only thing in the prefix
+                        self.cached_scope_prefix
+                            .truncate(self.cached_scope_prefix.len() - name_len);
+                    }
+                }
+                ScopeType::Module => {}
+            }
+        }
     }
 
     /// Adds a variable definition to the current scope.
@@ -191,39 +279,73 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Looks up a variable in the scope stack and returns its fully qualified name if found.
+    /// Optimized: uses `cached_scope_prefix` for innermost scope to avoid rebuilding.
     fn resolve_name(&self, name: &str) -> Option<String> {
+        let innermost_idx = self.scope_stack.len() - 1;
+
         for (i, scope) in self.scope_stack.iter().enumerate().rev() {
             // Class scopes are not visible to inner scopes (methods, nested classes).
             // They are only visible if they are the current (innermost) scope.
             if let ScopeType::Class(_) = &scope.kind {
-                if i != self.scope_stack.len() - 1 {
+                if i != innermost_idx {
                     continue;
                 }
             }
 
-            // **NEW**: Check local_var_map first (for function scopes with local variables)
-            // This allows us to differentiate between `x` in `func_a` and `x` in `func_b`
+            // Check local_var_map first (for function scopes with local variables)
             if let Some(qualified) = scope.local_var_map.get(name) {
                 return Some(qualified.clone());
             }
 
             // Fallback: construct qualified name if variable exists in scope
             if scope.variables.contains(name) {
-                // Found it! Construct qualified name.
-                let mut parts = Vec::new();
-                if !self.module_name.is_empty() {
-                    parts.push(self.module_name.clone());
+                // Fast path: if this is the innermost scope, use cached prefix
+                if i == innermost_idx {
+                    if self.cached_scope_prefix.is_empty() {
+                        return Some(name.to_owned());
+                    }
+                    let mut result =
+                        String::with_capacity(self.cached_scope_prefix.len() + 1 + name.len());
+                    result.push_str(&self.cached_scope_prefix);
+                    result.push('.');
+                    result.push_str(name);
+                    return Some(result);
                 }
 
-                // Add all scope names up to this scope
-                for scope in self.scope_stack.iter().take(i + 1).skip(1) {
-                    match &scope.kind {
-                        ScopeType::Class(n) | ScopeType::Function(n) => parts.push(n.clone()),
+                // Slow path: build prefix up to scope at index i
+                let mut total_len = name.len();
+                if !self.module_name.is_empty() {
+                    total_len += self.module_name.len() + 1;
+                }
+                for s in self.scope_stack.iter().take(i + 1).skip(1) {
+                    match &s.kind {
+                        ScopeType::Class(n) | ScopeType::Function(n) => {
+                            total_len += n.len() + 1;
+                        }
                         ScopeType::Module => {}
                     }
                 }
-                parts.push(name.to_owned());
-                return Some(parts.join("."));
+
+                let mut result = String::with_capacity(total_len);
+                if !self.module_name.is_empty() {
+                    result.push_str(&self.module_name);
+                }
+                for s in self.scope_stack.iter().take(i + 1).skip(1) {
+                    match &s.kind {
+                        ScopeType::Class(n) | ScopeType::Function(n) => {
+                            if !result.is_empty() {
+                                result.push('.');
+                            }
+                            result.push_str(n);
+                        }
+                        ScopeType::Module => {}
+                    }
+                }
+                if !result.is_empty() {
+                    result.push('.');
+                }
+                result.push_str(name);
+                return Some(result);
             }
         }
         None
@@ -235,7 +357,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         name: String,
         def_type: &str,
         line: usize,
-        base_classes: Vec<String>,
+        base_classes: SmallVec<[String; 2]>,
     ) {
         let simple_name = name.split('.').next_back().unwrap_or(&name).to_owned();
         let in_init = self.file_path.ends_with("__init__.py");
@@ -271,7 +393,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             full_name: name,
             simple_name,
             def_type: def_type.to_owned(),
-            file: self.file_path.clone(),
+            file: Arc::clone(&self.file_path), // O(1) Arc clone instead of O(n) PathBuf clone
             line,
             confidence: 100,
             references,
@@ -291,22 +413,49 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Constructs a qualified name based on the current scope stack.
+    /// Optimized to minimize allocations by pre-calculating capacity.
     fn get_qualified_name(&self, name: &str) -> String {
-        let mut parts = Vec::new();
+        // Pre-calculate total length to avoid reallocations
+        let mut total_len = name.len();
+
         if !self.module_name.is_empty() {
-            parts.push(self.module_name.clone());
+            total_len += self.module_name.len() + 1; // +1 for '.'
         }
 
-        // Skip the first scope (Module) as we already added module_name
         for scope in self.scope_stack.iter().skip(1) {
             match &scope.kind {
-                ScopeType::Class(n) | ScopeType::Function(n) => parts.push(n.clone()),
+                ScopeType::Class(n) | ScopeType::Function(n) => {
+                    total_len += n.len() + 1;
+                }
                 ScopeType::Module => {}
             }
         }
 
-        parts.push(name.to_owned());
-        parts.join(".")
+        // Build string with pre-allocated capacity
+        let mut result = String::with_capacity(total_len);
+
+        if !self.module_name.is_empty() {
+            result.push_str(&self.module_name);
+        }
+
+        for scope in self.scope_stack.iter().skip(1) {
+            match &scope.kind {
+                ScopeType::Class(n) | ScopeType::Function(n) => {
+                    if !result.is_empty() {
+                        result.push('.');
+                    }
+                    result.push_str(n);
+                }
+                ScopeType::Module => {}
+            }
+        }
+
+        if !result.is_empty() {
+            result.push('.');
+        }
+        result.push_str(name);
+
+        result
     }
 
     /// Visits function arguments (defaults and annotations).
@@ -356,6 +505,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_expr(decorator);
                 }
                 self.visit_arguments(&node.args);
+                // Visit return annotation to track string type hints like -> "OrderedDict"
+                if let Some(returns) = &node.returns {
+                    self.visit_expr(returns);
+                }
                 self.visit_function_def(&node.name, &node.args, &node.body, node.range.start());
             }
             // Handle async function definitions
@@ -364,6 +517,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_expr(decorator);
                 }
                 self.visit_arguments(&node.args);
+                // Visit return annotation to track string type hints like -> "OrderedDict"
+                if let Some(returns) = &node.returns {
+                    self.visit_expr(returns);
+                }
                 self.visit_function_def(&node.name, &node.args, &node.body, node.range.start());
             }
             // Handle class definitions
@@ -398,7 +555,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 let line = self.line_index.line_index(node.range.start());
 
                 // Extract base class names to check for inheritance patterns later.
-                let mut base_classes = Vec::new();
+                let mut base_classes: SmallVec<[String; 2]> = SmallVec::new();
                 for base in &node.bases {
                     match base {
                         Expr::Name(base_name) => {
@@ -441,7 +598,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for keyword in &node.keywords {
                     self.visit_expr(&keyword.value);
                     // Check if this is a metaclass keyword
-                    if keyword.arg.as_ref().map(|a| a.as_str()) == Some("metaclass") {
+                    if keyword.arg.as_ref().map(rustpython_ast::Identifier::as_str)
+                        == Some("metaclass")
+                    {
                         has_metaclass = true;
                     }
                     // Also add direct reference for simple name metaclasses
@@ -466,7 +625,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for base_class in &base_classes {
                     if self.metaclass_classes.contains(base_class) {
                         // This class is registered via metaclass side-effect, mark as used
-                        self.add_ref(qualified_name.clone());
+                        self.add_ref(qualified_name);
                         self.add_ref(name.to_string());
                         break;
                     }
@@ -477,7 +636,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.dataclass_stack.push(is_dataclass);
 
                 // Enter class scope
-                self.enter_scope(ScopeType::Class(name.to_string()));
+                self.enter_scope(ScopeType::Class(CompactString::from(name.as_str())));
 
                 // Visit class body.
                 for stmt in &node.body {
@@ -556,6 +715,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         if name_node.id.as_str() != "__all__" {
                             let qualified_name = self.get_qualified_name(&name_node.id);
                             let line = self.line_index.line_index(node.range.start());
+                            // Clone for add_def, move to add_local_def (last use)
                             self.add_def(qualified_name.clone(), "variable", line);
                             self.add_local_def(name_node.id.to_string(), qualified_name);
                         }
@@ -730,9 +890,23 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             Stmt::Return(node) => {
                 if let Some(value) = &node.value {
+                    // Track returned function/class names as used
+                    // This handles decorator wrappers like: def decorator(): def wrapper(): ...; return wrapper
+                    if let Expr::Name(name_node) = &**value {
+                        if name_node.ctx.is_load() {
+                            let name = name_node.id.to_string();
+                            // Try to resolve to qualified name first
+                            if let Some(qualified) = self.resolve_name(&name) {
+                                self.add_ref(qualified);
+                            }
+                            // Always add simple name reference for imports/globals
+                            self.add_ref(name);
+                        }
+                    }
                     self.visit_expr(value);
                 }
             }
+
             Stmt::Assert(node) => {
                 self.visit_expr(&node.test);
                 if let Some(msg) = &node.msg {
@@ -789,7 +963,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         self.add_def(qualified_name.clone(), def_type, line);
 
         // Enter function scope
-        self.enter_scope(ScopeType::Function(name.to_owned()));
+        self.enter_scope(ScopeType::Function(CompactString::from(name)));
 
         // Track parameters
         let mut param_names = FxHashSet::default();
@@ -1011,9 +1185,42 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // and stringified type hints like "models.User".
                     if !s.contains(' ') && !s.is_empty() {
                         self.add_ref(s.clone());
+
+                        // Enhanced: Extract type names from string type annotations
+                        // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
+                        // Extract alphanumeric identifiers (type names)
+                        let mut current_word = String::new();
+                        for ch in s.chars() {
+                            if ch.is_alphanumeric() || ch == '_' {
+                                current_word.push(ch);
+                            } else {
+                                if !current_word.is_empty() {
+                                    // Check if it looks like a type name (starts with uppercase)
+                                    if current_word
+                                        .chars()
+                                        .next()
+                                        .map_or(false, |c| c.is_uppercase())
+                                    {
+                                        self.add_ref(current_word.clone());
+                                    }
+                                    current_word.clear();
+                                }
+                            }
+                        }
+                        // Don't forget the last word
+                        if !current_word.is_empty() {
+                            if current_word
+                                .chars()
+                                .next()
+                                .map_or(false, |c| c.is_uppercase())
+                            {
+                                self.add_ref(current_word);
+                            }
+                        }
                     }
                 }
             }
+
             // Recursion Boilerplate - Ensure we visit children of all other expressions
             Expr::BoolOp(node) => {
                 for value in &node.values {

@@ -75,6 +75,9 @@ pub fn apply_penalties<S: ::std::hash::BuildHasher>(
             .confidence
             .saturating_sub(*PENALTIES().get("in_init_file").unwrap_or(&15));
     }
+
+    // Note: TYPE_CHECKING import penalty moved to apply_heuristics()
+    // because it needs def.references to be accurate (after cross-file merge)
 }
 
 /// Apply advanced heuristics to definitions to reduce false positives.
@@ -107,5 +110,14 @@ pub fn apply_heuristics(def: &mut Definition) {
     {
         // Mark as used by incrementing references
         def.references += 1;
+    }
+
+    // 3. TYPE_CHECKING imports: only suppress if actually USED in annotations
+    // This runs after reference counts are merged, so def.references is accurate
+    // If a TYPE_CHECKING import has 0 references, it's genuinely unused and should be reported
+    if def.is_type_checking && def.def_type == "import" && def.references > 0 {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("type_checking_import").unwrap_or(&100));
     }
 }

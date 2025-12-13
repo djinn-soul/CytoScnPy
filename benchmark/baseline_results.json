@@ -1,0 +1,57 @@
+{
+  "timestamp": "2025-12-13 11:55:54",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "tool": "hyperfine",
+  "results": [
+    {
+      "dataset": "large_django",
+      "files": 2886,
+      "lines": 506403,
+      "mean_seconds": 1.3717936490000002,
+      "stddev_seconds": 0.3307756726401847,
+      "min_seconds": 0.941501334,
+      "max_seconds": 2.013433334,
+      "runs": 20
+    },
+    {
+      "dataset": "massive_tensorflow",
+      "files": 3147,
+      "lines": 1216986,
+      "mean_seconds": 3.115674565000001,
+      "stddev_seconds": 0.4815395050488515,
+      "min_seconds": 2.73027735,
+      "max_seconds": 4.73240195,
+      "runs": 20
+    },
+    {
+      "dataset": "medium_fastapi",
+      "files": 1279,
+      "lines": 114154,
+      "mean_seconds": 0.28213401200000005,
+      "stddev_seconds": 0.014628688974880467,
+      "min_seconds": 0.254948932,
+      "max_seconds": 0.330324032,
+      "runs": 20
+    },
+    {
+      "dataset": "small_requests",
+      "files": 36,
+      "lines": 11248,
+      "mean_seconds": 0.06505308800000001,
+      "stddev_seconds": 0.009703494739086205,
+      "min_seconds": 0.05366559800000001,
+      "max_seconds": 0.088884498,
+      "runs": 20
+    },
+    {
+      "dataset": "tiny_flask",
+      "files": 83,
+      "lines": 18240,
+      "mean_seconds": 0.06645247200000001,
+      "stddev_seconds": 0.0031753012087707613,
+      "min_seconds": 0.061775642000000006,
+      "max_seconds": 0.07309344200000001,
+      "runs": 20
+    }
+  ]
+}

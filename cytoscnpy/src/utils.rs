@@ -1,6 +1,6 @@
 use crate::constants::{DEFAULT_EXCLUDE_FOLDERS, FRAMEWORK_FILE_RE, TEST_FILE_RE};
+use rustc_hash::FxHashSet;
 use rustpython_ast::TextSize;
-use std::collections::HashSet;
 
 /// A utility struct to convert byte offsets to line numbers.
 ///
@@ -42,7 +42,7 @@ impl LineIndex {
 ///
 /// Returns a set of line numbers (1-indexed) that should be ignored by the analyzer.
 /// This allows users to suppress false positives or intentionally ignore specific lines.
-pub fn get_ignored_lines(source: &str) -> HashSet<usize> {
+pub fn get_ignored_lines(source: &str) -> FxHashSet<usize> {
     source
         .lines()
         .enumerate()
@@ -63,11 +63,11 @@ pub fn is_framework_path(p: &str) -> bool {
 
 /// Parses exclude folders, combining defaults with user inputs.
 pub fn parse_exclude_folders(
-    user_exclude_folders: Option<HashSet<String>>,
+    user_exclude_folders: Option<FxHashSet<String>>,
     use_defaults: bool,
-    include_folders: Option<HashSet<String>>,
-) -> HashSet<String> {
-    let mut exclude_folders = HashSet::new();
+    include_folders: Option<FxHashSet<String>>,
+) -> FxHashSet<String> {
+    let mut exclude_folders = FxHashSet::default();
 
     if use_defaults {
         for folder in DEFAULT_EXCLUDE_FOLDERS() {

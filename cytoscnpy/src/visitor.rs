@@ -22,6 +22,25 @@ where
 {
     PathBuf::deserialize(deserializer).map(Arc::new)
 }
+
+/// Serialize SmallVec<[String; 2]> as a plain Vec<String> for JSON output
+fn serialize_smallvec_string<S>(
+    vec: &SmallVec<[String; 2]>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    vec.as_slice().serialize(serializer)
+}
+
+/// Deserialize a plain Vec<String> into SmallVec<[String; 2]>
+fn deserialize_smallvec_string<'de, D>(deserializer: D) -> Result<SmallVec<[String; 2]>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Vec::<String>::deserialize(deserializer).map(SmallVec::from_vec)
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Defines the type of scope (Module, Class, Function).
 /// Uses `CompactString` for names - stores up to 24 bytes inline without heap allocation.
@@ -88,7 +107,12 @@ pub struct Definition {
     /// Whether this definition is inside an `__init__.py` file.
     pub in_init: bool,
     /// List of base classes if this is a class definition.
-    pub base_classes: Vec<String>,
+    /// Uses `SmallVec<[String; 2]>` - most classes have 0-2 base classes.
+    #[serde(
+        serialize_with = "serialize_smallvec_string",
+        deserialize_with = "deserialize_smallvec_string"
+    )]
+    pub base_classes: SmallVec<[String; 2]>,
     /// Whether this definition is inside an `if TYPE_CHECKING:` block.
     pub is_type_checking: bool,
     /// The cell number if this definition is from a Jupyter notebook (0-indexed).
@@ -204,7 +228,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
     /// Helper to add a definition with default parameters.
     fn add_def(&mut self, name: String, def_type: &str, line: usize) {
-        self.add_def_with_bases(name, def_type, line, Vec::new());
+        self.add_def_with_bases(name, def_type, line, SmallVec::new());
     }
 
     /// Pushes a new scope onto the stack and updates cached prefix.
@@ -333,7 +357,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         name: String,
         def_type: &str,
         line: usize,
-        base_classes: Vec<String>,
+        base_classes: SmallVec<[String; 2]>,
     ) {
         let simple_name = name.split('.').next_back().unwrap_or(&name).to_owned();
         let in_init = self.file_path.ends_with("__init__.py");
@@ -523,7 +547,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 let line = self.line_index.line_index(node.range.start());
 
                 // Extract base class names to check for inheritance patterns later.
-                let mut base_classes = Vec::new();
+                let mut base_classes: SmallVec<[String; 2]> = SmallVec::new();
                 for base in &node.bases {
                     match base {
                         Expr::Name(base_name) => {

@@ -22,7 +22,7 @@ fn test_print_report_formatting() {
             references: 0,
             is_exported: false,
             in_init: false,
-            base_classes: vec![],
+            base_classes: smallvec::smallvec![],
             is_type_checking: false,
             cell_number: None,
         }],

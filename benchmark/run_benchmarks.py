@@ -171,7 +171,65 @@ def save_results(results: List[BenchmarkResult], output_file: Path):
         json.dump(data, f, indent=2)
     print(f"\nResults saved to: {output_file}")
 
+def check_regression(current: List[BenchmarkResult], baseline_file: Path, threshold: float = 0.10) -> bool:
+    """Compare current results against baseline. Returns True if regression detected."""
+    if not baseline_file.exists():
+        print(f"\n[!] No baseline file found at {baseline_file}")
+        print("    Run once without --regression-check to create baseline.")
+        return False
+    
+    with open(baseline_file) as f:
+        baseline = json.load(f)
+    
+    baseline_results = {r["dataset"]: r for r in baseline.get("results", [])}
+    
+    regressions = []
+    for r in current:
+        if r.dataset in baseline_results:
+            base = baseline_results[r.dataset]
+            base_mean = base.get("mean_seconds", 0)
+            
+            if base_mean > 0:
+                ratio = (r.mean_seconds - base_mean) / base_mean
+                if ratio > threshold:
+                    regressions.append(
+                        f"  - {r.dataset}: {base_mean:.3f}s -> {r.mean_seconds:.3f}s (+{ratio*100:.1f}%)"
+                    )
+    
+    # Check overall throughput
+    total_lines = sum(r.lines for r in current)
+    total_time = sum(r.mean_seconds for r in current)
+    base_total_time = sum(r.get("mean_seconds", 0) for r in baseline.get("results", []))
+    base_total_lines = sum(r.get("lines", 0) for r in baseline.get("results", []))
+    
+    if base_total_time > 0 and base_total_lines > 0:
+        current_throughput = total_lines / total_time if total_time > 0 else 0
+        baseline_throughput = base_total_lines / base_total_time
+        throughput_change = (current_throughput - baseline_throughput) / baseline_throughput
+        
+        print(f"\n[=] Regression Check (threshold: {threshold*100:.0f}%)")
+        print(f"    Baseline throughput: {baseline_throughput:,.0f} lines/s")
+        print(f"    Current throughput:  {current_throughput:,.0f} lines/s")
+        print(f"    Change: {throughput_change*100:+.1f}%")
+    
+    if regressions:
+        print(f"\n[!] PERFORMANCE REGRESSIONS DETECTED:")
+        for r in regressions:
+            print(r)
+        return True
+    else:
+        print(f"\n[OK] No regressions detected.")
+        return False
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="CytoScnPy Benchmark Suite")
+    parser.add_argument("--skip-regression", action="store_true",
+                       help="Skip regression check against baseline")
+    parser.add_argument("--threshold", type=float, default=0.10,
+                       help="Regression threshold (default: 0.10 = 10%% slower)")
+    args = parser.parse_args()
+    
     script_dir = Path(__file__).parent
     os.chdir(script_dir.parent)
     
@@ -199,6 +257,15 @@ def main():
     print_results_table(results)
     
     output_file = Path("benchmark/baseline_results.json")
+    
+    # Run regression check by default if baseline exists
+    if not args.skip_regression and output_file.exists():
+        regression_found = check_regression(results, output_file, args.threshold)
+        if regression_found:
+            print("\n[!] Benchmark FAILED due to regression!")
+            print("    Use --skip-regression to skip this check")
+            sys.exit(1)
+    
     save_results(results, output_file)
     
     # Run comparison
@@ -214,3 +281,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

@@ -532,6 +532,185 @@ strip = true
 | Phase 2 (Reference counts)         | 3.059 s     | 41.4%       |
 | **Phase 3 (LineIndex + OnceLock)** | **2.357 s** | **54.9%**   |
 
+### 7.5.7 Additional Optimizations
+
+_Status tracking for advanced optimizations identified in code review._
+
+#### ✅ Completed Optimizations
+
+| Optimization               | Description                                                                                                   | Files                         | Impact                            |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------- |
+| **SmallVec for stacks**    | Stack-allocated vectors for `scope_stack`, `class_stack`, `function_stack`, `dataclass_stack`, `base_classes` | `visitor.rs`                  | Reduced heap allocations          |
+| **Arc\<PathBuf\> sharing** | File paths shared via `Arc` instead of cloned `PathBuf`                                                       | `visitor.rs`                  | O(1) clone vs O(n)                |
+| **Cached scope prefix**    | Maintains `cached_scope_prefix` string, updated incrementally on scope push/pop                               | `visitor.rs`                  | Avoids rebuilding qualified names |
+| **Pre-allocated strings**  | Uses `String::with_capacity()` for known-size string building                                                 | `visitor.rs`, `processing.rs` | Fewer reallocations               |
+| **Chunk-based Rayon**      | Processes files in chunks of 500 to prevent OOM on large projects                                             | `processing.rs`               | 85% memory reduction              |
+
+#### 🔄 Pending Optimizations (Low Priority)
+
+| Optimization                          | Description                                                              | Priority | Complexity | Est. Impact           |
+| ------------------------------------- | ------------------------------------------------------------------------ | -------- | ---------- | --------------------- |
+| **Reduce remaining `.clone()` calls** | Audit and eliminate unnecessary clones (~50+ remaining)                  | Low      | Low        | 2-5%                  |
+| **String interning**                  | Use `string-cache` crate for repeated strings (module names, type names) | Low      | Medium     | 3-5%                  |
+| **Profile-Guided Optimization (PGO)** | Build with profile data for 5-10% improvement                            | Low      | Medium     | 5-10%                 |
+| **Parallel AST traversal**            | Split large files for parallel statement processing                      | Very Low | High       | 10-20% on large files |
+
+#### ❌ Not Needed / Deferred
+
+| Optimization                      | Reason                                                  |
+| --------------------------------- | ------------------------------------------------------- |
+| **Scope resolution caching**      | Already optimized via `cached_scope_prefix`             |
+| **Arc\<String\> for module_name** | Would require significant refactoring, marginal benefit |
+| **FxHashSet audit**               | Already using `FxHashSet` in most places                |
+
+---
+
+## Phase 7.6: Accuracy Improvements 🔄 IN PROGRESS
+
+_Systematic improvements to detection accuracy based on benchmark analysis._
+
+**Current Status:** F1 = 0.63 (77 TP, 34 FP, 60 FN)
+
+### 7.6.1 Completed Fixes ✅
+
+#### Return Type Annotation Tracking ✅
+
+**Problem:** String annotations in return types were not being tracked:
+
+```python
+def get_data() -> "OrderedDict":  # "OrderedDict" was not tracked as a reference
+    return {}
+```
+
+**Solution:** Added `visit_expr(node.returns)` for `FunctionDef` and `AsyncFunctionDef`.
+
+**Files:** `src/visitor.rs`
+
+#### TYPE_CHECKING Import Handling ✅
+
+**Problem:** All TYPE_CHECKING imports were ignored, even genuinely unused ones:
+
+```python
+if TYPE_CHECKING:
+    from typing import List  # Used in "List[str]" annotation - should be ignored ✅
+    import json              # Never used - should be flagged ✅
+```
+
+**Solution:** Moved TYPE_CHECKING penalty from `apply_penalties()` to `apply_heuristics()` (runs after cross-file reference merge). Only suppresses imports with `references > 0`.
+
+**Files:** `src/analyzer/heuristics.rs`
+
+---
+
+### 7.6.2 Remaining False Positives (34 items)
+
+_Items incorrectly flagged as unused._
+
+| Category      | Count | Issue                                                   | Priority | Fix Difficulty |
+| ------------- | ----- | ------------------------------------------------------- | -------- | -------------- |
+| **Functions** | 17    | Closures, returned functions, pattern matching bindings | High     | Medium         |
+| **Imports**   | 6     | Cross-file `__all__` re-exports, FastAPI `Depends`      | High     | Medium         |
+| **Variables** | 6     | Closure captures, complex scoping                       | Medium   | Hard           |
+| **Methods**   | 3     | Pydantic `from_dict`/`to_dict` patterns                 | Low      | Easy           |
+| **Classes**   | 2     | FastAPI response models (`In`, `Out`)                   | Low      | Easy           |
+
+#### Priority 1: Cross-File `__all__` Tracking
+
+**Problem:** Imports re-exported via `__all__` in other modules are flagged:
+
+```python
+# module_a.py
+from module_b import ExportedClass  # Flagged as unused
+
+# module_b.py
+__all__ = ["ExportedClass"]  # Should mark as used across files
+```
+
+**Solution:** Track `__all__` exports globally and match against imports in other files.
+
+#### Priority 2: Pattern Matching Bindings
+
+**Problem:** Variables bound in `match` statements are flagged:
+
+```python
+match command:
+    case (action, value):  # 'action' and 'value' flagged as unused
+        handle(action, value)
+```
+
+**Solution:** Track `match` case bindings as references.
+
+#### Priority 3: Returned Inner Functions
+
+**Problem:** Functions returned from factory functions are flagged:
+
+```python
+def factory():
+    def inner():  # Flagged as unused
+        pass
+    return inner  # Should mark 'inner' as used
+```
+
+**Status:** ✅ Fixed in return statement tracking improvements.
+
+---
+
+### 7.6.3 Remaining False Negatives (60 items)
+
+_Genuinely unused items we fail to detect._
+
+| Category      | Count | Issue                                           | Priority | Fix Difficulty    |
+| ------------- | ----- | ----------------------------------------------- | -------- | ----------------- |
+| **Functions** | 19    | Pragma-ignored, security examples, FastAPI deps | Low      | N/A (intentional) |
+| **Variables** | 18    | Complex scoping, pattern matching, class attrs  | High     | Medium            |
+| **Imports**   | 12    | Various tracking gaps                           | Medium   | Medium            |
+| **Methods**   | 10    | Methods inside unused classes not linked        | High     | Medium            |
+| **Classes**   | 1     | Complex inheritance patterns                    | Low      | Hard              |
+
+#### Priority 1: Class-Method Linking
+
+**Problem:** Methods inside unused classes are not detected:
+
+```python
+class UnusedClass:  # Detected as unused ✅
+    def method(self):  # NOT detected (should be linked to class)
+        pass
+```
+
+**Solution:** When a class is unused, automatically mark all its methods as unused.
+
+#### Priority 2: Variable Scope Improvements
+
+**Problem:** Local variables in complex scopes are missed:
+
+```python
+def func():
+    x = 1  # Never used after assignment - should be flagged
+    y = process()
+    return y
+```
+
+**Solution:** Improve variable liveness analysis within function scopes.
+
+#### Priority 3: Import Detection Gaps
+
+**Problem:** Some import patterns not detected:
+
+- Imports in type annotations without string quotes
+- Imports used only in comprehensions
+- Star imports (`from x import *`)
+
+---
+
+### 7.6.4 Accuracy Improvement Roadmap
+
+| Phase     | Target F1 | Key Fixes                              | Status     |
+| --------- | --------- | -------------------------------------- | ---------- |
+| **7.6.1** | 0.63      | Return annotations, TYPE_CHECKING      | ✅ Done    |
+| **7.6.2** | 0.68      | Cross-file `__all__`, pattern matching | 🔄 Planned |
+| **7.6.3** | 0.72      | Class-method linking, variable scopes  | 🔄 Planned |
+| **7.6.4** | 0.75      | Import gaps, framework patterns        | 🔄 Planned |
+
 ---
 
 ## Future Roadmap
@@ -557,6 +736,34 @@ _Deepen understanding of popular Python frameworks to reduce false positives._
 
 _Tools to improve the workflow around CytoScnPy._
 
+- [x] **MCP Server (Model Context Protocol)**
+
+  - Implemented `cytoscnpy-mcp` binary exposing CytoScnPy as MCP tools.
+  - **Tools:** `analyze_path`, `analyze_code`, `cyclomatic_complexity`, `maintainability_index`
+  - Stdio transport for Claude Desktop, Cursor IDE, and other MCP clients.
+  - Usage: Add to `claude_desktop_config.json`:
+    ```json
+    { "mcpServers": { "cytoscnpy": { "command": "path/to/cytoscnpy-mcp" } } }
+    ```
+
+- [ ] **MCP HTTP/SSE Transport**
+
+  - Add HTTP/SSE transport for remote LLM integrations (web-based clients, APIs).
+  - **Challenges to Address:**
+    - Path validation/sandboxing for security
+    - Timeout handling for large project analysis (30-60s)
+  - **Remote Analysis Tools:**
+    | Tool | Input | Use Case |
+    |------|-------|----------|
+    | `analyze_code` | Code string | Small snippets (already works) |
+    | `analyze_files` | JSON map of files | Medium projects via upload |
+    | `analyze_repo` | Git URL | Clone & analyze public repos |
+    | `analyze_path` | Local path | Server-local files only |
+  - **Implementation:**
+    - Add `--http --port 3000` CLI flags for transport selection
+    - Use `rmcp` SSE transport feature
+    - Add Git clone support for `analyze_repo` tool
+
 - [ ] **LSP Server (Language Server Protocol)**
 
   - Implement a real-time LSP server for VS Code, Neovim, and Zed.
@@ -566,6 +773,49 @@ _Tools to improve the workflow around CytoScnPy._
 
   - **Blame Analysis:** Identify who introduced unused code.
   - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
+
+- [ ] **HTML Report Generation** _(NEW)_
+
+  - Generate self-contained HTML reports for large codebase analysis.
+  - **Features:**
+    - Syntax highlighting (using highlight.js or prism.js)
+    - Clickable file links with line numbers
+    - Filtering by type (unused, security, quality), severity, file
+    - Search across all findings
+    - Summary dashboard with charts
+    - Code snippets showing context around each finding
+  - **CLI:**
+    ```bash
+    cytoscnpy analyze ./project --html report.html
+    cytoscnpy analyze ./project --html-dir ./reports  # Multi-file for very large projects
+    ```
+  - **Implementation:**
+    - Use `tera` or `askama` for templating
+    - Embed CSS/JS for self-contained output
+    - Optional: Split large reports into multiple HTML files with index
+
+- [ ] **Live Server Mode** _(NEW)_
+
+  - Built-in HTTP server to browse analysis results interactively.
+  - **Features:**
+    - Auto-refresh on file changes (watch mode)
+    - REST API for findings (JSON endpoints)
+    - Interactive code browser with inline annotations
+    - Severity/type filters with live updates
+  - **CLI:**
+    ```bash
+    cytoscnpy serve ./project --port 8080
+    # Opens browser to http://localhost:8080
+    # Watches for file changes and re-analyzes
+    ```
+  - **Technical Approach:**
+    - Use `axum` or `warp` for lightweight HTTP server
+    - WebSocket for live updates
+    - Serve static HTML + JSON API
+  - **Use Cases:**
+    - Team code review sessions
+    - CI/CD dashboard integration
+    - Local development feedback loop
 
 - [x] **Continuous Benchmarking**
   - Created benchmark suite with regression detection in `benchmark/`.
@@ -746,3 +996,18 @@ _Safe, automated code fixes._
 - [ ] **Safe Code Removal (`--fix`)**
   - **Challenge:** Standard AST parsers discard whitespace/comments.
   - **Strategy:** Use `RustPython` AST byte ranges or `tree-sitter` to identify ranges, then perform precise string manipulation to preserve formatting.
+
+---
+
+## 📦 Release Checklist
+
+- [x] **Publish to PyPI** ✅
+
+  - Verified `pyproject.toml` metadata.
+  - Published via `maturin publish`.
+  - Available: `pip install cytoscnpy`
+
+- [ ] **Publish MCP Binary**
+  - Build cross-platform binaries (Windows, Linux, macOS).
+  - Create GitHub release with binaries.
+  - Update Claude Desktop setup docs.

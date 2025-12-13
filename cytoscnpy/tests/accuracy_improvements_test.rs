@@ -149,7 +149,9 @@ class NotExportedClass:
     );
 }
 
-/// Test that imports inside TYPE_CHECKING blocks are not flagged as unused.
+/// Test that imports inside TYPE_CHECKING blocks are not flagged as unused
+/// ONLY IF they are actually used in type annotations.
+/// Genuinely unused TYPE_CHECKING imports should still be flagged.
 #[test]
 fn test_type_checking_imports_not_flagged() {
     let dir = tempdir().unwrap();
@@ -162,8 +164,8 @@ fn test_type_checking_imports_not_flagged() {
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List, Dict  # Used only for type hints
-    import json  # Type-only import
+    from typing import List, Dict  # Used in string annotation below
+    import json  # NOT used anywhere - should be flagged
 
 def process(items: "List[Dict]") -> None:
     pass
@@ -182,22 +184,25 @@ process([])
         .map(|d| d.simple_name.clone())
         .collect();
 
-    // TYPE_CHECKING imports should NOT be flagged
+    // TYPE_CHECKING imports that ARE USED in annotations should NOT be flagged
     assert!(
         !unused_import_names.contains(&"List".to_owned()),
-        "List is a TYPE_CHECKING import and should not be flagged"
+        "List is used in string annotation and should not be flagged"
     );
     assert!(
         !unused_import_names.contains(&"Dict".to_owned()),
-        "Dict is a TYPE_CHECKING import and should not be flagged"
+        "Dict is used in string annotation and should not be flagged"
     );
+
+    // TYPE_CHECKING imports that are NOT used should still be flagged
     assert!(
-        !unused_import_names.contains(&"json".to_owned()),
-        "json is a TYPE_CHECKING import and should not be flagged"
+        unused_import_names.contains(&"json".to_owned()),
+        "json is a genuinely unused TYPE_CHECKING import and SHOULD be flagged"
     );
 }
 
 /// Test TYPE_CHECKING with typing_extensions module.
+/// OrderedDict is used in the return type annotation, so it should not be flagged.
 #[test]
 fn test_type_checking_typing_extensions() {
     let dir = tempdir().unwrap();
@@ -210,7 +215,7 @@ fn test_type_checking_typing_extensions() {
 import typing_extensions
 
 if typing_extensions.TYPE_CHECKING:
-    from collections import OrderedDict
+    from collections import OrderedDict  # Used in return annotation below
 
 def get_data() -> "OrderedDict":
     return {{}}
@@ -229,10 +234,10 @@ get_data()
         .map(|d| d.simple_name.clone())
         .collect();
 
-    // TYPE_CHECKING import should NOT be flagged
+    // TYPE_CHECKING import that IS USED in annotation should NOT be flagged
     assert!(
         !unused_import_names.contains(&"OrderedDict".to_owned()),
-        "OrderedDict is a TYPE_CHECKING import and should not be flagged"
+        "OrderedDict is used in return annotation and should not be flagged"
     );
 }
 

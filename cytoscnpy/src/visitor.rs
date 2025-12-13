@@ -505,6 +505,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_expr(decorator);
                 }
                 self.visit_arguments(&node.args);
+                // Visit return annotation to track string type hints like -> "OrderedDict"
+                if let Some(returns) = &node.returns {
+                    self.visit_expr(returns);
+                }
                 self.visit_function_def(&node.name, &node.args, &node.body, node.range.start());
             }
             // Handle async function definitions
@@ -513,6 +517,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_expr(decorator);
                 }
                 self.visit_arguments(&node.args);
+                // Visit return annotation to track string type hints like -> "OrderedDict"
+                if let Some(returns) = &node.returns {
+                    self.visit_expr(returns);
+                }
                 self.visit_function_def(&node.name, &node.args, &node.body, node.range.start());
             }
             // Handle class definitions

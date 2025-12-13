@@ -87,7 +87,7 @@ impl CytoScnPyServer {
     #[tool(
         description = "Analyze Python code at a path for unused code, secrets, dangerous patterns, and quality issues. Returns JSON with findings."
     )]
-    fn analyze_path(&self, #[tool(aggr)] params: AnalyzePathRequest) -> String {
+    pub fn analyze_path(&self, #[tool(aggr)] params: AnalyzePathRequest) -> String {
         let path = PathBuf::from(&params.path);
 
         if !path.exists() {
@@ -111,7 +111,7 @@ impl CytoScnPyServer {
     #[tool(
         description = "Analyze a Python code snippet directly for unused code, secrets, and issues. Useful for code not saved to disk."
     )]
-    fn analyze_code(&self, #[tool(aggr)] params: AnalyzeCodeRequest) -> String {
+    pub fn analyze_code(&self, #[tool(aggr)] params: AnalyzeCodeRequest) -> String {
         let analyzer = CytoScnPy::default()
             .with_secrets(true)
             .with_danger(true)
@@ -204,20 +204,5 @@ impl ServerHandler for CytoScnPyServer {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             ..Default::default()
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_analyze_code_basic() {
-        let server = CytoScnPyServer::new();
-        let result = server.analyze_code(AnalyzeCodeRequest {
-            code: "def unused_func():\n    pass\n".to_owned(),
-            filename: "test.py".to_owned(),
-        });
-        assert!(result.contains("unused_functions") || result.contains("error"));
     }
 }

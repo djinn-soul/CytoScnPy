@@ -3,12 +3,10 @@
 //! This binary exposes CytoScnPy's static analysis capabilities as MCP tools,
 //! allowing LLMs like Claude to use CytoScnPy for Python code analysis.
 
-mod tools;
-
 use anyhow::Result;
+use cytoscnpy_mcp::tools::CytoScnPyServer;
 use rmcp::ServiceExt;
 use tokio::io::{stdin, stdout};
-use tools::CytoScnPyServer;
 
 /// Main entry point for the MCP server.
 ///

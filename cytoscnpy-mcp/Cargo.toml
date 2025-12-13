@@ -5,12 +5,16 @@ edition = "2021"
 license = "Apache-2.0"
 description = "MCP server exposing CytoScnPy static analysis tools for LLM integration"
 
+[lib]
+name = "cytoscnpy_mcp"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cytoscnpy-mcp"
 path = "src/main.rs"
 
 [dependencies]
-cytoscnpy = { path = "../cytoscnpy" }
+cytoscnpy = { path = "../cytoscnpy", version = "1.0.3" }
 rmcp = { version = "0.1", features = ["server", "transport-io"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

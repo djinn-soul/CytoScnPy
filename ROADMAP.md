@@ -470,6 +470,58 @@ _Alignment with Rust CLI capabilities and compatibility fixes._
 
 ---
 
+### 7.3 Parser Migration: `rustpython-parser` → `ruff_python_parser` 🔄 PENDING
+
+> [!CAUTION] > **`rustpython-parser` is deprecated!** The RustPython maintainers are archiving the repository and have declared it unmaintained. It also has a RustSec advisory for the unmaintained `unic` dependency.
+
+**Current State:**
+
+- CytoScnPy uses `rustpython-parser = "0.4.0"` (deprecated)
+- RustPython itself has migrated to `ruff_python_parser`
+
+**Why Migrate:**
+
+1. **Security:** Avoid using crates with known RustSec advisories
+2. **Maintenance:** `ruff_python_parser` is actively maintained by Astral
+3. **Performance:** Ruff's parser is optimized for speed
+4. **Python Support:** Better support for latest Python syntax
+
+**Migration Strategy (from RustPython's approach):**
+
+```toml
+# Cargo.toml - Use git dependencies with pinned commit for reproducibility
+[dependencies]
+ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
+ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
+ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
+ruff_source_file = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
+```
+
+**Required Code Changes:**
+
+| File                   | Change Required                                               |
+| ---------------------- | ------------------------------------------------------------- |
+| `cytoscnpy/Cargo.toml` | Replace `rustpython-parser` and `rustpython-ast` dependencies |
+| `src/visitor.rs`       | Update all AST type imports and visitor patterns              |
+| `src/complexity.rs`    | Update statement/expression matching                          |
+| `src/halstead.rs`      | Update operator/operand extraction                            |
+| `src/analyzer/*.rs`    | Update parse function calls                                   |
+
+**Migration Checklist:**
+
+- [ ] Update `Cargo.toml` with ruff git dependencies
+- [ ] Update `src/visitor.rs` AST imports and visitor trait
+- [ ] Update `src/complexity.rs` for new AST types
+- [ ] Update `src/halstead.rs` for new AST types
+- [ ] Update all rule files in `src/rules/`
+- [ ] Update taint analysis in `src/taint/`
+- [ ] Run full test suite
+- [ ] Update benchmark baselines
+
+**Reference:** See [RustPython/Cargo.toml](https://github.com/RustPython/RustPython/blob/main/Cargo.toml) for working example.
+
+---
+
 ## Phase 7.5: Performance Optimizations ✅ DONE
 
 _Systematic performance improvements achieving 55% speed improvement._

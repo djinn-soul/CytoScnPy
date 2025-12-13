@@ -1,5 +1,5 @@
 # Configuration
-$Repo = "djinn09/CytoScnPy" # Replace with your actual username/repo
+$Repo = "djinn09/CytoScnPy"
 $BinaryName = "cytoscnpy-mcp.exe"
 $AssetName = "cytoscnpy-mcp-windows-x64.exe"
 $InstallDir = "$env:LOCALAPPDATA\Programs\CytoScnPy"

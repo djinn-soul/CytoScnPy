@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/djinn09/CytoScnPy)
 
-A lightning-fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed.Code quality metrics are also provided.
+A lightning-fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
 
 ## 🚀 Why CytoScnPy?
 
@@ -27,6 +27,10 @@ cd CytoScnPy
 pip install maturin
 maturin develop -m cytoscnpy/Cargo.toml
 ```
+
+### 🤖 MCP Server (for AI Assistants)
+
+To use CytoScnPy with Claude Desktop or Cursor, see the **[MCP Server Documentation](cytoscnpy-mcp/README.md)** for installation instructions.
 
 ## ✨ Features
 
@@ -163,7 +167,7 @@ Configure a fail threshold for unused code. If the percentage exceeds this thres
 | Methods        | **1.00**  | 0.59     | 0.74     |
 | Imports        | 0.50      | 0.37     | 0.42     |
 | Variables      | 0.25      | 0.16     | 0.19     |
-| **Overall**    | **0.61**  | **0.57** | **0.59** |
+| **Overall**    | **0.67**  | **0.59** | **0.63** |
 
 > See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
@@ -188,7 +192,6 @@ Apache-2.0 License - see [License](License) file for details.
 - [Rust Core Documentation](cytoscnpy/README.md)
 - [Benchmarks & Accuracy](benchmark/README.md)
 - [Roadmap](ROADMAP.md)
-- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## 📚 References

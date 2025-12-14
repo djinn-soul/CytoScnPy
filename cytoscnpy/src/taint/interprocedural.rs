@@ -7,7 +7,7 @@ use super::propagation::TaintState;
 use super::sources::check_fastapi_param;
 use super::summaries::SummaryDatabase;
 use super::types::{TaintFinding, TaintInfo, TaintSource};
-use rustpython_parser::ast::{self, Stmt};
+use ruff_python_ast::{self as ast, Stmt};
 use std::path::Path;
 
 /// Performs interprocedural taint analysis on a module.

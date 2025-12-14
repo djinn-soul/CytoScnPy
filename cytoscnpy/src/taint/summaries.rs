@@ -5,7 +5,7 @@
 use super::intraprocedural;
 use super::propagation::TaintState;
 use super::types::{FunctionSummary, TaintSource};
-use rustpython_parser::ast::{self, Stmt};
+use ruff_python_ast::{self as ast, Stmt};
 use std::collections::HashMap;
 use std::path::Path;
 

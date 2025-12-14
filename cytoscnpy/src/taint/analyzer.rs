@@ -10,7 +10,7 @@ use super::interprocedural;
 use super::intraprocedural;
 use super::sources::check_taint_source;
 use super::types::{Severity, TaintFinding, TaintInfo, TaintSource, VulnType};
-use rustpython_parser::ast::{Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use std::path::PathBuf;
 use std::sync::Arc;
 

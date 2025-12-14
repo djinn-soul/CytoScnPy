@@ -1,5 +1,6 @@
 use crate::rules::{Context, Finding, Rule};
-use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -49,20 +50,23 @@ impl MethodMisuseRule {
 
     fn infer_type(&self, expr: &Expr) -> Option<String> {
         match expr {
-            Expr::Constant(c) => match &c.value {
-                ast::Constant::Str(_) => Some("str".to_owned()),
-                ast::Constant::Int(_) => Some("int".to_owned()),
-                ast::Constant::Float(_) => Some("float".to_owned()),
-                ast::Constant::Bool(_) => Some("bool".to_owned()),
-                ast::Constant::Bytes(_) => Some("bytes".to_owned()),
-                ast::Constant::None => Some("None".to_owned()),
-                _ => None,
-            },
+            Expr::StringLiteral(_) => Some("str".to_owned()),
+            Expr::BytesLiteral(_) => Some("bytes".to_owned()),
+            Expr::NumberLiteral(n) => {
+                // Check if it's an int or float
+                if n.value.is_int() {
+                    Some("int".to_owned())
+                } else {
+                    Some("float".to_owned())
+                }
+            }
+            Expr::BooleanLiteral(_) => Some("bool".to_owned()),
+            Expr::NoneLiteral(_) => Some("None".to_owned()),
             Expr::List(_) => Some("list".to_owned()),
             Expr::Tuple(_) => Some("tuple".to_owned()),
             Expr::Set(_) => Some("set".to_owned()),
             Expr::Dict(_) => Some("dict".to_owned()),
-            Expr::JoinedStr(_) => Some("str".to_owned()), // f-string
+            Expr::FString(_) => Some("str".to_owned()), // f-string
             Expr::ListComp(_) => Some("list".to_owned()),
             Expr::SetComp(_) => Some("set".to_owned()),
             Expr::DictComp(_) => Some("dict".to_owned()),

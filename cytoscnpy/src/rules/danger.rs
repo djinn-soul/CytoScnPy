@@ -1,5 +1,6 @@
 use crate::rules::{Context, Finding, Rule};
-use rustpython_parser::ast::{self, Expr, Ranged};
+use ruff_python_ast::{self as ast, Expr};
+use ruff_text_size::Ranged;
 
 /// Type inference rules for detecting method misuse on inferred types.
 pub mod type_inference;
@@ -223,8 +224,8 @@ impl Rule for RequestsRule {
                     for keyword in &call.keywords {
                         if let Some(arg) = &keyword.arg {
                             if arg == "verify" {
-                                if let Expr::Constant(c) = &keyword.value {
-                                    if let ast::Constant::Bool(false) = c.value {
+                                if let Expr::BooleanLiteral(b) = &keyword.value {
+                                    if !b.value {
                                         return Some(vec![create_finding(
                                             "SSL verification disabled (verify=False)",
                                             self.code(),
@@ -272,8 +273,8 @@ impl Rule for SubprocessRule {
                         if let Some(arg) = &keyword.arg {
                             match arg.as_str() {
                                 "shell" => {
-                                    if let Expr::Constant(c) = &keyword.value {
-                                        if let ast::Constant::Bool(true) = c.value {
+                                    if let Expr::BooleanLiteral(b) = &keyword.value {
+                                        if b.value {
                                             is_shell_true = true;
                                         }
                                     }
@@ -512,11 +513,16 @@ fn is_literal(args: &[Expr]) -> bool {
 /// Returns false for dynamic values like variables, f-strings, concatenations, etc.
 fn is_literal_expr(expr: &Expr) -> bool {
     match expr {
-        Expr::Constant(_) => true,
+        Expr::StringLiteral(_)
+        | Expr::BytesLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BooleanLiteral(_)
+        | Expr::NoneLiteral(_)
+        | Expr::EllipsisLiteral(_) => true,
         Expr::List(list) => list.elts.iter().all(is_literal_expr),
         Expr::Tuple(tuple) => tuple.elts.iter().all(is_literal_expr),
         // f-strings, concatenations, variables, calls, etc. are NOT literal
-        Expr::JoinedStr(_) | Expr::BinOp(_) | Expr::Name(_) | Expr::Call(_) => false,
+        Expr::FString(_) | Expr::BinOp(_) | Expr::Name(_) | Expr::Call(_) => false,
         _ => false,
     }
 }
@@ -525,7 +531,7 @@ fn create_finding(
     msg: &str,
     rule_id: &str,
     context: &Context,
-    location: rustpython_parser::text_size::TextSize,
+    location: ruff_text_size::TextSize,
     severity: &str,
 ) -> Finding {
     let line = context.line_index.line_index(location);
@@ -628,14 +634,10 @@ impl Rule for TarfileExtractionRule {
 
                 if let Some(filter_expr) = filter_kw {
                     // Filter is present - check if it's a safe literal value
-                    let is_safe_literal = if let Expr::Constant(c) = filter_expr {
-                        if let ast::Constant::Str(s) = &c.value {
-                            let s_lower = s.to_lowercase();
-                            // Python 3.12 doc: filter='data' or 'tar' or 'fully_trusted'
-                            s_lower == "data" || s_lower == "tar" || s_lower == "fully_trusted"
-                        } else {
-                            false
-                        }
+                    let is_safe_literal = if let Expr::StringLiteral(s) = filter_expr {
+                        let s_lower = s.value.to_string().to_lowercase();
+                        // Python 3.12 doc: filter='data' or 'tar' or 'fully_trusted'
+                        s_lower == "data" || s_lower == "tar" || s_lower == "fully_trusted"
                     } else {
                         false
                     };

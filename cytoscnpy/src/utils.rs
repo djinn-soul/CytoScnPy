@@ -1,6 +1,6 @@
 use crate::constants::{DEFAULT_EXCLUDE_FOLDERS, FRAMEWORK_FILE_RE, TEST_FILE_RE};
+use ruff_text_size::TextSize;
 use rustc_hash::FxHashSet;
-use rustpython_ast::TextSize;
 
 /// A utility struct to convert byte offsets to line numbers.
 ///

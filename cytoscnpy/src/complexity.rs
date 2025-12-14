@@ -1,6 +1,7 @@
 use crate::metrics::cc_rank;
 use crate::utils::LineIndex;
-use rustpython_ast::{self as ast, Expr, Stmt};
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A finding related to Cyclomatic Complexity.
@@ -25,26 +26,21 @@ pub struct ComplexityFinding {
 /// * `no_assert` - If true, assert statements don't add to complexity
 pub fn analyze_complexity(
     code: &str,
-    path: &std::path::Path,
+    _path: &std::path::Path,
     no_assert: bool,
 ) -> Vec<ComplexityFinding> {
     let mut findings = Vec::new();
-    if let Ok(ast) = rustpython_parser::parse(
-        code,
-        rustpython_parser::Mode::Module,
-        path.to_str().unwrap_or("<unknown>"),
-    ) {
-        if let rustpython_ast::Mod::Module(m) = ast {
-            let line_index = LineIndex::new(code);
-            let mut visitor = ComplexityVisitor {
-                findings: Vec::new(),
-                line_index: &line_index,
-                class_stack: Vec::new(),
-                no_assert,
-            };
-            visitor.visit_body(&m.body);
-            findings = visitor.findings;
-        }
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        let line_index = LineIndex::new(code);
+        let mut visitor = ComplexityVisitor {
+            findings: Vec::new(),
+            line_index: &line_index,
+            class_stack: Vec::new(),
+            no_assert,
+        };
+        visitor.visit_body(&module.body);
+        findings = visitor.findings;
     }
     findings
 }
@@ -52,10 +48,9 @@ pub fn analyze_complexity(
 /// Calculates the total cyclomatic complexity of a module (sum of all blocks).
 /// Note: Uses `no_assert=false` as this is typically used for MI calculation.
 pub fn calculate_module_complexity(code: &str) -> Option<usize> {
-    if let Ok(ast) = rustpython_parser::parse(code, rustpython_parser::Mode::Module, "<unknown>") {
-        if let rustpython_ast::Mod::Module(m) = ast {
-            return Some(calculate_complexity(&m.body, false));
-        }
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        return Some(calculate_complexity(&module.body, false));
     }
     None
 }
@@ -79,7 +74,7 @@ impl ComplexityVisitor<'_> {
             Stmt::FunctionDef(node) => {
                 let complexity = calculate_complexity(&node.body, self.no_assert);
                 let rank = cc_rank(complexity);
-                let line = self.line_index.line_index(node.range.start());
+                let line = self.line_index.line_index(node.start());
                 let type_ = if self.class_stack.is_empty() {
                     "function"
                 } else {
@@ -100,7 +95,7 @@ impl ComplexityVisitor<'_> {
             Stmt::AsyncFunctionDef(node) => {
                 let complexity = calculate_complexity(&node.body, self.no_assert);
                 let rank = cc_rank(complexity);
-                let line = self.line_index.line_index(node.range.start());
+                let line = self.line_index.line_index(node.start());
                 let type_ = if self.class_stack.is_empty() {
                     "function"
                 } else {
@@ -120,7 +115,7 @@ impl ComplexityVisitor<'_> {
             Stmt::ClassDef(node) => {
                 let complexity = calculate_complexity(&node.body, self.no_assert);
                 let rank = cc_rank(complexity);
-                let line = self.line_index.line_index(node.range.start());
+                let line = self.line_index.line_index(node.start());
 
                 self.findings.push(ComplexityFinding {
                     name: node.name.to_string(),

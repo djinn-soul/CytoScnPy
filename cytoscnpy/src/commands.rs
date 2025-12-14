@@ -7,7 +7,7 @@ use anyhow::Result;
 use colored::Colorize;
 use comfy_table::Table;
 use rayon::prelude::*;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::parse_module;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;

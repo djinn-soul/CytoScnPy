@@ -1,5 +1,5 @@
 use crate::utils::LineIndex;
-use rustpython_ast::{Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use std::path::Path;
 
 use crate::constants::{TEST_DECOR_RE, TEST_METHOD_PATTERN};

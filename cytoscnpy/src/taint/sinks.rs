@@ -3,7 +3,7 @@
 //! Identifies where tainted data can cause security vulnerabilities.
 
 use super::types::{Severity, VulnType};
-use rustpython_parser::ast::{self, Expr};
+use ruff_python_ast::{self as ast, Expr};
 
 /// Information about a detected sink.
 #[derive(Debug, Clone)]
@@ -234,8 +234,8 @@ fn has_shell_true(call: &ast::ExprCall) -> bool {
     for keyword in &call.keywords {
         if let Some(arg) = &keyword.arg {
             if arg.as_str() == "shell" {
-                if let Expr::Constant(c) = &keyword.value {
-                    if let ast::Constant::Bool(true) = c.value {
+                if let Expr::BooleanLiteral(b) = &keyword.value {
+                    if b.value {
                         return true;
                     }
                 }

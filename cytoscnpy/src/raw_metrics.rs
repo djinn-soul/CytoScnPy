@@ -1,7 +1,6 @@
 use crate::utils::LineIndex;
-use rustpython_ast::TextSize;
-use rustpython_parser::lexer;
-use rustpython_parser::Tok;
+use ruff_python_parser::{lexer::lex, Mode, Tok};
+use ruff_text_size::Ranged;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 /// Raw metrics gathered from source code analysis.
@@ -43,27 +42,30 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
     }
 
     // 2. Scan tokens to find Strings (Multi-line) and mask them to find Comments
-    let lexer = lexer::Lexer::new(code.chars(), TextSize::default());
+    let tokens = lex(code, Mode::Module);
     let line_index = LineIndex::new(code);
     let mut string_ranges = Vec::new();
 
-    for result in lexer {
-        if let Ok((token, range)) = result {
-            if let Tok::String { .. } = token {
-                let start_row = line_index.line_index(range.start());
-                let end_row = line_index.line_index(range.end());
+    for (token, range) in tokens {
+        if matches!(
+            token,
+            Tok::String { .. }
+                | Tok::FStringStart { .. }
+                | Tok::FStringMiddle { .. }
+                | Tok::FStringEnd
+        ) {
+            let start_row = line_index.line_index(range.start());
+            let end_row = line_index.line_index(range.end());
 
-                let start_offset = range.start().to_usize();
-                let end_offset = range.end().to_usize();
-                string_ranges.push((start_offset, end_offset));
+            let start_offset = range.start().to_usize();
+            let end_offset = range.end().to_usize();
+            string_ranges.push((start_offset, end_offset));
 
-                if end_row > start_row {
-                    // Multi-line string
-                    for r in start_row..=end_row {
-                        if r <= metrics.loc
-                            && line_types[r] != LineType::Blank {
-                                line_types[r] = LineType::Multi;
-                            }
+            if end_row > start_row {
+                // Multi-line string
+                for r in start_row..=end_row {
+                    if r <= metrics.loc && line_types[r] != LineType::Blank {
+                        line_types[r] = LineType::Multi;
                     }
                 }
             }

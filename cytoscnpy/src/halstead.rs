@@ -1,5 +1,5 @@
+use ruff_python_ast::{self as ast, Expr, Stmt};
 use rustc_hash::FxHashSet;
-use rustpython_ast::{self as ast, Expr, Stmt};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 /// Metrics calculated using Halstead's Complexity Measures.
@@ -657,16 +657,40 @@ impl HalsteadVisitor {
                     self.visit_expr(value);
                 }
             }
-            Expr::Constant(node) => match &node.value {
-                ast::Constant::Str(s) => self.add_operand(s),
-                ast::Constant::Int(i) => self.add_operand(&i.to_string()),
-                ast::Constant::Float(f) => self.add_operand(&f.to_string()),
-                ast::Constant::Bool(b) => self.add_operand(&b.to_string()),
-                ast::Constant::None => self.add_operand("None"),
-                ast::Constant::Ellipsis => self.add_operand("..."),
-                ast::Constant::Bytes(b) => self.add_operand(&format!("{b:?}")),
-                _ => {}
-            },
+            Expr::StringLiteral(node) => {
+                self.add_operand(&node.value.to_string());
+            }
+            Expr::BytesLiteral(node) => {
+                self.add_operand(&format!("{:?}", node.value));
+            }
+            Expr::NumberLiteral(node) => {
+                self.add_operand(&format!("{}", node.value));
+            }
+            Expr::BooleanLiteral(node) => {
+                self.add_operand(&node.value.to_string());
+            }
+            Expr::NoneLiteral(_) => {
+                self.add_operand("None");
+            }
+            Expr::EllipsisLiteral(_) => {
+                self.add_operand("...");
+            }
+            Expr::FString(node) => {
+                for part in &node.value {
+                    match part {
+                        ast::FStringPart::Literal(s) => {
+                            self.add_operand(&s.value.to_string());
+                        }
+                        ast::FStringPart::FString(fstring) => {
+                            for elem in fstring.elements.iter() {
+                                if let ast::FStringElement::Expression(expr_elem) = elem {
+                                    self.visit_expr(&expr_elem.expression);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             Expr::Attribute(node) => {
                 self.add_operator(".");
                 self.visit_expr(&node.value);

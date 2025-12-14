@@ -1,7 +1,8 @@
 use crate::utils::LineIndex;
 use compact_str::CompactString;
+use ruff_python_ast::{self as ast, Expr, Identifier, Stmt};
+use ruff_text_size::Ranged;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustpython_ast::{self as ast, Expr, Stmt};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 use std::path::PathBuf;
@@ -696,10 +697,8 @@ impl<'a> CytoScnPyVisitor<'a> {
                     if target.id.as_str() == "__all__" {
                         if let Expr::List(list) = &*node.value {
                             for elt in &list.elts {
-                                if let Expr::Constant(constant) = elt {
-                                    if let ast::Constant::Str(s) = &constant.value {
-                                        self.exports.push(s.clone());
-                                    }
+                                if let Expr::StringLiteral(string_lit) = elt {
+                                    self.exports.push(string_lit.value.to_string());
                                 }
                             }
                         }
@@ -1099,23 +1098,20 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // Special handling for hasattr(obj, "attr") to detect attribute usage
                     if name == "hasattr" && node.args.len() == 2 {
                         // Extract the object (first arg) and attribute name (second arg)
-                        if let (Expr::Name(obj_name), Expr::Constant(attr_const)) =
+                        if let (Expr::Name(obj_name), Expr::StringLiteral(attr_str)) =
                             (&node.args[0], &node.args[1])
                         {
-                            if let ast::Constant::Str(attr_str) = &attr_const.value {
-                                // Construct the qualified attribute name
-                                // e.g., hasattr(Colors, "GREEN") -> Colors.GREEN
-                                let attr_ref = format!("{}.{}", obj_name.id, attr_str);
-                                self.add_ref(attr_ref);
+                            let attr_value = attr_str.value.to_string();
+                            // Construct the qualified attribute name
+                            // e.g., hasattr(Colors, "GREEN") -> Colors.GREEN
+                            let attr_ref = format!("{}.{}", obj_name.id, attr_value);
+                            self.add_ref(attr_ref);
 
-                                // Also try with module prefix
-                                if !self.module_name.is_empty() {
-                                    let full_attr_ref = format!(
-                                        "{}.{}.{}",
-                                        self.module_name, obj_name.id, attr_str
-                                    );
-                                    self.add_ref(full_attr_ref);
-                                }
+                            // Also try with module prefix
+                            if !self.module_name.is_empty() {
+                                let full_attr_ref =
+                                    format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
+                                self.add_ref(full_attr_ref);
                             }
                         }
                     }
@@ -1178,44 +1174,43 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.visit_expr(&node.value);
             }
             // FIX: Done Dynamic Dispatch / String References
-            Expr::Constant(node) => {
-                if let ast::Constant::Str(s) = &node.value {
-                    // Heuristic: If a string looks like a simple identifier or dotted path (no spaces),
-                    // track it as a reference. This helps with getattr(self, "visit_" + name)
-                    // and stringified type hints like "models.User".
-                    if !s.contains(' ') && !s.is_empty() {
-                        self.add_ref(s.clone());
+            Expr::StringLiteral(node) => {
+                let s = node.value.to_string();
+                // Heuristic: If a string looks like a simple identifier or dotted path (no spaces),
+                // track it as a reference. This helps with getattr(self, "visit_" + name)
+                // and stringified type hints like "models.User".
+                if !s.contains(' ') && !s.is_empty() {
+                    self.add_ref(s.clone());
 
-                        // Enhanced: Extract type names from string type annotations
-                        // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
-                        // Extract alphanumeric identifiers (type names)
-                        let mut current_word = String::new();
-                        for ch in s.chars() {
-                            if ch.is_alphanumeric() || ch == '_' {
-                                current_word.push(ch);
-                            } else {
-                                if !current_word.is_empty() {
-                                    // Check if it looks like a type name (starts with uppercase)
-                                    if current_word
-                                        .chars()
-                                        .next()
-                                        .map_or(false, |c| c.is_uppercase())
-                                    {
-                                        self.add_ref(current_word.clone());
-                                    }
-                                    current_word.clear();
+                    // Enhanced: Extract type names from string type annotations
+                    // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
+                    // Extract alphanumeric identifiers (type names)
+                    let mut current_word = String::new();
+                    for ch in s.chars() {
+                        if ch.is_alphanumeric() || ch == '_' {
+                            current_word.push(ch);
+                        } else {
+                            if !current_word.is_empty() {
+                                // Check if it looks like a type name (starts with uppercase)
+                                if current_word
+                                    .chars()
+                                    .next()
+                                    .map_or(false, |c| c.is_uppercase())
+                                {
+                                    self.add_ref(current_word.clone());
                                 }
+                                current_word.clear();
                             }
                         }
-                        // Don't forget the last word
-                        if !current_word.is_empty() {
-                            if current_word
-                                .chars()
-                                .next()
-                                .map_or(false, |c| c.is_uppercase())
-                            {
-                                self.add_ref(current_word);
-                            }
+                    }
+                    // Don't forget the last word
+                    if !current_word.is_empty() {
+                        if current_word
+                            .chars()
+                            .next()
+                            .map_or(false, |c| c.is_uppercase())
+                        {
+                            self.add_ref(current_word);
                         }
                     }
                 }

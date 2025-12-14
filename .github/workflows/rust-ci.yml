@@ -32,7 +32,10 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cytoscnpy -> target"
+          workspaces: |
+            cytoscnpy -> target
+            cytoscnpy-mcp -> target
+            cytoscnpy-cli -> target
           cache-on-failure: true
 
       - name: Build cytoscnpy

@@ -242,3 +242,5 @@ my_func()
 
     assert!(!unused_funcs.contains(&"my_func".to_owned()));
 }
+
+

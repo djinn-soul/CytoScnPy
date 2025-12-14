@@ -169,3 +169,5 @@ fn test_raw_summary() {
     assert!(output.contains("Files"));
     assert!(output.contains('2')); // Total files
 }
+
+

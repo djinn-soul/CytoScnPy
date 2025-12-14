@@ -83,3 +83,5 @@ def helper(h: Helper):
         "Should NOT report 'Helper' as unused (used in normal annotation)"
     );
 }
+
+

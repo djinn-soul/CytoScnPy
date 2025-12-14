@@ -2,13 +2,13 @@
 
 use cytoscnpy::framework::FrameworkAwareVisitor;
 use cytoscnpy::utils::LineIndex;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 
 fn run_framework_visitor<'a>(source: &str, line_index: &'a LineIndex) -> FrameworkAwareVisitor<'a> {
-    let tree = parse(source, Mode::Module, "test.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let mut visitor = FrameworkAwareVisitor::new(line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -668,3 +668,5 @@ fn test_framework_imports_set() {
     assert!(imports.contains("fastapi"), "Should contain 'fastapi'");
     assert!(imports.contains("pydantic"), "Should contain 'pydantic'");
 }
+
+

@@ -306,3 +306,5 @@ fn test_issue_11_dict_usage() {
     // Should find 0 unused imports (both used in dict)
     assert_eq!(unused_imports.len(), 0, "Should find 0 unused imports");
 }
+
+

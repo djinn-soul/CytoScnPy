@@ -136,3 +136,5 @@ def test_func():
     // Base 1 + if 1 = 2 (asserts ignored)
     assert_eq!(f_no.complexity, 2, "With no_assert=true, asserts should NOT add complexity");
 }
+
+

@@ -279,6 +279,10 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
             Stmt::If(n) => {
                 let mut sum = 1 + calculate_complexity(&n.body);
                 for clause in &n.elif_else_clauses {
+                    // Only elif adds complexity, else doesn't
+                    if clause.test.is_some() {
+                        sum += 1;
+                    }
                     sum += calculate_complexity(&clause.body);
                 }
                 sum

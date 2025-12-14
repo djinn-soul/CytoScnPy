@@ -1280,29 +1280,18 @@ impl<'a> CytoScnPyVisitor<'a> {
                     match part {
                         ast::FStringPart::Literal(_) => {}
                         ast::FStringPart::FString(f) => {
-                            // Recurse into nested f-string parts
-                            for _p in &f.elements {
-                                // Recurse? FString contains elements?
-                                // Wait, FStringPart::FString contains FString.
-                                // FString has value (Vec<FStringPart>).
-                                // Wait, if FStringPart::Expression is gone, maybe it IS FString?
-                                // Let's assume FStringPart IS the enum and it has FString variant for nesting/expressions?
+                            // Visit expressions inside f-string interpolations
+                            for element in &f.elements {
+                                if let ast::InterpolatedStringElement::Interpolation(interp) =
+                                    element
+                                {
+                                    self.visit_expr(&interp.expression);
+                                }
                             }
                         }
+                        _ => {}
                     }
-                    // Let's try to just visit expressions if we can find them.
-                    // But if the enum changed...
-                    // Let's try match part { FStringPart::Literal(_) => {}, FStringPart::FormattedValue(v) => self.visit_expr(&v.value) } ?
-                    // Try to match strict variants if known.
-                    // If I don't know variants, I can default to _ => {} for now to avoid error,
-                    // OR inspection. But I want to visit expressions.
-                    // If I use `ast::FStringPart::Expression(expr)` and it failed, maybe `ast::FStringElement::Expression`?
                 }
-                // Let's try iterating `node.value` which is `Vec<FStringPart>`.
-                // If I look at halstead.rs, it used `FStringPart::Literal` and `FStringPart::Expression`.
-                // It seemed to fail later?
-                // Ah, maybe the error was only about `Expression` not found.
-                // Maybe `Expr` inside `FStringPart` is `FormattedValue`?
             }
             Expr::List(node) => {
                 for elt in &node.elts {

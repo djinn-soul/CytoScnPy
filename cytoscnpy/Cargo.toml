@@ -1,6 +1,6 @@
 [package]
 name = "cytoscnpy"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 license = "Apache-2.0"
 default-run = "cytoscnpy-bin"
@@ -38,7 +38,7 @@ colored = "3.0"
 lazy_static = "1.4"
 indicatif = "0.18.3"
 comfy-table = "7.1"
-pyo3 = { version = "0.27.2", features = ["extension-module"] }
+pyo3 = { version = "0.27.2", features = ["extension-module"], optional = true }
 rustc-hash = "2.1.1"
 # String optimization: stack-allocated small strings (up to 24 bytes)
 compact_str = "0.9"
@@ -49,8 +49,10 @@ dhat = { version = "0.3", optional = true }
 
 [features]
 default = []
+# Enable Python bindings (required for building the cdylib)
+python-bindings = ["pyo3"]
 # Enable this feature to run Python binding tests (requires Python DLL in PATH)
-python-tests = ["pyo3/auto-initialize"]
+python-tests = ["pyo3/auto-initialize", "python-bindings"]
 # Enable heap profiling with dhat
 heap-profile = ["dhat"]
 

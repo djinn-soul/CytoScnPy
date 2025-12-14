@@ -4,9 +4,14 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - "main"
 
 permissions:
   contents: write
+
+env:
+  PYO3_PYTHON: python3
 
 jobs:
   build-and-upload:
@@ -42,8 +47,13 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Build Binary
-        run: cargo build --release --locked --target ${{ matrix.target }} -p cytoscnpy-mcp
+        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-mcp
 
       - name: Rename Binary
         shell: bash
@@ -55,6 +65,7 @@ jobs:
           fi
 
       - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ matrix.name }}

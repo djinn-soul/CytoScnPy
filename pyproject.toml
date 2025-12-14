@@ -25,6 +25,7 @@ strip = true
 module-name = "cytoscnpy"
 python-source = "python"
 manifest-path = "cytoscnpy/Cargo.toml"
+features = ["python-bindings"]
 
 
 [project.scripts]

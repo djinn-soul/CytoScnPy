@@ -1,6 +1,6 @@
 [package]
 name = "cytoscnpy-mcp"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "MCP server exposing CytoScnPy static analysis tools for LLM integration"
@@ -14,13 +14,13 @@ name = "cytoscnpy-mcp"
 path = "src/main.rs"
 
 [dependencies]
-cytoscnpy = { path = "../cytoscnpy", version = "1.0.3" }
-rmcp = { version = "0.1", features = ["server", "transport-io"] }
+cytoscnpy = { path = "../cytoscnpy", version = "1.0.4" }
+rmcp = { version = "0.11.0", features = ["server", "transport-io"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
-schemars = "0.8"
+schemars = "1.1.0"
 
 # Inherit lints from workspace
 [lints]

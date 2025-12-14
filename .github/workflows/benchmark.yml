@@ -35,7 +35,7 @@ jobs:
       - name: Build CytoScnPy (Rust)
         run: |
           cd cytoscnpy
-          cargo build --release --verbose
+          cargo build --release --verbose --features python-bindings
 
       - name: Run Benchmark Check
         run: python benchmark/benchmark_and_verify.py --check

@@ -225,11 +225,11 @@ pub fn check_fastapi_param(func_def: &ast::StmtFunctionDef) -> Vec<(String, Tain
     let line = func_def.range().start().to_u32() as usize;
 
     // Check for Query(), Path(), Body(), Form() in parameter defaults
-    for arg in &func_def.args.args {
+    for arg in &func_def.parameters.args {
         if let Some(default) = &arg.default {
             if let Expr::Call(call) = &**default {
                 if let Some(name) = get_call_name(&call.func) {
-                    let param_name = arg.def.arg.as_str();
+                    let param_name = arg.parameter.name.as_str();
                     match name.as_str() {
                         "Query" | "Path" | "Body" | "Form" | "Header" | "Cookie" => {
                             let source = TaintSource::FastApiParam(param_name.to_owned());
@@ -249,11 +249,11 @@ pub fn check_fastapi_param(func_def: &ast::StmtFunctionDef) -> Vec<(String, Tain
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustpython_parser::{parse, Mode};
+    use ruff_python_parser::{parse, Mode};
 
     fn parse_expr(source: &str) -> Expr {
-        let tree = parse(source, Mode::Expression, "test.py").unwrap();
-        if let ast::Mod::Expression(expr) = tree {
+        let tree = parse(source, Mode::Expression.into()).unwrap();
+        if let ast::Mod::Expression(expr) = tree.into_syntax() {
             *expr.body
         } else {
             panic!("Expected expression")

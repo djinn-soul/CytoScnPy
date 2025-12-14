@@ -67,33 +67,29 @@ impl FunctionHalsteadVisitor {
         match stmt {
             Stmt::FunctionDef(node) => {
                 let mut visitor = HalsteadVisitor::new();
+                if node.is_async {
+                    visitor.add_operator("async def");
+                }
                 // Visit function body
                 for s in &node.body {
                     visitor.visit_stmt(s);
                 }
                 // Also visit arguments
-                for arg in &node.args.args {
-                    visitor.add_operand(&arg.def.arg);
+                for arg in &node.parameters.args {
+                    visitor.add_operand(&arg.parameter.name);
+                }
+                // posonlyargs
+                for arg in &node.parameters.posonlyargs {
+                    visitor.add_operand(&arg.parameter.name);
+                }
+                // kwonlyargs
+                for arg in &node.parameters.kwonlyargs {
+                    visitor.add_operand(&arg.parameter.name);
                 }
                 self.results
                     .push((node.name.to_string(), visitor.calculate_metrics()));
 
                 // Recurse for nested functions
-                for s in &node.body {
-                    self.visit_stmt(s);
-                }
-            }
-            Stmt::AsyncFunctionDef(node) => {
-                let mut visitor = HalsteadVisitor::new();
-                for s in &node.body {
-                    visitor.visit_stmt(s);
-                }
-                for arg in &node.args.args {
-                    visitor.add_operand(&arg.def.arg);
-                }
-                self.results
-                    .push((node.name.to_string(), visitor.calculate_metrics()));
-
                 for s in &node.body {
                     self.visit_stmt(s);
                 }
@@ -111,19 +107,15 @@ impl FunctionHalsteadVisitor {
                         for s in &node.body {
                             self.visit_stmt(s);
                         }
-                        for s in &node.orelse {
-                            self.visit_stmt(s);
+                        for clause in &node.elif_else_clauses {
+                            self.visit_stmt(&clause.body[0]); // Approximation or iterate body
+                                                              // elif_else_clauses contains ElifElseClause which has `body` (Vec<Stmt>)
+                            for s in &clause.body {
+                                self.visit_stmt(s);
+                            }
                         }
                     }
                     Stmt::For(node) => {
-                        for s in &node.body {
-                            self.visit_stmt(s);
-                        }
-                        for s in &node.orelse {
-                            self.visit_stmt(s);
-                        }
-                    }
-                    Stmt::AsyncFor(node) => {
                         for s in &node.body {
                             self.visit_stmt(s);
                         }
@@ -144,18 +136,13 @@ impl FunctionHalsteadVisitor {
                             self.visit_stmt(s);
                         }
                     }
-                    Stmt::AsyncWith(node) => {
-                        for s in &node.body {
-                            self.visit_stmt(s);
-                        }
-                    }
                     Stmt::Try(node) => {
                         for s in &node.body {
                             self.visit_stmt(s);
                         }
-                        for h in &node.handlers {
-                            let ast::ExceptHandler::ExceptHandler(handler) = h;
-                            for s in &handler.body {
+                        for handler in &node.handlers {
+                            let ast::ExceptHandler::ExceptHandler(h) = handler;
+                            for s in &h.body {
                                 self.visit_stmt(s);
                             }
                         }
@@ -250,20 +237,14 @@ impl HalsteadVisitor {
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::FunctionDef(node) => {
-                self.add_operator("def");
-                self.add_operand(&node.name);
-                for arg in &node.args.args {
-                    self.add_operand(&arg.def.arg);
+                if node.is_async {
+                    self.add_operator("async def");
+                } else {
+                    self.add_operator("def");
                 }
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-            }
-            Stmt::AsyncFunctionDef(node) => {
-                self.add_operator("async def");
                 self.add_operand(&node.name);
-                for arg in &node.args.args {
-                    self.add_operand(&arg.def.arg);
+                for arg in &node.parameters.args {
+                    self.add_operand(&arg.parameter.name);
                 }
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
@@ -323,16 +304,11 @@ impl HalsteadVisitor {
                 }
             }
             Stmt::For(node) => {
-                self.add_operator("for");
-                self.add_operator("in");
-                self.visit_expr(&node.target);
-                self.visit_expr(&node.iter);
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
+                if node.is_async {
+                    self.add_operator("async for");
+                } else {
+                    self.add_operator("for");
                 }
-            }
-            Stmt::AsyncFor(node) => {
-                self.add_operator("async for");
                 self.add_operator("in");
                 self.visit_expr(&node.target);
                 self.visit_expr(&node.iter);
@@ -353,24 +329,19 @@ impl HalsteadVisitor {
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
                 }
-                if !node.orelse.is_empty() {
-                    self.add_operator("else");
-                    for stmt in &node.orelse {
+                for clause in &node.elif_else_clauses {
+                    self.add_operator("else"); // counting elif as else + if usually, or just branches
+                    for stmt in &clause.body {
                         self.visit_stmt(stmt);
                     }
                 }
             }
             Stmt::With(node) => {
-                self.add_operator("with");
-                for item in &node.items {
-                    self.visit_expr(&item.context_expr);
+                if node.is_async {
+                    self.add_operator("async with");
+                } else {
+                    self.add_operator("with");
                 }
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-            }
-            Stmt::AsyncWith(node) => {
-                self.add_operator("async with");
                 for item in &node.items {
                     self.visit_expr(&item.context_expr);
                 }
@@ -486,7 +457,7 @@ impl HalsteadVisitor {
                     self.visit_expr(value);
                 }
             }
-            Expr::NamedExpr(node) => {
+            Expr::Named(node) => {
                 self.add_operator(":=");
                 self.visit_expr(&node.target);
                 self.visit_expr(&node.value);
@@ -521,12 +492,14 @@ impl HalsteadVisitor {
             }
             Expr::Lambda(node) => {
                 self.add_operator("lambda");
-                for arg in &node.args.args {
-                    self.add_operand(&arg.def.arg);
+                if let Some(parameters) = &node.parameters {
+                    for arg in &parameters.args {
+                        self.add_operand(arg.parameter.name.as_str());
+                    }
                 }
                 self.visit_expr(&node.body);
             }
-            Expr::IfExp(node) => {
+            Expr::If(node) => {
                 self.add_operator("if");
                 self.add_operator("else");
                 self.visit_expr(&node.test);
@@ -535,11 +508,11 @@ impl HalsteadVisitor {
             }
             Expr::Dict(node) => {
                 self.add_operator("{}");
-                for (key, value) in node.keys.iter().zip(&node.values) {
-                    if let Some(k) = key {
-                        self.visit_expr(k);
+                for item in &node.items {
+                    if let Some(key) = &item.key {
+                        self.visit_expr(key);
                     }
-                    self.visit_expr(value);
+                    self.visit_expr(&item.value);
                 }
             }
             Expr::Set(node) => {
@@ -591,7 +564,7 @@ impl HalsteadVisitor {
                     }
                 }
             }
-            Expr::GeneratorExp(node) => {
+            Expr::Generator(node) => {
                 self.add_operator("()");
                 self.visit_expr(&node.elt);
                 for gen in &node.generators {
@@ -642,19 +615,23 @@ impl HalsteadVisitor {
             Expr::Call(node) => {
                 self.add_operator("()");
                 self.visit_expr(&node.func);
-                for arg in &node.args {
+                for arg in &node.arguments.args {
                     self.visit_expr(arg);
                 }
-                for keyword in &node.keywords {
+                for keyword in &node.arguments.keywords {
                     self.visit_expr(&keyword.value);
                 }
             }
-            Expr::FormattedValue(node) => {
-                self.visit_expr(&node.value);
-            }
-            Expr::JoinedStr(node) => {
-                for value in &node.values {
-                    self.visit_expr(value);
+            Expr::FString(node) => {
+                for part in &node.value {
+                    match part {
+                        ast::FStringPart::Literal(s) => {
+                            self.add_operand(&s.to_string());
+                        }
+                        _ => {} // ast::FStringPart::Interpolated(expr) => {
+                                //    self.visit_expr(&expr.expression);
+                                // }
+                    }
                 }
             }
             Expr::StringLiteral(node) => {
@@ -664,7 +641,7 @@ impl HalsteadVisitor {
                 self.add_operand(&format!("{:?}", node.value));
             }
             Expr::NumberLiteral(node) => {
-                self.add_operand(&format!("{}", node.value));
+                self.add_operand(&format!("{:?}", node.value));
             }
             Expr::BooleanLiteral(node) => {
                 self.add_operand(&node.value.to_string());
@@ -675,22 +652,7 @@ impl HalsteadVisitor {
             Expr::EllipsisLiteral(_) => {
                 self.add_operand("...");
             }
-            Expr::FString(node) => {
-                for part in &node.value {
-                    match part {
-                        ast::FStringPart::Literal(s) => {
-                            self.add_operand(&s.value.to_string());
-                        }
-                        ast::FStringPart::FString(fstring) => {
-                            for elem in fstring.elements.iter() {
-                                if let ast::FStringElement::Expression(expr_elem) = elem {
-                                    self.visit_expr(&expr_elem.expression);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+
             Expr::Attribute(node) => {
                 self.add_operator(".");
                 self.visit_expr(&node.value);
@@ -732,6 +694,7 @@ impl HalsteadVisitor {
                     self.visit_expr(step);
                 }
             }
+            Expr::TString(_) | Expr::IpyEscapeCommand(_) => {}
         }
     }
 }

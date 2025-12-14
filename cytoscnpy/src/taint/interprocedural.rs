@@ -8,6 +8,7 @@ use super::sources::check_fastapi_param;
 use super::summaries::SummaryDatabase;
 use super::types::{TaintFinding, TaintInfo, TaintSource};
 use ruff_python_ast::{self as ast, Stmt};
+
 use std::path::Path;
 
 /// Performs interprocedural taint analysis on a module.
@@ -69,7 +70,7 @@ pub fn analyze_module(stmts: &[Stmt], file_path: &Path) -> Vec<TaintFinding> {
 /// Wrapper enum for function definitions.
 enum FunctionDef<'a> {
     Sync(&'a ast::StmtFunctionDef),
-    Async(&'a ast::StmtAsyncFunctionDef),
+    Async(&'a ast::StmtFunctionDef),
 }
 
 /// Collects all function definitions from statements.
@@ -79,19 +80,21 @@ fn collect_functions(stmts: &[Stmt]) -> std::collections::HashMap<String, Functi
     for stmt in stmts {
         match stmt {
             Stmt::FunctionDef(func) => {
-                functions.insert(func.name.to_string(), FunctionDef::Sync(func));
-            }
-            Stmt::AsyncFunctionDef(func) => {
-                functions.insert(func.name.to_string(), FunctionDef::Async(func));
+                if func.is_async {
+                    functions.insert(func.name.to_string(), FunctionDef::Async(func));
+                } else {
+                    functions.insert(func.name.to_string(), FunctionDef::Sync(func));
+                }
             }
             Stmt::ClassDef(class) => {
                 for s in &class.body {
                     if let Stmt::FunctionDef(method) = s {
                         let qualified_name = format!("{}.{}", class.name, method.name);
-                        functions.insert(qualified_name, FunctionDef::Sync(method));
-                    } else if let Stmt::AsyncFunctionDef(method) = s {
-                        let qualified_name = format!("{}.{}", class.name, method.name);
-                        functions.insert(qualified_name, FunctionDef::Async(method));
+                        if method.is_async {
+                            functions.insert(qualified_name, FunctionDef::Async(method));
+                        } else {
+                            functions.insert(qualified_name, FunctionDef::Sync(method));
+                        }
                     }
                 }
             }
@@ -130,7 +133,7 @@ fn analyze_with_context(
 
 /// Analyzes an async function with context.
 fn analyze_async_with_context(
-    func: &ast::StmtAsyncFunctionDef,
+    func: &ast::StmtFunctionDef,
     file_path: &Path,
     initial_state: &TaintState,
     summaries: &SummaryDatabase,
@@ -184,9 +187,10 @@ fn analyze_stmt_with_context(
                     }
 
                     // Check if tainted arg propagates to return
+                    // Check if tainted arg propagates to return
                     let param_to_return = summaries.get_param_to_return(&func_name);
                     for param_idx in param_to_return {
-                        if let Some(arg) = call.args.get(param_idx) {
+                        if let Some(arg) = call.arguments.args.get(param_idx) {
                             if let Some(taint_info) =
                                 super::propagation::is_expr_tainted(arg, state)
                             {
@@ -209,8 +213,10 @@ fn analyze_stmt_with_context(
             for s in &if_stmt.body {
                 analyze_stmt_with_context(s, state, findings, file_path, summaries, call_graph);
             }
-            for s in &if_stmt.orelse {
-                analyze_stmt_with_context(s, state, findings, file_path, summaries, call_graph);
+            for clause in &if_stmt.elif_else_clauses {
+                for s in &clause.body {
+                    analyze_stmt_with_context(s, state, findings, file_path, summaries, call_graph);
+                }
             }
         }
 
@@ -257,7 +263,7 @@ fn analyze_module_level(stmts: &[Stmt], file_path: &Path) -> Vec<TaintFinding> {
     for stmt in stmts {
         // Skip function/class definitions - they're analyzed separately
         match stmt {
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => continue,
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => continue,
             _ => {}
         }
 
@@ -276,9 +282,9 @@ fn analyze_module_level(stmts: &[Stmt], file_path: &Path) -> Vec<TaintFinding> {
             if let ast::Expr::Call(call) = &*expr_stmt.value {
                 if let Some(sink_info) = super::sinks::check_sink(call) {
                     // Check if any argument is tainted
-                    for arg in &call.args {
+                    for arg in &call.arguments.args {
                         if let Some(taint_info) = super::sources::check_taint_source(arg) {
-                            use rustpython_parser::ast::Ranged;
+                            use ruff_text_size::Ranged;
                             findings.push(super::types::TaintFinding {
                                 source: taint_info.source.to_string(),
                                 source_line: taint_info.source_line,
@@ -318,6 +324,6 @@ fn get_call_name(func: &ast::Expr) -> Option<String> {
 
 /// Gets line number from an expression.
 fn get_line(expr: &ast::Expr) -> usize {
-    use rustpython_parser::ast::Ranged;
+    use ruff_text_size::Ranged;
     expr.range().start().to_u32() as usize
 }

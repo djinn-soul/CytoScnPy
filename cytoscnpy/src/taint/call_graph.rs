@@ -49,7 +49,7 @@ impl CallGraph {
         match stmt {
             Stmt::FunctionDef(func) => {
                 let func_name = self.get_qualified_name(&func.name);
-                let params = self.extract_params(&func.args);
+                let params = self.extract_params(&func.parameters);
 
                 let node = CallGraphNode {
                     name: func_name.clone(),
@@ -62,25 +62,6 @@ impl CallGraph {
                 self.nodes.insert(func_name.clone(), node);
 
                 // Visit body
-                for s in &func.body {
-                    self.visit_stmt(s, Some(&func_name));
-                }
-            }
-
-            Stmt::AsyncFunctionDef(func) => {
-                let func_name = self.get_qualified_name(&func.name);
-                let params = self.extract_params(&func.args);
-
-                let node = CallGraphNode {
-                    name: func_name.clone(),
-                    line: func.range().start().to_u32() as usize,
-                    calls: FxHashSet::default(),
-                    called_by: FxHashSet::default(),
-                    params,
-                };
-
-                self.nodes.insert(func_name.clone(), node);
-
                 for s in &func.body {
                     self.visit_stmt(s, Some(&func_name));
                 }
@@ -121,8 +102,10 @@ impl CallGraph {
                 for s in &if_stmt.body {
                     self.visit_stmt(s, current_func);
                 }
-                for s in &if_stmt.orelse {
-                    self.visit_stmt(s, current_func);
+                for clause in &if_stmt.elif_else_clauses {
+                    for s in &clause.body {
+                        self.visit_stmt(s, current_func);
+                    }
                 }
             }
 
@@ -190,7 +173,7 @@ impl CallGraph {
                 }
 
                 // Visit arguments
-                for arg in &call.args {
+                for arg in &call.arguments.args {
                     self.visit_expr_for_calls(arg, caller);
                 }
             }
@@ -200,7 +183,7 @@ impl CallGraph {
                 self.visit_expr_for_calls(&binop.right, caller);
             }
 
-            Expr::IfExp(ifexp) => {
+            Expr::If(ifexp) => {
                 self.visit_expr_for_calls(&ifexp.test, caller);
                 self.visit_expr_for_calls(&ifexp.body, caller);
                 self.visit_expr_for_calls(&ifexp.orelse, caller);
@@ -213,8 +196,8 @@ impl CallGraph {
             }
 
             Expr::Dict(dict) => {
-                for value in &dict.values {
-                    self.visit_expr_for_calls(value, caller);
+                for item in &dict.items {
+                    self.visit_expr_for_calls(&item.value, caller);
                 }
             }
 
@@ -232,23 +215,26 @@ impl CallGraph {
     }
 
     /// Extracts parameter names from function arguments.
-    fn extract_params(&self, args: &ast::Arguments) -> Vec<String> {
+    fn extract_params(&self, args: &ast::Parameters) -> Vec<String> {
         let mut params = Vec::new();
 
+        for arg in &args.posonlyargs {
+            params.push(arg.parameter.name.to_string());
+        }
         for arg in &args.args {
-            params.push(arg.def.arg.to_string());
+            params.push(arg.parameter.name.to_string());
         }
 
         if let Some(vararg) = &args.vararg {
-            params.push(format!("*{}", vararg.arg));
+            params.push(format!("*{}", vararg.name));
         }
 
         for arg in &args.kwonlyargs {
-            params.push(arg.def.arg.to_string());
+            params.push(arg.parameter.name.to_string());
         }
 
         if let Some(kwarg) = &args.kwarg {
-            params.push(format!("**{}", kwarg.arg));
+            params.push(format!("**{}", kwarg.name));
         }
 
         params

@@ -231,7 +231,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
 
 /// Checks if a subprocess call has shell=True.
 fn has_shell_true(call: &ast::ExprCall) -> bool {
-    for keyword in &call.keywords {
+    for keyword in &call.arguments.keywords {
         if let Some(arg) = &keyword.arg {
             if arg.as_str() == "shell" {
                 if let Expr::BooleanLiteral(b) = &keyword.value {
@@ -295,11 +295,11 @@ pub static SINK_PATTERNS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustpython_parser::{parse, Mode};
+    use ruff_python_parser::{parse, Mode};
 
     fn parse_call(source: &str) -> ast::ExprCall {
-        let tree = parse(source, Mode::Expression, "test.py").unwrap();
-        if let ast::Mod::Expression(expr) = tree {
+        let tree = parse(source, Mode::Expression.into()).unwrap();
+        if let ast::Mod::Expression(expr) = tree.into_syntax() {
             if let Expr::Call(call) = *expr.body {
                 return call;
             }

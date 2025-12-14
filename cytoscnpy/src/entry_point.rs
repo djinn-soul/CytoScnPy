@@ -89,8 +89,10 @@ fn collect_function_calls(stmt: &Stmt, calls: &mut FxHashSet<String>) {
             for body_stmt in &if_stmt.body {
                 collect_function_calls(body_stmt, calls);
             }
-            for else_stmt in &if_stmt.orelse {
-                collect_function_calls(else_stmt, calls);
+            for else_stmt in &if_stmt.elif_else_clauses {
+                for body_stmt in &else_stmt.body {
+                    collect_function_calls(body_stmt, calls);
+                }
             }
         }
         // Handle for loops
@@ -124,7 +126,7 @@ fn collect_calls_from_expr(expr: &Expr, calls: &mut FxHashSet<String>) {
                 calls.insert(name);
             }
             // Recursively check arguments, they might contain calls too: func(other_func())
-            for arg in &call.args {
+            for arg in &call.arguments.args {
                 collect_calls_from_expr(arg, calls);
             }
         }

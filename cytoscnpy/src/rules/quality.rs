@@ -31,9 +31,8 @@ impl Rule for MutableDefaultArgumentRule {
         "CSP-L001"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        let args = match stmt {
-            Stmt::FunctionDef(f) => &f.args,
-            Stmt::AsyncFunctionDef(f) => &f.args,
+        let parameters = match stmt {
+            Stmt::FunctionDef(f) => &f.parameters,
             _ => return None,
         };
 
@@ -53,13 +52,13 @@ impl Rule for MutableDefaultArgumentRule {
             }
         };
 
-        for arg in &args.posonlyargs {
+        for arg in &parameters.posonlyargs {
             check_arg(arg, &mut findings);
         }
-        for arg in &args.args {
+        for arg in &parameters.args {
             check_arg(arg, &mut findings);
         }
-        for arg in &args.kwonlyargs {
+        for arg in &parameters.kwonlyargs {
             check_arg(arg, &mut findings);
         }
         if findings.is_empty() {
@@ -159,17 +158,16 @@ impl Rule for ArgumentCountRule {
         "CSP-C303"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        let args = match stmt {
-            Stmt::FunctionDef(f) => &f.args,
-            Stmt::AsyncFunctionDef(f) => &f.args,
+        let parameters = match stmt {
+            Stmt::FunctionDef(f) => &f.parameters,
             _ => return None,
         };
 
-        let total_args = args.posonlyargs.len()
-            + args.args.len()
-            + args.kwonlyargs.len()
-            + usize::from(args.vararg.is_some())
-            + usize::from(args.kwarg.is_some());
+        let total_args = parameters.posonlyargs.len()
+            + parameters.args.len()
+            + parameters.kwonlyargs.len()
+            + usize::from(parameters.vararg.is_some())
+            + usize::from(parameters.kwarg.is_some());
 
         if total_args > self.max_args {
             return Some(vec![create_finding(
@@ -201,7 +199,7 @@ impl Rule for FunctionLengthRule {
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) => {
+            Stmt::FunctionDef(_) => {
                 let start_line = context.line_index.line_index(stmt.range().start());
                 let end_line = context.line_index.line_index(stmt.range().end());
                 let length = end_line - start_line + 1;
@@ -240,7 +238,6 @@ impl Rule for ComplexityRule {
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
             Stmt::FunctionDef(f) => self.check_complexity(&f.body, stmt, context),
-            Stmt::AsyncFunctionDef(f) => self.check_complexity(&f.body, stmt, context),
             _ => None,
         }
     }
@@ -279,11 +276,14 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
     let mut complexity = 0;
     for stmt in stmts {
         complexity += match stmt {
-            Stmt::If(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
-            Stmt::For(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
-            Stmt::AsyncFor(n) => {
-                1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse)
+            Stmt::If(n) => {
+                let mut sum = 1 + calculate_complexity(&n.body);
+                for clause in &n.elif_else_clauses {
+                    sum += calculate_complexity(&clause.body);
+                }
+                sum
             }
+            Stmt::For(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
             Stmt::While(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
             Stmt::Try(n) => {
                 n.handlers.len()
@@ -292,8 +292,7 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
                     + calculate_complexity(&n.finalbody)
             }
             Stmt::With(n) => calculate_complexity(&n.body),
-            Stmt::AsyncWith(n) => calculate_complexity(&n.body),
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => 0, // Don't recurse into nested functions/classes for this function's complexity
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => 0, // Don't recurse into nested functions/classes for this function's complexity
             _ => 0,
         };
     }
@@ -336,15 +335,12 @@ impl NestingRule {
     fn should_increase_depth(stmt: &Stmt) -> bool {
         match stmt {
             Stmt::FunctionDef(_)
-            | Stmt::AsyncFunctionDef(_)
             | Stmt::ClassDef(_)
             | Stmt::If(_)
             | Stmt::For(_)
-            | Stmt::AsyncFor(_)
             | Stmt::While(_)
             | Stmt::Try(_)
-            | Stmt::With(_)
-            | Stmt::AsyncWith(_) => true,
+            | Stmt::With(_) => true,
             _ => false,
         }
     }

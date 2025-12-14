@@ -29,7 +29,7 @@ pub fn analyze_function(
 
 /// Analyzes an async function.
 pub fn analyze_async_function(
-    func: &ast::StmtAsyncFunctionDef,
+    func: &ast::StmtFunctionDef,
     file_path: &Path,
     initial_taint: Option<TaintState>,
 ) -> Vec<TaintFinding> {
@@ -159,18 +159,28 @@ fn analyze_stmt(
 
             // Clone state for branch analysis
             let mut then_state = state.clone();
-            let mut else_state = state.clone();
 
             for s in &if_stmt.body {
                 analyze_stmt(s, &mut then_state, findings, file_path);
             }
-            for s in &if_stmt.orelse {
-                analyze_stmt(s, &mut else_state, findings, file_path);
+
+            // Handle elif/else clauses
+            // We need to merge states from all branches
+            let mut combined_state = then_state;
+
+            for clause in &if_stmt.elif_else_clauses {
+                let mut clause_state = state.clone();
+                if let Some(test) = &clause.test {
+                    check_expr_for_sinks(test, state, findings, file_path);
+                }
+                for s in &clause.body {
+                    analyze_stmt(s, &mut clause_state, findings, file_path);
+                }
+                combined_state.merge(&clause_state);
             }
 
-            // Merge states (conservative)
-            state.merge(&then_state);
-            state.merge(&else_state);
+            // Update main state
+            *state = combined_state;
         }
 
         // For loop
@@ -230,14 +240,14 @@ fn analyze_stmt(
 
         // Nested function - analyze separately
         Stmt::FunctionDef(nested_func) => {
-            let nested_findings = analyze_function(nested_func, file_path, Some(state.clone()));
-            findings.extend(nested_findings);
-        }
-
-        Stmt::AsyncFunctionDef(nested_func) => {
-            let nested_findings =
-                analyze_async_function(nested_func, file_path, Some(state.clone()));
-            findings.extend(nested_findings);
+            if nested_func.is_async {
+                let nested_findings =
+                    analyze_async_function(nested_func, file_path, Some(state.clone()));
+                findings.extend(nested_findings);
+            } else {
+                let nested_findings = analyze_function(nested_func, file_path, Some(state.clone()));
+                findings.extend(nested_findings);
+            }
         }
 
         _ => {}
@@ -257,7 +267,7 @@ fn check_expr_for_sinks(
             if let Some(sink_info) = check_sink(call) {
                 // Check if any dangerous argument is tainted
                 for arg_idx in &sink_info.dangerous_args {
-                    if let Some(arg) = call.args.get(*arg_idx) {
+                    if let Some(arg) = call.arguments.args.get(*arg_idx) {
                         if let Some(taint_info) = is_expr_tainted(arg, state) {
                             // Check for sanitization (e.g., parameterized queries)
                             if sink_info.vuln_type == super::types::VulnType::SqlInjection
@@ -279,7 +289,7 @@ fn check_expr_for_sinks(
             }
 
             // Recursively check arguments
-            for arg in &call.args {
+            for arg in &call.arguments.args {
                 check_expr_for_sinks(arg, state, findings, file_path);
             }
         }
@@ -289,7 +299,7 @@ fn check_expr_for_sinks(
             check_expr_for_sinks(&binop.right, state, findings, file_path);
         }
 
-        Expr::IfExp(ifexp) => {
+        Expr::If(ifexp) => {
             check_expr_for_sinks(&ifexp.test, state, findings, file_path);
             check_expr_for_sinks(&ifexp.body, state, findings, file_path);
             check_expr_for_sinks(&ifexp.orelse, state, findings, file_path);

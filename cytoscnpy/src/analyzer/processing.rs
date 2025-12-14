@@ -762,70 +762,70 @@ impl CytoScnPy {
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
 
-        match parse(&source, Mode::Module, &file_path.to_string_lossy()) {
-            Ok(ast) => {
-                if let rustpython_ast::Mod::Module(module) = &ast {
+        // Parse using ruff
+        match ruff_python_parser::parse_module(&source) {
+            Ok(parsed) => {
+                let module = parsed.into_syntax();
+                for stmt in &module.body {
+                    framework_visitor.visit_stmt(stmt);
+                    test_visitor.visit_stmt(stmt);
+                    visitor.visit_stmt(stmt);
+                }
+
+                if visitor.is_dynamic {
+                    for def in &mut visitor.definitions {
+                        def.references += 1;
+                    }
+                }
+
+                // Add framework-referenced functions/classes as used.
+                for fw_ref in &framework_visitor.framework_references {
+                    visitor.add_ref(fw_ref.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{fw_ref}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                // Mark names in __all__ as used (explicitly exported)
+                let exports = visitor.exports.clone();
+                for export_name in &exports {
+                    visitor.add_ref(export_name.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{export_name}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                // Run LinterVisitor with enabled rules.
+                let mut rules = Vec::new();
+                if self.enable_danger {
+                    rules.extend(crate::rules::danger::get_danger_rules());
+                }
+                if self.enable_quality {
+                    rules.extend(crate::rules::quality::get_quality_rules(&self.config));
+                }
+
+                if !rules.is_empty() {
+                    let mut linter = crate::linter::LinterVisitor::new(
+                        rules,
+                        file_path.clone(),
+                        line_index.clone(),
+                        self.config.clone(),
+                    );
                     for stmt in &module.body {
-                        framework_visitor.visit_stmt(stmt);
-                        test_visitor.visit_stmt(stmt);
-                        visitor.visit_stmt(stmt);
+                        linter.visit_stmt(stmt);
                     }
 
-                    if visitor.is_dynamic {
-                        for def in &mut visitor.definitions {
-                            def.references += 1;
-                        }
-                    }
-
-                    // Add framework-referenced functions/classes as used.
-                    for fw_ref in &framework_visitor.framework_references {
-                        visitor.add_ref(fw_ref.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{fw_ref}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    // Mark names in __all__ as used (explicitly exported)
-                    let exports = visitor.exports.clone();
-                    for export_name in &exports {
-                        visitor.add_ref(export_name.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{export_name}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    // Run LinterVisitor with enabled rules.
-                    let mut rules = Vec::new();
-                    if self.enable_danger {
-                        rules.extend(crate::rules::danger::get_danger_rules());
-                    }
-                    if self.enable_quality {
-                        rules.extend(crate::rules::quality::get_quality_rules(&self.config));
-                    }
-
-                    if !rules.is_empty() {
-                        let mut linter = crate::linter::LinterVisitor::new(
-                            rules,
-                            file_path.clone(),
-                            line_index.clone(),
-                            self.config.clone(),
-                        );
-                        for stmt in &module.body {
-                            linter.visit_stmt(stmt);
-                        }
-
-                        // Separate findings
-                        for finding in linter.findings {
-                            if finding.rule_id.starts_with("CSP-D") {
-                                danger.push(finding);
-                            } else if finding.rule_id.starts_with("CSP-Q")
-                                || finding.rule_id.starts_with("CSP-L")
-                                || finding.rule_id.starts_with("CSP-C")
-                            {
-                                quality.push(finding);
-                            }
+                    // Separate findings
+                    for finding in linter.findings {
+                        if finding.rule_id.starts_with("CSP-D") {
+                            danger.push(finding);
+                        } else if finding.rule_id.starts_with("CSP-Q")
+                            || finding.rule_id.starts_with("CSP-L")
+                            || finding.rule_id.starts_with("CSP-C")
+                        {
+                            quality.push(finding);
                         }
                     }
                 }

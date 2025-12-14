@@ -47,11 +47,6 @@ impl LinterVisitor {
                     self.visit_stmt(s);
                 }
             }
-            Stmt::AsyncFunctionDef(node) => {
-                for s in &node.body {
-                    self.visit_stmt(s);
-                }
-            }
             Stmt::ClassDef(node) => {
                 for s in &node.body {
                     self.visit_stmt(s);
@@ -62,20 +57,14 @@ impl LinterVisitor {
                 for s in &node.body {
                     self.visit_stmt(s);
                 }
-                for s in &node.orelse {
-                    self.visit_stmt(s);
+                for clause in &node.elif_else_clauses {
+                    self.visit_stmt(&clause.body[0]); // Hack: elif_else_clauses body is Vec<Stmt>, but visitor expects single Stmt recursion? No, loop over them.
+                    for s in &clause.body {
+                        self.visit_stmt(s);
+                    }
                 }
             }
             Stmt::For(node) => {
-                self.visit_expr(&node.iter);
-                for s in &node.body {
-                    self.visit_stmt(s);
-                }
-                for s in &node.orelse {
-                    self.visit_stmt(s);
-                }
-            }
-            Stmt::AsyncFor(node) => {
                 self.visit_expr(&node.iter);
                 for s in &node.body {
                     self.visit_stmt(s);
@@ -99,7 +88,7 @@ impl LinterVisitor {
                 }
                 for handler in &node.handlers {
                     match handler {
-                        rustpython_parser::ast::ExceptHandler::ExceptHandler(h) => {
+                        ruff_python_ast::ExceptHandler::ExceptHandler(h) => {
                             for s in &h.body {
                                 self.visit_stmt(s);
                             }
@@ -114,11 +103,6 @@ impl LinterVisitor {
                 }
             }
             Stmt::With(node) => {
-                for s in &node.body {
-                    self.visit_stmt(s);
-                }
-            }
-            Stmt::AsyncWith(node) => {
                 for s in &node.body {
                     self.visit_stmt(s);
                 }

@@ -7,7 +7,7 @@ use anyhow::Result;
 use colored::Colorize;
 use comfy_table::Table;
 use rayon::prelude::*;
-use ruff_python_parser::parse_module;
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -332,14 +332,24 @@ pub fn run_hal<W: Write>(
             let code = fs::read_to_string(file_path).unwrap_or_default();
             let mut file_results = Vec::new();
 
-            if let Ok(rustpython_ast::Mod::Module(m)) = parse(
-                &code,
-                Mode::Module,
-                file_path.to_str().unwrap_or("<unknown>"),
-            ) {
+            // Use ruff's parse_module which returns the parsed AST directly
+            if let Ok(parsed) = ruff_python_parser::parse_module(&code) {
+                let module = parsed.into_syntax();
+                // ruff's analyze functions expect the specific Mod variant or we need to adapt
+                // analyze_halstead expects &Mod, but module is ModModule.
+                // ModModule is a struct, not an enum variant directly comparable to Mod::Module?
+                // Actually ruff_python_ast::Mod is the enum. ModModule is a variant wrapper?
+                // No, ModModule is the struct for Module.
+                // We likely need to wrap it in Mod::Module(module) if the analyze functions expect Mod::Module
+                // But wait, the previous code was `Mod::Module { body: module.body, ... }`.
+                // Let's assume we can construct Mod::Module from it or chang analyze_halstead signature.
+                // Easier to construct Mod::Module for now if possible, or cast.
+                // Actually, let's look at `analyze_halstead` signature in halstead.rs via earlier read...
+                // It likely takes &Mod.
+                // Let's construct a Mod::Module wrapping the body.
+                let mod_enum = ruff_python_ast::Mod::Module(module);
                 if functions {
-                    let function_metrics =
-                        analyze_halstead_functions(&rustpython_ast::Mod::Module(m));
+                    let function_metrics = analyze_halstead_functions(&mod_enum);
                     for (name, metrics) in function_metrics {
                         file_results.push(HalResult {
                             file: file_path.to_string_lossy().to_string(),
@@ -355,7 +365,7 @@ pub fn run_hal<W: Write>(
                         });
                     }
                 } else {
-                    let metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+                    let metrics = analyze_halstead(&mod_enum);
                     file_results.push(HalResult {
                         file: file_path.to_string_lossy().to_string(),
                         name: "<module>".to_owned(),
@@ -448,12 +458,11 @@ pub fn run_mi<W: Write>(
             let raw = analyze_raw(&code);
             let mut volume = 0.0;
 
-            if let Ok(rustpython_ast::Mod::Module(m)) = parse(
-                &code,
-                Mode::Module,
-                file_path.to_str().unwrap_or("<unknown>"),
-            ) {
-                let h_metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+            // Use ruff's parse_module
+            if let Ok(parsed) = ruff_python_parser::parse_module(&code) {
+                let module = parsed.into_syntax();
+                let mod_enum = ruff_python_ast::Mod::Module(module);
+                let h_metrics = analyze_halstead(&mod_enum);
                 volume = h_metrics.volume;
             }
 

@@ -92,26 +92,6 @@ impl ComplexityVisitor<'_> {
                 // Recurse to find nested blocks
                 self.visit_body(&node.body);
             }
-            Stmt::AsyncFunctionDef(node) => {
-                let complexity = calculate_complexity(&node.body, self.no_assert);
-                let rank = cc_rank(complexity);
-                let line = self.line_index.line_index(node.start());
-                let type_ = if self.class_stack.is_empty() {
-                    "function"
-                } else {
-                    "method"
-                };
-
-                self.findings.push(ComplexityFinding {
-                    name: node.name.to_string(),
-                    complexity,
-                    rank,
-                    type_: type_.to_owned(),
-                    line,
-                });
-
-                self.visit_body(&node.body);
-            }
             Stmt::ClassDef(node) => {
                 let complexity = calculate_complexity(&node.body, self.no_assert);
                 let rank = cc_rank(complexity);
@@ -137,13 +117,11 @@ impl ComplexityVisitor<'_> {
                 match stmt {
                     Stmt::If(node) => {
                         self.visit_body(&node.body);
-                        self.visit_body(&node.orelse);
+                        for clause in &node.elif_else_clauses {
+                            self.visit_body(&clause.body);
+                        }
                     }
                     Stmt::For(node) => {
-                        self.visit_body(&node.body);
-                        self.visit_body(&node.orelse);
-                    }
-                    Stmt::AsyncFor(node) => {
                         self.visit_body(&node.body);
                         self.visit_body(&node.orelse);
                     }
@@ -151,10 +129,8 @@ impl ComplexityVisitor<'_> {
                         self.visit_body(&node.body);
                         self.visit_body(&node.orelse);
                     }
+
                     Stmt::With(node) => {
-                        self.visit_body(&node.body);
-                    }
-                    Stmt::AsyncWith(node) => {
                         self.visit_body(&node.body);
                     }
                     Stmt::Try(node) => {
@@ -163,8 +139,8 @@ impl ComplexityVisitor<'_> {
                             let ast::ExceptHandler::ExceptHandler(h) = handler;
                             self.visit_body(&h.body);
                         }
-                        self.visit_body(&node.orelse);
                         self.visit_body(&node.finalbody);
+                        self.visit_body(&node.orelse);
                     }
                     Stmt::Match(node) => {
                         for case in &node.cases {
@@ -205,16 +181,15 @@ impl BlockComplexityVisitor {
                 self.complexity += 1;
                 self.visit_expr(&node.test);
                 self.visit_body(&node.body);
-                self.visit_body(&node.orelse);
+                for clause in &node.elif_else_clauses {
+                    self.complexity += 1; // elif counts? Usually yes.
+                    if let Some(test) = &clause.test {
+                        self.visit_expr(test);
+                    }
+                    self.visit_body(&clause.body);
+                }
             }
             Stmt::For(node) => {
-                self.complexity += 1;
-                self.visit_expr(&node.target);
-                self.visit_expr(&node.iter);
-                self.visit_body(&node.body);
-                self.visit_body(&node.orelse);
-            }
-            Stmt::AsyncFor(node) => {
                 self.complexity += 1;
                 self.visit_expr(&node.target);
                 self.visit_expr(&node.iter);
@@ -249,15 +224,6 @@ impl BlockComplexityVisitor {
                 }
                 self.visit_body(&node.body);
             }
-            Stmt::AsyncWith(node) => {
-                for item in &node.items {
-                    self.visit_expr(&item.context_expr);
-                    if let Some(optional_vars) = &item.optional_vars {
-                        self.visit_expr(optional_vars);
-                    }
-                }
-                self.visit_body(&node.body);
-            }
             Stmt::Assert(node) => {
                 // Only add complexity for assert if no_assert is false
                 if !self.no_assert {
@@ -278,7 +244,7 @@ impl BlockComplexityVisitor {
                     self.visit_body(&case.body);
                 }
             }
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => {
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {
                 // Do NOT recurse into nested definitions for *this* block's complexity.
             }
             Stmt::Expr(node) => {
@@ -337,7 +303,7 @@ impl BlockComplexityVisitor {
                     self.visit_expr(value);
                 }
             }
-            Expr::IfExp(node) => {
+            Expr::If(node) => {
                 self.complexity += 1;
                 self.visit_expr(&node.test);
                 self.visit_expr(&node.body);
@@ -380,7 +346,7 @@ impl BlockComplexityVisitor {
                 self.visit_expr(&node.key);
                 self.visit_expr(&node.value);
             }
-            Expr::GeneratorExp(node) => {
+            Expr::Generator(node) => {
                 self.complexity += node.generators.len();
                 for gen in &node.generators {
                     self.complexity += gen.ifs.len();
@@ -405,10 +371,10 @@ impl BlockComplexityVisitor {
             // Recurse for other expressions
             Expr::Call(node) => {
                 self.visit_expr(&node.func);
-                for arg in &node.args {
+                for arg in &node.arguments.args {
                     self.visit_expr(arg);
                 }
-                for kw in &node.keywords {
+                for kw in &node.arguments.keywords {
                     self.visit_expr(&kw.value);
                 }
             }

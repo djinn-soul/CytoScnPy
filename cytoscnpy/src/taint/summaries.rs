@@ -66,16 +66,16 @@ impl SummaryDatabase {
 
 /// Computes the summary for a function.
 fn compute_summary(func: &ast::StmtFunctionDef, file_path: &Path) -> FunctionSummary {
-    let param_count = func.args.args.len();
+    let param_count = func.parameters.args.len();
     let mut summary = FunctionSummary::new(&func.name, param_count);
 
     // Create initial taint state with parameters marked as tainted
     let mut param_taint_states: Vec<TaintState> = Vec::new();
     let mut param_indices: Vec<usize> = Vec::new(); // Track original param indices
 
-    for (i, arg) in func.args.args.iter().enumerate() {
+    for (i, arg) in func.parameters.args.iter().enumerate() {
         let mut state = TaintState::new();
-        let param_name = arg.def.arg.to_string();
+        let param_name = arg.parameter.name.to_string();
 
         // Skip self/cls
         if param_name == "self" || param_name == "cls" {

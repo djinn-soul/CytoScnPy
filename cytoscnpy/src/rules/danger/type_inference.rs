@@ -1,5 +1,5 @@
 use crate::rules::{Context, Finding, Rule};
-use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
 use std::collections::HashMap;
 
@@ -192,16 +192,16 @@ impl Rule for MethodMisuseRule {
 
     fn enter_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
         match stmt {
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => {
-                self.scope_stack.push(Scope::new());
-            }
-            Stmt::Assign(node) => {
-                // Infer type from value
-                if let Some(inferred_type) = self.infer_type(&node.value) {
-                    for target in &node.targets {
-                        if let Expr::Name(name_node) = target {
-                            self.add_variable(name_node.id.to_string(), inferred_type.clone());
-                        }
+            Stmt::FunctionDef(node) => {
+                self.scope_stack.push(Scope::new()); // Ensure we push scope!
+                                                     // Track function definitions to handle return types
+                                                     // We'll reset current_function when exiting (via stack or similar if full traversal)
+                                                     // For now, simpler approach:
+                if let Some(returns) = &node.returns {
+                    if let Expr::Name(name) = &**returns {
+                        // e.g. def foo() -> str:
+                        // Map "foo" to "str"
+                        self.add_variable(node.name.to_string(), name.id.to_string());
                     }
                 }
             }
@@ -209,7 +209,11 @@ impl Rule for MethodMisuseRule {
                 if let Some(value) = &node.value {
                     if let Some(inferred_type) = self.infer_type(value) {
                         if let Expr::Name(name_node) = &*node.target {
-                            self.add_variable(name_node.id.to_string(), inferred_type);
+                            if let Some(scope) = self.scope_stack.last_mut() {
+                                scope
+                                    .variables
+                                    .insert(name_node.id.to_string(), inferred_type);
+                            }
                         }
                     }
                 }
@@ -221,7 +225,7 @@ impl Rule for MethodMisuseRule {
 
     fn leave_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
         match stmt {
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => {
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {
                 self.scope_stack.pop();
             }
             _ => {}

@@ -65,21 +65,15 @@ impl CrossFileAnalyzer {
         }
 
         // Parse and analyze
-        let findings = match rustpython_parser::parse(
-            source,
-            rustpython_parser::Mode::Module,
-            file_path.to_string_lossy().as_ref(),
-        ) {
-            Ok(ast) => {
-                if let rustpython_ast::Mod::Module(module) = ast {
-                    // Extract imports first
-                    self.extract_imports(file_path, &module.body);
+        // Parse and analyze
+        let findings = match ruff_python_parser::parse_module(source) {
+            Ok(parsed) => {
+                let module = parsed.into_syntax();
+                // Extract imports first
+                self.extract_imports(file_path, &module.body);
 
-                    // Perform interprocedural analysis
-                    interprocedural::analyze_module(&module.body, file_path)
-                } else {
-                    Vec::new()
-                }
+                // Perform interprocedural analysis
+                interprocedural::analyze_module(&module.body, file_path)
             }
             Err(_) => Vec::new(),
         };
@@ -92,7 +86,7 @@ impl CrossFileAnalyzer {
     }
 
     /// Extracts import statements and registers them.
-    fn extract_imports(&mut self, file_path: &PathBuf, stmts: &[rustpython_parser::ast::Stmt]) {
+    fn extract_imports(&mut self, file_path: &PathBuf, stmts: &[ruff_python_ast::Stmt]) {
         let module_name = file_path
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
@@ -100,12 +94,13 @@ impl CrossFileAnalyzer {
 
         for stmt in stmts {
             match stmt {
-                rustpython_parser::ast::Stmt::Import(import) => {
+                ruff_python_ast::Stmt::Import(import) => {
                     for alias in &import.names {
                         let actual_name = alias.name.to_string();
                         let imported_as = alias
                             .asname
-                            .as_ref().map_or_else(|| actual_name.clone(), std::string::ToString::to_string);
+                            .as_ref()
+                            .map_or_else(|| actual_name.clone(), |id| id.as_str().to_string());
 
                         self.register_import(
                             &module_name,
@@ -115,13 +110,14 @@ impl CrossFileAnalyzer {
                         );
                     }
                 }
-                rustpython_parser::ast::Stmt::ImportFrom(import) => {
+                ruff_python_ast::Stmt::ImportFrom(import) => {
                     if let Some(module) = &import.module {
                         for alias in &import.names {
                             let actual_name = alias.name.to_string();
                             let imported_as = alias
                                 .asname
-                                .as_ref().map_or_else(|| actual_name.clone(), std::string::ToString::to_string);
+                                .as_ref()
+                                .map_or_else(|| actual_name.clone(), |id| id.as_str().to_string());
 
                             self.register_import(
                                 &module_name,

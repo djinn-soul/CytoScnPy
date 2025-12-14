@@ -147,7 +147,7 @@ impl Rule for YamlRule {
             if let Some(name) = get_call_name(&call.func) {
                 if name == "yaml.load" {
                     let mut is_safe = false;
-                    for keyword in &call.keywords {
+                    for keyword in &call.arguments.keywords {
                         if let Some(arg) = &keyword.arg {
                             if arg == "Loader" {
                                 if let Expr::Name(n) = &keyword.value {
@@ -221,7 +221,7 @@ impl Rule for RequestsRule {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if name.starts_with("requests.") {
-                    for keyword in &call.keywords {
+                    for keyword in &call.arguments.keywords {
                         if let Some(arg) = &keyword.arg {
                             if arg == "verify" {
                                 if let Expr::BooleanLiteral(b) = &keyword.value {
@@ -256,7 +256,7 @@ impl Rule for SubprocessRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if name == "os.system" && !is_literal(&call.args) {
+                if name == "os.system" && !is_literal(&call.arguments.args) {
                     return Some(vec![create_finding(
                         "Potential command injection (os.system with dynamic arg)",
                         self.code(),
@@ -269,7 +269,7 @@ impl Rule for SubprocessRule {
                     let mut is_shell_true = false;
                     let mut args_keyword_expr: Option<&Expr> = None;
 
-                    for keyword in &call.keywords {
+                    for keyword in &call.arguments.keywords {
                         if let Some(arg) = &keyword.arg {
                             match arg.as_str() {
                                 "shell" => {
@@ -289,7 +289,7 @@ impl Rule for SubprocessRule {
 
                     if is_shell_true {
                         // Check positional args
-                        if !call.args.is_empty() && !is_literal(&call.args) {
+                        if !call.arguments.args.is_empty() && !is_literal(&call.arguments.args) {
                             return Some(vec![create_finding(
                                 SUBPROCESS_INJECTION_MSG,
                                 self.code(),
@@ -331,8 +331,8 @@ impl Rule for SqlInjectionRule {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if name.ends_with(".execute") || name.ends_with(".executemany") {
-                    if let Some(arg) = call.args.first() {
-                        if let Expr::JoinedStr(_) = arg {
+                    if let Some(arg) = call.arguments.args.first() {
+                        if let Expr::FString(_) = arg {
                             return Some(vec![create_finding(
                                 "Potential SQL injection (f-string in execute)",
                                 self.code(),
@@ -372,7 +372,7 @@ impl Rule for PathTraversalRule {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if (name == "open" || name.starts_with("os.path.") || name.starts_with("shutil."))
-                    && !is_literal(&call.args)
+                    && !is_literal(&call.arguments.args)
                 {
                     // This is a heuristic, assuming non-literal args might be tainted.
                     // Real taint analysis is needed for high confidence.
@@ -407,7 +407,7 @@ impl Rule for SSRFRule {
                 if (name.starts_with("requests.")
                     || name.starts_with("httpx.")
                     || name == "urllib.request.urlopen")
-                    && !is_literal(&call.args)
+                    && !is_literal(&call.arguments.args)
                 {
                     return Some(vec![create_finding(
                         "Potential SSRF (dynamic URL)",
@@ -437,7 +437,7 @@ impl Rule for SqlInjectionRawRule {
                 if (name == "sqlalchemy.text"
                     || name == "pandas.read_sql"
                     || name.ends_with(".objects.raw"))
-                    && !is_literal(&call.args)
+                    && !is_literal(&call.arguments.args)
                 {
                     return Some(vec![create_finding(
                         "Potential SQL injection (dynamic raw SQL)",
@@ -465,7 +465,7 @@ impl Rule for XSSRule {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if (name == "flask.render_template_string" || name == "jinja2.Markup")
-                    && !is_literal(&call.args)
+                    && !is_literal(&call.arguments.args)
                 {
                     return Some(vec![create_finding(
                         "Potential XSS (dynamic template/markup)",
@@ -624,7 +624,7 @@ impl Rule for TarfileExtractionRule {
                 let looks_like_tar = is_likely_tarfile_receiver(receiver);
 
                 // Find 'filter' keyword argument
-                let filter_kw = call.keywords.iter().find_map(|kw| {
+                let filter_kw = call.arguments.keywords.iter().find_map(|kw| {
                     if kw.arg.as_ref().is_some_and(|a| a == "filter") {
                         Some(&kw.value)
                     } else {

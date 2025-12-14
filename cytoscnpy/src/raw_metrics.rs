@@ -1,5 +1,7 @@
 use crate::utils::LineIndex;
-use ruff_python_parser::{lexer::lex, Mode, Tok};
+use ruff_python_ast::visitor::{self, Visitor};
+use ruff_python_ast::Expr;
+use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -19,6 +21,34 @@ pub struct RawMetrics {
     pub blank: usize,
     /// Number of single-line comments.
     pub single_comments: usize,
+}
+
+struct StringCollector {
+    ranges: Vec<(usize, usize)>,
+}
+
+impl<'a> Visitor<'a> for StringCollector {
+    fn visit_expr(&mut self, expr: &'a Expr) {
+        match expr {
+            Expr::StringLiteral(s) => {
+                let range = s.range();
+                self.ranges
+                    .push((range.start().to_usize(), range.end().to_usize()));
+            }
+            Expr::BytesLiteral(b) => {
+                let range = b.range();
+                self.ranges
+                    .push((range.start().to_usize(), range.end().to_usize()));
+            }
+            Expr::FString(f) => {
+                let range = f.range();
+                self.ranges
+                    .push((range.start().to_usize(), range.end().to_usize()));
+            }
+            _ => {}
+        }
+        visitor::walk_expr(self, expr);
+    }
 }
 
 /// Analyzes raw metrics (LOC, SLOC, etc.) from source code.
@@ -41,32 +71,32 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
         }
     }
 
-    // 2. Scan tokens to find Strings (Multi-line) and mask them to find Comments
-    let tokens = lex(code, Mode::Module);
-    let line_index = LineIndex::new(code);
+    // 2. Scan AST to find Strings (Multi-line) and mask them to find Comments
     let mut string_ranges = Vec::new();
+    if let Ok(parsed) = parse_module(code) {
+        let module = parsed.into_syntax();
+        let mut collector = StringCollector { ranges: Vec::new() };
+        for stmt in &module.body {
+            collector.visit_stmt(stmt);
+        }
+        string_ranges = collector.ranges;
+    }
 
-    for (token, range) in tokens {
-        if matches!(
-            token,
-            Tok::String { .. }
-                | Tok::FStringStart { .. }
-                | Tok::FStringMiddle { .. }
-                | Tok::FStringEnd
-        ) {
-            let start_row = line_index.line_index(range.start());
-            let end_row = line_index.line_index(range.end());
+    let line_index = LineIndex::new(code);
 
-            let start_offset = range.start().to_usize();
-            let end_offset = range.end().to_usize();
-            string_ranges.push((start_offset, end_offset));
+    for (start_offset, end_offset) in &string_ranges {
+        let start_row = line_index.line_index(ruff_text_size::TextSize::new(
+            u32::try_from(*start_offset).unwrap_or(0),
+        ));
+        let end_row = line_index.line_index(ruff_text_size::TextSize::new(
+            u32::try_from(*end_offset).unwrap_or(0),
+        ));
 
-            if end_row > start_row {
-                // Multi-line string
-                for r in start_row..=end_row {
-                    if r <= metrics.loc && line_types[r] != LineType::Blank {
-                        line_types[r] = LineType::Multi;
-                    }
+        if end_row > start_row {
+            // Multi-line string
+            for r in start_row..=end_row {
+                if r <= metrics.loc && line_types[r] != LineType::Blank {
+                    line_types[r] = LineType::Multi;
                 }
             }
         }

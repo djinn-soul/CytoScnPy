@@ -14,10 +14,6 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./cytoscnpy
-
     steps:
       - uses: actions/checkout@v4
 
@@ -36,24 +32,30 @@ jobs:
           workspaces: "cytoscnpy -> target"
           cache-on-failure: true
 
-      - name: Build
+      - name: Build cytoscnpy
         run: cargo build --verbose
+        working-directory: ./cytoscnpy
         env:
           PYO3_PYTHON: python3
 
-      - name: Run tests
+      - name: Run cytoscnpy tests
         run: cargo test --verbose
+        working-directory: ./cytoscnpy
         env:
           PYO3_PYTHON: python3
+
+      - name: Build cytoscnpy-mcp
+        run: cargo build --verbose
+        working-directory: ./cytoscnpy-mcp
+
+      - name: Run cytoscnpy-mcp tests
+        run: cargo test --verbose
+        working-directory: ./cytoscnpy-mcp
 
       - name: Install Python dependencies
-        run: |
-          cd ..
-          pip install -e ".[dev]"
+        run: pip install -e ".[dev]"
         env:
           PYO3_PYTHON: python3
 
       - name: Run Python CLI tests
-        run: |
-          cd ..
-          pytest python/tests/ -v
+        run: pytest python/tests/ -v

@@ -6,13 +6,16 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::commands::{run_cc, run_mi};
 use rmcp::{
-    model::{ServerCapabilities, ServerInfo},
-    schemars, tool, ServerHandler,
+    handler::server::tool::ToolRouter,
+    handler::server::wrapper::Parameters,
+    model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
+    tool, tool_router, ErrorData as McpError, ServerHandler,
 };
+use schemars::JsonSchema;
 use std::path::PathBuf;
 
 /// Request parameters for analyze_path tool.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize, JsonSchema)]
 pub struct AnalyzePathRequest {
     /// Path to the Python file or directory to analyze.
     #[schemars(description = "Path to the Python file or directory to analyze")]
@@ -40,7 +43,7 @@ fn default_true() -> bool {
 }
 
 /// Request parameters for analyze_code tool.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize, JsonSchema)]
 pub struct AnalyzeCodeRequest {
     /// The Python code to analyze.
     #[schemars(description = "The Python code to analyze")]
@@ -56,7 +59,7 @@ fn default_filename() -> String {
 }
 
 /// Request parameters for metrics tools.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize, JsonSchema)]
 pub struct MetricsRequest {
     /// Path to the Python file or directory to analyze.
     #[schemars(description = "Path to the Python file or directory to analyze")]
@@ -65,13 +68,18 @@ pub struct MetricsRequest {
 
 /// The main MCP server struct for CytoScnPy.
 #[derive(Debug, Clone)]
-pub struct CytoScnPyServer;
+pub struct CytoScnPyServer {
+    #[allow(dead_code)]
+    tool_router: ToolRouter<Self>,
+}
 
 impl CytoScnPyServer {
     /// Creates a new CytoScnPy MCP server instance.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
+    pub fn new() -> Self {
+        Self {
+            tool_router: Self::tool_router(),
+        }
     }
 }
 
@@ -81,29 +89,42 @@ impl Default for CytoScnPyServer {
     }
 }
 
-#[tool(tool_box)]
+#[tool_router]
 impl CytoScnPyServer {
     /// Analyze Python code at the specified path for unused code, secrets, and quality issues.
     #[tool(
         description = "Analyze Python code at a path for unused code, secrets, dangerous patterns, and quality issues. Returns JSON with findings."
     )]
-    pub fn analyze_path(&self, #[tool(aggr)] params: AnalyzePathRequest) -> String {
-        let path = PathBuf::from(&params.path);
+    pub fn analyze_path(
+        &self,
+        params: Parameters<AnalyzePathRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let req = params.0;
+        let path_buf = PathBuf::from(&req.path);
 
-        if !path.exists() {
-            return format!(r#"{{"error": "Path does not exist: {}"}}"#, params.path);
+        if !path_buf.exists() {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Path does not exist: {}",
+                req.path
+            ))]));
         }
 
         let mut analyzer = CytoScnPy::default()
-            .with_secrets(params.scan_secrets)
-            .with_danger(params.scan_danger)
-            .with_quality(params.check_quality)
-            .with_taint(params.taint_analysis);
+            .with_secrets(req.scan_secrets)
+            .with_danger(req.scan_danger)
+            .with_quality(req.check_quality)
+            .with_taint(req.taint_analysis);
 
-        match analyzer.analyze(path.as_path()) {
-            Ok(result) => serde_json::to_string_pretty(&result)
-                .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {}"}}"#, e)),
-            Err(e) => format!(r#"{{"error": "Analysis error: {}"}}"#, e),
+        match analyzer.analyze(path_buf.as_path()) {
+            Ok(result) => {
+                let json = serde_json::to_string_pretty(&result)
+                    .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {}"}}"#, e));
+                Ok(CallToolResult::success(vec![Content::text(json)]))
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Analysis error: {}",
+                e
+            ))])),
         }
     }
 
@@ -111,32 +132,44 @@ impl CytoScnPyServer {
     #[tool(
         description = "Analyze a Python code snippet directly for unused code, secrets, and issues. Useful for code not saved to disk."
     )]
-    pub fn analyze_code(&self, #[tool(aggr)] params: AnalyzeCodeRequest) -> String {
+    pub fn analyze_code(
+        &self,
+        params: Parameters<AnalyzeCodeRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let req = params.0;
         let analyzer = CytoScnPy::default()
             .with_secrets(true)
             .with_danger(true)
             .with_quality(true);
 
-        let result = analyzer.analyze_code(&params.code, PathBuf::from(&params.filename));
+        let result = analyzer.analyze_code(&req.code, PathBuf::from(&req.filename));
 
-        serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {}"}}"#, e))
+        let json = serde_json::to_string_pretty(&result)
+            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {}"}}"#, e));
+        Ok(CallToolResult::success(vec![Content::text(json)]))
     }
 
     /// Calculate cyclomatic complexity for Python code.
     #[tool(
         description = "Calculate cyclomatic complexity for Python code. Returns complexity scores with A-F ranking for each function."
     )]
-    fn cyclomatic_complexity(&self, #[tool(aggr)] params: MetricsRequest) -> String {
-        let path = PathBuf::from(&params.path);
+    fn cyclomatic_complexity(
+        &self,
+        params: Parameters<MetricsRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let req = params.0;
+        let path_buf = PathBuf::from(&req.path);
 
-        if !path.exists() {
-            return format!(r#"{{"error": "Path does not exist: {}"}}"#, params.path);
+        if !path_buf.exists() {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Path does not exist: {}",
+                req.path
+            ))]));
         }
 
         let mut output = Vec::new();
         match run_cc(
-            path,
+            path_buf,
             true, // JSON output
             vec![],
             vec![],
@@ -152,9 +185,15 @@ impl CytoScnPyServer {
             None,
             &mut output,
         ) {
-            Ok(()) => String::from_utf8(output)
-                .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {}"}}"#, e)),
-            Err(e) => format!(r#"{{"error": "Analysis error: {}"}}"#, e),
+            Ok(()) => {
+                let text = String::from_utf8(output)
+                    .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {}"}}"#, e));
+                Ok(CallToolResult::success(vec![Content::text(text)]))
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Analysis error: {}",
+                e
+            ))])),
         }
     }
 
@@ -162,16 +201,23 @@ impl CytoScnPyServer {
     #[tool(
         description = "Calculate Maintainability Index (0-100) for Python code. Higher scores indicate better maintainability."
     )]
-    fn maintainability_index(&self, #[tool(aggr)] params: MetricsRequest) -> String {
-        let path = PathBuf::from(&params.path);
+    fn maintainability_index(
+        &self,
+        params: Parameters<MetricsRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let req = params.0;
+        let path_buf = PathBuf::from(&req.path);
 
-        if !path.exists() {
-            return format!(r#"{{"error": "Path does not exist: {}"}}"#, params.path);
+        if !path_buf.exists() {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Path does not exist: {}",
+                req.path
+            ))]));
         }
 
         let mut output = Vec::new();
         match run_mi(
-            path,
+            path_buf,
             true, // JSON output
             vec![],
             vec![],
@@ -184,14 +230,20 @@ impl CytoScnPyServer {
             None,
             &mut output,
         ) {
-            Ok(()) => String::from_utf8(output)
-                .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {}"}}"#, e)),
-            Err(e) => format!(r#"{{"error": "Analysis error: {}"}}"#, e),
+            Ok(()) => {
+                let text = String::from_utf8(output)
+                    .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {}"}}"#, e));
+                Ok(CallToolResult::success(vec![Content::text(text)]))
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Analysis error: {}",
+                e
+            ))])),
         }
     }
 }
 
-#[tool(tool_box)]
+#[rmcp::tool_handler]
 impl ServerHandler for CytoScnPyServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {

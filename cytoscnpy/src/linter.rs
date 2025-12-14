@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::rules::{Context, Finding, Rule};
 use crate::utils::LineIndex;
-use rustpython_parser::ast::{Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use std::path::PathBuf;
 
 /// Visitor for traversing the AST and applying linter rules.

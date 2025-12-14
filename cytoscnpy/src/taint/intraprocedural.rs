@@ -6,7 +6,8 @@ use super::propagation::{is_expr_tainted, is_parameterized_query, is_sanitizer_c
 use super::sinks::{check_sink, SinkInfo};
 use super::sources::check_taint_source;
 use super::types::{TaintFinding, TaintInfo};
-use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 use std::path::Path;
 
 /// Performs intraprocedural taint analysis on a function.

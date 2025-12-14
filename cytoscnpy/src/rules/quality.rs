@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::rules::{Context, Finding, Rule};
-use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 
 /// Returns a list of all quality rules based on configuration.
 pub fn get_quality_rules(config: &Config) -> Vec<Box<dyn Rule>> {
@@ -38,7 +39,7 @@ impl Rule for MutableDefaultArgumentRule {
 
         let mut findings = Vec::new();
 
-        let check_arg = |arg: &ast::ArgWithDefault, findings: &mut Vec<Finding>| {
+        let check_arg = |arg: &ast::ParameterWithDefault, findings: &mut Vec<Finding>| {
             if let Some(default) = &arg.default {
                 if is_mutable(default) {
                     findings.push(create_finding(
@@ -123,16 +124,17 @@ impl Rule for DangerousComparisonRule {
             for (i, comparator) in comp.comparators.iter().enumerate() {
                 let op = &comp.ops[i];
                 if matches!(op, ast::CmpOp::Eq | ast::CmpOp::NotEq) {
-                    if let Expr::Constant(c) = comparator {
-                        if matches!(c.value, ast::Constant::Bool(_) | ast::Constant::None) {
-                            return Some(vec![create_finding(
-                                "Dangerous comparison to True/False/None (use 'is' or 'is not')",
-                                self.code(),
-                                context,
-                                comparator.range().start(),
-                                "LOW",
-                            )]);
-                        }
+                    // Check for BooleanLiteral or NoneLiteral
+                    let is_dangerous =
+                        matches!(comparator, Expr::BooleanLiteral(_) | Expr::NoneLiteral(_));
+                    if is_dangerous {
+                        return Some(vec![create_finding(
+                            "Dangerous comparison to True/False/None (use 'is' or 'is not')",
+                            self.code(),
+                            context,
+                            comparator.range().start(),
+                            "LOW",
+                        )]);
                     }
                 }
             }
@@ -314,7 +316,7 @@ impl NestingRule {
     fn check_depth(
         &self,
         context: &Context,
-        location: rustpython_parser::text_size::TextSize,
+        location: ruff_text_size::TextSize,
     ) -> Option<Finding> {
         if self.current_depth > self.max_depth {
             let line = context.line_index.line_index(location);
@@ -368,10 +370,9 @@ impl Rule for NestingRule {
     }
 
     fn leave_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
-        if Self::should_increase_depth(stmt)
-            && self.current_depth > 0 {
-                self.current_depth -= 1;
-            }
+        if Self::should_increase_depth(stmt) && self.current_depth > 0 {
+            self.current_depth -= 1;
+        }
         None
     }
 }
@@ -380,7 +381,7 @@ fn create_finding(
     msg: &str,
     rule_id: &str,
     context: &Context,
-    location: rustpython_parser::text_size::TextSize,
+    location: ruff_text_size::TextSize,
     severity: &str,
 ) -> Finding {
     let line = context.line_index.line_index(location);

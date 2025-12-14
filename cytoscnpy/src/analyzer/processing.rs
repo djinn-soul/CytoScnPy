@@ -16,8 +16,8 @@ use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
 use anyhow::Result;
 use rayon::prelude::*;
+use ruff_python_parser::parse_module;
 use rustc_hash::FxHashMap;
-use rustpython_parser::{parse, Mode};
 use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
@@ -243,78 +243,76 @@ impl CytoScnPy {
             );
         }
 
-        match parse(&source, Mode::Module, file_path.to_str().unwrap_or("")) {
-            Ok(ast) => {
-                if let rustpython_ast::Mod::Module(module) = &ast {
-                    let entry_point_calls =
-                        crate::entry_point::detect_entry_point_calls(&module.body);
+        match parse_module(&source) {
+            Ok(parsed) => {
+                let module = parsed.into_syntax();
+                let entry_point_calls = crate::entry_point::detect_entry_point_calls(&module.body);
 
+                for stmt in &module.body {
+                    framework_visitor.visit_stmt(stmt);
+                    test_visitor.visit_stmt(stmt);
+                    visitor.visit_stmt(stmt);
+                }
+
+                for call_name in &entry_point_calls {
+                    visitor.add_ref(call_name.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{call_name}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                if visitor.is_dynamic {
+                    for def in &mut visitor.definitions {
+                        def.references += 1;
+                    }
+                }
+
+                for fw_ref in &framework_visitor.framework_references {
+                    visitor.add_ref(fw_ref.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{fw_ref}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                // Mark names in __all__ as used (explicitly exported)
+                let exports = visitor.exports.clone();
+                for export_name in &exports {
+                    visitor.add_ref(export_name.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{export_name}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                let mut rules = Vec::new();
+                if self.enable_danger {
+                    rules.extend(crate::rules::danger::get_danger_rules());
+                }
+                if self.enable_quality {
+                    rules.extend(crate::rules::quality::get_quality_rules(&self.config));
+                }
+
+                if !rules.is_empty() {
+                    let mut linter = crate::linter::LinterVisitor::new(
+                        rules,
+                        file_path.to_path_buf(),
+                        line_index.clone(),
+                        self.config.clone(),
+                    );
                     for stmt in &module.body {
-                        framework_visitor.visit_stmt(stmt);
-                        test_visitor.visit_stmt(stmt);
-                        visitor.visit_stmt(stmt);
+                        linter.visit_stmt(stmt);
                     }
 
-                    for call_name in &entry_point_calls {
-                        visitor.add_ref(call_name.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{call_name}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    if visitor.is_dynamic {
-                        for def in &mut visitor.definitions {
-                            def.references += 1;
-                        }
-                    }
-
-                    for fw_ref in &framework_visitor.framework_references {
-                        visitor.add_ref(fw_ref.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{fw_ref}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    // Mark names in __all__ as used (explicitly exported)
-                    let exports = visitor.exports.clone();
-                    for export_name in &exports {
-                        visitor.add_ref(export_name.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{export_name}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    let mut rules = Vec::new();
-                    if self.enable_danger {
-                        rules.extend(crate::rules::danger::get_danger_rules());
-                    }
-                    if self.enable_quality {
-                        rules.extend(crate::rules::quality::get_quality_rules(&self.config));
-                    }
-
-                    if !rules.is_empty() {
-                        let mut linter = crate::linter::LinterVisitor::new(
-                            rules,
-                            file_path.to_path_buf(),
-                            line_index.clone(),
-                            self.config.clone(),
-                        );
-                        for stmt in &module.body {
-                            linter.visit_stmt(stmt);
-                        }
-
-                        for finding in linter.findings {
-                            if finding.rule_id.starts_with("CSP-D") {
-                                danger.push(finding);
-                            } else if finding.rule_id.starts_with("CSP-Q")
-                                || finding.rule_id.starts_with("CSP-L")
-                                || finding.rule_id.starts_with("CSP-C")
-                            {
-                                quality.push(finding);
-                            }
+                    for finding in linter.findings {
+                        if finding.rule_id.starts_with("CSP-D") {
+                            danger.push(finding);
+                        } else if finding.rule_id.starts_with("CSP-Q")
+                            || finding.rule_id.starts_with("CSP-L")
+                            || finding.rule_id.starts_with("CSP-C")
+                        {
+                            quality.push(finding);
                         }
                     }
                 }
@@ -322,12 +320,8 @@ impl CytoScnPy {
                 // Calculate metrics if quality is enabled
                 if self.enable_quality {
                     let raw = analyze_raw(&source);
-                    let mut volume = 0.0;
-                    // AST already available if we are here (inside Ok(ast))
-                    if let rustpython_ast::Mod::Module(m) = &ast {
-                        let h_metrics = analyze_halstead(&rustpython_ast::Mod::Module(m.clone()));
-                        volume = h_metrics.volume;
-                    }
+                    let h_metrics = analyze_halstead(&ruff_python_ast::Mod::Module(module.clone()));
+                    let volume = h_metrics.volume;
                     let complexity =
                         crate::complexity::calculate_module_complexity(&source).unwrap_or(1);
 

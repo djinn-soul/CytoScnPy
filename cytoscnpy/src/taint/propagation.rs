@@ -3,7 +3,7 @@
 //! Defines how taint flows through expressions and statements.
 
 use super::types::TaintInfo;
-use rustpython_parser::ast::{self, Expr};
+use ruff_python_ast::{self as ast, Expr};
 use std::collections::HashMap;
 
 /// Taint state for tracking tainted variables.

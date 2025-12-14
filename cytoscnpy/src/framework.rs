@@ -1,6 +1,6 @@
 use crate::utils::LineIndex;
+use ruff_python_ast::{Expr, Stmt};
 use rustc_hash::FxHashSet;
-use rustpython_ast::{Expr, Stmt};
 use std::sync::OnceLock;
 
 /// Framework-specific decorator patterns that indicate implicit usage.

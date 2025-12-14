@@ -3,7 +3,8 @@
 //! Identifies where untrusted user input enters the program.
 
 use super::types::{TaintInfo, TaintSource};
-use rustpython_parser::ast::{self, Expr, Ranged};
+use ruff_python_ast::{self as ast, Expr};
+use ruff_text_size::Ranged;
 
 /// Checks if an expression is a taint source and returns the taint info.
 pub fn check_taint_source(expr: &Expr) -> Option<TaintInfo> {

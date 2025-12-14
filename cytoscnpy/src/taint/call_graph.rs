@@ -2,8 +2,9 @@
 //!
 //! Builds a call graph for interprocedural analysis.
 
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 use rustc_hash::FxHashSet;
-use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
 use std::collections::HashMap;
 
 /// A node in the call graph.

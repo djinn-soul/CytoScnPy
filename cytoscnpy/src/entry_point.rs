@@ -1,8 +1,8 @@
 use crate::cli::{Cli, Commands};
 use anyhow::Result;
 use clap::Parser;
+use ruff_python_ast::{Expr, Stmt};
 use rustc_hash::FxHashSet;
-use rustpython_ast::{Constant, Expr, Stmt};
 /// Detects if `__name__ == "__main__"` blocks exist and extracts function calls from them.
 ///
 /// This is crucial for correctly identifying entry points in Python scripts.
@@ -64,10 +64,8 @@ fn is_name_dunder(expr: &Expr) -> bool {
 ///
 /// This is a helper for `is_main_guard`.
 fn is_main_string(expr: &Expr) -> bool {
-    if let Expr::Constant(const_expr) = expr {
-        if let Constant::Str(s) = &const_expr.value {
-            return s.as_str() == "__main__";
-        }
+    if let Expr::StringLiteral(string_lit) = expr {
+        return string_lit.value.to_string() == "__main__";
     }
     false
 }
@@ -163,7 +161,7 @@ fn get_call_name(expr: &Expr) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustpython_parser::{parse, Mode};
+    use ruff_python_parser::parse_module;
 
     #[test]
     fn test_entry_point_detection() {
@@ -176,16 +174,15 @@ if __name__ == "__main__":
     another_call()
 "#;
 
-        let tree = parse(source, Mode::Module, "test.py").expect("Failed to parse");
-        if let rustpython_ast::Mod::Module(module) = tree {
-            let calls = detect_entry_point_calls(&module.body);
+        let parsed = parse_module(source).expect("Failed to parse");
+        let module = parsed.into_syntax();
+        let calls = detect_entry_point_calls(&module.body);
 
-            assert!(
-                calls.contains("my_function"),
-                "Should detect my_function call"
-            );
-            assert!(calls.contains("another_call"), "Should detect another_call");
-        }
+        assert!(
+            calls.contains("my_function"),
+            "Should detect my_function call"
+        );
+        assert!(calls.contains("another_call"), "Should detect another_call");
     }
 
     #[test]
@@ -195,11 +192,10 @@ def my_function():
     pass
 "#;
 
-        let tree = parse(source, Mode::Module, "test.py").expect("Failed to parse");
-        if let rustpython_ast::Mod::Module(module) = tree {
-            let calls = detect_entry_point_calls(&module.body);
-            assert_eq!(calls.len(), 0, "Should detect no entry point calls");
-        }
+        let parsed = parse_module(source).expect("Failed to parse");
+        let module = parsed.into_syntax();
+        let calls = detect_entry_point_calls(&module.body);
+        assert_eq!(calls.len(), 0, "Should detect no entry point calls");
     }
 
     #[test]
@@ -212,11 +208,10 @@ if "__main__" == __name__:
     func()
 "#;
 
-        let tree = parse(source, Mode::Module, "test.py").expect("Failed to parse");
-        if let rustpython_ast::Mod::Module(module) = tree {
-            let calls = detect_entry_point_calls(&module.body);
-            assert!(calls.contains("func"), "Should handle reversed comparison");
-        }
+        let parsed = parse_module(source).expect("Failed to parse");
+        let module = parsed.into_syntax();
+        let calls = detect_entry_point_calls(&module.body);
+        assert!(calls.contains("func"), "Should handle reversed comparison");
     }
 }
 

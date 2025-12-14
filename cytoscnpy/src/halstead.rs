@@ -624,14 +624,10 @@ impl HalsteadVisitor {
             }
             Expr::FString(node) => {
                 for part in &node.value {
-                    match part {
-                        ast::FStringPart::Literal(s) => {
-                            self.add_operand(&s.to_string());
-                        }
-                        _ => {} // ast::FStringPart::Interpolated(expr) => {
-                                //    self.visit_expr(&expr.expression);
-                                // }
+                    if let ast::FStringPart::Literal(s) = part {
+                        self.add_operand(s);
                     }
+                    // Note: FStringPart::FString is not handled intentionally
                 }
             }
             Expr::StringLiteral(node) => {

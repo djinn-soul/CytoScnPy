@@ -114,10 +114,10 @@ class MyClass:  # pragma: no cytoscnpy
 
     #[test]
     fn test_no_pragmas() {
-        let source = r#"
+        let source = r"
 def regular_function():
     return 42
-"#;
+";
         let ignored = get_ignored_lines(source);
         assert_eq!(ignored.len(), 0, "Should find no pragma lines");
     }

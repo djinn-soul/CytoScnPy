@@ -14,7 +14,7 @@ fn test_cli_raw() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         Vec::new(),
@@ -40,7 +40,7 @@ fn test_cli_cc() {
 
     let mut buffer = Vec::new();
     run_cc(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         Vec::new(),
@@ -74,7 +74,7 @@ fn test_cli_hal() {
 
     let mut buffer = Vec::new();
     run_hal(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         Vec::new(),
@@ -103,7 +103,7 @@ fn test_cli_mi() {
 
     let mut buffer = Vec::new();
     run_mi(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         Vec::new(),
@@ -133,7 +133,7 @@ fn test_cli_json_output() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path().to_path_buf(),
+        dir.path(),
         true,
         vec![],
         Vec::new(),
@@ -148,5 +148,3 @@ fn test_cli_json_output() {
     assert!(output.contains("\"loc\":"));
     assert!(output.contains('2'));
 }
-
-

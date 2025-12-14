@@ -100,7 +100,7 @@ impl CrossFileAnalyzer {
                         let imported_as = alias
                             .asname
                             .as_ref()
-                            .map_or_else(|| actual_name.clone(), |id| id.as_str().to_string());
+                            .map_or_else(|| actual_name.clone(), |id| id.as_str().to_owned());
 
                         self.register_import(
                             &module_name,
@@ -117,7 +117,7 @@ impl CrossFileAnalyzer {
                             let imported_as = alias
                                 .asname
                                 .as_ref()
-                                .map_or_else(|| actual_name.clone(), |id| id.as_str().to_string());
+                                .map_or_else(|| actual_name.clone(), |id| id.as_str().to_owned());
 
                             self.register_import(
                                 &module_name,

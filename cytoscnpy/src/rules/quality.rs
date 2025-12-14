@@ -198,23 +198,20 @@ impl Rule for FunctionLengthRule {
         "CSP-C304"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        match stmt {
-            Stmt::FunctionDef(_) => {
-                let start_line = context.line_index.line_index(stmt.range().start());
-                let end_line = context.line_index.line_index(stmt.range().end());
-                let length = end_line - start_line + 1;
+        if let Stmt::FunctionDef(_) = stmt {
+            let start_line = context.line_index.line_index(stmt.range().start());
+            let end_line = context.line_index.line_index(stmt.range().end());
+            let length = end_line - start_line + 1;
 
-                if length > self.max_lines {
-                    return Some(vec![create_finding(
-                        &format!("Function too long ({} > {} lines)", length, self.max_lines),
-                        self.code(),
-                        context,
-                        stmt.range().start(),
-                        "LOW",
-                    )]);
-                }
+            if length > self.max_lines {
+                return Some(vec![create_finding(
+                    &format!("Function too long ({} > {} lines)", length, self.max_lines),
+                    self.code(),
+                    context,
+                    stmt.range().start(),
+                    "LOW",
+                )]);
             }
-            _ => {}
         }
         None
     }

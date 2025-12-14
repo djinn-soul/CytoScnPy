@@ -17,7 +17,7 @@ def func():
     let test_file_path = PathBuf::from("test.py");
 
     // Analyze the code
-    let report = cytoscnpy.analyze_code(code, test_file_path);
+    let report = cytoscnpy.analyze_code(code, &test_file_path);
 
     // Verify that unused imports are detected
     // If the bug (self-reference) was present, these would be 0 and the test would fail.
@@ -31,5 +31,3 @@ def func():
     let found_math = report.unused_imports.iter().any(|i| i.name == "math");
     assert!(found_math, "Should detect 'math' as unused import");
 }
-
-

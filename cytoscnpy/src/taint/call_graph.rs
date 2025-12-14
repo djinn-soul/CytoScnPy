@@ -49,7 +49,7 @@ impl CallGraph {
         match stmt {
             Stmt::FunctionDef(func) => {
                 let func_name = self.get_qualified_name(&func.name);
-                let params = self.extract_params(&func.parameters);
+                let params = Self::extract_params(&func.parameters);
 
                 let node = CallGraphNode {
                     name: func_name.clone(),
@@ -162,7 +162,7 @@ impl CallGraph {
     fn visit_expr_for_calls(&mut self, expr: &Expr, caller: &str) {
         match expr {
             Expr::Call(call) => {
-                if let Some(callee) = self.get_call_name(&call.func) {
+                if let Some(callee) = Self::get_call_name(&call.func) {
                     // Add edge caller -> callee
                     if let Some(caller_node) = self.nodes.get_mut(caller) {
                         caller_node.calls.insert(callee.clone());
@@ -215,7 +215,7 @@ impl CallGraph {
     }
 
     /// Extracts parameter names from function arguments.
-    fn extract_params(&self, args: &ast::Parameters) -> Vec<String> {
+    fn extract_params(args: &ast::Parameters) -> Vec<String> {
         let mut params = Vec::new();
 
         for arg in &args.posonlyargs {
@@ -241,7 +241,7 @@ impl CallGraph {
     }
 
     /// Gets the call name from an expression.
-    fn get_call_name(&self, func: &Expr) -> Option<String> {
+    fn get_call_name(func: &Expr) -> Option<String> {
         match func {
             Expr::Name(node) => Some(node.id.to_string()),
             Expr::Attribute(node) => {

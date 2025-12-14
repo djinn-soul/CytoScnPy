@@ -598,7 +598,7 @@ mod tests {
         let mut config = SecretsConfig::default();
         config.patterns.push(CustomSecretPattern {
             name: "Internal Token".to_string(),
-            regex: r#"INTERNAL_[A-Z0-9]{16}"#.to_string(),
+            regex: r"INTERNAL_[A-Z0-9]{16}".to_string(),
             severity: "HIGH".to_string(),
             rule_id: Some("CUSTOM-001".to_string()),
         });
@@ -614,7 +614,7 @@ mod tests {
         let mut config = SecretsConfig::default();
         config.patterns.push(CustomSecretPattern {
             name: "My Secret".to_string(),
-            regex: r#"MYSECRET_[a-z]{10}"#.to_string(),
+            regex: r"MYSECRET_[a-z]{10}".to_string(),
             severity: "MEDIUM".to_string(),
             rule_id: None,
         });
@@ -701,12 +701,12 @@ def main():
 
     #[test]
     fn test_env_file_format() {
-        let content = r#"
+        let content = r"
 # .env file
 DATABASE_URL=postgres://admin:supersecret123@db.example.com:5432/production
 API_KEY=sk_live_abcdefghijklmnopqrstuvwx
 DEBUG=true
-"#;
+";
         let findings = scan_secrets_compat(content, &PathBuf::from(".env"));
         assert!(!findings.is_empty(), "Should detect secrets in .env format");
     }

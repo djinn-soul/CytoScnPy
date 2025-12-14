@@ -51,7 +51,7 @@ def complex_part(x):
     // Run without multi flag
     let mut buffer_no_multi = Vec::new();
     run_mi(
-        file_path.clone(),
+        &file_path,
         true, // json output to parse easily
         vec![],
         vec![],
@@ -73,7 +73,7 @@ def complex_part(x):
     // Run with multi flag
     let mut buffer_multi = Vec::new();
     run_mi(
-        file_path.clone(),
+        &file_path,
         true, // json output
         vec![],
         vec![],
@@ -101,5 +101,3 @@ def complex_part(x):
         "MI should increase when multi-line strings are counted as comments"
     );
 }
-
-

@@ -10,7 +10,7 @@ fn analyze_code(code: &str) -> Vec<cytoscnpy::rules::Finding> {
         .with_quality(false)
         .with_secrets(false);
 
-    let result = analyzer.analyze_code(code, PathBuf::from("test.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("test.py"));
     result.danger
 }
 
@@ -100,5 +100,3 @@ d.add(1) # Error
         assert_eq!(finding.rule_id, "CSP-D301");
     }
 }
-
-

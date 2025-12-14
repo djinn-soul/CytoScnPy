@@ -35,7 +35,7 @@ def helper(h: Helper):
 "#;
 
     // Analyze the code
-    let report = cytoscnpy.analyze_code(code, test_file_path);
+    let report = cytoscnpy.analyze_code(code, &test_file_path);
 
     // Check results
     // 1. "unused_module" SHOULD be reported as unused (it's in TYPE_CHECKING but not used)
@@ -83,5 +83,3 @@ def helper(h: Helper):
         "Should NOT report 'Helper' as unused (used in normal annotation)"
     );
 }
-
-

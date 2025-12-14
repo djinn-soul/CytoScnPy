@@ -157,6 +157,7 @@ fn analyze_async_with_context(
 }
 
 /// Analyzes a statement with interprocedural context.
+#[allow(clippy::only_used_in_recursion)]
 fn analyze_stmt_with_context(
     stmt: &Stmt,
     state: &mut TaintState,

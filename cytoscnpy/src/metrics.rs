@@ -37,7 +37,7 @@ pub fn mi_compute(volume: f64, complexity: usize, sloc: usize, comments: usize) 
     }
 
     // Clamp to 0-100
-    mi.max(0.0).min(100.0)
+    mi.clamp(0.0, 100.0)
 }
 
 /// Ranks the Maintainability Index.

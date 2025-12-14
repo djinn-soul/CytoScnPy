@@ -61,16 +61,19 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
         }
 
         // F-string: tainted if any value is tainted
-        // F-string: tainted if any value is tainted
         Expr::FString(fstring) => {
-            for _part in &fstring.value {
-                /*
-                if let ruff_python_ast::FStringPart::Expression(expr_part) = part {
-                    if let Some(info) = is_expr_tainted(&expr_part.expression, state) {
-                        return Some(info);
+            for part in &fstring.value {
+                if let ruff_python_ast::FStringPart::FString(f) = part {
+                    for element in &f.elements {
+                        if let ruff_python_ast::InterpolatedStringElement::Interpolation(interp) =
+                            element
+                        {
+                            if let Some(info) = is_expr_tainted(&interp.expression, state) {
+                                return Some(info);
+                            }
+                        }
                     }
                 }
-                */
             }
             None
         }

@@ -1289,7 +1289,6 @@ impl<'a> CytoScnPyVisitor<'a> {
                                 }
                             }
                         }
-                        _ => {}
                     }
                 }
             }

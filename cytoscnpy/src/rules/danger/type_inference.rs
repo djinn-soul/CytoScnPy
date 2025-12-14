@@ -218,6 +218,22 @@ impl Rule for MethodMisuseRule {
                     }
                 }
             }
+            // Handle regular assignments like `s = "hello"`
+            Stmt::Assign(node) => {
+                if let Some(value) = Some(&node.value) {
+                    if let Some(inferred_type) = self.infer_type(value) {
+                        for target in &node.targets {
+                            if let Expr::Name(name_node) = target {
+                                if let Some(scope) = self.scope_stack.last_mut() {
+                                    scope
+                                        .variables
+                                        .insert(name_node.id.to_string(), inferred_type.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         None

@@ -5,6 +5,9 @@ on:
     branches: ["main"]
     paths:
       - "cytoscnpy/**"
+      - "cytoscnpy-mcp/**"
+      - "cytoscnpy-cli/**"
+      - ".github/workflows/rust-ci.yml"
   workflow_dispatch:
 
 env:

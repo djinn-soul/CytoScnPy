@@ -12,6 +12,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  PYO3_PYTHON: python3
 
 jobs:
   test:
@@ -41,14 +42,10 @@ jobs:
       - name: Build cytoscnpy
         run: cargo build --verbose
         working-directory: ./cytoscnpy
-        env:
-          PYO3_PYTHON: python3
 
       - name: Run cytoscnpy tests
         run: cargo test --verbose
         working-directory: ./cytoscnpy
-        env:
-          PYO3_PYTHON: python3
 
       - name: Build cytoscnpy-mcp
         run: cargo build --verbose
@@ -60,8 +57,6 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install -e ".[dev]"
-        env:
-          PYO3_PYTHON: python3
 
       - name: Run Python CLI tests
         run: pytest python/tests/ -v

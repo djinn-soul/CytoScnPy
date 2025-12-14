@@ -67,6 +67,38 @@ This comprehensive document details the complete development roadmap for CytoScn
 - Progress spinner and file statistics
 - Taint analysis (`--taint` flag)
 
+**Parser Backend:**
+
+- **ruff_python_parser** - Migrated from deprecated `rustpython-parser` to `ruff_python_parser`
+  - Improved performance and Python 3.12+ syntax support
+  - Active maintenance from the Ruff project
+  - Better error messages and edge case handling
+
+---
+
+### Recent Changes
+
+#### Parser Migration: rustpython-parser → ruff_python_parser ✅
+
+Completed full migration from the deprecated `rustpython-parser` to `ruff_python_parser`:
+
+**Key Changes:**
+
+- Updated `Cargo.toml` with ruff git dependencies (`ruff_python_parser`, `ruff_python_ast`, `ruff_text_size`, `ruff_source_file`)
+- Merged async variants (`AsyncFunctionDef` → `FunctionDef.is_async`)
+- Updated parameter access (`args` → `parameters`)
+- Fixed f-string handling with new `InterpolatedStringElement` structure
+- Updated complexity calculations for `elif_else_clauses` vs `orelse`
+- Added `Stmt::Assign` handling to type inference rule
+- All 200+ tests pass
+
+**Benefits:**
+
+- Improved Python 3.12+ match statement support
+- Better performance from optimized Ruff parser
+- Avoids deprecated `rustpython-parser` with known `unic` vulnerability
+- Active maintenance and community support
+
 ---
 
 ## Phase 1: Critical Fixes ✅ DONE
@@ -470,7 +502,7 @@ _Alignment with Rust CLI capabilities and compatibility fixes._
 
 ---
 
-### 7.3 Parser Migration: `rustpython-parser` → `ruff_python_parser` 🔄 PENDING
+### 7.3 Parser Migration: `rustpython-parser` → `ruff_python_parser`
 
 > [!CAUTION] > **`rustpython-parser` is deprecated!** The RustPython maintainers are archiving the repository and have declared it unmaintained. It also has a RustSec advisory for the unmaintained `unic` dependency.
 
@@ -509,13 +541,13 @@ ruff_source_file = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffe
 
 **Migration Checklist:**
 
-- [ ] Update `Cargo.toml` with ruff git dependencies
-- [ ] Update `src/visitor.rs` AST imports and visitor trait
-- [ ] Update `src/complexity.rs` for new AST types
-- [ ] Update `src/halstead.rs` for new AST types
-- [ ] Update all rule files in `src/rules/`
-- [ ] Update taint analysis in `src/taint/`
-- [ ] Run full test suite
+- [x] Update `Cargo.toml` with ruff git dependencies
+- [x] Update `src/visitor.rs` AST imports and visitor trait
+- [x] Update `src/complexity.rs` for new AST types
+- [x] Update `src/halstead.rs` for new AST types
+- [x] Update all rule files in `src/rules/`
+- [x] Update taint analysis in `src/taint/`
+- [x] Run full test suite
 - [ ] Update benchmark baselines
 
 **Reference:** See [RustPython/Cargo.toml](https://github.com/RustPython/RustPython/blob/main/Cargo.toml) for working example.

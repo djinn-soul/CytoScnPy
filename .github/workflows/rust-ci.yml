@@ -40,11 +40,11 @@ jobs:
           cache-on-failure: true
 
       - name: Build cytoscnpy
-        run: cargo build --verbose
+        run: cargo build --verbose --features python-bindings
         working-directory: ./cytoscnpy
 
       - name: Run cytoscnpy tests
-        run: cargo test --verbose
+        run: cargo test --verbose --features python-bindings
         working-directory: ./cytoscnpy
 
       - name: Build cytoscnpy-mcp

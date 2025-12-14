@@ -62,15 +62,18 @@ pub mod taint;
 
 /// Python bindings module (PyO3 integration).
 /// Contains the implementation of Python-callable functions.
+#[cfg(feature = "python-bindings")]
 mod python_bindings;
 
 // Re-export the Python module at the crate root (required by PyO3)
+#[cfg(feature = "python-bindings")]
 use pyo3::prelude::*;
 
 /// Python module definition for `cytoscnpy`.
 ///
 /// This is the entry point for Python imports. The actual implementation
 /// is in the `python_bindings` module for better organization.
+#[cfg(feature = "python-bindings")]
 #[pymodule]
 fn cytoscnpy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     python_bindings::register_functions(m)

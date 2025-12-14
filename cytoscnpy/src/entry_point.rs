@@ -189,10 +189,10 @@ if __name__ == "__main__":
 
     #[test]
     fn test_no_entry_point() {
-        let source = r#"
+        let source = r"
 def my_function():
     pass
-"#;
+";
 
         let parsed = parse_module(source).expect("Failed to parse");
         let module = parsed.into_syntax();
@@ -240,7 +240,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_raw(
-                    path,
+                    &path,
                     json,
                     exclude,
                     Vec::new(),
@@ -263,7 +263,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_cc(
-                    path,
+                    &path,
                     json,
                     exclude,
                     Vec::new(),
@@ -294,7 +294,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_hal(
-                    path,
+                    &path,
                     json,
                     exclude,
                     Vec::new(),
@@ -317,7 +317,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_mi(
-                    path,
+                    &path,
                     json,
                     exclude,
                     Vec::new(),

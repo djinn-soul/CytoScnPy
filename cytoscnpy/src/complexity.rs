@@ -183,9 +183,9 @@ impl BlockComplexityVisitor {
                 self.visit_body(&node.body);
                 for clause in &node.elif_else_clauses {
                     // Only elif adds complexity, else doesn't
-                    if clause.test.is_some() {
+                    if let Some(test) = &clause.test {
                         self.complexity += 1;
-                        self.visit_expr(clause.test.as_ref().unwrap());
+                        self.visit_expr(test);
                     }
                     self.visit_body(&clause.body);
                 }

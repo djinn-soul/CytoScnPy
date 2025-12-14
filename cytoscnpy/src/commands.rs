@@ -9,6 +9,7 @@ use comfy_table::Table;
 use rayon::prelude::*;
 
 use serde::{Deserialize, Serialize};
+use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -27,7 +28,7 @@ struct RawResult {
 
 /// Executes the raw metrics analysis (LOC, SLOC, etc.).
 pub fn run_raw<W: Write>(
-    path: PathBuf,
+    path: &Path,
     json: bool,
     exclude: Vec<String>,
     ignore: Vec<String>,
@@ -37,7 +38,7 @@ pub fn run_raw<W: Write>(
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+    let files = find_python_files(path, &all_exclude);
 
     let results: Vec<RawResult> = files
         .par_iter()
@@ -153,7 +154,7 @@ struct CcResult {
 
 /// Executes the cyclomatic complexity analysis.
 pub fn run_cc<W: Write>(
-    path: PathBuf,
+    path: &Path,
     json: bool,
     exclude: Vec<String>,
     ignore: Vec<String>,
@@ -171,7 +172,7 @@ pub fn run_cc<W: Write>(
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+    let files = find_python_files(path, &all_exclude);
 
     let mut results: Vec<CcResult> = files
         .par_iter()
@@ -256,10 +257,11 @@ pub fn run_cc<W: Write>(
         // Simple XML output
         let mut xml_out = String::from("<cc_metrics>\n");
         for r in results {
-            xml_out.push_str(&format!(
+            let _ = write!(
+                xml_out,
                 "  <block>\n    <file>{}</file>\n    <name>{}</name>\n    <complexity>{}</complexity>\n    <rank>{}</rank>\n  </block>\n",
                 r.file, r.name, r.complexity, r.rank
-            ));
+            );
         }
         xml_out.push_str("</cc_metrics>");
         write_output(&mut writer, &xml_out, output_file)?;
@@ -273,10 +275,8 @@ pub fn run_cc<W: Write>(
 
         for r in results {
             let rank_colored = match r.rank {
-                'A' => r.rank.to_string().green(),
-                'B' => r.rank.to_string().green(),
-                'C' => r.rank.to_string().yellow(),
-                'D' => r.rank.to_string().yellow(),
+                'A' | 'B' => r.rank.to_string().green(),
+                'C' | 'D' => r.rank.to_string().yellow(),
                 'E' => r.rank.to_string().red(),
                 'F' => r.rank.to_string().red().bold(),
                 _ => r.rank.to_string().normal(),
@@ -314,7 +314,7 @@ struct HalResult {
 
 /// Executes the Halstead metrics analysis.
 pub fn run_hal<W: Write>(
-    path: PathBuf,
+    path: &Path,
     json: bool,
     exclude: Vec<String>,
     ignore: Vec<String>,
@@ -324,7 +324,7 @@ pub fn run_hal<W: Write>(
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+    let files = find_python_files(path, &all_exclude);
 
     let results: Vec<HalResult> = files
         .par_iter()
@@ -433,7 +433,7 @@ struct MiResult {
 
 /// Executes the Maintainability Index (MI) analysis.
 pub fn run_mi<W: Write>(
-    path: PathBuf,
+    path: &Path,
     json: bool,
     exclude: Vec<String>,
     ignore: Vec<String>,
@@ -448,7 +448,7 @@ pub fn run_mi<W: Write>(
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+    let files = find_python_files(path, &all_exclude);
 
     let mut results: Vec<MiResult> = files
         .par_iter()

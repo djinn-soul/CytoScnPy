@@ -12,7 +12,7 @@ fn analyze_code(code: &str, config: Config) -> cytoscnpy::analyzer::AnalysisResu
         .with_quality(true)
         .with_tests(false)
         .with_config(config);
-    analyzer.analyze_code(code, PathBuf::from("test.py"))
+    analyzer.analyze_code(code, &PathBuf::from("test.py"))
 }
 
 #[test]
@@ -168,5 +168,3 @@ def complex_function(x, y):
         "Message should contain complexity score"
     );
 }
-
-

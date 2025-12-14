@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Serialize Arc<PathBuf> as a plain PathBuf for JSON output
+/// Serialize Arc<PathBuf> as a plain `PathBuf` for JSON output
 fn serialize_arc_path<S>(path: &Arc<PathBuf>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -16,7 +16,7 @@ where
     path.as_ref().serialize(serializer)
 }
 
-/// Deserialize a plain PathBuf into Arc<PathBuf>
+/// Deserialize a plain `PathBuf` into Arc<PathBuf>
 fn deserialize_arc_path<'de, D>(deserializer: D) -> Result<Arc<PathBuf>, D::Error>
 where
     D: Deserializer<'de>,
@@ -24,7 +24,7 @@ where
     PathBuf::deserialize(deserializer).map(Arc::new)
 }
 
-/// Serialize SmallVec<[String; 2]> as a plain Vec<String> for JSON output
+/// Serialize `SmallVec`<[String; 2]> as a plain Vec<String> for JSON output
 fn serialize_smallvec_string<S>(
     vec: &SmallVec<[String; 2]>,
     serializer: S,
@@ -35,7 +35,7 @@ where
     vec.as_slice().serialize(serializer)
 }
 
-/// Deserialize a plain Vec<String> into SmallVec<[String; 2]>
+/// Deserialize a plain Vec<String> into `SmallVec`<[String; 2]>
 fn deserialize_smallvec_string<'de, D>(deserializer: D) -> Result<SmallVec<[String; 2]>, D::Error>
 where
     D: Deserializer<'de>,
@@ -597,7 +597,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for keyword in node.keywords() {
                     self.visit_expr(&keyword.value);
                     // Check if this is a metaclass keyword (use as_str() directly)
-                    if keyword.arg.as_ref().map(|id| id.as_str()) == Some("metaclass") {
+                    if keyword.arg.as_ref().map(ruff_python_ast::Identifier::as_str) == Some("metaclass") {
                         has_metaclass = true;
                     }
                     // Also add direct reference for simple name metaclasses
@@ -1160,30 +1160,27 @@ impl<'a> CytoScnPyVisitor<'a> {
                     for ch in s.chars() {
                         if ch.is_alphanumeric() || ch == '_' {
                             current_word.push(ch);
-                        } else {
-                            if !current_word.is_empty() {
-                                // Check if it looks like a type name (starts with uppercase)
-                                if current_word
-                                    .chars()
-                                    .next()
-                                    .map_or(false, |c| c.is_uppercase())
-                                {
-                                    self.add_ref(current_word.clone());
-                                }
-                                current_word.clear();
+                        } else if !current_word.is_empty() {
+                            // Check if it looks like a type name (starts with uppercase)
+                            if current_word
+                                .chars()
+                                .next()
+                                .is_some_and(char::is_uppercase)
+                            {
+                                self.add_ref(current_word.clone());
                             }
+                            current_word.clear();
                         }
                     }
                     // Don't forget the last word
-                    if !current_word.is_empty() {
-                        if current_word
+                    if !current_word.is_empty()
+                        && current_word
                             .chars()
                             .next()
-                            .map_or(false, |c| c.is_uppercase())
+                            .is_some_and(char::is_uppercase)
                         {
                             self.add_ref(current_word);
                         }
-                    }
                 }
             }
 

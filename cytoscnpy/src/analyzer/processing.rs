@@ -736,7 +736,7 @@ impl CytoScnPy {
     }
 
     /// Analyzes a single string of code (mostly for testing).
-    pub fn analyze_code(&self, code: &str, file_path: std::path::PathBuf) -> AnalysisResult {
+    pub fn analyze_code(&self, code: &str, file_path: &Path) -> AnalysisResult {
         let source = code.to_owned();
         let line_index = LineIndex::new(&source);
         let ignored_lines = crate::utils::get_ignored_lines(&source);
@@ -749,15 +749,19 @@ impl CytoScnPy {
             .to_string();
 
         let mut visitor =
-            CytoScnPyVisitor::new(file_path.clone(), module_name.clone(), &line_index);
+            CytoScnPyVisitor::new(file_path.to_path_buf(), module_name.clone(), &line_index);
         let mut framework_visitor = FrameworkAwareVisitor::new(&line_index);
-        let mut test_visitor = TestAwareVisitor::new(file_path.as_path(), &line_index);
+        let mut test_visitor = TestAwareVisitor::new(file_path, &line_index);
 
         let mut secrets = Vec::new();
         let mut danger = Vec::new();
 
         if self.enable_secrets {
-            secrets = scan_secrets(&source, &file_path, &self.config.cytoscnpy.secrets_config);
+            secrets = scan_secrets(
+                &source,
+                &file_path.to_path_buf(),
+                &self.config.cytoscnpy.secrets_config,
+            );
         }
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
@@ -809,7 +813,7 @@ impl CytoScnPy {
                 if !rules.is_empty() {
                     let mut linter = crate::linter::LinterVisitor::new(
                         rules,
-                        file_path.clone(),
+                        file_path.to_path_buf(),
                         line_index.clone(),
                         self.config.clone(),
                     );
@@ -832,7 +836,7 @@ impl CytoScnPy {
             }
             Err(e) => {
                 parse_errors.push(ParseError {
-                    file: file_path.clone(),
+                    file: file_path.to_path_buf(),
                     error: format!("{e}"),
                 });
             }

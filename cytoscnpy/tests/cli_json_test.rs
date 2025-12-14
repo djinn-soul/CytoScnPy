@@ -22,7 +22,7 @@ fn test_raw_json_output_structure() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path().to_path_buf(),
+        dir.path(),
         true, // json=true
         vec![],
         Vec::new(),
@@ -64,7 +64,7 @@ fn test_cc_json_output_structure() {
 
     let mut buffer = Vec::new();
     run_cc(
-        dir.path().to_path_buf(),
+        dir.path(),
         true, // json=true
         vec![],
         Vec::new(),
@@ -111,7 +111,7 @@ fn test_mi_json_output_structure() {
 
     let mut buffer = Vec::new();
     run_mi(
-        dir.path().to_path_buf(),
+        dir.path(),
         true, // json=true
         vec![],
         Vec::new(),
@@ -149,7 +149,7 @@ fn test_hal_json_output_structure() {
 
     let mut buffer = Vec::new();
     run_hal(
-        dir.path().to_path_buf(),
+        dir.path(),
         true, // json=true
         vec![],
         Vec::new(),
@@ -201,7 +201,7 @@ fn test_json_empty_directory() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path().to_path_buf(),
+        dir.path(),
         true,
         vec![],
         Vec::new(),
@@ -232,7 +232,7 @@ fn test_json_numeric_values_are_numbers() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path().to_path_buf(),
+        dir.path(),
         true,
         vec![],
         Vec::new(),
@@ -262,7 +262,7 @@ fn test_cc_json_complexity_value_types() {
 
     let mut buffer = Vec::new();
     run_cc(
-        dir.path().to_path_buf(),
+        dir.path(),
         true,
         vec![],
         Vec::new(),
@@ -292,5 +292,3 @@ fn test_cc_json_complexity_value_types() {
     assert!(first["line"].is_number(), "'line' should be a number");
     assert!(first["rank"].is_string(), "'rank' should be a string");
 }
-
-

@@ -62,7 +62,7 @@ def unused_variable_in_match(item):
 "#;
 
     let analyzer = CytoScnPy::default().with_confidence(100).with_tests(false);
-    let report = analyzer.analyze_code(code, PathBuf::from("match_example.py"));
+    let report = analyzer.analyze_code(code, &PathBuf::from("match_example.py"));
 
     // Check that we found no errors for valid usages
     let unused_vars: Vec<_> = report
@@ -120,5 +120,3 @@ def unused_variable_in_match(item):
         "Should detect unused variable 'unused_y' in match pattern"
     );
 }
-
-

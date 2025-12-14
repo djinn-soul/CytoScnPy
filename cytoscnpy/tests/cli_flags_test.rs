@@ -18,7 +18,7 @@ fn test_cc_min_max() {
     let mut buffer = Vec::new();
     // Min rank B should exclude foo
     run_cc(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         vec![],
@@ -42,7 +42,7 @@ fn test_cc_min_max() {
     let mut buffer = Vec::new();
     // Max rank A should exclude bar
     run_cc(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         vec![],
@@ -73,7 +73,7 @@ fn test_cc_average() {
 
     let mut buffer = Vec::new();
     run_cc(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         vec![],
@@ -103,7 +103,7 @@ fn test_mi_show() {
 
     let mut buffer = Vec::new();
     run_mi(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         vec![],
@@ -130,16 +130,7 @@ fn test_hal_functions() {
 
     let mut buffer = Vec::new();
     // With functions=true
-    run_hal(
-        dir.path().to_path_buf(),
-        false,
-        vec![],
-        vec![],
-        true,
-        None,
-        &mut buffer,
-    )
-    .unwrap();
+    run_hal(dir.path(), false, vec![], vec![], true, None, &mut buffer).unwrap();
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains("foo")); // Function name should be present
 }
@@ -155,19 +146,8 @@ fn test_raw_summary() {
     writeln!(file2, "y = 2").unwrap();
 
     let mut buffer = Vec::new();
-    run_raw(
-        dir.path().to_path_buf(),
-        false,
-        vec![],
-        vec![],
-        true,
-        None,
-        &mut buffer,
-    )
-    .unwrap();
+    run_raw(dir.path(), false, vec![], vec![], true, None, &mut buffer).unwrap();
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains("Files"));
     assert!(output.contains('2')); // Total files
 }
-
-

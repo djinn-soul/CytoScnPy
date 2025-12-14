@@ -196,12 +196,9 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 for stmt in &node.body {
                     // If it's a framework class, mark its methods.
                     if is_framework_class {
-                        match stmt {
-                            Stmt::FunctionDef(f) => {
-                                let line = self.line_index.line_index(f.range.start());
-                                self.framework_decorated_lines.insert(line);
-                            }
-                            _ => {}
+                        if let Stmt::FunctionDef(f) = stmt {
+                            let line = self.line_index.line_index(f.range.start());
+                            self.framework_decorated_lines.insert(line);
                         }
                     }
                     // If it's a Pydantic model, mark annotated fields as used
@@ -417,7 +414,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     fn check_decorators(&mut self, decorators: &[ruff_python_ast::Decorator], line: usize) {
         for decorator in decorators {
             let name = self.get_decorator_name(&decorator.expression);
-            if self.is_framework_decorator(&name) {
+            if Self::is_framework_decorator(&name) {
                 // If a framework decorator is found, mark the line and the file.
                 self.framework_decorated_lines.insert(line);
                 self.is_framework_file = true;
@@ -426,6 +423,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     }
 
     /// Extracts the name of a decorator.
+    #[allow(clippy::only_used_in_recursion)]
     fn get_decorator_name(&self, decorator: &Expr) -> String {
         match decorator {
             Expr::Name(node) => node.id.to_string(),
@@ -442,7 +440,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     }
 
     /// Determines if a decorator name is likely framework-related.
-    fn is_framework_decorator(&self, name: &str) -> bool {
+    fn is_framework_decorator(name: &str) -> bool {
         let name = name.to_lowercase();
         // Common patterns in Flask, FastAPI, Celery, etc.
         name.contains("route")

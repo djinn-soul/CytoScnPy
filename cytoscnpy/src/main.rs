@@ -24,7 +24,7 @@ fn main() -> Result<()> {
                 summary,
                 output_file,
             } => run_raw(
-                path,
+                &path,
                 json,
                 exclude,
                 ignore,
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
                 fail_threshold,
                 output_file,
             } => run_cc(
-                path,
+                &path,
                 json,
                 exclude,
                 ignore,
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
                 functions,
                 output_file,
             } => run_hal(
-                path,
+                &path,
                 json,
                 exclude,
                 ignore,
@@ -93,7 +93,7 @@ fn main() -> Result<()> {
                 fail_under,
                 output_file,
             } => run_mi(
-                path,
+                &path,
                 json,
                 exclude,
                 ignore,

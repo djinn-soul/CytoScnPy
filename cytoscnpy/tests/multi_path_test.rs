@@ -394,3 +394,5 @@ fn test_analyze_paths_precommit_style() {
     assert!(!unused_funcs.contains(&"func_in_file2".to_owned()));
     assert!(!unused_funcs.contains(&"func_in_file4".to_owned()));
 }
+
+

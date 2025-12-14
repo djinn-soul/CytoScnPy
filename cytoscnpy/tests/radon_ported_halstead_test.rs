@@ -1,7 +1,7 @@
 //! Specific Radon ported Halstead tests.
 
 use cytoscnpy::halstead::analyze_halstead;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 
 #[test]
 fn test_radon_halstead_simple() {
@@ -41,9 +41,9 @@ b = +x
     ];
 
     for (code, _expected) in cases {
-        if let Ok(ast) = parse(code, Mode::Module, "<test>") {
-            if let rustpython_ast::Mod::Module(m) = ast {
-                let metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+        if let Ok(ast) = parse(code, Mode::Module.into()) {
+            if let ruff_python_ast::Mod::Module(m) = ast.into_syntax() {
+                let metrics = analyze_halstead(&ruff_python_ast::Mod::Module(m));
                 // We only check if we are close or match exactly if logic is identical.
                 // Since Halstead implementation details can vary (e.g. counting '=' as operator),
                 // we might need to adjust expectations to match MY implementation which aims for Radon parity.
@@ -62,3 +62,5 @@ b = +x
         }
     }
 }
+
+

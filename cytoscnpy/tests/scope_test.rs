@@ -81,3 +81,5 @@ fn test_scope_classes() {
         "A.class_unique_x should be unused because methods cannot see class scope directly"
     );
 }
+
+

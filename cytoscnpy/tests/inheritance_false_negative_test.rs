@@ -141,3 +141,5 @@ class Product(models.Model):
 
     // Django models may appear but should have framework-related handling
 }
+
+

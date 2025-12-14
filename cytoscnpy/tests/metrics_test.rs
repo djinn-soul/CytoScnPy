@@ -51,3 +51,5 @@ fn test_mi_rank() {
     assert_eq!(mi_rank(9.9), 'C');
     assert_eq!(mi_rank(0.0), 'C');
 }
+
+

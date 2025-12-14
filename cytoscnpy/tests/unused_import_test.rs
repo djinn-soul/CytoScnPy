@@ -31,3 +31,5 @@ def func():
     let found_math = report.unused_imports.iter().any(|i| i.name == "math");
     assert!(found_math, "Should detect 'math' as unused import");
 }
+
+

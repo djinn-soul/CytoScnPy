@@ -318,3 +318,5 @@ fn test_analysis_paths_with_single_file() {
     assert_eq!(result.analysis_summary.total_files, 1);
     assert!(!result.unused_functions.is_empty());
 }
+
+

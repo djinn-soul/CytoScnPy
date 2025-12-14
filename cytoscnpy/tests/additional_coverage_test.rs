@@ -4,7 +4,7 @@ use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::config::Config;
 use cytoscnpy::test_utils::TestAwareVisitor;
 use cytoscnpy::utils::LineIndex;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -121,11 +121,11 @@ def session_fixture():
     return []
 ";
 
-    let tree = parse(source, Mode::Module, "conftest.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let mut visitor = TestAwareVisitor::new(&PathBuf::from("conftest.py"), &line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -154,11 +154,11 @@ class TestCase(unittest.TestCase):
         self.assertTrue(True)
 ";
 
-    let tree = parse(source, Mode::Module, "test_unit.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let mut visitor = TestAwareVisitor::new(&PathBuf::from("test_unit.py"), &line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -183,11 +183,11 @@ from unittest import mock
 from unittest.mock import patch, MagicMock
 ";
 
-    let tree = parse(source, Mode::Module, "test_imports.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let mut visitor = TestAwareVisitor::new(&PathBuf::from("test_imports.py"), &line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -379,3 +379,5 @@ fn test_include_folder_overrides_exclude() {
         all_names
     );
 }
+
+

@@ -3,7 +3,7 @@
 
 use cytoscnpy::test_utils::TestAwareVisitor;
 use cytoscnpy::utils::LineIndex;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 use std::path::PathBuf;
 
 #[test]
@@ -19,11 +19,11 @@ def regular_function():
     return 42
 ";
 
-    let tree = parse(source, Mode::Module, "test_file.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let mut visitor = TestAwareVisitor::new(&PathBuf::from("test_file.py"), &line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -45,7 +45,7 @@ fn test_file_name_detection() {
 
     for filename in test_files {
         let source = "def foo(): pass";
-        let _tree = parse(source, Mode::Module, filename).expect("Failed to parse");
+        let _tree = parse(source, Mode::Module.into()).expect("Failed to parse");
         let line_index = LineIndex::new(source);
         let visitor = TestAwareVisitor::new(&PathBuf::from(filename), &line_index);
 
@@ -59,7 +59,7 @@ fn test_file_name_detection() {
 #[test]
 fn test_non_test_file_detection() {
     let source = "def foo(): pass";
-    let _tree = parse(source, Mode::Module, "regular_module.py").expect("Failed to parse");
+    let _tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let visitor = TestAwareVisitor::new(&PathBuf::from("regular_module.py"), &line_index);
 
@@ -68,3 +68,4 @@ fn test_non_test_file_detection() {
         "Should not detect regular file as test file"
     );
 }
+

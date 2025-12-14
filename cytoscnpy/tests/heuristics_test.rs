@@ -129,3 +129,5 @@ class RegularClass:
     // Regular class field should be unused
     assert!(unused_vars.contains(&"field".to_owned()));
 }
+
+

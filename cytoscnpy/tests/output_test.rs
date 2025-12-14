@@ -95,3 +95,5 @@ fn test_print_report_formatting() {
     assert!(output.contains("Type"));
     assert!(output.contains("Name"));
 }
+
+

@@ -54,3 +54,5 @@ fn test_real_data_scenarios() {
     assert!(!unused_vars.contains(&"x".to_owned()), "x should be used");
     assert!(!unused_vars.contains(&"y".to_owned()), "y should be used");
 }
+
+

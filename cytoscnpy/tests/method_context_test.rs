@@ -140,3 +140,5 @@ class MyClass:
         "class_func should be used via self.class_func"
     );
 }
+
+

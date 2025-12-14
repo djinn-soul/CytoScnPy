@@ -106,4 +106,3 @@ fn test_parse_varargs_varkw() {
     assert_eq!(params.vararg.as_ref().unwrap().name.as_str(), "args");
     assert_eq!(params.kwarg.as_ref().unwrap().name.as_str(), "kwargs");
 }
-

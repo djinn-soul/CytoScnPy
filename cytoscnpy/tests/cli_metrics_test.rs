@@ -148,3 +148,5 @@ fn test_cli_json_output() {
     assert!(output.contains("\"loc\":"));
     assert!(output.contains('2'));
 }
+
+

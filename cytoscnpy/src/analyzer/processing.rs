@@ -433,6 +433,8 @@ impl CytoScnPy {
         let mut unused_parameters = Vec::new();
 
         let total_definitions = all_defs.len();
+        // We'll collect methods with references for class-method linking check later
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
@@ -447,6 +449,11 @@ impl CytoScnPy {
                 continue;
             }
 
+            // Collect methods with references for class-method linking
+            if def.def_type == "method" && def.references > 0 {
+                methods_with_refs.push(def.clone());
+            }
+
             if def.references == 0 {
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
@@ -456,6 +463,26 @@ impl CytoScnPy {
                     "variable" => unused_variables.push(def),
                     "parameter" => unused_parameters.push(def),
                     _ => {}
+                }
+            }
+        }
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        // even if they have self-references (like recursive methods)
+        let unused_class_names: std::collections::HashSet<_> = unused_classes
+            .iter()
+            .map(|c| c.full_name.clone())
+            .collect();
+
+        // Second pass: Check methods that weren't flagged but belong to unused classes
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    if unused_class_names.contains(parent_class) {
+                        unused_methods.push(def.clone());
+                    }
                 }
             }
         }
@@ -635,6 +662,8 @@ impl CytoScnPy {
         let mut unused_parameters = Vec::new();
 
         let total_definitions = all_defs.len();
+        // We'll collect methods with references for class-method linking check later
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             // Update the reference count for the definition.
@@ -655,6 +684,11 @@ impl CytoScnPy {
             }
 
             // If reference count is 0, it is unused.
+            // Collect methods with references for class-method linking
+            if def.def_type == "method" && def.references > 0 {
+                methods_with_refs.push(def.clone());
+            }
+
             if def.references == 0 {
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
@@ -664,6 +698,26 @@ impl CytoScnPy {
                     "variable" => unused_variables.push(def),
                     "parameter" => unused_parameters.push(def),
                     _ => {}
+                }
+            }
+        }
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        // even if they have self-references (like recursive methods)
+        let unused_class_names: std::collections::HashSet<_> = unused_classes
+            .iter()
+            .map(|c| c.full_name.clone())
+            .collect();
+
+        // Second pass: Check methods that weren't flagged but belong to unused classes
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    if unused_class_names.contains(parent_class) {
+                        unused_methods.push(def.clone());
+                    }
                 }
             }
         }
@@ -864,6 +918,7 @@ impl CytoScnPy {
         let mut unused_imports = Vec::new();
         let mut unused_variables = Vec::new();
         let mut unused_parameters = Vec::new();
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
@@ -878,6 +933,11 @@ impl CytoScnPy {
                 continue;
             }
 
+            // Collect methods with references for class-method linking
+            if def.def_type == "method" && def.references > 0 {
+                methods_with_refs.push(def.clone());
+            }
+
             if def.references == 0 {
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
@@ -887,6 +947,23 @@ impl CytoScnPy {
                     "variable" => unused_variables.push(def),
                     "parameter" => unused_parameters.push(def),
                     _ => {}
+                }
+            }
+        }
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        let unused_class_names: std::collections::HashSet<_> = unused_classes
+            .iter()
+            .map(|c| c.full_name.clone())
+            .collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    if unused_class_names.contains(parent_class) {
+                        unused_methods.push(def.clone());
+                    }
                 }
             }
         }

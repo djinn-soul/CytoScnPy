@@ -931,6 +931,11 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         self.add_def(qualified_name.clone(), def_type, line);
 
+        // Register the function in the current (parent) scope's local_var_map
+        // This allows nested function calls like `used_inner()` to be resolved
+        // when the call happens in the parent scope.
+        self.add_local_def(name.to_string(), qualified_name.clone());
+
         // Enter function scope
         self.enter_scope(ScopeType::Function(CompactString::from(name)));
 

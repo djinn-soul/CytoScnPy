@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::rules::{Context, Finding, Rule};
-use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 
 /// Returns a list of all quality rules based on configuration.
 pub fn get_quality_rules(config: &Config) -> Vec<Box<dyn Rule>> {
@@ -30,15 +31,14 @@ impl Rule for MutableDefaultArgumentRule {
         "CSP-L001"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        let args = match stmt {
-            Stmt::FunctionDef(f) => &f.args,
-            Stmt::AsyncFunctionDef(f) => &f.args,
+        let parameters = match stmt {
+            Stmt::FunctionDef(f) => &f.parameters,
             _ => return None,
         };
 
         let mut findings = Vec::new();
 
-        let check_arg = |arg: &ast::ArgWithDefault, findings: &mut Vec<Finding>| {
+        let check_arg = |arg: &ast::ParameterWithDefault, findings: &mut Vec<Finding>| {
             if let Some(default) = &arg.default {
                 if is_mutable(default) {
                     findings.push(create_finding(
@@ -52,13 +52,13 @@ impl Rule for MutableDefaultArgumentRule {
             }
         };
 
-        for arg in &args.posonlyargs {
+        for arg in &parameters.posonlyargs {
             check_arg(arg, &mut findings);
         }
-        for arg in &args.args {
+        for arg in &parameters.args {
             check_arg(arg, &mut findings);
         }
-        for arg in &args.kwonlyargs {
+        for arg in &parameters.kwonlyargs {
             check_arg(arg, &mut findings);
         }
         if findings.is_empty() {
@@ -123,16 +123,17 @@ impl Rule for DangerousComparisonRule {
             for (i, comparator) in comp.comparators.iter().enumerate() {
                 let op = &comp.ops[i];
                 if matches!(op, ast::CmpOp::Eq | ast::CmpOp::NotEq) {
-                    if let Expr::Constant(c) = comparator {
-                        if matches!(c.value, ast::Constant::Bool(_) | ast::Constant::None) {
-                            return Some(vec![create_finding(
-                                "Dangerous comparison to True/False/None (use 'is' or 'is not')",
-                                self.code(),
-                                context,
-                                comparator.range().start(),
-                                "LOW",
-                            )]);
-                        }
+                    // Check for BooleanLiteral or NoneLiteral
+                    let is_dangerous =
+                        matches!(comparator, Expr::BooleanLiteral(_) | Expr::NoneLiteral(_));
+                    if is_dangerous {
+                        return Some(vec![create_finding(
+                            "Dangerous comparison to True/False/None (use 'is' or 'is not')",
+                            self.code(),
+                            context,
+                            comparator.range().start(),
+                            "LOW",
+                        )]);
                     }
                 }
             }
@@ -157,17 +158,16 @@ impl Rule for ArgumentCountRule {
         "CSP-C303"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        let args = match stmt {
-            Stmt::FunctionDef(f) => &f.args,
-            Stmt::AsyncFunctionDef(f) => &f.args,
+        let parameters = match stmt {
+            Stmt::FunctionDef(f) => &f.parameters,
             _ => return None,
         };
 
-        let total_args = args.posonlyargs.len()
-            + args.args.len()
-            + args.kwonlyargs.len()
-            + usize::from(args.vararg.is_some())
-            + usize::from(args.kwarg.is_some());
+        let total_args = parameters.posonlyargs.len()
+            + parameters.args.len()
+            + parameters.kwonlyargs.len()
+            + usize::from(parameters.vararg.is_some())
+            + usize::from(parameters.kwarg.is_some());
 
         if total_args > self.max_args {
             return Some(vec![create_finding(
@@ -198,23 +198,20 @@ impl Rule for FunctionLengthRule {
         "CSP-C304"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        match stmt {
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) => {
-                let start_line = context.line_index.line_index(stmt.range().start());
-                let end_line = context.line_index.line_index(stmt.range().end());
-                let length = end_line - start_line + 1;
+        if let Stmt::FunctionDef(_) = stmt {
+            let start_line = context.line_index.line_index(stmt.range().start());
+            let end_line = context.line_index.line_index(stmt.range().end());
+            let length = end_line - start_line + 1;
 
-                if length > self.max_lines {
-                    return Some(vec![create_finding(
-                        &format!("Function too long ({} > {} lines)", length, self.max_lines),
-                        self.code(),
-                        context,
-                        stmt.range().start(),
-                        "LOW",
-                    )]);
-                }
+            if length > self.max_lines {
+                return Some(vec![create_finding(
+                    &format!("Function too long ({} > {} lines)", length, self.max_lines),
+                    self.code(),
+                    context,
+                    stmt.range().start(),
+                    "LOW",
+                )]);
             }
-            _ => {}
         }
         None
     }
@@ -238,7 +235,6 @@ impl Rule for ComplexityRule {
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
             Stmt::FunctionDef(f) => self.check_complexity(&f.body, stmt, context),
-            Stmt::AsyncFunctionDef(f) => self.check_complexity(&f.body, stmt, context),
             _ => None,
         }
     }
@@ -277,11 +273,18 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
     let mut complexity = 0;
     for stmt in stmts {
         complexity += match stmt {
-            Stmt::If(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
-            Stmt::For(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
-            Stmt::AsyncFor(n) => {
-                1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse)
+            Stmt::If(n) => {
+                let mut sum = 1 + calculate_complexity(&n.body);
+                for clause in &n.elif_else_clauses {
+                    // Only elif adds complexity, else doesn't
+                    if clause.test.is_some() {
+                        sum += 1;
+                    }
+                    sum += calculate_complexity(&clause.body);
+                }
+                sum
             }
+            Stmt::For(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
             Stmt::While(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
             Stmt::Try(n) => {
                 n.handlers.len()
@@ -290,9 +293,7 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
                     + calculate_complexity(&n.finalbody)
             }
             Stmt::With(n) => calculate_complexity(&n.body),
-            Stmt::AsyncWith(n) => calculate_complexity(&n.body),
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => 0, // Don't recurse into nested functions/classes for this function's complexity
-            _ => 0,
+            _ => 0, // Don't recurse into nested functions/classes for this function's complexity
         };
     }
     complexity
@@ -314,7 +315,7 @@ impl NestingRule {
     fn check_depth(
         &self,
         context: &Context,
-        location: rustpython_parser::text_size::TextSize,
+        location: ruff_text_size::TextSize,
     ) -> Option<Finding> {
         if self.current_depth > self.max_depth {
             let line = context.line_index.line_index(location);
@@ -332,19 +333,16 @@ impl NestingRule {
     }
 
     fn should_increase_depth(stmt: &Stmt) -> bool {
-        match stmt {
+        matches!(
+            stmt,
             Stmt::FunctionDef(_)
-            | Stmt::AsyncFunctionDef(_)
-            | Stmt::ClassDef(_)
-            | Stmt::If(_)
-            | Stmt::For(_)
-            | Stmt::AsyncFor(_)
-            | Stmt::While(_)
-            | Stmt::Try(_)
-            | Stmt::With(_)
-            | Stmt::AsyncWith(_) => true,
-            _ => false,
-        }
+                | Stmt::ClassDef(_)
+                | Stmt::If(_)
+                | Stmt::For(_)
+                | Stmt::While(_)
+                | Stmt::Try(_)
+                | Stmt::With(_)
+        )
     }
 }
 
@@ -368,10 +366,9 @@ impl Rule for NestingRule {
     }
 
     fn leave_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
-        if Self::should_increase_depth(stmt)
-            && self.current_depth > 0 {
-                self.current_depth -= 1;
-            }
+        if Self::should_increase_depth(stmt) && self.current_depth > 0 {
+            self.current_depth -= 1;
+        }
         None
     }
 }
@@ -380,7 +377,7 @@ fn create_finding(
     msg: &str,
     rule_id: &str,
     context: &Context,
-    location: rustpython_parser::text_size::TextSize,
+    location: ruff_text_size::TextSize,
     severity: &str,
 ) -> Finding {
     let line = context.line_index.line_index(location);

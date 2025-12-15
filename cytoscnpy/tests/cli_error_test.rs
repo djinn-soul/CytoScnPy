@@ -35,7 +35,7 @@ fn test_invalid_python_syntax_produces_parse_error() {
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should have parse errors but not crash
     assert!(
@@ -72,7 +72,7 @@ fn test_analysis_continues_with_parse_errors() {
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should have results from valid file
     assert!(
@@ -108,7 +108,7 @@ fn test_parse_error_contains_file_path() {
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     assert!(!result.parse_errors.is_empty());
     let error = &result.parse_errors[0];
@@ -142,7 +142,7 @@ fn test_empty_python_file() {
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should not crash, should have no findings
     assert!(result.unused_functions.is_empty());
@@ -171,7 +171,7 @@ fn test_file_with_only_comments() {
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should not crash or report errors
     assert!(result.parse_errors.is_empty());
@@ -204,7 +204,7 @@ fn test_unicode_in_python_file() {
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should handle Unicode without errors
     assert!(result.parse_errors.is_empty());
@@ -245,7 +245,7 @@ class Outer:
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should detect parse error
     assert!(
@@ -283,7 +283,7 @@ fn test_analysis_summary_counts_files() {
         Config::default(),
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     assert_eq!(
         result.analysis_summary.total_files, 5,
@@ -313,7 +313,7 @@ fn test_analysis_paths_with_single_file() {
     );
 
     // Analyze single file instead of directory
-    let result = analyzer.analyze_paths(&[file_path]).unwrap();
+    let result = analyzer.analyze_paths(&[file_path]);
 
     assert_eq!(result.analysis_summary.total_files, 1);
     assert!(!result.unused_functions.is_empty());

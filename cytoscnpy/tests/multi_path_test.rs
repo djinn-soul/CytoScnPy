@@ -32,7 +32,7 @@ result = used_function()
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let paths = vec![dir.path().to_path_buf()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     // Should work the same as analyze()
     let unused_funcs: Vec<String> = result
@@ -70,7 +70,7 @@ fn test_analyze_paths_multiple_files() {
 
     // Only analyze file1 and file2
     let paths = vec![file1_path.clone(), file2_path.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -103,7 +103,7 @@ fn test_analyze_paths_empty_defaults_to_current_dir() {
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let paths: Vec<PathBuf> = vec![];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     // Restore original directory
     std::env::set_current_dir(original_dir).unwrap();
@@ -138,7 +138,7 @@ fn test_analyze_paths_mixed_files_and_directories() {
 
     // Analyze root_file.py and the subdir directory
     let paths = vec![file1_path.clone(), subdir.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -175,7 +175,7 @@ fn test_analyze_paths_filters_non_python() {
 
     // Pass all files (only .py should be analyzed)
     let paths = vec![py_path.clone(), txt_path.clone(), js_path.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     // Should only analyze the Python file
     assert_eq!(result.analysis_summary.total_files, 1);
@@ -214,7 +214,7 @@ fn test_analyze_paths_respects_exclusions() {
 
     // Analyze both directories
     let paths = vec![venv_dir.clone(), src_dir.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -245,7 +245,7 @@ fn test_analyze_paths_with_secrets_scanning() {
         .with_tests(false);
 
     let paths = vec![file_path.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     // Should find the AWS-style key
     assert!(result.analysis_summary.secrets_count > 0);
@@ -275,7 +275,7 @@ os.system(user_input)
         .with_tests(false);
 
     let paths = vec![file_path.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     // Should find dangerous patterns
     assert!(result.analysis_summary.danger_count > 0);
@@ -307,7 +307,7 @@ result = helper_function()
 
     // Analyze both files
     let paths = vec![module_path.clone(), main_path.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -349,7 +349,7 @@ fn test_analyze_paths_with_notebooks() {
         .with_ipynb(true);
 
     let paths = vec![notebook_path.clone()];
-    let result = analyzer.analyze_paths(&paths).unwrap();
+    let result = analyzer.analyze_paths(&paths);
 
     // Should analyze the notebook
     assert_eq!(result.analysis_summary.total_files, 1);
@@ -374,7 +374,7 @@ fn test_analyze_paths_precommit_style() {
 
     // Simulate pre-commit: only analyze "changed" files (file1 and file3)
     let changed_files = vec![files[1].clone(), files[3].clone()];
-    let result = analyzer.analyze_paths(&changed_files).unwrap();
+    let result = analyzer.analyze_paths(&changed_files);
 
     // Should only analyze 2 files
     assert_eq!(result.analysis_summary.total_files, 2);

@@ -139,3 +139,5 @@ def safe_query(username):
         "Parameterized queries should prevent SQL injection findings"
     );
 }
+
+

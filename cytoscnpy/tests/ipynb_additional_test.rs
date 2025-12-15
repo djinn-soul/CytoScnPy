@@ -17,7 +17,7 @@ fn test_additional_complex_unused() {
         .with_tests(false)
         .with_ipynb(true);
     let notebook_dir = Path::new("tests/data/notebooks");
-    let result = analyzer.analyze(notebook_dir).unwrap();
+    let result = analyzer.analyze(notebook_dir);
 
     // With multiple notebooks, should analyze more files
     assert!(result.analysis_summary.total_files >= 3);
@@ -43,7 +43,7 @@ fn test_additional_notebook_file_count() {
         .with_tests(false)
         .with_ipynb(true);
     let notebook_dir = Path::new("tests/data/notebooks");
-    let result = analyzer.analyze(notebook_dir).unwrap();
+    let result = analyzer.analyze(notebook_dir);
 
     // Should find all .ipynb files (currently 5)
     assert!(

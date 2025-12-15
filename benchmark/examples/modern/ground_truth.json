@@ -4,7 +4,14 @@
       "dead_items": []
     },
     "modern_python.py": {
-      "dead_items": []
+      "dead_items": [
+        {
+          "type": "import",
+          "name": "List",
+          "line_start": 10,
+          "reason": "Imported inside TYPE_CHECKING but never used in annotations"
+        }
+      ]
     }
   }
 }

@@ -2,7 +2,7 @@
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 use std::path::PathBuf;
 
 #[test]
@@ -22,8 +22,8 @@ class MyClass:
         &line_index,
     );
 
-    let ast = parse(source, Mode::Module, "test.py").unwrap();
-    if let rustpython_ast::Mod::Module(module) = ast {
+    let ast = parse(source, Mode::Module.into()).unwrap();
+    if let ruff_python_ast::Mod::Module(module) = ast.into_syntax() {
         for stmt in module.body {
             visitor.visit_stmt(&stmt);
         }
@@ -45,3 +45,5 @@ class MyClass:
     println!("References: {refs:?}");
     assert!(refs.contains(&"test_module.MyClass.my_method".to_owned()));
 }
+
+

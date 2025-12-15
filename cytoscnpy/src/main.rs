@@ -24,7 +24,7 @@ fn main() -> Result<()> {
                 summary,
                 output_file,
             } => run_raw(
-                path,
+                &path,
                 json,
                 exclude,
                 ignore,
@@ -48,20 +48,22 @@ fn main() -> Result<()> {
                 fail_threshold,
                 output_file,
             } => run_cc(
-                path,
-                json,
-                exclude,
-                ignore,
-                min_rank,
-                max_rank,
-                average,
-                total_average,
-                show_complexity,
-                order,
-                no_assert,
-                xml,
-                fail_threshold,
-                output_file,
+                &path,
+                cytoscnpy::commands::CcOptions {
+                    json,
+                    exclude,
+                    ignore,
+                    min_rank,
+                    max_rank,
+                    average,
+                    total_average,
+                    show_complexity,
+                    order,
+                    no_assert,
+                    xml,
+                    fail_threshold,
+                    output_file,
+                },
                 &mut stdout,
             ),
             Commands::Hal {
@@ -72,7 +74,7 @@ fn main() -> Result<()> {
                 functions,
                 output_file,
             } => run_hal(
-                path,
+                &path,
                 json,
                 exclude,
                 ignore,
@@ -93,17 +95,19 @@ fn main() -> Result<()> {
                 fail_under,
                 output_file,
             } => run_mi(
-                path,
-                json,
-                exclude,
-                ignore,
-                min_rank,
-                max_rank,
-                multi,
-                show,
-                average,
-                fail_under,
-                output_file,
+                &path,
+                cytoscnpy::commands::MiOptions {
+                    json,
+                    exclude,
+                    ignore,
+                    min_rank,
+                    max_rank,
+                    multi,
+                    show,
+                    average,
+                    fail_under,
+                    output_file,
+                },
                 &mut stdout,
             ),
         }
@@ -171,7 +175,7 @@ fn main() -> Result<()> {
             danger, // taint is now automatically enabled with --danger
             config,
         );
-        let result = analyzer.analyze_paths(&cli.paths)?;
+        let result = analyzer.analyze_paths(&cli.paths);
 
         if let Some(s) = spinner {
             s.finish_and_clear();

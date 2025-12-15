@@ -44,3 +44,5 @@ fn test_parse_errors() {
     assert!(error_files.iter().any(|f| f.contains("incomplete.py")));
     assert!(error_files.iter().any(|f| f.contains("invalid_token.py")));
 }
+
+

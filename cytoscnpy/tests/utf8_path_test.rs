@@ -26,7 +26,7 @@ fn test_no_crash_on_invalid_utf8_path() {
 
     // This should NOT panic. If it panics, the test framework will catch it.
     // The analyzer should gracefully handle the path (e.g., using to_string_lossy).
-    let _result = analyzer.analyze_code("print('hello')", path);
+    let _result = analyzer.analyze_code("print('hello')", &path);
 }
 
 /// Test that analyze_code works with normal UTF-8 paths (cross-platform).
@@ -36,7 +36,7 @@ fn test_valid_utf8_path() {
     let path = PathBuf::from("valid_path.py");
 
     // This should work without any issues
-    let result = analyzer.analyze_code("print('hello')", path);
+    let result = analyzer.analyze_code("print('hello')", &path);
 
     // The result should be valid (no parse errors for valid Python)
     assert!(result.parse_errors.is_empty());
@@ -49,7 +49,7 @@ fn test_unicode_path() {
     // Valid unicode path with various scripts
     let path = PathBuf::from("文件_αβγ_файл.py");
 
-    let result = analyzer.analyze_code("x = 1", path);
+    let result = analyzer.analyze_code("x = 1", &path);
 
     // Should parse successfully
     assert!(result.parse_errors.is_empty());
@@ -62,7 +62,7 @@ fn test_special_characters_path() {
     // Path with spaces, dashes, underscores, and dots
     let path = PathBuf::from("my file - (copy) [2024].py");
 
-    let result = analyzer.analyze_code("def foo(): pass", path);
+    let result = analyzer.analyze_code("def foo(): pass", &path);
 
     // Should parse successfully
     assert!(result.parse_errors.is_empty());
@@ -75,7 +75,7 @@ fn test_empty_path() {
     let path = PathBuf::from("");
 
     // Should not panic on empty path
-    let _result = analyzer.analyze_code("x = 1", path);
+    let _result = analyzer.analyze_code("x = 1", &path);
 }
 
 /// Test path with emoji characters (valid UTF-8 but unusual).
@@ -84,7 +84,7 @@ fn test_emoji_path() {
     let analyzer = CytoScnPy::default();
     let path = PathBuf::from("🐍_script_🚀.py");
 
-    let result = analyzer.analyze_code("print('emoji!')", path);
+    let result = analyzer.analyze_code("print('emoji!')", &path);
 
     // Should parse successfully
     assert!(result.parse_errors.is_empty());
@@ -98,7 +98,7 @@ fn test_long_path() {
     let long_name = "a".repeat(200) + ".py";
     let path = PathBuf::from(long_name);
 
-    let result = analyzer.analyze_code("y = 2", path);
+    let result = analyzer.analyze_code("y = 2", &path);
 
     // Should parse successfully
     assert!(result.parse_errors.is_empty());

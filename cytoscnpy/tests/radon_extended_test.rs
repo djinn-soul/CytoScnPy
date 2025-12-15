@@ -1,5 +1,7 @@
 //! Extended Radon complexity tests for modern Python features.
 
+#![allow(clippy::expect_used)] // Tests use expect for clarity
+
 use cytoscnpy::complexity::analyze_complexity;
 use std::fs;
 use std::path::PathBuf;

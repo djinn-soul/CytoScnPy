@@ -14,8 +14,9 @@ use rmcp::{
 use schemars::JsonSchema;
 use std::path::PathBuf;
 
-/// Request parameters for analyze_path tool.
+/// Request parameters for `analyze_path` tool.
 #[derive(Debug, serde::Deserialize, JsonSchema)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct AnalyzePathRequest {
     /// Path to the Python file or directory to analyze.
     #[schemars(description = "Path to the Python file or directory to analyze")]
@@ -42,7 +43,7 @@ fn default_true() -> bool {
     true
 }
 
-/// Request parameters for analyze_code tool.
+/// Request parameters for `analyze_code` tool.
 #[derive(Debug, serde::Deserialize, JsonSchema)]
 pub struct AnalyzeCodeRequest {
     /// The Python code to analyze.
@@ -90,8 +91,13 @@ impl Default for CytoScnPyServer {
 }
 
 #[tool_router]
+#[allow(clippy::unused_self, clippy::unnecessary_wraps)]
 impl CytoScnPyServer {
     /// Analyze Python code at the specified path for unused code, secrets, and quality issues.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path does not exist or if analysis fails.
     #[tool(
         description = "Analyze Python code at a path for unused code, secrets, dangerous patterns, and quality issues. Returns JSON with findings."
     )]
@@ -115,20 +121,17 @@ impl CytoScnPyServer {
             .with_quality(req.check_quality)
             .with_taint(req.taint_analysis);
 
-        match analyzer.analyze(path_buf.as_path()) {
-            Ok(result) => {
-                let json = serde_json::to_string_pretty(&result)
-                    .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {}"}}"#, e));
-                Ok(CallToolResult::success(vec![Content::text(json)]))
-            }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Analysis error: {}",
-                e
-            ))])),
-        }
+        let result = analyzer.analyze(path_buf.as_path());
+        let json = serde_json::to_string_pretty(&result)
+            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
+        Ok(CallToolResult::success(vec![Content::text(json)]))
     }
 
     /// Analyze a Python code snippet directly without needing a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization of the results fails.
     #[tool(
         description = "Analyze a Python code snippet directly for unused code, secrets, and issues. Useful for code not saved to disk."
     )]
@@ -142,10 +145,10 @@ impl CytoScnPyServer {
             .with_danger(true)
             .with_quality(true);
 
-        let result = analyzer.analyze_code(&req.code, PathBuf::from(&req.filename));
+        let result = analyzer.analyze_code(&req.code, &PathBuf::from(&req.filename));
 
         let json = serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {}"}}"#, e));
+            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
         Ok(CallToolResult::success(vec![Content::text(json)]))
     }
 
@@ -169,30 +172,21 @@ impl CytoScnPyServer {
 
         let mut output = Vec::new();
         match run_cc(
-            path_buf,
-            true, // JSON output
-            vec![],
-            vec![],
-            None,
-            None,
-            false,
-            false,
-            true,
-            None,
-            false,
-            false,
-            None,
-            None,
+            &path_buf,
+            cytoscnpy::commands::CcOptions {
+                json: true,
+                output_file: None,
+                ..Default::default()
+            },
             &mut output,
         ) {
             Ok(()) => {
                 let text = String::from_utf8(output)
-                    .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {}"}}"#, e));
+                    .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {e}"}}"#));
                 Ok(CallToolResult::success(vec![Content::text(text)]))
             }
             Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Analysis error: {}",
-                e
+                "Analysis error: {e}"
             ))])),
         }
     }
@@ -217,27 +211,22 @@ impl CytoScnPyServer {
 
         let mut output = Vec::new();
         match run_mi(
-            path_buf,
-            true, // JSON output
-            vec![],
-            vec![],
-            None,
-            None,
-            false,
-            true, // show details
-            false,
-            None,
-            None,
+            &path_buf,
+            cytoscnpy::commands::MiOptions {
+                json: true,
+                show: true,
+                output_file: None,
+                ..Default::default()
+            },
             &mut output,
         ) {
             Ok(()) => {
                 let text = String::from_utf8(output)
-                    .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {}"}}"#, e));
+                    .unwrap_or_else(|e| format!(r#"{{"error": "UTF-8 error: {e}"}}"#));
                 Ok(CallToolResult::success(vec![Content::text(text)]))
             }
             Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Analysis error: {}",
-                e
+                "Analysis error: {e}"
             ))])),
         }
     }

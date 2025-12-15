@@ -1,5 +1,5 @@
 use crate::utils::LineIndex;
-use rustpython_ast::{Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use std::path::Path;
 
 use crate::constants::{TEST_DECOR_RE, TEST_METHOD_PATTERN};
@@ -48,7 +48,7 @@ impl<'a> TestAwareVisitor<'a> {
 
                 // Check decorators for pytest fixtures or markers.
                 for decorator in &node.decorator_list {
-                    let decorator_name = match decorator {
+                    let decorator_name = match &decorator.expression {
                         Expr::Name(name_node) => name_node.id.to_string(),
                         Expr::Attribute(attr_node) => {
                             // Simplified: just check the attribute name for now, or reconstruct full name

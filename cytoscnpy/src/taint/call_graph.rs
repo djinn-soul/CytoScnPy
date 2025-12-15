@@ -2,8 +2,9 @@
 //!
 //! Builds a call graph for interprocedural analysis.
 
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 use rustc_hash::FxHashSet;
-use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
 use std::collections::HashMap;
 
 /// A node in the call graph.
@@ -48,7 +49,7 @@ impl CallGraph {
         match stmt {
             Stmt::FunctionDef(func) => {
                 let func_name = self.get_qualified_name(&func.name);
-                let params = self.extract_params(&func.args);
+                let params = Self::extract_params(&func.parameters);
 
                 let node = CallGraphNode {
                     name: func_name.clone(),
@@ -61,25 +62,6 @@ impl CallGraph {
                 self.nodes.insert(func_name.clone(), node);
 
                 // Visit body
-                for s in &func.body {
-                    self.visit_stmt(s, Some(&func_name));
-                }
-            }
-
-            Stmt::AsyncFunctionDef(func) => {
-                let func_name = self.get_qualified_name(&func.name);
-                let params = self.extract_params(&func.args);
-
-                let node = CallGraphNode {
-                    name: func_name.clone(),
-                    line: func.range().start().to_u32() as usize,
-                    calls: FxHashSet::default(),
-                    called_by: FxHashSet::default(),
-                    params,
-                };
-
-                self.nodes.insert(func_name.clone(), node);
-
                 for s in &func.body {
                     self.visit_stmt(s, Some(&func_name));
                 }
@@ -120,8 +102,10 @@ impl CallGraph {
                 for s in &if_stmt.body {
                     self.visit_stmt(s, current_func);
                 }
-                for s in &if_stmt.orelse {
-                    self.visit_stmt(s, current_func);
+                for clause in &if_stmt.elif_else_clauses {
+                    for s in &clause.body {
+                        self.visit_stmt(s, current_func);
+                    }
                 }
             }
 
@@ -178,7 +162,7 @@ impl CallGraph {
     fn visit_expr_for_calls(&mut self, expr: &Expr, caller: &str) {
         match expr {
             Expr::Call(call) => {
-                if let Some(callee) = self.get_call_name(&call.func) {
+                if let Some(callee) = Self::get_call_name(&call.func) {
                     // Add edge caller -> callee
                     if let Some(caller_node) = self.nodes.get_mut(caller) {
                         caller_node.calls.insert(callee.clone());
@@ -189,7 +173,7 @@ impl CallGraph {
                 }
 
                 // Visit arguments
-                for arg in &call.args {
+                for arg in &call.arguments.args {
                     self.visit_expr_for_calls(arg, caller);
                 }
             }
@@ -199,7 +183,7 @@ impl CallGraph {
                 self.visit_expr_for_calls(&binop.right, caller);
             }
 
-            Expr::IfExp(ifexp) => {
+            Expr::If(ifexp) => {
                 self.visit_expr_for_calls(&ifexp.test, caller);
                 self.visit_expr_for_calls(&ifexp.body, caller);
                 self.visit_expr_for_calls(&ifexp.orelse, caller);
@@ -212,8 +196,8 @@ impl CallGraph {
             }
 
             Expr::Dict(dict) => {
-                for value in &dict.values {
-                    self.visit_expr_for_calls(value, caller);
+                for item in &dict.items {
+                    self.visit_expr_for_calls(&item.value, caller);
                 }
             }
 
@@ -231,30 +215,33 @@ impl CallGraph {
     }
 
     /// Extracts parameter names from function arguments.
-    fn extract_params(&self, args: &ast::Arguments) -> Vec<String> {
+    fn extract_params(args: &ast::Parameters) -> Vec<String> {
         let mut params = Vec::new();
 
+        for arg in &args.posonlyargs {
+            params.push(arg.parameter.name.to_string());
+        }
         for arg in &args.args {
-            params.push(arg.def.arg.to_string());
+            params.push(arg.parameter.name.to_string());
         }
 
         if let Some(vararg) = &args.vararg {
-            params.push(format!("*{}", vararg.arg));
+            params.push(format!("*{}", vararg.name));
         }
 
         for arg in &args.kwonlyargs {
-            params.push(arg.def.arg.to_string());
+            params.push(arg.parameter.name.to_string());
         }
 
         if let Some(kwarg) = &args.kwarg {
-            params.push(format!("**{}", kwarg.arg));
+            params.push(format!("**{}", kwarg.name));
         }
 
         params
     }
 
     /// Gets the call name from an expression.
-    fn get_call_name(&self, func: &Expr) -> Option<String> {
+    fn get_call_name(func: &Expr) -> Option<String> {
         match func {
             Expr::Name(node) => Some(node.id.to_string()),
             Expr::Attribute(node) => {

@@ -11,6 +11,8 @@
     clippy::similar_names
 )]
 
+#[cfg_attr(test, allow(clippy::unwrap_used))]
+
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;

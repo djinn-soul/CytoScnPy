@@ -41,19 +41,13 @@ fn test_cli_cc() {
     let mut buffer = Vec::new();
     run_cc(
         dir.path(),
-        false,
-        vec![],
-        Vec::new(),
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        false, // no_assert
-        false, // xml
-        None,  // fail_threshold
-        None,  // output_file
+        cytoscnpy::commands::CcOptions {
+            json: false,
+            exclude: vec![],
+            ignore: Vec::new(),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();
@@ -104,16 +98,13 @@ fn test_cli_mi() {
     let mut buffer = Vec::new();
     run_mi(
         dir.path(),
-        false,
-        vec![],
-        Vec::new(),
-        None,
-        None,
-        false,
-        false, // show
-        false, // average
-        None,  // fail_under
-        None,  // output_file
+        cytoscnpy::commands::MiOptions {
+            json: false,
+            exclude: vec![],
+            ignore: Vec::new(),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();

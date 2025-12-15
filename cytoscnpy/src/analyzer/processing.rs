@@ -14,7 +14,7 @@ use crate::rules::Finding;
 use crate::test_utils::TestAwareVisitor;
 use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
-use anyhow::Result;
+
 use rayon::prelude::*;
 use ruff_python_parser::parse_module;
 use rustc_hash::FxHashMap;
@@ -39,7 +39,7 @@ impl CytoScnPy {
     ///
     /// This is the preferred entry point when accepting CLI input that may
     /// include multiple file paths (e.g., from pre-commit hooks).
-    pub fn analyze_paths(&mut self, paths: &[std::path::PathBuf]) -> Result<AnalysisResult> {
+    pub fn analyze_paths(&mut self, paths: &[std::path::PathBuf]) -> AnalysisResult {
         // If no paths provided, analyze current directory
         if paths.is_empty() {
             return self.analyze(Path::new("."));
@@ -120,7 +120,7 @@ impl CytoScnPy {
         &mut self,
         files: &[std::path::PathBuf],
         root_hint: Option<&Path>,
-    ) -> Result<AnalysisResult> {
+    ) -> AnalysisResult {
         let total_files = files.len();
         self.total_files_analyzed = total_files;
 
@@ -394,7 +394,7 @@ impl CytoScnPy {
         )>,
         files: &[std::path::PathBuf],
         total_files: usize,
-    ) -> Result<AnalysisResult> {
+    ) -> AnalysisResult {
         let mut all_defs = Vec::new();
         let mut ref_counts: FxHashMap<String, usize> = FxHashMap::default();
         let mut all_secrets = Vec::new();
@@ -488,7 +488,7 @@ impl CytoScnPy {
 
         let taint_count = taint_findings.len();
 
-        Ok(AnalysisResult {
+        AnalysisResult {
             unused_functions,
             unused_methods,
             unused_imports,
@@ -520,7 +520,7 @@ impl CytoScnPy {
                     0.0
                 },
             },
-        })
+        }
     }
 
     /// Runs the analysis on the specified path.
@@ -533,7 +533,7 @@ impl CytoScnPy {
     /// 5. Aggregates results from all files.
     /// 6. Calculates cross-file usage to identify unused code.
     /// 7. Returns the final `AnalysisResult`.
-    pub fn analyze(&mut self, root_path: &Path) -> Result<AnalysisResult> {
+    pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
         // Find all Python files in the given path.
         // We use WalkDir to recursively traverse directories.
         let mut files: Vec<walkdir::DirEntry> = Vec::new();
@@ -700,7 +700,7 @@ impl CytoScnPy {
         let taint_count = taint_findings.len();
 
         // Construct and return the final result.
-        Ok(AnalysisResult {
+        AnalysisResult {
             unused_functions,
             unused_methods,
             unused_imports,
@@ -732,7 +732,7 @@ impl CytoScnPy {
                     0.0
                 },
             },
-        })
+        }
     }
 
     /// Analyzes a single string of code (mostly for testing).

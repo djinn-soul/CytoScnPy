@@ -522,7 +522,6 @@ fn is_literal_expr(expr: &Expr) -> bool {
         Expr::List(list) => list.elts.iter().all(is_literal_expr),
         Expr::Tuple(tuple) => tuple.elts.iter().all(is_literal_expr),
         // f-strings, concatenations, variables, calls, etc. are NOT literal
-        Expr::FString(_) | Expr::BinOp(_) | Expr::Name(_) | Expr::Call(_) => false,
         _ => false,
     }
 }

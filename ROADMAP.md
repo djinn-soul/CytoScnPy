@@ -462,6 +462,45 @@ Integration of code metrics compatible with `radon`.
 - `mi --average`: Show average MI
 - `--fail-on-quality`: Integrated check in main analysis
 
+### 5.7 Radon Parity Gaps 🔄 IN PROGRESS
+
+**Status:** Tests added, implementation pending. See `cytoscnpy/tests/radon_parity_*.rs`
+
+These features are tested but not yet implemented. Remove `#[ignore]` from tests when implementing.
+
+#### 5.7.1 Complexity Gaps (19 tests ignored)
+
+| Feature                     | Description                           | Test File                         | Radon Behavior                                     |
+| --------------------------- | ------------------------------------- | --------------------------------- | -------------------------------------------------- |
+| **Module-level complexity** | Complexity of code outside functions  | `radon_parity_complexity_test.rs` | Radon reports module-level `if`/`for`/`while` etc. |
+| **For/while else clause**   | `else:` on loops adds +1 complexity   | `radon_parity_complexity_test.rs` | Radon counts loop `else:` as branch                |
+| **Try-except else clause**  | `else:` on try adds +1 complexity     | `radon_parity_complexity_test.rs` | Radon counts try `else:` as branch                 |
+| **Lambda ternary**          | Ternary inside lambda adds complexity | `radon_parity_complexity_test.rs` | Ternary in lambda body counts                      |
+| **Ternary with generator**  | Generator inside ternary              | `radon_parity_complexity_test.rs` | Nested comprehension complexity                    |
+| **Match wildcard**          | `case _:` shouldn't add complexity    | `radon_parity_complexity_test.rs` | Wildcard is default, not branch                    |
+| **Nested generator**        | Inner generator adds complexity       | `radon_parity_complexity_test.rs` | Each `for`/`if` in nested generator                |
+| **Class method `or`**       | Boolean `or` in condition             | `radon_parity_complexity_test.rs` | `or` adds +1 complexity                            |
+
+#### 5.7.2 Halstead Gaps (1 test ignored)
+
+| Feature                       | Description                | Test File                       | Radon Behavior               |
+| ----------------------------- | -------------------------- | ------------------------------- | ---------------------------- |
+| **Distinct operand counting** | `if a and b: elif b or c:` | `radon_parity_halstead_test.rs` | `b` counted once as distinct |
+
+#### 5.7.3 Raw Metrics Gaps (2 tests ignored)
+
+| Feature                            | Description                  | Test File                  | Radon Behavior                 |
+| ---------------------------------- | ---------------------------- | -------------------------- | ------------------------------ |
+| **Line continuation with string**  | Backslash + multiline string | `radon_parity_raw_test.rs` | Continuation counted correctly |
+| **Line continuation with comment** | Backslash + inline comment   | `radon_parity_raw_test.rs` | Comment on continuation line   |
+
+#### Implementation Priority
+
+1. **Module-level complexity** - High impact (8 tests), required for full Radon parity
+2. **Loop/try else clauses** - Medium impact (5 tests), common pattern
+3. **Match wildcard handling** - Low impact (2 tests), Python 3.10+ only
+4. **Halstead/Raw edge cases** - Low impact (3 tests), edge cases
+
 ---
 
 ## Phase 6: Editor Integration ✅ DONE

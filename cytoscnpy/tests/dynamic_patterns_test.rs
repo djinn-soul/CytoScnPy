@@ -22,7 +22,7 @@ g["unused_but_dynamic"]()
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -55,7 +55,7 @@ if hasattr(obj, "unused_method"):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_methods: Vec<String> = result
         .unused_methods
@@ -85,7 +85,7 @@ eval("hidden_func()")
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -98,5 +98,3 @@ eval("hidden_func()")
         "Eval failed to mark function as used"
     );
 }
-
-

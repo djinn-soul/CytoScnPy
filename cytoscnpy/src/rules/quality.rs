@@ -293,8 +293,7 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
                     + calculate_complexity(&n.finalbody)
             }
             Stmt::With(n) => calculate_complexity(&n.body),
-            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => 0, // Don't recurse into nested functions/classes for this function's complexity
-            _ => 0,
+            _ => 0, // Don't recurse into nested functions/classes for this function's complexity
         };
     }
     complexity
@@ -334,16 +333,16 @@ impl NestingRule {
     }
 
     fn should_increase_depth(stmt: &Stmt) -> bool {
-        match stmt {
+        matches!(
+            stmt,
             Stmt::FunctionDef(_)
-            | Stmt::ClassDef(_)
-            | Stmt::If(_)
-            | Stmt::For(_)
-            | Stmt::While(_)
-            | Stmt::Try(_)
-            | Stmt::With(_) => true,
-            _ => false,
-        }
+                | Stmt::ClassDef(_)
+                | Stmt::If(_)
+                | Stmt::For(_)
+                | Stmt::While(_)
+                | Stmt::Try(_)
+                | Stmt::With(_)
+        )
     }
 }
 

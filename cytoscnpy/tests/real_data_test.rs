@@ -12,7 +12,7 @@ fn test_real_data_scenarios() {
 
     // Enable include_tests=true to ensure we scan everything
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(true);
-    let result = cytoscnpy.analyze(&root_path).unwrap();
+    let result = cytoscnpy.analyze(&root_path);
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -54,5 +54,3 @@ fn test_real_data_scenarios() {
     assert!(!unused_vars.contains(&"x".to_owned()), "x should be used");
     assert!(!unused_vars.contains(&"y".to_owned()), "y should be used");
 }
-
-

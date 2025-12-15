@@ -48,12 +48,11 @@ impl MethodMisuseRule {
         }
     }
 
-    fn infer_type(&self, expr: &Expr) -> Option<String> {
+    fn infer_type(expr: &Expr) -> Option<String> {
         match expr {
-            Expr::StringLiteral(_) => Some("str".to_owned()),
+            Expr::StringLiteral(_) | Expr::FString(_) => Some("str".to_owned()),
             Expr::BytesLiteral(_) => Some("bytes".to_owned()),
             Expr::NumberLiteral(n) => {
-                // Check if it's an int or float
                 if n.value.is_int() {
                     Some("int".to_owned())
                 } else {
@@ -62,19 +61,15 @@ impl MethodMisuseRule {
             }
             Expr::BooleanLiteral(_) => Some("bool".to_owned()),
             Expr::NoneLiteral(_) => Some("None".to_owned()),
-            Expr::List(_) => Some("list".to_owned()),
+            Expr::List(_) | Expr::ListComp(_) => Some("list".to_owned()),
             Expr::Tuple(_) => Some("tuple".to_owned()),
-            Expr::Set(_) => Some("set".to_owned()),
-            Expr::Dict(_) => Some("dict".to_owned()),
-            Expr::FString(_) => Some("str".to_owned()), // f-string
-            Expr::ListComp(_) => Some("list".to_owned()),
-            Expr::SetComp(_) => Some("set".to_owned()),
-            Expr::DictComp(_) => Some("dict".to_owned()),
+            Expr::Set(_) | Expr::SetComp(_) => Some("set".to_owned()),
+            Expr::Dict(_) | Expr::DictComp(_) => Some("dict".to_owned()),
             _ => None,
         }
     }
 
-    fn is_valid_method(&self, type_name: &str, method_name: &str) -> bool {
+    fn is_valid_method(type_name: &str, method_name: &str) -> bool {
         match type_name {
             "str" => matches!(
                 method_name,
@@ -207,7 +202,7 @@ impl Rule for MethodMisuseRule {
             }
             Stmt::AnnAssign(node) => {
                 if let Some(value) = &node.value {
-                    if let Some(inferred_type) = self.infer_type(value) {
+                    if let Some(inferred_type) = Self::infer_type(value) {
                         if let Expr::Name(name_node) = &*node.target {
                             if let Some(scope) = self.scope_stack.last_mut() {
                                 scope
@@ -221,7 +216,7 @@ impl Rule for MethodMisuseRule {
             // Handle regular assignments like `s = "hello"`
             Stmt::Assign(node) => {
                 if let Some(value) = Some(&node.value) {
-                    if let Some(inferred_type) = self.infer_type(value) {
+                    if let Some(inferred_type) = Self::infer_type(value) {
                         for target in &node.targets {
                             if let Expr::Name(name_node) = target {
                                 if let Some(scope) = self.scope_stack.last_mut() {
@@ -257,7 +252,7 @@ impl Rule for MethodMisuseRule {
                     let method_name = &attr.attr;
 
                     if let Some(type_name) = self.get_variable_type(var_name) {
-                        if !self.is_valid_method(type_name, method_name) {
+                        if !Self::is_valid_method(type_name, method_name) {
                             return Some(vec![Finding {
                                 rule_id: self.code().to_owned(),
                                 severity: "HIGH".to_owned(), // Method misuse is usually a runtime error

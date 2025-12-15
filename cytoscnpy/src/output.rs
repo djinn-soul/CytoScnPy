@@ -36,6 +36,7 @@ pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std:
 pub fn create_spinner() -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
+        #[allow(clippy::expect_used)]
         ProgressStyle::default_spinner()
             .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
             .template("{spinner:.cyan} {msg}")

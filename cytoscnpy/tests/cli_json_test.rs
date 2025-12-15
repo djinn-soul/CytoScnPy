@@ -65,19 +65,13 @@ fn test_cc_json_output_structure() {
     let mut buffer = Vec::new();
     run_cc(
         dir.path(),
-        true, // json=true
-        vec![],
-        Vec::new(),
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        false,
-        false,
-        None,
-        None,
+        cytoscnpy::commands::CcOptions {
+            json: true,
+            exclude: vec![],
+            ignore: Vec::new(),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();
@@ -112,16 +106,13 @@ fn test_mi_json_output_structure() {
     let mut buffer = Vec::new();
     run_mi(
         dir.path(),
-        true, // json=true
-        vec![],
-        Vec::new(),
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
+        cytoscnpy::commands::MiOptions {
+            json: true,
+            exclude: vec![],
+            ignore: Vec::new(),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();
@@ -263,19 +254,13 @@ fn test_cc_json_complexity_value_types() {
     let mut buffer = Vec::new();
     run_cc(
         dir.path(),
-        true,
-        vec![],
-        Vec::new(),
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        false,
-        false,
-        None,
-        None,
+        cytoscnpy::commands::CcOptions {
+            json: true,
+            exclude: vec![],
+            ignore: Vec::new(),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();

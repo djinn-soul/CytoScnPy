@@ -49,19 +49,21 @@ fn main() -> Result<()> {
                 output_file,
             } => run_cc(
                 &path,
-                json,
-                exclude,
-                ignore,
-                min_rank,
-                max_rank,
-                average,
-                total_average,
-                show_complexity,
-                order,
-                no_assert,
-                xml,
-                fail_threshold,
-                output_file,
+                cytoscnpy::commands::CcOptions {
+                    json,
+                    exclude,
+                    ignore,
+                    min_rank,
+                    max_rank,
+                    average,
+                    total_average,
+                    show_complexity,
+                    order,
+                    no_assert,
+                    xml,
+                    fail_threshold,
+                    output_file,
+                },
                 &mut stdout,
             ),
             Commands::Hal {
@@ -94,16 +96,18 @@ fn main() -> Result<()> {
                 output_file,
             } => run_mi(
                 &path,
-                json,
-                exclude,
-                ignore,
-                min_rank,
-                max_rank,
-                multi,
-                show,
-                average,
-                fail_under,
-                output_file,
+                cytoscnpy::commands::MiOptions {
+                    json,
+                    exclude,
+                    ignore,
+                    min_rank,
+                    max_rank,
+                    multi,
+                    show,
+                    average,
+                    fail_under,
+                    output_file,
+                },
                 &mut stdout,
             ),
         }
@@ -171,7 +175,7 @@ fn main() -> Result<()> {
             danger, // taint is now automatically enabled with --danger
             config,
         );
-        let result = analyzer.analyze_paths(&cli.paths)?;
+        let result = analyzer.analyze_paths(&cli.paths);
 
         if let Some(s) = spinner {
             s.finish_and_clear();

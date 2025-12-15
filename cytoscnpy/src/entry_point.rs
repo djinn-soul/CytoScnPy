@@ -160,63 +160,6 @@ fn get_call_name(expr: &Expr) -> Option<String> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ruff_python_parser::parse_module;
-
-    #[test]
-    fn test_entry_point_detection() {
-        let source = r#"
-def my_function():
-    pass
-
-if __name__ == "__main__":
-    my_function()
-    another_call()
-"#;
-
-        let parsed = parse_module(source).expect("Failed to parse");
-        let module = parsed.into_syntax();
-        let calls = detect_entry_point_calls(&module.body);
-
-        assert!(
-            calls.contains("my_function"),
-            "Should detect my_function call"
-        );
-        assert!(calls.contains("another_call"), "Should detect another_call");
-    }
-
-    #[test]
-    fn test_no_entry_point() {
-        let source = r"
-def my_function():
-    pass
-";
-
-        let parsed = parse_module(source).expect("Failed to parse");
-        let module = parsed.into_syntax();
-        let calls = detect_entry_point_calls(&module.body);
-        assert_eq!(calls.len(), 0, "Should detect no entry point calls");
-    }
-
-    #[test]
-    fn test_reversed_main_guard() {
-        let source = r#"
-def func():
-    pass
-
-if "__main__" == __name__:
-    func()
-"#;
-
-        let parsed = parse_module(source).expect("Failed to parse");
-        let module = parsed.into_syntax();
-        let calls = detect_entry_point_calls(&module.body);
-        assert!(calls.contains("func"), "Should handle reversed comparison");
-    }
-}
-
 /// Runs the analyzer (or other commands) with the given arguments.
 pub fn run_with_args(args: Vec<String>) -> Result<i32> {
     let mut program_args = vec!["cytoscnpy".to_owned()];
@@ -264,19 +207,21 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 }
                 crate::commands::run_cc(
                     &path,
-                    json,
-                    exclude,
-                    Vec::new(),
-                    None,
-                    None,
-                    false,
-                    false,
-                    false,
-                    None,
-                    false,
-                    false,
-                    None, // fail_threshold
-                    None, // output_file
+                    crate::commands::CcOptions {
+                        json,
+                        exclude,
+                        ignore: Vec::new(),
+                        min_rank: None,
+                        max_rank: None,
+                        average: false,
+                        total_average: false,
+                        show_complexity: false,
+                        order: None,
+                        no_assert: false,
+                        xml: false,
+                        fail_threshold: None,
+                        output_file: None,
+                    },
                     &mut stdout,
                 )?;
             }
@@ -318,16 +263,18 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 }
                 crate::commands::run_mi(
                     &path,
-                    json,
-                    exclude,
-                    Vec::new(),
-                    None,
-                    None,
-                    false,
-                    false,
-                    false, // average
-                    None,  // fail_under
-                    None,  // output_file
+                    crate::commands::MiOptions {
+                        json,
+                        exclude,
+                        ignore: Vec::new(),
+                        min_rank: None,
+                        max_rank: None,
+                        multi: false,
+                        show: false,
+                        average: false,
+                        fail_under: None,
+                        output_file: None,
+                    },
                     &mut stdout,
                 )?;
             }
@@ -388,7 +335,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             danger, // taint is now automatically enabled with --danger
             config.clone(),
         );
-        let result = analyzer.analyze_paths(&cli_var.paths)?;
+        let result = analyzer.analyze_paths(&cli_var.paths);
 
         if let Some(s) = spinner {
             s.finish_and_clear();

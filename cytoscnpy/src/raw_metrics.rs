@@ -94,9 +94,13 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
 
         if end_row > start_row {
             // Multi-line string
-            for r in start_row..=end_row {
-                if r <= metrics.loc && line_types[r] != LineType::Blank {
-                    line_types[r] = LineType::Multi;
+            for line_type in line_types
+                .iter_mut()
+                .take(std::cmp::min(end_row + 1, metrics.loc + 1))
+                .skip(start_row)
+            {
+                if *line_type != LineType::Blank {
+                    *line_type = LineType::Multi;
                 }
             }
         }

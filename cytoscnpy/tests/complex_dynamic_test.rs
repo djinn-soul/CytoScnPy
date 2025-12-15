@@ -60,7 +60,7 @@ if __name__ == "__main__":
     .unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     // Check lib.hidden_gem
     let unused_funcs: Vec<String> = result
@@ -129,7 +129,7 @@ def process():
     write!(main_file, "import processor; processor.process()").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_method_names: Vec<String> = result
         .unused_methods
@@ -172,7 +172,7 @@ calculate("x + y")
     .unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_vars: Vec<String> = result
         .unused_variables
@@ -189,5 +189,3 @@ calculate("x + y")
         "Local 'y' should be used due to eval"
     );
 }
-
-

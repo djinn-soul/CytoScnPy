@@ -16,6 +16,7 @@ use std::path::PathBuf;
 
 /// Request parameters for `analyze_path` tool.
 #[derive(Debug, serde::Deserialize, JsonSchema)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct AnalyzePathRequest {
     /// Path to the Python file or directory to analyze.
     #[schemars(description = "Path to the Python file or directory to analyze")]
@@ -93,6 +94,10 @@ impl Default for CytoScnPyServer {
 #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
 impl CytoScnPyServer {
     /// Analyze Python code at the specified path for unused code, secrets, and quality issues.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path does not exist or if analysis fails.
     #[tool(
         description = "Analyze Python code at a path for unused code, secrets, dangerous patterns, and quality issues. Returns JSON with findings."
     )]
@@ -116,19 +121,17 @@ impl CytoScnPyServer {
             .with_quality(req.check_quality)
             .with_taint(req.taint_analysis);
 
-        match analyzer.analyze(path_buf.as_path()) {
-            Ok(result) => {
-                let json = serde_json::to_string_pretty(&result)
-                    .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
-                Ok(CallToolResult::success(vec![Content::text(json)]))
-            }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Analysis error: {e}"
-            ))])),
-        }
+        let result = analyzer.analyze(path_buf.as_path());
+        let json = serde_json::to_string_pretty(&result)
+            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
+        Ok(CallToolResult::success(vec![Content::text(json)]))
     }
 
     /// Analyze a Python code snippet directly without needing a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization of the results fails.
     #[tool(
         description = "Analyze a Python code snippet directly for unused code, secrets, and issues. Useful for code not saved to disk."
     )]
@@ -170,19 +173,11 @@ impl CytoScnPyServer {
         let mut output = Vec::new();
         match run_cc(
             &path_buf,
-            true, // JSON output
-            vec![],
-            vec![],
-            None,
-            None,
-            false,
-            false,
-            true,
-            None,
-            false,
-            false,
-            None,
-            None,
+            cytoscnpy::commands::CcOptions {
+                json: true,
+                output_file: None,
+                ..Default::default()
+            },
             &mut output,
         ) {
             Ok(()) => {
@@ -217,16 +212,12 @@ impl CytoScnPyServer {
         let mut output = Vec::new();
         match run_mi(
             &path_buf,
-            true, // JSON output
-            vec![],
-            vec![],
-            None,
-            None,
-            false,
-            true, // show details
-            false,
-            None,
-            None,
+            cytoscnpy::commands::MiOptions {
+                json: true,
+                show: true,
+                output_file: None,
+                ..Default::default()
+            },
             &mut output,
         ) {
             Ok(()) => {

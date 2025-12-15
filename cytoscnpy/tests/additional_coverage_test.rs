@@ -37,7 +37,7 @@ fn test_json_output_structure() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
     let json_str = serde_json::to_string_pretty(&result).unwrap();
 
     // Verify JSON structure
@@ -70,7 +70,7 @@ fn test_exit_code_on_findings() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Would use this for exit code
     let has_unused = !result.unused_functions.is_empty();
@@ -100,7 +100,7 @@ fn test_error_on_invalid_path() {
     let result = analyzer.analyze(std::path::Path::new("/nonexistent/path/xyz"));
     // Should handle gracefully (empty result or error)
     // The implementation returns empty result for non-existent paths
-    assert!(result.is_ok() || result.is_err());
+    assert_eq!(result.analysis_summary.total_files, 0);
 }
 
 // =============================================================================
@@ -232,7 +232,7 @@ fn test_multi_file_project_analysis() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // helper() is used in module_b, so should NOT be in unused
     let unused_names: Vec<_> = result
@@ -316,7 +316,7 @@ fn test_exclude_folder_logic() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should find my_src_func from src, but NOT ignored_func from node_modules
     let all_names: Vec<_> = result
@@ -364,7 +364,7 @@ fn test_include_folder_overrides_exclude() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should find venv_func because venv is force-included
     let all_names: Vec<_> = result
@@ -379,5 +379,3 @@ fn test_include_folder_overrides_exclude() {
         all_names
     );
 }
-
-

@@ -29,7 +29,7 @@ class OtherClass:
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // DEBUG and SECRET_KEY and API_KEY should be ignored (confidence 0)
     // db_host and CONSTANT should be reported
@@ -75,7 +75,7 @@ class MyVisitor:
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_method_names: Vec<String> = result
         .unused_methods
@@ -114,7 +114,7 @@ class RegularClass:
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_vars: Vec<String> = result
         .unused_variables
@@ -129,5 +129,3 @@ class RegularClass:
     // Regular class field should be unused
     assert!(unused_vars.contains(&"field".to_owned()));
 }
-
-

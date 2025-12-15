@@ -27,7 +27,7 @@ l.my_func()
     .unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     // Check if my_func in lib.py is marked as unused
     // It SHOULD be marked as used because it's called via l.my_func()
@@ -67,7 +67,7 @@ f()
     .unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -103,7 +103,7 @@ pd.read_csv("data.csv")
     .unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -117,5 +117,3 @@ pd.read_csv("data.csv")
         "pandas.read_csv should be used via alias pd.read_csv"
     );
 }
-
-

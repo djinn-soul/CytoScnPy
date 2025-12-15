@@ -245,9 +245,7 @@ impl BlockComplexityVisitor {
                     self.visit_body(&case.body);
                 }
             }
-            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {
-                // Do NOT recurse into nested definitions for *this* block's complexity.
-            }
+            // Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {} // Do NOT recurse for block complexity
             Stmt::Expr(node) => {
                 self.visit_expr(&node.value);
             }

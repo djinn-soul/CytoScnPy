@@ -15,6 +15,62 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+/// Options for Cyclomatic Complexity analysis
+#[derive(Debug, Default)]
+pub struct CcOptions {
+    /// Output in JSON format.
+    pub json: bool,
+    /// List of paths to exclude patterns.
+    pub exclude: Vec<String>,
+    /// List of specific file patterns to ignore.
+    pub ignore: Vec<String>,
+    /// Minimum rank to show (e.g. 'A').
+    pub min_rank: Option<char>,
+    /// Maximum rank to show (e.g. 'F').
+    pub max_rank: Option<char>,
+    /// Calculate and show average complexity.
+    pub average: bool,
+    /// Only show total average, no individual file details.
+    pub total_average: bool,
+    /// Show complexity value in output table.
+    pub show_complexity: bool,
+    /// Sort order ("score", "lines", "alpha").
+    pub order: Option<String>,
+    /// Disable assertions/panics during analysis (safe mode).
+    pub no_assert: bool,
+    /// Output in XML format.
+    pub xml: bool,
+    /// Fail if any block complexity exceeds this threshold.
+    pub fail_threshold: Option<usize>,
+    /// Write output to this file path.
+    pub output_file: Option<String>,
+}
+
+/// Options for Maintainability Index analysis
+#[derive(Debug, Default)]
+pub struct MiOptions {
+    /// Output in JSON format.
+    pub json: bool,
+    /// List of paths to exclude patterns.
+    pub exclude: Vec<String>,
+    /// List of specific file patterns to ignore.
+    pub ignore: Vec<String>,
+    /// Minimum rank to show.
+    pub min_rank: Option<char>,
+    /// Maximum rank to show.
+    pub max_rank: Option<char>,
+    /// Use multi-line comments in calculation.
+    pub multi: bool,
+    /// Show MI value in output table.
+    pub show: bool,
+    /// Calculate and show average MI.
+    pub average: bool,
+    /// Fail if any file MI is under this threshold.
+    pub fail_under: Option<f64>,
+    /// Write output to this file path.
+    pub output_file: Option<String>,
+}
+
 #[derive(Serialize)]
 struct RawResult {
     file: String,
@@ -153,32 +209,16 @@ struct CcResult {
 }
 
 /// Executes the cyclomatic complexity analysis.
-pub fn run_cc<W: Write>(
-    path: &Path,
-    json: bool,
-    exclude: Vec<String>,
-    ignore: Vec<String>,
-    min_rank: Option<char>,
-    max_rank: Option<char>,
-    average: bool,
-    total_average: bool,
-    show_complexity: bool,
-    order: Option<String>,
-    no_assert: bool,
-    xml: bool,
-    fail_threshold: Option<usize>,
-    output_file: Option<String>,
-    mut writer: W,
-) -> Result<()> {
-    let mut all_exclude = exclude;
-    all_exclude.extend(ignore);
+pub fn run_cc<W: Write>(path: &Path, options: CcOptions, mut writer: W) -> Result<()> {
+    let mut all_exclude = options.exclude;
+    all_exclude.extend(options.ignore);
     let files = find_python_files(path, &all_exclude);
 
     let mut results: Vec<CcResult> = files
         .par_iter()
         .flat_map(|file_path| {
             let code = fs::read_to_string(file_path).unwrap_or_default();
-            let findings = analyze_complexity(&code, file_path, no_assert);
+            let findings = analyze_complexity(&code, file_path, options.no_assert);
             findings
                 .into_iter()
                 .map(|f| CcResult {
@@ -194,7 +234,7 @@ pub fn run_cc<W: Write>(
         .collect();
 
     // Check failure threshold
-    if let Some(threshold) = fail_threshold {
+    if let Some(threshold) = options.fail_threshold {
         let violations: Vec<&CcResult> = results
             .iter()
             .filter(|r| r.complexity > threshold)
@@ -214,15 +254,15 @@ pub fn run_cc<W: Write>(
     }
 
     // Filter by rank
-    if let Some(min) = min_rank {
+    if let Some(min) = options.min_rank {
         results.retain(|r| r.rank >= min);
     }
-    if let Some(max) = max_rank {
+    if let Some(max) = options.max_rank {
         results.retain(|r| r.rank <= max);
     }
 
     // Order results
-    if let Some(ord) = order {
+    if let Some(ord) = options.order {
         match ord.as_str() {
             "score" => results.sort_by(|a, b| b.complexity.cmp(&a.complexity)),
             "lines" => results.sort_by(|a, b| a.line.cmp(&b.line)), // Approximate line order
@@ -231,7 +271,7 @@ pub fn run_cc<W: Write>(
         }
     }
 
-    if average || total_average {
+    if options.average || options.total_average {
         let total_complexity: usize = results.iter().map(|r| r.complexity).sum();
         let count = results.len();
         let avg = if count > 0 {
@@ -241,19 +281,19 @@ pub fn run_cc<W: Write>(
         };
 
         let msg = format!("Average complexity: {avg:.2} ({count} blocks)");
-        write_output(&mut writer, &msg, output_file.clone())?;
-        if total_average {
+        write_output(&mut writer, &msg, options.output_file.clone())?;
+        if options.total_average {
             return Ok(());
         }
     }
 
-    if json {
+    if options.json {
         write_output(
             &mut writer,
             &serde_json::to_string_pretty(&results)?,
-            output_file,
+            options.output_file,
         )?;
-    } else if xml {
+    } else if options.xml {
         // Simple XML output
         let mut xml_out = String::from("<cc_metrics>\n");
         for r in results {
@@ -264,10 +304,10 @@ pub fn run_cc<W: Write>(
             );
         }
         xml_out.push_str("</cc_metrics>");
-        write_output(&mut writer, &xml_out, output_file)?;
+        write_output(&mut writer, &xml_out, options.output_file)?;
     } else {
         let mut table = Table::new();
-        if show_complexity {
+        if options.show_complexity {
             table.set_header(vec!["File", "Name", "Type", "Line", "Complexity", "Rank"]);
         } else {
             table.set_header(vec!["File", "Name", "Type", "Line", "Rank"]);
@@ -288,13 +328,13 @@ pub fn run_cc<W: Write>(
                 r.type_.clone(),
                 r.line.to_string(),
             ];
-            if show_complexity {
+            if options.show_complexity {
                 row.push(r.complexity.to_string());
             }
             row.push(rank_colored.to_string());
             table.add_row(row);
         }
-        write_output(&mut writer, &table.to_string(), output_file)?;
+        write_output(&mut writer, &table.to_string(), options.output_file)?;
     }
     Ok(())
 }
@@ -432,22 +472,9 @@ struct MiResult {
 }
 
 /// Executes the Maintainability Index (MI) analysis.
-pub fn run_mi<W: Write>(
-    path: &Path,
-    json: bool,
-    exclude: Vec<String>,
-    ignore: Vec<String>,
-    min_rank: Option<char>,
-    max_rank: Option<char>,
-    multi: bool,
-    show: bool,
-    average: bool,
-    fail_under: Option<f64>,
-    output_file: Option<String>,
-    mut writer: W,
-) -> Result<()> {
-    let mut all_exclude = exclude;
-    all_exclude.extend(ignore);
+pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Result<()> {
+    let mut all_exclude = options.exclude;
+    all_exclude.extend(options.ignore);
     let files = find_python_files(path, &all_exclude);
 
     let mut results: Vec<MiResult> = files
@@ -468,7 +495,7 @@ pub fn run_mi<W: Write>(
 
             let complexity = crate::complexity::calculate_module_complexity(&code).unwrap_or(1);
 
-            let comments = if multi {
+            let comments = if options.multi {
                 raw.comments + raw.multi
             } else {
                 raw.comments
@@ -486,7 +513,7 @@ pub fn run_mi<W: Write>(
         .collect();
 
     // Calculate and show average if requested
-    if average {
+    if options.average {
         let total_mi: f64 = results.iter().map(|r| r.mi).sum();
         let count = results.len();
         let avg = if count > 0 {
@@ -495,11 +522,11 @@ pub fn run_mi<W: Write>(
             0.0
         };
         let msg = format!("Average MI: {avg:.2}");
-        write_output(&mut writer, &msg, output_file.clone())?;
+        write_output(&mut writer, &msg, options.output_file.clone())?;
     }
 
     // Check failure threshold
-    if let Some(threshold) = fail_under {
+    if let Some(threshold) = options.fail_under {
         let violations: Vec<&MiResult> = results.iter().filter(|r| r.mi < threshold).collect();
         if !violations.is_empty() {
             eprintln!(
@@ -513,22 +540,22 @@ pub fn run_mi<W: Write>(
     }
 
     // Filter by rank
-    if let Some(min) = min_rank {
+    if let Some(min) = options.min_rank {
         results.retain(|r| r.rank >= min);
     }
-    if let Some(max) = max_rank {
+    if let Some(max) = options.max_rank {
         results.retain(|r| r.rank <= max);
     }
 
-    if json {
+    if options.json {
         write_output(
             &mut writer,
             &serde_json::to_string_pretty(&results)?,
-            output_file,
+            options.output_file,
         )?;
     } else {
         let mut table = Table::new();
-        if show {
+        if options.show {
             table.set_header(vec!["File", "MI", "Rank"]);
         } else {
             table.set_header(vec!["File", "Rank"]);
@@ -543,13 +570,13 @@ pub fn run_mi<W: Write>(
             };
 
             let mut row = vec![r.file.clone()];
-            if show {
+            if options.show {
                 row.push(format!("{:.2}", r.mi));
             }
             row.push(rank_colored.to_string());
             table.add_row(row);
         }
-        write_output(&mut writer, &table.to_string(), output_file)?;
+        write_output(&mut writer, &table.to_string(), options.output_file)?;
     }
     Ok(())
 }

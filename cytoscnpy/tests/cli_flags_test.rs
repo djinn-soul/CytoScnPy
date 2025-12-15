@@ -19,19 +19,14 @@ fn test_cc_min_max() {
     // Min rank B should exclude foo
     run_cc(
         dir.path(),
-        false,
-        vec![],
-        vec![],
-        Some('B'),
-        None,
-        false,
-        false,
-        false,
-        None,
-        false,
-        false,
-        None, // fail_threshold
-        None,
+        cytoscnpy::commands::CcOptions {
+            json: false,
+            exclude: vec![],
+            ignore: vec![],
+            min_rank: Some('B'),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();
@@ -43,19 +38,14 @@ fn test_cc_min_max() {
     // Max rank A should exclude bar
     run_cc(
         dir.path(),
-        false,
-        vec![],
-        vec![],
-        None,
-        Some('A'),
-        false,
-        false,
-        false,
-        None,
-        false,
-        false,
-        None, // fail_threshold
-        None,
+        cytoscnpy::commands::CcOptions {
+            json: false,
+            exclude: vec![],
+            ignore: vec![],
+            max_rank: Some('A'),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();
@@ -74,19 +64,14 @@ fn test_cc_average() {
     let mut buffer = Vec::new();
     run_cc(
         dir.path(),
-        false,
-        vec![],
-        vec![],
-        None,
-        None,
-        true,
-        false,
-        false,
-        None,
-        false,
-        false,
-        None, // fail_threshold
-        None,
+        cytoscnpy::commands::CcOptions {
+            json: false,
+            exclude: vec![],
+            ignore: vec![],
+            average: true,
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();
@@ -104,16 +89,14 @@ fn test_mi_show() {
     let mut buffer = Vec::new();
     run_mi(
         dir.path(),
-        false,
-        vec![],
-        vec![],
-        None,
-        None,
-        false,
-        true,
-        false, // average
-        None,  // fail_under
-        None,
+        cytoscnpy::commands::MiOptions {
+            json: false,
+            exclude: vec![],
+            ignore: vec![],
+            show: true,
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();

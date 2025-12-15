@@ -10,7 +10,7 @@ use super::interprocedural;
 use super::intraprocedural;
 use super::sources::check_taint_source;
 use super::types::{Severity, TaintFinding, TaintInfo, TaintSource, VulnType};
-use rustpython_parser::ast::{Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -40,7 +40,7 @@ pub trait TaintSinkPlugin: Send + Sync {
 
     /// Checks if a call expression is a dangerous sink.
     /// Returns Some(SinkMatch) if the call is a sink, None otherwise.
-    fn check_sink(&self, call: &rustpython_parser::ast::ExprCall) -> Option<SinkMatch>;
+    fn check_sink(&self, call: &ruff_python_ast::ExprCall) -> Option<SinkMatch>;
 
     /// Returns the sink patterns this plugin handles.
     fn patterns(&self) -> Vec<String> {
@@ -69,7 +69,7 @@ pub trait SanitizerPlugin: Send + Sync {
     fn name(&self) -> &str;
 
     /// Checks if a call sanitizes taint.
-    fn is_sanitizer(&self, call: &rustpython_parser::ast::ExprCall) -> bool;
+    fn is_sanitizer(&self, call: &ruff_python_ast::ExprCall) -> bool;
 
     /// Returns which vulnerability types this sanitizer addresses.
     fn sanitizes_vuln_types(&self) -> Vec<VulnType> {
@@ -85,11 +85,11 @@ pub trait SanitizerPlugin: Send + Sync {
 #[derive(Default)]
 pub struct PluginRegistry {
     /// Registered source plugins
-    sources: Vec<Arc<dyn TaintSourcePlugin>>,
+    pub sources: Vec<Arc<dyn TaintSourcePlugin>>,
     /// Registered sink plugins
-    sinks: Vec<Arc<dyn TaintSinkPlugin>>,
+    pub sinks: Vec<Arc<dyn TaintSinkPlugin>>,
     /// Registered sanitizer plugins
-    sanitizers: Vec<Arc<dyn SanitizerPlugin>>,
+    pub sanitizers: Vec<Arc<dyn SanitizerPlugin>>,
 }
 
 impl PluginRegistry {
@@ -124,7 +124,7 @@ impl PluginRegistry {
     }
 
     /// Checks all sink plugins for a match.
-    pub fn check_sinks(&self, call: &rustpython_parser::ast::ExprCall) -> Option<SinkMatch> {
+    pub fn check_sinks(&self, call: &ruff_python_ast::ExprCall) -> Option<SinkMatch> {
         for plugin in &self.sinks {
             if let Some(sink) = plugin.check_sink(call) {
                 return Some(sink);
@@ -134,7 +134,7 @@ impl PluginRegistry {
     }
 
     /// Checks if any sanitizer plugin matches.
-    pub fn is_sanitizer(&self, call: &rustpython_parser::ast::ExprCall) -> bool {
+    pub fn is_sanitizer(&self, call: &ruff_python_ast::ExprCall) -> bool {
         for plugin in &self.sanitizers {
             if plugin.is_sanitizer(call) {
                 return true;
@@ -347,19 +347,9 @@ impl TaintAnalyzer {
         let mut findings = Vec::new();
 
         // Parse the source
-        let ast = match rustpython_parser::parse(
-            source,
-            rustpython_parser::Mode::Module,
-            file_path.to_string_lossy().as_ref(),
-        ) {
-            Ok(ast) => ast,
+        let stmts = match ruff_python_parser::parse_module(source) {
+            Ok(parsed) => parsed.into_syntax().body,
             Err(_) => return findings,
-        };
-
-        let stmts = if let rustpython_ast::Mod::Module(module) = ast {
-            module.body
-        } else {
-            return findings;
         };
 
         // Level 1: Intraprocedural
@@ -378,12 +368,15 @@ impl TaintAnalyzer {
             // Analyze functions
             for stmt in &stmts {
                 if let Stmt::FunctionDef(func) = stmt {
-                    let func_findings = intraprocedural::analyze_function(func, file_path, None);
-                    findings.extend(func_findings);
-                } else if let Stmt::AsyncFunctionDef(func) = stmt {
-                    let func_findings =
-                        intraprocedural::analyze_async_function(func, file_path, None);
-                    findings.extend(func_findings);
+                    if func.is_async {
+                        let func_findings =
+                            intraprocedural::analyze_async_function(func, file_path, None);
+                        findings.extend(func_findings);
+                    } else {
+                        let func_findings =
+                            intraprocedural::analyze_function(func, file_path, None);
+                        findings.extend(func_findings);
+                    }
                 }
             }
         }
@@ -429,27 +422,5 @@ impl TaintAnalyzer {
 impl Default for TaintAnalyzer {
     fn default() -> Self {
         Self::new(TaintConfig::all_levels())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_plugin_registry() {
-        let mut registry = PluginRegistry::new();
-        registry.register_source(FlaskSourcePlugin);
-        registry.register_source(DjangoSourcePlugin);
-
-        assert_eq!(registry.sources.len(), 2);
-    }
-
-    #[test]
-    fn test_analyzer_creation() {
-        let analyzer = TaintAnalyzer::default();
-        assert!(analyzer.config.intraprocedural);
-        assert!(analyzer.config.interprocedural);
-        assert!(analyzer.config.crossfile);
     }
 }

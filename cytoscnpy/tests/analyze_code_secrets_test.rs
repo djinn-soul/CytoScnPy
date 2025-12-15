@@ -13,7 +13,7 @@ fn test_analyze_code_secrets() {
         password = "correct-horse-battery-staple"
     "#;
 
-    let result = analyzer.analyze_code(code, PathBuf::from("test_secrets.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("test_secrets.py"));
 
     // Debug print to see what we found if it fails
     if result.secrets.is_empty() {

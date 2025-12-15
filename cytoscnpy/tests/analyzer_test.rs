@@ -32,7 +32,7 @@ instance = UsedClass()
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     // Verify unused functions
     let unused_funcs: Vec<String> = result
@@ -60,7 +60,7 @@ instance = UsedClass()
 fn test_analyze_empty_directory() {
     let dir = tempdir().unwrap();
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     assert_eq!(result.analysis_summary.total_files, 0);
     assert!(result.unused_functions.is_empty());
@@ -89,7 +89,7 @@ def _private_unused():
 
     // Set threshold to 30
     let mut cytoscnpy_high = CytoScnPy::default().with_confidence(30).with_tests(false);
-    let result_high = cytoscnpy_high.analyze(dir.path()).unwrap();
+    let result_high = cytoscnpy_high.analyze(dir.path());
 
     let funcs_high: Vec<String> = result_high
         .unused_functions
@@ -102,7 +102,7 @@ def _private_unused():
 
     // Low threshold: both should be present
     let mut cytoscnpy_low = CytoScnPy::default().with_confidence(10).with_tests(false);
-    let result_low = cytoscnpy_low.analyze(dir.path()).unwrap();
+    let result_low = cytoscnpy_low.analyze(dir.path());
 
     let funcs_low: Vec<String> = result_low
         .unused_functions
@@ -127,7 +127,7 @@ fn test_module_name_generation_implicit() {
     write!(file, "def regular_func(): pass").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(0).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     // We can't check internal module name directly, but we can check if full_name reflects it?
     // In Rust impl, module name is just file_stem (e.g. "submodule"), not dotted path "src.package.submodule"
@@ -165,7 +165,7 @@ instance = MyClass()
     // This is correct: these methods are implicitly called by Python, not truly unused.
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(1).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_funcs: Vec<String> = result
         .unused_functions
@@ -194,7 +194,7 @@ def _private_function():
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(0).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     // In Rust impl: "In __init__.py penalty ... confidence -= 20"
     // And "Private names ... confidence -= 30"
@@ -232,7 +232,7 @@ my_func()
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(0).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_funcs: Vec<String> = result
         .unused_functions

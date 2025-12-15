@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::utils::LineIndex;
-use rustpython_parser::ast::{Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use serde::Serialize;
 use std::path::PathBuf;
 

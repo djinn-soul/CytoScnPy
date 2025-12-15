@@ -23,6 +23,7 @@ pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
 /// Regex for identifying test files.
 pub fn get_test_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(
             r"(?:^|[/\\])tests?[/\\]|(?:^|[/\\])test_[^/\\]+\.py$|[^/\\]+_test\.py$|conftest\.py$",
@@ -34,6 +35,7 @@ pub fn get_test_file_re() -> &'static Regex {
 /// Regex for identifying imports of testing frameworks.
 pub fn get_test_import_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(r"^(pytest|unittest|nose|mock|responses)(\.|$)")
             .expect("Invalid test import regex pattern")
@@ -43,6 +45,7 @@ pub fn get_test_import_re() -> &'static Regex {
 /// Regex for identifying test-related decorators.
 pub fn get_test_decor_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(
             r"(?x)^(
@@ -71,6 +74,7 @@ pub fn get_auto_called() -> &'static FxHashSet<&'static str> {
 /// Regex for identifying test methods.
 pub fn get_test_method_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| Regex::new(r"^test_\w+$").expect("Invalid test method regex pattern"))
 }
 
@@ -92,6 +96,7 @@ pub fn get_unittest_lifecycle_methods() -> &'static FxHashSet<&'static str> {
 /// Regex for identifying framework-specific files (e.g. Django, Flask patterns).
 pub fn get_framework_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(r"(?i)(?:views|handlers|endpoints|routes|api|urls)\.py$")
             .expect("Invalid framework file regex pattern")

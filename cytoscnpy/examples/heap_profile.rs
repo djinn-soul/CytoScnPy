@@ -29,7 +29,7 @@ fn main() {
 
     let path = PathBuf::from(&args[1]);
 
-    println!("Analyzing: {:?}", path);
+    println!("Analyzing: {path:?}");
 
     // Create analyzer with default settings
     let mut analyzer = CytoScnPy::default()
@@ -38,30 +38,22 @@ fn main() {
         .with_quality(false);
 
     // Run analysis
-    let result = analyzer.analyze(&path);
+    let summary = analyzer.analyze(&path);
 
-    match result {
-        Ok(summary) => {
-            println!("✓ Analysis complete!");
-            println!("  Files: {}", summary.analysis_summary.total_files);
-            println!("  Lines: {}", summary.analysis_summary.total_lines_analyzed);
-            println!(
-                "  Definitions: {}",
-                summary.analysis_summary.total_definitions
-            );
-            let unused_count = summary.unused_functions.len()
-                + summary.unused_methods.len()
-                + summary.unused_imports.len()
-                + summary.unused_classes.len()
-                + summary.unused_variables.len()
-                + summary.unused_parameters.len();
-            println!("  Unused: {}", unused_count);
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            std::process::exit(1);
-        }
-    }
+    println!("✓ Analysis complete!");
+    println!("  Files: {}", summary.analysis_summary.total_files);
+    println!("  Lines: {}", summary.analysis_summary.total_lines_analyzed);
+    println!(
+        "  Definitions: {}",
+        summary.analysis_summary.total_definitions
+    );
+    let unused_count = summary.unused_functions.len()
+        + summary.unused_methods.len()
+        + summary.unused_imports.len()
+        + summary.unused_classes.len()
+        + summary.unused_variables.len()
+        + summary.unused_parameters.len();
+    println!("  Unused: {}", unused_count);
 
     #[cfg(feature = "heap-profile")]
     {

@@ -24,8 +24,9 @@ fn test_run_mi_multi_flag_integration() {
         String::from("\"\"\"\nThis is a docstring.\nIt spans multiple lines.\n\"\"\"\n");
 
     // 200 functions, each 2 lines of SLOC -> 400 SLOC.
+    use std::fmt::Write;
     for i in 0..200 {
-        content.push_str(&format!("\ndef f{i}():\n    return {i}\n"));
+        write!(content, "\ndef f{i}():\n    return {i}\n").unwrap();
     }
 
     // 5 blocks of 3-line multi-strings = 15 lines.
@@ -51,17 +52,19 @@ def complex_part(x):
     // Run without multi flag
     let mut buffer_no_multi = Vec::new();
     run_mi(
-        file_path.clone(),
-        true, // json output to parse easily
-        vec![],
-        vec![],
-        None,
-        None,
-        false, // multi = false
-        false,
-        false,
-        None,
-        None,
+        &file_path,
+        cytoscnpy::commands::MiOptions {
+            json: true,
+            exclude: vec![],
+            ignore: vec![],
+            min_rank: None,
+            max_rank: None,
+            multi: false,
+            show: true,
+            average: false,
+            fail_under: None,
+            output_file: None,
+        },
         &mut buffer_no_multi,
     )
     .unwrap();
@@ -73,17 +76,19 @@ def complex_part(x):
     // Run with multi flag
     let mut buffer_multi = Vec::new();
     run_mi(
-        file_path.clone(),
-        true, // json output
-        vec![],
-        vec![],
-        None,
-        None,
-        true, // multi = true
-        false,
-        false,
-        None,
-        None,
+        &file_path,
+        cytoscnpy::commands::MiOptions {
+            json: true,
+            exclude: vec![],
+            ignore: vec![],
+            min_rank: None,
+            max_rank: None,
+            multi: true,
+            show: true,
+            average: false,
+            fail_under: None,
+            output_file: None,
+        },
         &mut buffer_multi,
     )
     .unwrap();

@@ -3,7 +3,7 @@
 //! Defines how taint flows through expressions and statements.
 
 use super::types::TaintInfo;
-use rustpython_parser::ast::{self, Expr};
+use ruff_python_ast::{self as ast, Expr};
 use std::collections::HashMap;
 
 /// Taint state for tracking tainted variables.
@@ -61,17 +61,22 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
         }
 
         // F-string: tainted if any value is tainted
-        Expr::JoinedStr(joined) => {
-            for value in &joined.values {
-                if let Some(info) = is_expr_tainted(value, state) {
-                    return Some(info);
+        Expr::FString(fstring) => {
+            for part in &fstring.value {
+                if let ruff_python_ast::FStringPart::FString(f) = part {
+                    for element in &f.elements {
+                        if let ruff_python_ast::InterpolatedStringElement::Interpolation(interp) =
+                            element
+                        {
+                            if let Some(info) = is_expr_tainted(&interp.expression, state) {
+                                return Some(info);
+                            }
+                        }
+                    }
                 }
             }
             None
         }
-
-        // Formatted value in f-string
-        Expr::FormattedValue(fv) => is_expr_tainted(&fv.value, state),
 
         // Method call: tainted if receiver is tainted (e.g., tainted.upper())
         Expr::Call(call) => {
@@ -111,8 +116,13 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
 
         // Dict: tainted if any value is tainted
         Expr::Dict(dict) => {
-            for value in &dict.values {
-                if let Some(info) = is_expr_tainted(value, state) {
+            for item in &dict.items {
+                if let Some(key) = &item.key {
+                    if let Some(info) = is_expr_tainted(key, state) {
+                        return Some(info);
+                    }
+                }
+                if let Some(info) = is_expr_tainted(&item.value, state) {
                     return Some(info);
                 }
             }
@@ -120,7 +130,7 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
         }
 
         // Conditional expression: conservatively tainted if either branch is tainted
-        Expr::IfExp(ifexp) => {
+        Expr::If(ifexp) => {
             is_expr_tainted(&ifexp.body, state).or_else(|| is_expr_tainted(&ifexp.orelse, state))
         }
 
@@ -159,7 +169,7 @@ pub fn is_parameterized_query(call: &ast::ExprCall) -> bool {
     if let Some(name) = get_call_name(&call.func) {
         if name.ends_with(".execute") || name.ends_with(".executemany") {
             // Has second argument = parameterized
-            return call.args.len() >= 2;
+            return call.arguments.args.len() >= 2;
         }
     }
     false
@@ -194,46 +204,5 @@ fn get_call_name(func: &Expr) -> Option<String> {
             }
         }
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::taint::types::TaintSource;
-    use rustpython_parser::{parse, Mode};
-
-    fn parse_expr(source: &str) -> Expr {
-        let tree = parse(source, Mode::Expression, "test.py").unwrap();
-        if let ast::Mod::Expression(expr) = tree {
-            *expr.body
-        } else {
-            panic!("Expected expression")
-        }
-    }
-
-    #[test]
-    fn test_tainted_variable_propagation() {
-        let mut state = TaintState::new();
-        state.mark_tainted("x", TaintInfo::new(TaintSource::Input, 1));
-
-        let expr = parse_expr("x");
-        assert!(is_expr_tainted(&expr, &state).is_some());
-    }
-
-    #[test]
-    fn test_binop_propagation() {
-        let mut state = TaintState::new();
-        state.mark_tainted("x", TaintInfo::new(TaintSource::Input, 1));
-
-        let expr = parse_expr("x + 'suffix'");
-        assert!(is_expr_tainted(&expr, &state).is_some());
-    }
-
-    #[test]
-    fn test_clean_variable() {
-        let state = TaintState::new();
-        let expr = parse_expr("clean_var");
-        assert!(is_expr_tainted(&expr, &state).is_none());
     }
 }

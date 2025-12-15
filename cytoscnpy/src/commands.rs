@@ -7,12 +7,69 @@ use anyhow::Result;
 use colored::Colorize;
 use comfy_table::Table;
 use rayon::prelude::*;
-use rustpython_parser::{parse, Mode};
+
 use serde::{Deserialize, Serialize};
+use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+/// Options for Cyclomatic Complexity analysis
+#[derive(Debug, Default)]
+pub struct CcOptions {
+    /// Output in JSON format.
+    pub json: bool,
+    /// List of paths to exclude patterns.
+    pub exclude: Vec<String>,
+    /// List of specific file patterns to ignore.
+    pub ignore: Vec<String>,
+    /// Minimum rank to show (e.g. 'A').
+    pub min_rank: Option<char>,
+    /// Maximum rank to show (e.g. 'F').
+    pub max_rank: Option<char>,
+    /// Calculate and show average complexity.
+    pub average: bool,
+    /// Only show total average, no individual file details.
+    pub total_average: bool,
+    /// Show complexity value in output table.
+    pub show_complexity: bool,
+    /// Sort order ("score", "lines", "alpha").
+    pub order: Option<String>,
+    /// Disable assertions/panics during analysis (safe mode).
+    pub no_assert: bool,
+    /// Output in XML format.
+    pub xml: bool,
+    /// Fail if any block complexity exceeds this threshold.
+    pub fail_threshold: Option<usize>,
+    /// Write output to this file path.
+    pub output_file: Option<String>,
+}
+
+/// Options for Maintainability Index analysis
+#[derive(Debug, Default)]
+pub struct MiOptions {
+    /// Output in JSON format.
+    pub json: bool,
+    /// List of paths to exclude patterns.
+    pub exclude: Vec<String>,
+    /// List of specific file patterns to ignore.
+    pub ignore: Vec<String>,
+    /// Minimum rank to show.
+    pub min_rank: Option<char>,
+    /// Maximum rank to show.
+    pub max_rank: Option<char>,
+    /// Use multi-line comments in calculation.
+    pub multi: bool,
+    /// Show MI value in output table.
+    pub show: bool,
+    /// Calculate and show average MI.
+    pub average: bool,
+    /// Fail if any file MI is under this threshold.
+    pub fail_under: Option<f64>,
+    /// Write output to this file path.
+    pub output_file: Option<String>,
+}
 
 #[derive(Serialize)]
 struct RawResult {
@@ -27,7 +84,7 @@ struct RawResult {
 
 /// Executes the raw metrics analysis (LOC, SLOC, etc.).
 pub fn run_raw<W: Write>(
-    path: PathBuf,
+    path: &Path,
     json: bool,
     exclude: Vec<String>,
     ignore: Vec<String>,
@@ -37,7 +94,7 @@ pub fn run_raw<W: Write>(
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+    let files = find_python_files(path, &all_exclude);
 
     let results: Vec<RawResult> = files
         .par_iter()
@@ -152,32 +209,16 @@ struct CcResult {
 }
 
 /// Executes the cyclomatic complexity analysis.
-pub fn run_cc<W: Write>(
-    path: PathBuf,
-    json: bool,
-    exclude: Vec<String>,
-    ignore: Vec<String>,
-    min_rank: Option<char>,
-    max_rank: Option<char>,
-    average: bool,
-    total_average: bool,
-    show_complexity: bool,
-    order: Option<String>,
-    no_assert: bool,
-    xml: bool,
-    fail_threshold: Option<usize>,
-    output_file: Option<String>,
-    mut writer: W,
-) -> Result<()> {
-    let mut all_exclude = exclude;
-    all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+pub fn run_cc<W: Write>(path: &Path, options: CcOptions, mut writer: W) -> Result<()> {
+    let mut all_exclude = options.exclude;
+    all_exclude.extend(options.ignore);
+    let files = find_python_files(path, &all_exclude);
 
     let mut results: Vec<CcResult> = files
         .par_iter()
         .flat_map(|file_path| {
             let code = fs::read_to_string(file_path).unwrap_or_default();
-            let findings = analyze_complexity(&code, file_path, no_assert);
+            let findings = analyze_complexity(&code, file_path, options.no_assert);
             findings
                 .into_iter()
                 .map(|f| CcResult {
@@ -193,7 +234,7 @@ pub fn run_cc<W: Write>(
         .collect();
 
     // Check failure threshold
-    if let Some(threshold) = fail_threshold {
+    if let Some(threshold) = options.fail_threshold {
         let violations: Vec<&CcResult> = results
             .iter()
             .filter(|r| r.complexity > threshold)
@@ -213,15 +254,15 @@ pub fn run_cc<W: Write>(
     }
 
     // Filter by rank
-    if let Some(min) = min_rank {
+    if let Some(min) = options.min_rank {
         results.retain(|r| r.rank >= min);
     }
-    if let Some(max) = max_rank {
+    if let Some(max) = options.max_rank {
         results.retain(|r| r.rank <= max);
     }
 
     // Order results
-    if let Some(ord) = order {
+    if let Some(ord) = options.order {
         match ord.as_str() {
             "score" => results.sort_by(|a, b| b.complexity.cmp(&a.complexity)),
             "lines" => results.sort_by(|a, b| a.line.cmp(&b.line)), // Approximate line order
@@ -230,7 +271,7 @@ pub fn run_cc<W: Write>(
         }
     }
 
-    if average || total_average {
+    if options.average || options.total_average {
         let total_complexity: usize = results.iter().map(|r| r.complexity).sum();
         let count = results.len();
         let avg = if count > 0 {
@@ -240,32 +281,33 @@ pub fn run_cc<W: Write>(
         };
 
         let msg = format!("Average complexity: {avg:.2} ({count} blocks)");
-        write_output(&mut writer, &msg, output_file.clone())?;
-        if total_average {
+        write_output(&mut writer, &msg, options.output_file.clone())?;
+        if options.total_average {
             return Ok(());
         }
     }
 
-    if json {
+    if options.json {
         write_output(
             &mut writer,
             &serde_json::to_string_pretty(&results)?,
-            output_file,
+            options.output_file,
         )?;
-    } else if xml {
+    } else if options.xml {
         // Simple XML output
         let mut xml_out = String::from("<cc_metrics>\n");
         for r in results {
-            xml_out.push_str(&format!(
+            let _ = write!(
+                xml_out,
                 "  <block>\n    <file>{}</file>\n    <name>{}</name>\n    <complexity>{}</complexity>\n    <rank>{}</rank>\n  </block>\n",
                 r.file, r.name, r.complexity, r.rank
-            ));
+            );
         }
         xml_out.push_str("</cc_metrics>");
-        write_output(&mut writer, &xml_out, output_file)?;
+        write_output(&mut writer, &xml_out, options.output_file)?;
     } else {
         let mut table = Table::new();
-        if show_complexity {
+        if options.show_complexity {
             table.set_header(vec!["File", "Name", "Type", "Line", "Complexity", "Rank"]);
         } else {
             table.set_header(vec!["File", "Name", "Type", "Line", "Rank"]);
@@ -273,10 +315,8 @@ pub fn run_cc<W: Write>(
 
         for r in results {
             let rank_colored = match r.rank {
-                'A' => r.rank.to_string().green(),
-                'B' => r.rank.to_string().green(),
-                'C' => r.rank.to_string().yellow(),
-                'D' => r.rank.to_string().yellow(),
+                'A' | 'B' => r.rank.to_string().green(),
+                'C' | 'D' => r.rank.to_string().yellow(),
                 'E' => r.rank.to_string().red(),
                 'F' => r.rank.to_string().red().bold(),
                 _ => r.rank.to_string().normal(),
@@ -288,13 +328,13 @@ pub fn run_cc<W: Write>(
                 r.type_.clone(),
                 r.line.to_string(),
             ];
-            if show_complexity {
+            if options.show_complexity {
                 row.push(r.complexity.to_string());
             }
             row.push(rank_colored.to_string());
             table.add_row(row);
         }
-        write_output(&mut writer, &table.to_string(), output_file)?;
+        write_output(&mut writer, &table.to_string(), options.output_file)?;
     }
     Ok(())
 }
@@ -314,7 +354,7 @@ struct HalResult {
 
 /// Executes the Halstead metrics analysis.
 pub fn run_hal<W: Write>(
-    path: PathBuf,
+    path: &Path,
     json: bool,
     exclude: Vec<String>,
     ignore: Vec<String>,
@@ -324,7 +364,7 @@ pub fn run_hal<W: Write>(
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+    let files = find_python_files(path, &all_exclude);
 
     let results: Vec<HalResult> = files
         .par_iter()
@@ -332,14 +372,24 @@ pub fn run_hal<W: Write>(
             let code = fs::read_to_string(file_path).unwrap_or_default();
             let mut file_results = Vec::new();
 
-            if let Ok(rustpython_ast::Mod::Module(m)) = parse(
-                &code,
-                Mode::Module,
-                file_path.to_str().unwrap_or("<unknown>"),
-            ) {
+            // Use ruff's parse_module which returns the parsed AST directly
+            if let Ok(parsed) = ruff_python_parser::parse_module(&code) {
+                let module = parsed.into_syntax();
+                // ruff's analyze functions expect the specific Mod variant or we need to adapt
+                // analyze_halstead expects &Mod, but module is ModModule.
+                // ModModule is a struct, not an enum variant directly comparable to Mod::Module?
+                // Actually ruff_python_ast::Mod is the enum. ModModule is a variant wrapper?
+                // No, ModModule is the struct for Module.
+                // We likely need to wrap it in Mod::Module(module) if the analyze functions expect Mod::Module
+                // But wait, the previous code was `Mod::Module { body: module.body, ... }`.
+                // Let's assume we can construct Mod::Module from it or chang analyze_halstead signature.
+                // Easier to construct Mod::Module for now if possible, or cast.
+                // Actually, let's look at `analyze_halstead` signature in halstead.rs via earlier read...
+                // It likely takes &Mod.
+                // Let's construct a Mod::Module wrapping the body.
+                let mod_enum = ruff_python_ast::Mod::Module(module);
                 if functions {
-                    let function_metrics =
-                        analyze_halstead_functions(&rustpython_ast::Mod::Module(m));
+                    let function_metrics = analyze_halstead_functions(&mod_enum);
                     for (name, metrics) in function_metrics {
                         file_results.push(HalResult {
                             file: file_path.to_string_lossy().to_string(),
@@ -355,7 +405,7 @@ pub fn run_hal<W: Write>(
                         });
                     }
                 } else {
-                    let metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+                    let metrics = analyze_halstead(&mod_enum);
                     file_results.push(HalResult {
                         file: file_path.to_string_lossy().to_string(),
                         name: "<module>".to_owned(),
@@ -422,23 +472,10 @@ struct MiResult {
 }
 
 /// Executes the Maintainability Index (MI) analysis.
-pub fn run_mi<W: Write>(
-    path: PathBuf,
-    json: bool,
-    exclude: Vec<String>,
-    ignore: Vec<String>,
-    min_rank: Option<char>,
-    max_rank: Option<char>,
-    multi: bool,
-    show: bool,
-    average: bool,
-    fail_under: Option<f64>,
-    output_file: Option<String>,
-    mut writer: W,
-) -> Result<()> {
-    let mut all_exclude = exclude;
-    all_exclude.extend(ignore);
-    let files = find_python_files(&path, &all_exclude);
+pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Result<()> {
+    let mut all_exclude = options.exclude;
+    all_exclude.extend(options.ignore);
+    let files = find_python_files(path, &all_exclude);
 
     let mut results: Vec<MiResult> = files
         .par_iter()
@@ -448,18 +485,17 @@ pub fn run_mi<W: Write>(
             let raw = analyze_raw(&code);
             let mut volume = 0.0;
 
-            if let Ok(rustpython_ast::Mod::Module(m)) = parse(
-                &code,
-                Mode::Module,
-                file_path.to_str().unwrap_or("<unknown>"),
-            ) {
-                let h_metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+            // Use ruff's parse_module
+            if let Ok(parsed) = ruff_python_parser::parse_module(&code) {
+                let module = parsed.into_syntax();
+                let mod_enum = ruff_python_ast::Mod::Module(module);
+                let h_metrics = analyze_halstead(&mod_enum);
                 volume = h_metrics.volume;
             }
 
             let complexity = crate::complexity::calculate_module_complexity(&code).unwrap_or(1);
 
-            let comments = if multi {
+            let comments = if options.multi {
                 raw.comments + raw.multi
             } else {
                 raw.comments
@@ -477,7 +513,7 @@ pub fn run_mi<W: Write>(
         .collect();
 
     // Calculate and show average if requested
-    if average {
+    if options.average {
         let total_mi: f64 = results.iter().map(|r| r.mi).sum();
         let count = results.len();
         let avg = if count > 0 {
@@ -486,11 +522,11 @@ pub fn run_mi<W: Write>(
             0.0
         };
         let msg = format!("Average MI: {avg:.2}");
-        write_output(&mut writer, &msg, output_file.clone())?;
+        write_output(&mut writer, &msg, options.output_file.clone())?;
     }
 
     // Check failure threshold
-    if let Some(threshold) = fail_under {
+    if let Some(threshold) = options.fail_under {
         let violations: Vec<&MiResult> = results.iter().filter(|r| r.mi < threshold).collect();
         if !violations.is_empty() {
             eprintln!(
@@ -504,22 +540,22 @@ pub fn run_mi<W: Write>(
     }
 
     // Filter by rank
-    if let Some(min) = min_rank {
+    if let Some(min) = options.min_rank {
         results.retain(|r| r.rank >= min);
     }
-    if let Some(max) = max_rank {
+    if let Some(max) = options.max_rank {
         results.retain(|r| r.rank <= max);
     }
 
-    if json {
+    if options.json {
         write_output(
             &mut writer,
             &serde_json::to_string_pretty(&results)?,
-            output_file,
+            options.output_file,
         )?;
     } else {
         let mut table = Table::new();
-        if show {
+        if options.show {
             table.set_header(vec!["File", "MI", "Rank"]);
         } else {
             table.set_header(vec!["File", "Rank"]);
@@ -534,13 +570,13 @@ pub fn run_mi<W: Write>(
             };
 
             let mut row = vec![r.file.clone()];
-            if show {
+            if options.show {
                 row.push(format!("{:.2}", r.mi));
             }
             row.push(rank_colored.to_string());
             table.add_row(row);
         }
-        write_output(&mut writer, &table.to_string(), output_file)?;
+        write_output(&mut writer, &table.to_string(), options.output_file)?;
     }
     Ok(())
 }

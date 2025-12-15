@@ -4,7 +4,7 @@ use cytoscnpy::complexity::analyze_complexity;
 use cytoscnpy::halstead::analyze_halstead;
 use cytoscnpy::metrics::{mi_compute, mi_rank};
 use cytoscnpy::raw_metrics::analyze_raw;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 use std::fs;
 use std::path::PathBuf;
 
@@ -62,9 +62,9 @@ fn test_halstead_heavy() {
     let path = PathBuf::from("../benchmark/examples/complex/radon_complex/halstead_heavy.py");
     let code = fs::read_to_string(&path).expect("Failed to read halstead_heavy.py");
 
-    if let Ok(ast) = parse(&code, Mode::Module, path.to_str().unwrap()) {
-        if let rustpython_ast::Mod::Module(m) = ast {
-            let metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+    if let Ok(ast) = parse(&code, Mode::Module.into()) {
+        if let ruff_python_ast::Mod::Module(m) = ast.into_syntax() {
+            let metrics = analyze_halstead(&ruff_python_ast::Mod::Module(m));
 
             // Just verify we have significant numbers
             assert!(metrics.h1 > 0);
@@ -109,9 +109,9 @@ fn test_mi_complex() {
     let complexity = cytoscnpy::complexity::calculate_module_complexity(&code).unwrap_or(1);
 
     let mut volume = 0.0;
-    if let Ok(ast) = parse(&code, Mode::Module, path.to_str().unwrap()) {
-        if let rustpython_ast::Mod::Module(m) = ast {
-            let h_metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+    if let Ok(ast) = parse(&code, Mode::Module.into()) {
+        if let ruff_python_ast::Mod::Module(m) = ast.into_syntax() {
+            let h_metrics = analyze_halstead(&ruff_python_ast::Mod::Module(m));
             volume = h_metrics.volume;
         }
     }

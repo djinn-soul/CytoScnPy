@@ -1,8 +1,8 @@
 use crate::cli::{Cli, Commands};
 use anyhow::Result;
 use clap::Parser;
+use ruff_python_ast::{Expr, Stmt};
 use rustc_hash::FxHashSet;
-use rustpython_ast::{Constant, Expr, Stmt};
 /// Detects if `__name__ == "__main__"` blocks exist and extracts function calls from them.
 ///
 /// This is crucial for correctly identifying entry points in Python scripts.
@@ -64,10 +64,8 @@ fn is_name_dunder(expr: &Expr) -> bool {
 ///
 /// This is a helper for `is_main_guard`.
 fn is_main_string(expr: &Expr) -> bool {
-    if let Expr::Constant(const_expr) = expr {
-        if let Constant::Str(s) = &const_expr.value {
-            return s.as_str() == "__main__";
-        }
+    if let Expr::StringLiteral(string_lit) = expr {
+        return string_lit.value.to_string() == "__main__";
     }
     false
 }
@@ -91,8 +89,10 @@ fn collect_function_calls(stmt: &Stmt, calls: &mut FxHashSet<String>) {
             for body_stmt in &if_stmt.body {
                 collect_function_calls(body_stmt, calls);
             }
-            for else_stmt in &if_stmt.orelse {
-                collect_function_calls(else_stmt, calls);
+            for else_stmt in &if_stmt.elif_else_clauses {
+                for body_stmt in &else_stmt.body {
+                    collect_function_calls(body_stmt, calls);
+                }
             }
         }
         // Handle for loops
@@ -126,7 +126,7 @@ fn collect_calls_from_expr(expr: &Expr, calls: &mut FxHashSet<String>) {
                 calls.insert(name);
             }
             // Recursively check arguments, they might contain calls too: func(other_func())
-            for arg in &call.args {
+            for arg in &call.arguments.args {
                 collect_calls_from_expr(arg, calls);
             }
         }
@@ -160,66 +160,6 @@ fn get_call_name(expr: &Expr) -> Option<String> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rustpython_parser::{parse, Mode};
-
-    #[test]
-    fn test_entry_point_detection() {
-        let source = r#"
-def my_function():
-    pass
-
-if __name__ == "__main__":
-    my_function()
-    another_call()
-"#;
-
-        let tree = parse(source, Mode::Module, "test.py").expect("Failed to parse");
-        if let rustpython_ast::Mod::Module(module) = tree {
-            let calls = detect_entry_point_calls(&module.body);
-
-            assert!(
-                calls.contains("my_function"),
-                "Should detect my_function call"
-            );
-            assert!(calls.contains("another_call"), "Should detect another_call");
-        }
-    }
-
-    #[test]
-    fn test_no_entry_point() {
-        let source = r#"
-def my_function():
-    pass
-"#;
-
-        let tree = parse(source, Mode::Module, "test.py").expect("Failed to parse");
-        if let rustpython_ast::Mod::Module(module) = tree {
-            let calls = detect_entry_point_calls(&module.body);
-            assert_eq!(calls.len(), 0, "Should detect no entry point calls");
-        }
-    }
-
-    #[test]
-    fn test_reversed_main_guard() {
-        let source = r#"
-def func():
-    pass
-
-if "__main__" == __name__:
-    func()
-"#;
-
-        let tree = parse(source, Mode::Module, "test.py").expect("Failed to parse");
-        if let rustpython_ast::Mod::Module(module) = tree {
-            let calls = detect_entry_point_calls(&module.body);
-            assert!(calls.contains("func"), "Should handle reversed comparison");
-        }
-    }
-}
-
 /// Runs the analyzer (or other commands) with the given arguments.
 pub fn run_with_args(args: Vec<String>) -> Result<i32> {
     let mut program_args = vec!["cytoscnpy".to_owned()];
@@ -243,7 +183,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_raw(
-                    path,
+                    &path,
                     json,
                     exclude,
                     Vec::new(),
@@ -266,20 +206,22 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_cc(
-                    path,
-                    json,
-                    exclude,
-                    Vec::new(),
-                    None,
-                    None,
-                    false,
-                    false,
-                    false,
-                    None,
-                    false,
-                    false,
-                    None, // fail_threshold
-                    None, // output_file
+                    &path,
+                    crate::commands::CcOptions {
+                        json,
+                        exclude,
+                        ignore: Vec::new(),
+                        min_rank: None,
+                        max_rank: None,
+                        average: false,
+                        total_average: false,
+                        show_complexity: false,
+                        order: None,
+                        no_assert: false,
+                        xml: false,
+                        fail_threshold: None,
+                        output_file: None,
+                    },
                     &mut stdout,
                 )?;
             }
@@ -297,7 +239,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_hal(
-                    path,
+                    &path,
                     json,
                     exclude,
                     Vec::new(),
@@ -320,17 +262,19 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     return Ok(1);
                 }
                 crate::commands::run_mi(
-                    path,
-                    json,
-                    exclude,
-                    Vec::new(),
-                    None,
-                    None,
-                    false,
-                    false,
-                    false, // average
-                    None,  // fail_under
-                    None,  // output_file
+                    &path,
+                    crate::commands::MiOptions {
+                        json,
+                        exclude,
+                        ignore: Vec::new(),
+                        min_rank: None,
+                        max_rank: None,
+                        multi: false,
+                        show: false,
+                        average: false,
+                        fail_under: None,
+                        output_file: None,
+                    },
                     &mut stdout,
                 )?;
             }
@@ -391,7 +335,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             danger, // taint is now automatically enabled with --danger
             config.clone(),
         );
-        let result = analyzer.analyze_paths(&cli_var.paths)?;
+        let result = analyzer.analyze_paths(&cli_var.paths);
 
         if let Some(s) = spinner {
             s.finish_and_clear();

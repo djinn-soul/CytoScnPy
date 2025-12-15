@@ -1,13 +1,14 @@
 use crate::utils::LineIndex;
 use compact_str::CompactString;
+use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_text_size::Ranged;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustpython_ast::{self as ast, Expr, Stmt};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Serialize Arc<PathBuf> as a plain PathBuf for JSON output
+/// Serialize Arc<PathBuf> as a plain `PathBuf` for JSON output
 fn serialize_arc_path<S>(path: &Arc<PathBuf>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -15,7 +16,7 @@ where
     path.as_ref().serialize(serializer)
 }
 
-/// Deserialize a plain PathBuf into Arc<PathBuf>
+/// Deserialize a plain `PathBuf` into Arc<PathBuf>
 fn deserialize_arc_path<'de, D>(deserializer: D) -> Result<Arc<PathBuf>, D::Error>
 where
     D: Deserializer<'de>,
@@ -23,7 +24,7 @@ where
     PathBuf::deserialize(deserializer).map(Arc::new)
 }
 
-/// Serialize SmallVec<[String; 2]> as a plain Vec<String> for JSON output
+/// Serialize `SmallVec`<[String; 2]> as a plain Vec<String> for JSON output
 fn serialize_smallvec_string<S>(
     vec: &SmallVec<[String; 2]>,
     serializer: S,
@@ -34,7 +35,7 @@ where
     vec.as_slice().serialize(serializer)
 }
 
-/// Deserialize a plain Vec<String> into SmallVec<[String; 2]>
+/// Deserialize a plain Vec<String> into `SmallVec`<[String; 2]>
 fn deserialize_smallvec_string<'de, D>(deserializer: D) -> Result<SmallVec<[String; 2]>, D::Error>
 where
     D: Deserializer<'de>,
@@ -459,36 +460,41 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Visits function arguments (defaults and annotations).
-    fn visit_arguments(&mut self, args: &ast::Arguments) {
+    fn visit_arguments(&mut self, args: &ast::Parameters) {
+        // Visit positional-only args
         for arg in &args.posonlyargs {
+            if let Some(ann) = &arg.parameter.annotation {
+                self.visit_expr(ann);
+            }
             if let Some(default) = &arg.default {
                 self.visit_expr(default);
             }
-            if let Some(ann) = &arg.def.annotation {
-                self.visit_expr(ann);
-            }
         }
+        // Visit regular args
         for arg in &args.args {
+            if let Some(ann) = &arg.parameter.annotation {
+                self.visit_expr(ann);
+            }
             if let Some(default) = &arg.default {
                 self.visit_expr(default);
             }
-            if let Some(ann) = &arg.def.annotation {
-                self.visit_expr(ann);
-            }
         }
+        // Visit *args
         if let Some(arg) = &args.vararg {
             if let Some(ann) = &arg.annotation {
                 self.visit_expr(ann);
             }
         }
+        // Visit keyword-only args
         for arg in &args.kwonlyargs {
+            if let Some(ann) = &arg.parameter.annotation {
+                self.visit_expr(ann);
+            }
             if let Some(default) = &arg.default {
                 self.visit_expr(default);
             }
-            if let Some(ann) = &arg.def.annotation {
-                self.visit_expr(ann);
-            }
         }
+        // Visit **kwargs
         if let Some(arg) = &args.kwarg {
             if let Some(ann) = &arg.annotation {
                 self.visit_expr(ann);
@@ -499,41 +505,32 @@ impl<'a> CytoScnPyVisitor<'a> {
     /// Visits a statement node in the AST.
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            // Handle function definitions
+            // Handle function definitions (both sync and async - ruff uses is_async flag)
             Stmt::FunctionDef(node) => {
+                // Visit decorators (ruff uses Decorator type with .expression field)
                 for decorator in &node.decorator_list {
-                    self.visit_expr(decorator);
+                    self.visit_expr(&decorator.expression);
                 }
-                self.visit_arguments(&node.args);
+                // Use .parameters instead of .args in ruff
+                self.visit_arguments(&node.parameters);
                 // Visit return annotation to track string type hints like -> "OrderedDict"
                 if let Some(returns) = &node.returns {
                     self.visit_expr(returns);
                 }
-                self.visit_function_def(&node.name, &node.args, &node.body, node.range.start());
-            }
-            // Handle async function definitions
-            Stmt::AsyncFunctionDef(node) => {
-                for decorator in &node.decorator_list {
-                    self.visit_expr(decorator);
-                }
-                self.visit_arguments(&node.args);
-                // Visit return annotation to track string type hints like -> "OrderedDict"
-                if let Some(returns) = &node.returns {
-                    self.visit_expr(returns);
-                }
-                self.visit_function_def(&node.name, &node.args, &node.body, node.range.start());
+                self.visit_function_def(&node.name, &node.parameters, &node.body, node.start());
             }
             // Handle class definitions
             Stmt::ClassDef(node) => {
-                // Check for @dataclass decorator
+                // Check for @dataclass decorator (ruff uses Decorator type)
                 let mut is_dataclass = false;
                 for decorator in &node.decorator_list {
-                    self.visit_expr(decorator);
-                    if let Expr::Name(name) = &decorator {
+                    self.visit_expr(&decorator.expression);
+                    // Check the inner expression for dataclass decorator
+                    if let Expr::Name(name) = &decorator.expression {
                         if name.id.as_str() == "dataclass" {
                             is_dataclass = true;
                         }
-                    } else if let Expr::Call(call) = &decorator {
+                    } else if let Expr::Call(call) = &decorator.expression {
                         if let Expr::Name(func_name) = &*call.func {
                             if func_name.id.as_str() == "dataclass" {
                                 is_dataclass = true;
@@ -543,7 +540,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                                 is_dataclass = true;
                             }
                         }
-                    } else if let Expr::Attribute(attr) = &decorator {
+                    } else if let Expr::Attribute(attr) = &decorator.expression {
                         if attr.attr.as_str() == "dataclass" {
                             is_dataclass = true;
                         }
@@ -552,11 +549,13 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 let name = &node.name;
                 let qualified_name = self.get_qualified_name(name.as_str());
-                let line = self.line_index.line_index(node.range.start());
+                let line = self.line_index.line_index(node.start());
 
                 // Extract base class names to check for inheritance patterns later.
+                // In ruff, node.bases() returns an iterator over base class expressions
+                let bases = node.bases();
                 let mut base_classes: SmallVec<[String; 2]> = SmallVec::new();
-                for base in &node.bases {
+                for base in bases {
                     match base {
                         Expr::Name(base_name) => {
                             base_classes.push(base_name.id.to_string());
@@ -580,7 +579,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.add_local_def(name.to_string(), qualified_name.clone());
 
                 // Add references for base classes because inheriting uses them.
-                for base in &node.bases {
+                for base in node.bases() {
                     self.visit_expr(base);
                     // Handle simple base class names mapping to module refs
                     if let Expr::Name(base_name) = base {
@@ -595,12 +594,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Visit keyword arguments (e.g., metaclass=SomeClass)
                 // This ensures classes used as metaclasses are tracked as "used"
                 let mut has_metaclass = false;
-                for keyword in &node.keywords {
+                for keyword in node.keywords() {
                     self.visit_expr(&keyword.value);
-                    // Check if this is a metaclass keyword
-                    if keyword.arg.as_ref().map(rustpython_ast::Identifier::as_str)
-                        == Some("metaclass")
-                    {
+                    // Check if this is a metaclass keyword (use as_str() directly)
+                    if keyword.arg.as_ref().map(ruff_python_ast::Identifier::as_str) == Some("metaclass") {
                         has_metaclass = true;
                     }
                     // Also add direct reference for simple name metaclasses
@@ -696,10 +693,8 @@ impl<'a> CytoScnPyVisitor<'a> {
                     if target.id.as_str() == "__all__" {
                         if let Expr::List(list) = &*node.value {
                             for elt in &list.elts {
-                                if let Expr::Constant(constant) = elt {
-                                    if let ast::Constant::Str(s) = &constant.value {
-                                        self.exports.push(s.clone());
-                                    }
+                                if let Expr::StringLiteral(string_lit) = elt {
+                                    self.exports.push(string_lit.value.to_string());
                                 }
                             }
                         }
@@ -803,8 +798,15 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Restore previous state
                 self.in_type_checking_block = prev_in_type_checking;
 
-                for stmt in &node.orelse {
-                    self.visit_stmt(stmt);
+                // In ruff, StmtIf uses elif_else_clauses instead of orelse
+                for clause in &node.elif_else_clauses {
+                    // Each clause has an optional test (None for else) and a body
+                    if let Some(test) = &clause.test {
+                        self.visit_expr(test);
+                    }
+                    for stmt in &clause.body {
+                        self.visit_stmt(stmt);
+                    }
                 }
             }
             Stmt::For(node) => {
@@ -816,15 +818,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_stmt(stmt);
                 }
             }
-            Stmt::AsyncFor(node) => {
-                self.visit_expr(&node.iter);
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-                for stmt in &node.orelse {
-                    self.visit_stmt(stmt);
-                }
-            }
+            // Note: ruff merges AsyncFor into For with is_async flag, so no separate handling needed
             Stmt::While(node) => {
                 self.visit_expr(&node.test);
                 for stmt in &node.body {
@@ -842,14 +836,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_stmt(stmt);
                 }
             }
-            Stmt::AsyncWith(node) => {
-                for item in &node.items {
-                    self.visit_expr(&item.context_expr);
-                }
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-            }
+            // Note: ruff merges AsyncWith into With with is_async flag, so no separate handling needed
             Stmt::Try(node) => {
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
@@ -869,25 +856,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_stmt(stmt);
                 }
             }
-            Stmt::TryStar(node) => {
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-                for ast::ExceptHandler::ExceptHandler(handler_node) in &node.handlers {
-                    if let Some(exc) = &handler_node.type_ {
-                        self.visit_expr(exc);
-                    }
-                    for stmt in &handler_node.body {
-                        self.visit_stmt(stmt);
-                    }
-                }
-                for stmt in &node.orelse {
-                    self.visit_stmt(stmt);
-                }
-                for stmt in &node.finalbody {
-                    self.visit_stmt(stmt);
-                }
-            }
+            // Note: ruff merges TryStar into Try with is_star on handlers, so no separate handling needed
             Stmt::Return(node) => {
                 if let Some(value) = &node.value {
                     // Track returned function/class names as used
@@ -946,9 +915,9 @@ impl<'a> CytoScnPyVisitor<'a> {
     fn visit_function_def(
         &mut self,
         name: &str,
-        args: &ast::Arguments,
+        args: &ast::Parameters,
         body: &[Stmt],
-        range_start: rustpython_ast::TextSize,
+        range_start: ruff_text_size::TextSize,
     ) {
         let qualified_name = self.get_qualified_name(name);
         let line = self.line_index.line_index(range_start);
@@ -962,14 +931,20 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         self.add_def(qualified_name.clone(), def_type, line);
 
+        // Register the function in the current (parent) scope's local_var_map
+        // This allows nested function calls like `used_inner()` to be resolved
+        // when the call happens in the parent scope.
+        self.add_local_def(name.to_string(), qualified_name.clone());
+
         // Enter function scope
         self.enter_scope(ScopeType::Function(CompactString::from(name)));
 
         // Track parameters
         let mut param_names = FxHashSet::default();
 
-        // Helper to extract parameter name
-        let extract_param_name = |arg: &ast::ArgWithDefault| -> String { arg.def.arg.to_string() };
+        // Helper to extract parameter name (ruff uses ParameterWithDefault with .parameter.name)
+        let extract_param_name =
+            |arg: &ast::ParameterWithDefault| -> String { arg.parameter.name.to_string() };
 
         // Positional-only parameters
         for arg in &args.posonlyargs {
@@ -1014,18 +989,18 @@ impl<'a> CytoScnPyVisitor<'a> {
             self.add_def(param_qualified, "parameter", line);
         }
 
-        // *args parameter
+        // *args parameter (ruff uses .name instead of .arg)
         if let Some(vararg) = &args.vararg {
-            let param_name = vararg.arg.to_string();
+            let param_name = vararg.name.to_string();
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
             self.add_def(param_qualified, "parameter", line);
         }
 
-        // **kwargs parameter
+        // **kwargs parameter (ruff uses .name instead of .arg)
         if let Some(kwarg) = &args.kwarg {
-            let param_name = kwarg.arg.to_string();
+            let param_name = kwarg.name.to_string();
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
@@ -1097,36 +1072,33 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
 
                     // Special handling for hasattr(obj, "attr") to detect attribute usage
-                    if name == "hasattr" && node.args.len() == 2 {
+                    if name == "hasattr" && node.arguments.args.len() == 2 {
                         // Extract the object (first arg) and attribute name (second arg)
-                        if let (Expr::Name(obj_name), Expr::Constant(attr_const)) =
-                            (&node.args[0], &node.args[1])
+                        if let (Expr::Name(obj_name), Expr::StringLiteral(attr_str)) =
+                            (&node.arguments.args[0], &node.arguments.args[1])
                         {
-                            if let ast::Constant::Str(attr_str) = &attr_const.value {
-                                // Construct the qualified attribute name
-                                // e.g., hasattr(Colors, "GREEN") -> Colors.GREEN
-                                let attr_ref = format!("{}.{}", obj_name.id, attr_str);
-                                self.add_ref(attr_ref);
+                            let attr_value = attr_str.value.to_string();
+                            // Construct the qualified attribute name
+                            // e.g., hasattr(Colors, "GREEN") -> Colors.GREEN
+                            let attr_ref = format!("{}.{}", obj_name.id, attr_value);
+                            self.add_ref(attr_ref);
 
-                                // Also try with module prefix
-                                if !self.module_name.is_empty() {
-                                    let full_attr_ref = format!(
-                                        "{}.{}.{}",
-                                        self.module_name, obj_name.id, attr_str
-                                    );
-                                    self.add_ref(full_attr_ref);
-                                }
+                            // Also try with module prefix
+                            if !self.module_name.is_empty() {
+                                let full_attr_ref =
+                                    format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
+                                self.add_ref(full_attr_ref);
                             }
                         }
                     }
                 }
 
                 self.visit_expr(&node.func);
-                for arg in &node.args {
+                for arg in &node.arguments.args {
                     self.visit_expr(arg);
                 }
                 // Don't forget keyword arguments (e.g., func(a=b))
-                for keyword in &node.keywords {
+                for keyword in &node.arguments.keywords {
                     self.visit_expr(&keyword.value);
                 }
             }
@@ -1178,46 +1150,42 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.visit_expr(&node.value);
             }
             // FIX: Done Dynamic Dispatch / String References
-            Expr::Constant(node) => {
-                if let ast::Constant::Str(s) = &node.value {
-                    // Heuristic: If a string looks like a simple identifier or dotted path (no spaces),
-                    // track it as a reference. This helps with getattr(self, "visit_" + name)
-                    // and stringified type hints like "models.User".
-                    if !s.contains(' ') && !s.is_empty() {
-                        self.add_ref(s.clone());
+            Expr::StringLiteral(node) => {
+                let s = node.value.to_string();
+                // Heuristic: If a string looks like a simple identifier or dotted path (no spaces),
+                // track it as a reference. This helps with getattr(self, "visit_" + name)
+                // and stringified type hints like "models.User".
+                if !s.contains(' ') && !s.is_empty() {
+                    self.add_ref(s.clone());
 
-                        // Enhanced: Extract type names from string type annotations
-                        // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
-                        // Extract alphanumeric identifiers (type names)
-                        let mut current_word = String::new();
-                        for ch in s.chars() {
-                            if ch.is_alphanumeric() || ch == '_' {
-                                current_word.push(ch);
-                            } else {
-                                if !current_word.is_empty() {
-                                    // Check if it looks like a type name (starts with uppercase)
-                                    if current_word
-                                        .chars()
-                                        .next()
-                                        .map_or(false, |c| c.is_uppercase())
-                                    {
-                                        self.add_ref(current_word.clone());
-                                    }
-                                    current_word.clear();
-                                }
-                            }
-                        }
-                        // Don't forget the last word
-                        if !current_word.is_empty() {
+                    // Enhanced: Extract type names from string type annotations
+                    // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
+                    // Extract alphanumeric identifiers (type names)
+                    let mut current_word = String::new();
+                    for ch in s.chars() {
+                        if ch.is_alphanumeric() || ch == '_' {
+                            current_word.push(ch);
+                        } else if !current_word.is_empty() {
+                            // Check if it looks like a type name (starts with uppercase)
                             if current_word
                                 .chars()
                                 .next()
-                                .map_or(false, |c| c.is_uppercase())
+                                .is_some_and(char::is_uppercase)
                             {
-                                self.add_ref(current_word);
+                                self.add_ref(current_word.clone());
                             }
+                            current_word.clear();
                         }
                     }
+                    // Don't forget the last word
+                    if !current_word.is_empty()
+                        && current_word
+                            .chars()
+                            .next()
+                            .is_some_and(char::is_uppercase)
+                        {
+                            self.add_ref(current_word);
+                        }
                 }
             }
 
@@ -1237,17 +1205,17 @@ impl<'a> CytoScnPyVisitor<'a> {
             Expr::Lambda(node) => {
                 self.visit_expr(&node.body);
             }
-            Expr::IfExp(node) => {
+            Expr::If(node) => {
                 self.visit_expr(&node.test);
                 self.visit_expr(&node.body);
                 self.visit_expr(&node.orelse);
             }
             Expr::Dict(node) => {
-                for (key, value) in node.keys.iter().zip(&node.values) {
-                    if let Some(k) = key {
+                for item in &node.items {
+                    if let Some(k) = &item.key {
                         self.visit_expr(k);
                     }
-                    self.visit_expr(value);
+                    self.visit_expr(&item.value);
                 }
             }
             Expr::Set(node) => {
@@ -1283,7 +1251,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
             }
-            Expr::GeneratorExp(node) => {
+            Expr::Generator(node) => {
                 self.visit_expr(&node.elt);
                 for gen in &node.generators {
                     self.visit_expr(&gen.iter);
@@ -1309,10 +1277,21 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.visit_expr(&node.value);
                 self.visit_expr(&node.slice);
             }
-            Expr::FormattedValue(node) => self.visit_expr(&node.value),
-            Expr::JoinedStr(node) => {
-                for value in &node.values {
-                    self.visit_expr(value);
+            Expr::FString(node) => {
+                for part in &node.value {
+                    match part {
+                        ast::FStringPart::Literal(_) => {}
+                        ast::FStringPart::FString(f) => {
+                            // Visit expressions inside f-string interpolations
+                            for element in &f.elements {
+                                if let ast::InterpolatedStringElement::Interpolation(interp) =
+                                    element
+                                {
+                                    self.visit_expr(&interp.expression);
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Expr::List(node) => {
@@ -1374,11 +1353,11 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             ast::Pattern::MatchClass(node) => {
                 self.visit_expr(&node.cls);
-                for p in &node.patterns {
+                for p in &node.arguments.patterns {
                     self.visit_match_pattern(p);
                 }
-                for p in &node.kwd_patterns {
-                    self.visit_match_pattern(p);
+                for k in &node.arguments.keywords {
+                    self.visit_match_pattern(&k.pattern);
                 }
             }
             ast::Pattern::MatchStar(node) => {

@@ -3,6 +3,16 @@
 //! This library provides the core functionality for analyzing Python code,
 //! including AST parsing, visitor traversal, and rule execution.
 
+// Allow common complexity warnings - these are intentional design choices
+#![allow(
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::ptr_arg,
+    clippy::similar_names
+)]
+
+#[cfg_attr(test, allow(clippy::unwrap_used))]
+
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;

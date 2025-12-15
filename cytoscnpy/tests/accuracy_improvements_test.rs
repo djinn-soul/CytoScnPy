@@ -35,7 +35,7 @@ decorated_func()
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_func_names: Vec<String> = result
         .unused_functions
@@ -71,7 +71,7 @@ result = outer()
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_func_names: Vec<String> = result
         .unused_functions
@@ -114,7 +114,7 @@ class NotExportedClass:
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_func_names: Vec<String> = result
         .unused_functions
@@ -176,7 +176,7 @@ process([])
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_import_names: Vec<String> = result
         .unused_imports
@@ -226,7 +226,7 @@ get_data()
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_import_names: Vec<String> = result
         .unused_imports
@@ -260,7 +260,7 @@ print(sys.version)
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unused_import_names: Vec<String> = result
         .unused_imports

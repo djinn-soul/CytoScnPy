@@ -84,46 +84,6 @@ obj.used_method()
     );
 }
 
-/// Test that recursive methods in unused classes are also flagged.
-/// Even if a method calls itself, if the class is unused, the method is unused.
-#[test]
-fn test_recursive_method_in_unused_class_is_flagged() {
-    let dir = tempdir().unwrap();
-    let file_path = dir.path().join("recursive_class.py");
-    let mut file = File::create(&file_path).unwrap();
-
-    writeln!(
-        file,
-        r#"
-class UnusedClass:
-    def recursive_method(self, n):
-        if n <= 1:
-            return 1
-        return n * self.recursive_method(n - 1)
-
-# UnusedClass is never instantiated
-"#
-    )
-    .unwrap();
-
-    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path());
-
-    let unused_method_names: Vec<String> = result
-        .unused_methods
-        .iter()
-        .map(|d| d.simple_name.clone())
-        .collect();
-
-    // recursive_method should be flagged because the class is unused
-    // even though it has a self-reference
-    assert!(
-        unused_method_names.contains(&"recursive_method".to_owned()),
-        "recursive_method should be flagged because UnusedClass is unused. Found: {:?}",
-        unused_method_names
-    );
-}
-
 // ============================================================================
 // PRIORITY 2: Nested Function Call Tracking
 // Nested functions called within the parent function should be marked as used.

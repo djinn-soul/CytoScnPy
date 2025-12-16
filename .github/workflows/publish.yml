@@ -1,51 +1,128 @@
-name: Build and Publish to PyPI
+name: Release
 
 on:
   push:
     tags:
-      - "v*" # Only run for tags
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PYO3_PYTHON: python3
 
 jobs:
-  build:
-    name: Build wheels
+  # =============================================================================
+  # Build Python Wheels for PyPI
+  # =============================================================================
+  build-wheels:
+    name: Build wheels (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "wheels-${{ matrix.os }}"
+
       - name: Disable Windows Defender (CI only)
-        if: runner.os == 'Windows' # Only run for Windows
+        if: runner.os == 'Windows'
         run: Set-MpPreference -DisableRealtimeMonitoring $true
+
       - name: Install maturin
         run: pip install maturin
+
       - name: Build wheel (Windows - skip 3.14)
-        if: runner.os == 'Windows' # Only run for Windows
+        if: runner.os == 'Windows'
         run: maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
+
       - name: Build wheel (Linux/macOS)
-        if: runner.os != 'Windows' # Only run for Linux and macOS
+        if: runner.os != 'Windows' # only run for Linux and macOS
         run: maturin build --release --out dist --find-interpreter
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
           path: dist
 
+  # =============================================================================
+  # Build MCP Server Binaries
+  # =============================================================================
+  build-mcp:
+    name: Build MCP (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: cytoscnpy-mcp-linux-x64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: cytoscnpy-mcp-windows-x64.exe
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: cytoscnpy-mcp-macos-arm64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: cytoscnpy-mcp-macos-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build Binary
+        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-mcp
+
+      - name: Rename Binary
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            mv target/${{ matrix.target }}/release/cytoscnpy-mcp.exe ${{ matrix.name }}
+          else
+            mv target/${{ matrix.target }}/release/cytoscnpy-mcp ${{ matrix.name }}
+          fi
+
+      - name: Upload MCP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-${{ matrix.target }}
+          path: ${{ matrix.name }}
+
+  # =============================================================================
+  # Publish to TestPyPI (for -test tags)
+  # =============================================================================
   publish-testpypi:
     name: Publish to TestPyPI
-    needs: build
+    needs: build-wheels
     runs-on: ubuntu-latest
-    # Only run for test tags like v1.0.0-test, v1.0.0-rc1 (not main branch)
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')
     steps:
       - uses: actions/download-artifact@v4
@@ -67,11 +144,13 @@ jobs:
           user: __token__
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           skip-existing: true
-  
-  # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
+
+  # =============================================================================
+  # Publish to PyPI (for clean version tags)
+  # =============================================================================
   publish-pypi:
     name: Publish to PyPI
-    needs: build
+    needs: build-wheels
     runs-on: ubuntu-latest
     # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
     if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
@@ -93,3 +172,39 @@ jobs:
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
+
+  # =============================================================================
+  # Create GitHub Release with MCP binaries
+  # =============================================================================
+  github-release:
+    name: Create GitHub Release
+    needs: [build-mcp, publish-pypi]
+    runs-on: ubuntu-latest
+    # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-x86_64-unknown-linux-gnu
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-x86_64-pc-windows-msvc
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-aarch64-apple-darwin
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-x86_64-apple-darwin
+          path: release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -33,7 +33,7 @@ pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std:
     Ok(())
 }
 
-/// Create and return a spinner for analysis
+/// Create and return a spinner for analysis (used when file count is unknown)
 pub fn create_spinner() -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
@@ -46,6 +46,21 @@ pub fn create_spinner() -> ProgressBar {
     spinner.set_message("CytoScnPy analyzing your code…");
     spinner.enable_steady_tick(Duration::from_millis(100));
     spinner
+}
+
+/// Create a progress bar with file count (used when total files is known)
+pub fn create_progress_bar(total_files: u64) -> ProgressBar {
+    let pb = ProgressBar::new(total_files);
+    pb.set_style(
+        #[allow(clippy::expect_used)]
+        ProgressStyle::default_bar()
+            .template("{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}")
+            .expect("Invalid progress style template")
+            .progress_chars("█▓░"),
+    );
+    pb.set_message("analyzing...");
+    pb.enable_steady_tick(Duration::from_millis(100));
+    pb
 }
 
 /// Print the main header with box-drawing characters
@@ -246,10 +261,20 @@ pub fn print_unused_items(
 
     for item in items {
         let name_display = if item_type_label == "Parameter" {
-            // For parameters, show "param in function"
+            // For parameters, show "param in ClassName.method" or "param in function"
+            // Extract just the last 2-3 parts of the qualified name
             let parts: Vec<&str> = item.name.rsplitn(2, '.').collect();
-            let function_name = parts.get(1).unwrap_or(&"unknown");
-            format!("{} in {}", item.simple_name, function_name)
+            let function_part = parts.get(1).unwrap_or(&"unknown");
+            // Simplify function name to just class.method or just function
+            let simple_fn: String = function_part
+                .rsplit('.')
+                .take(2)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join(".");
+            format!("{} in {}", item.simple_name, simple_fn)
         } else {
             // Use simple_name for cleaner display, avoiding long qualified names
             item.simple_name.clone()
@@ -299,6 +324,22 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
     print_analysis_stats(writer, &result.analysis_summary)?;
     writeln!(writer)?;
 
+    // Check if there are any issues
+    let total_issues = result.unused_functions.len()
+        + result.unused_imports.len()
+        + result.unused_parameters.len()
+        + result.unused_classes.len()
+        + result.unused_variables.len()
+        + result.danger.len()
+        + result.secrets.len()
+        + result.quality.len()
+        + result.parse_errors.len();
+
+    if total_issues == 0 {
+        writeln!(writer, "\x1b[32m✓ All clean! No issues found.\x1b[0m")?;
+        return Ok(());
+    }
+
     // Detailed sections
     print_unused_items(
         writer,
@@ -325,6 +366,20 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
     print_secrets(writer, "Secrets", &result.secrets)?;
     print_findings(writer, "Quality Issues", &result.quality)?;
     print_parse_errors(writer, &result.parse_errors)?;
+
+    // Summary recap at end
+    let total = result.unused_functions.len()
+        + result.unused_methods.len()
+        + result.unused_imports.len()
+        + result.unused_parameters.len()
+        + result.unused_classes.len()
+        + result.unused_variables.len();
+    let security = result.danger.len() + result.secrets.len() + result.quality.len();
+    writeln!(
+        writer,
+        "\n[SUMMARY] {} unused code issues, {} security/quality issues",
+        total, security
+    )?;
 
     Ok(())
 }

@@ -15,6 +15,8 @@ use crate::test_utils::TestAwareVisitor;
 use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
 
+use ruff_python_ast::{Expr, Stmt};
+
 use rayon::prelude::*;
 use ruff_python_parser::parse_module;
 use rustc_hash::FxHashMap;
@@ -151,6 +153,7 @@ impl CytoScnPy {
     }
 
     /// Processes a single file and returns its analysis results.
+    #[allow(clippy::too_many_lines)]
     fn process_single_file(
         &self,
         file_path: &Path,
@@ -232,17 +235,26 @@ impl CytoScnPy {
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
 
-        if self.enable_secrets {
-            secrets = scan_secrets(
-                &source,
-                &file_path.to_path_buf(),
-                &self.config.cytoscnpy.secrets_config,
-            );
-        }
-
         match parse_module(&source) {
             Ok(parsed) => {
                 let module = parsed.into_syntax();
+
+                // Advanced Secrets Scanning:
+                // If skip_docstrings is enabled, we need to identify lines that are part of docstrings.
+                let mut docstring_lines = rustc_hash::FxHashSet::default();
+                if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
+                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines);
+                }
+
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        Some(&docstring_lines),
+                    );
+                }
+
                 let entry_point_calls = crate::entry_point::detect_entry_point_calls(&module.body);
 
                 for stmt in &module.body {
@@ -345,6 +357,17 @@ impl CytoScnPy {
                 }
             }
             Err(e) => {
+                // If we have a parse error but secrets scanning is enabled,
+                // we should still try to scan for secrets (without docstring skipping).
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        None,
+                    );
+                }
+
                 parse_errors.push(ParseError {
                     file: file_path.to_path_buf(),
                     error: format!("{e}"),
@@ -382,6 +405,7 @@ impl CytoScnPy {
     }
 
     /// Aggregates results from multiple file analyses.
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn aggregate_results(
         &mut self,
         results: Vec<(
@@ -413,7 +437,7 @@ impl CytoScnPy {
         for (defs, refs, secrets, danger, quality, parse_errors, lines, complexity, mi) in results {
             all_defs.extend(defs);
             // Merge reference counts from each file
-            
+
             for (name, count) in refs {
                 *ref_counts.entry(name).or_insert(0) += count;
             }
@@ -452,7 +476,6 @@ impl CytoScnPy {
             if def.confidence < self.confidence_threshold {
                 continue;
             }
-
 
             // Collect methods with references for class-method linking
             if def.def_type == "method" && def.references > 0 {
@@ -591,6 +614,7 @@ impl CytoScnPy {
     /// 5. Aggregates results from all files.
     /// 6. Calculates cross-file usage to identify unused code.
     /// 7. Returns the final `AnalysisResult`.
+    #[allow(clippy::too_many_lines)]
     pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
         // Find all Python files in the given path.
         // We use WalkDir to recursively traverse directories.
@@ -845,6 +869,8 @@ impl CytoScnPy {
     }
 
     /// Analyzes a single string of code (mostly for testing).
+    #[allow(clippy::too_many_lines)]
+    #[must_use]
     pub fn analyze_code(&self, code: &str, file_path: &Path) -> AnalysisResult {
         let source = code.to_owned();
         let line_index = LineIndex::new(&source);
@@ -865,13 +891,6 @@ impl CytoScnPy {
         let mut secrets = Vec::new();
         let mut danger = Vec::new();
 
-        if self.enable_secrets {
-            secrets = scan_secrets(
-                &source,
-                &file_path.to_path_buf(),
-                &self.config.cytoscnpy.secrets_config,
-            );
-        }
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
 
@@ -879,6 +898,22 @@ impl CytoScnPy {
         match ruff_python_parser::parse_module(&source) {
             Ok(parsed) => {
                 let module = parsed.into_syntax();
+
+                // Docstring extraction
+                let mut docstring_lines = rustc_hash::FxHashSet::default();
+                if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
+                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines);
+                }
+
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        Some(&docstring_lines),
+                    );
+                }
+
                 for stmt in &module.body {
                     framework_visitor.visit_stmt(stmt);
                     test_visitor.visit_stmt(stmt);
@@ -944,6 +979,14 @@ impl CytoScnPy {
                 }
             }
             Err(e) => {
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        None,
+                    );
+                }
                 parse_errors.push(ParseError {
                     file: file_path.to_path_buf(),
                     error: format!("{e}"),
@@ -1053,6 +1096,31 @@ impl CytoScnPy {
                 average_complexity: 0.0,
                 average_mi: 0.0,
             },
+        }
+    }
+}
+
+/// Collects line numbers that belong to docstrings by traversing the AST.
+fn collect_docstring_lines(
+    body: &[Stmt],
+    line_index: &LineIndex,
+    docstrings: &mut rustc_hash::FxHashSet<usize>,
+) {
+    if let Some(Stmt::Expr(expr_stmt)) = body.first() {
+        if let Expr::StringLiteral(string_lit) = &*expr_stmt.value {
+            let start_line = line_index.line_index(string_lit.range.start());
+            let end_line = line_index.line_index(string_lit.range.end());
+            for i in start_line..=end_line {
+                docstrings.insert(i);
+            }
+        }
+    }
+
+    for stmt in body {
+        match stmt {
+            Stmt::FunctionDef(f) => collect_docstring_lines(&f.body, line_index, docstrings),
+            Stmt::ClassDef(c) => collect_docstring_lines(&c.body, line_index, docstrings),
+            _ => {}
         }
     }
 }

@@ -1,35 +1,87 @@
-//! Command line interface configuration using `clap`.
-//!
-//! This is the single source of truth for CLI definitions.
-//! Both the library's `entry_point` and the binary `main.rs` use this.
-
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
 /// Help text for configuration file options, shown at the bottom of --help.
 const CONFIG_HELP: &str = "\
-CONFIGURATION FILE:
-  Create a .cytoscnpy.toml file in your project root:
+CONFIGURATION FILE (.cytoscnpy.toml):
+  Create this file in your project root to set defaults.
 
   [cytoscnpy]
-  confidence = 60          # Confidence threshold (0-100)
-  secrets = true           # Enable secrets scanning
-  danger = true            # Enable dangerous code scanning
-  quality = true           # Enable quality checks
-  include_tests = false    # Include test files
-  complexity = 10          # Max cyclomatic complexity
-  nesting = 3              # Max nesting depth
-  max_args = 5             # Max function arguments
-  max_lines = 50           # Max function lines
-  min_mi = 40.0            # Min Maintainability Index
-  exclude_folders = [\"build\", \"dist\"]
+  # Core settings
+  confidence = 60            # Confidence threshold (0-100)
+  secrets = true             # Enable secrets scanning
+  danger = true              # Enable dangerous code scanning
+  quality = true             # Enable quality checks
+  include_tests = false      # Include test files in analysis
+  include_ipynb = false      # Include Jupyter notebooks
+
+  # Quality thresholds
+  complexity = 10            # Max cyclomatic complexity
+  nesting = 3                # Max nesting depth
+  max_args = 5               # Max function arguments
+  max_lines = 50             # Max function lines
+  min_mi = 40.0              # Min Maintainability Index
+
+  # Path filters
+  exclude_folders = [\"build\", \"dist\", \".venv\"]
+  include_folders = [\"src\"]  # Force-include these
+
+  # CI/CD
+  fail_threshold = 5.0       # Exit 1 if >N% unused code
 ";
+
+/// Options for scan types (secrets, danger, quality).
+#[derive(Args, Debug, Default, Clone)]
+pub struct ScanOptions {
+    /// Scan for API keys/secrets.
+    #[arg(long)]
+    pub secrets: bool,
+
+    /// Scan for dangerous code (includes taint analysis).
+    #[arg(long)]
+    pub danger: bool,
+
+    /// Scan for code quality issues.
+    #[arg(long)]
+    pub quality: bool,
+}
+
+/// Options for output formatting and verbosity.
+#[derive(Args, Debug, Default, Clone)]
+pub struct OutputOptions {
+    /// Output raw JSON.
+    #[arg(long)]
+    pub json: bool,
+
+    /// Enable verbose output for debugging (shows files being analyzed).
+    #[arg(short, long)]
+    pub verbose: bool,
+
+    /// Exit with code 1 if any quality issues are found.
+    #[arg(long)]
+    pub fail_on_quality: bool,
+}
+
+/// Options for including additional files in analysis.
+#[derive(Args, Debug, Default, Clone)]
+pub struct IncludeOptions {
+    /// Include test files in analysis.
+    #[arg(long)]
+    pub include_tests: bool,
+
+    /// Include `IPython` Notebooks (.ipynb files) in analysis.
+    #[arg(long)]
+    pub include_ipynb: bool,
+
+    /// Report findings at cell level for notebooks.
+    #[arg(long)]
+    pub ipynb_cells: bool,
+}
 
 /// Command line interface configuration using `clap`.
 /// This struct defines the arguments and flags accepted by the program.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None, after_help = CONFIG_HELP)]
-
 pub struct Cli {
     #[command(subcommand)]
     /// The subcommand to execute (e.g., raw, cc, hal).
@@ -46,25 +98,17 @@ pub struct Cli {
     #[arg(short, long)]
     pub confidence: Option<u8>,
 
-    /// Scan for API keys/secrets.
-    #[arg(long)]
-    pub secrets: bool,
+    /// Scan type options (secrets, danger, quality).
+    #[command(flatten)]
+    pub scan: ScanOptions,
 
-    /// Scan for dangerous code (includes taint analysis).
-    #[arg(long)]
-    pub danger: bool,
+    /// Output formatting options.
+    #[command(flatten)]
+    pub output: OutputOptions,
 
-    /// Scan for code quality issues.
-    #[arg(long)]
-    pub quality: bool,
-
-    /// Output raw JSON.
-    #[arg(long)]
-    pub json: bool,
-
-    /// Include test files in analysis.
-    #[arg(long)]
-    pub include_tests: bool,
+    /// Include options for additional file types.
+    #[command(flatten)]
+    pub include: IncludeOptions,
 
     /// Folders to exclude from analysis.
     #[arg(long, alias = "exclude-folder")]
@@ -73,14 +117,6 @@ pub struct Cli {
     /// Folders to force-include in analysis (overrides default exclusions).
     #[arg(long, alias = "include-folder")]
     pub include_folders: Vec<String>,
-
-    /// Include `IPython` Notebooks (.ipynb files) in analysis.
-    #[arg(long)]
-    pub include_ipynb: bool,
-
-    /// Report findings at cell level for notebooks.
-    #[arg(long)]
-    pub ipynb_cells: bool,
 
     /// Exit with code 1 if finding percentage exceeds this threshold (0-100).
     /// For CI/CD integration: --fail-under 5 fails if >5% of definitions are unused.
@@ -97,9 +133,9 @@ pub struct Cli {
     #[arg(long)]
     pub min_mi: Option<f64>,
 
-    /// Exit with code 1 if any quality issues are found.
-    #[arg(long)]
-    pub fail_on_quality: bool,
+    /// Add artificial delay (ms) per file for testing progress bar.
+    #[arg(long, hide = true)]
+    pub debug_delay: Option<u64>,
 }
 
 #[derive(Subcommand, Debug)]

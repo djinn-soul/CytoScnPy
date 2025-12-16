@@ -176,4 +176,46 @@ impl CytoScnPy {
         self.config = config;
         self
     }
+
+    /// Counts the total number of Python files that would be analyzed.
+    /// Useful for setting up a progress bar before analysis.
+    pub fn count_files(&self, paths: &[std::path::PathBuf]) -> usize {
+        use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
+        use walkdir::WalkDir;
+
+        let mut count = 0;
+        for path in paths {
+            if path.is_file() {
+                if path
+                    .extension()
+                    .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
+                {
+                    count += 1;
+                }
+            } else if path.is_dir() {
+                let mut it = WalkDir::new(path).into_iter();
+                while let Some(res) = it.next() {
+                    if let Ok(entry) = res {
+                        let name = entry.file_name().to_string_lossy();
+                        let is_force_included = entry.file_type().is_dir()
+                            && self.include_folders.iter().any(|f| f == &name);
+                        let should_exclude = entry.file_type().is_dir()
+                            && !is_force_included
+                            && (DEFAULT_EXCLUDE_FOLDERS().iter().any(|&f| f == name)
+                                || self.exclude_folders.iter().any(|f| f == &name));
+                        if should_exclude {
+                            it.skip_current_dir();
+                            continue;
+                        }
+                        if entry.path().extension().is_some_and(|ext| {
+                            ext == "py" || (self.include_ipynb && ext == "ipynb")
+                        }) {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        count
+    }
 }

@@ -299,11 +299,11 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             .confidence
             .or(config.cytoscnpy.confidence)
             .unwrap_or(60);
-        let secrets = cli_var.secrets || config.cytoscnpy.secrets.unwrap_or(false);
-        let danger = cli_var.danger || config.cytoscnpy.danger.unwrap_or(false);
-        let quality = cli_var.quality || config.cytoscnpy.quality.unwrap_or(false);
+        let secrets = cli_var.scan.secrets || config.cytoscnpy.secrets.unwrap_or(false);
+        let danger = cli_var.scan.danger || config.cytoscnpy.danger.unwrap_or(false);
+        let quality = cli_var.scan.quality || config.cytoscnpy.quality.unwrap_or(false);
         let include_tests =
-            cli_var.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
+            cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
 
         let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
         exclude_folders.extend(cli_var.exclude_folders);
@@ -311,16 +311,27 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
         include_folders.extend(cli_var.include_folders);
 
-        if !cli_var.json {
+        if !cli_var.output.json {
             let mut stdout = std::io::stdout();
             crate::output::print_exclusion_list(&mut stdout, &exclude_folders).ok();
         }
 
-        let spinner = if cli_var.json {
-            None
-        } else {
-            Some(crate::output::create_spinner())
-        };
+        // Print verbose configuration info (before progress bar)
+        if cli_var.output.verbose && !cli_var.output.json {
+            eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
+            eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
+            eprintln!("[VERBOSE] Configuration:");
+            eprintln!("   Confidence threshold: {confidence}");
+            eprintln!("   Secrets scanning: {secrets}");
+            eprintln!("   Danger scanning: {danger}");
+            eprintln!("   Quality scanning: {quality}");
+            eprintln!("   Include tests: {include_tests}");
+            eprintln!("   Paths: {:?}", cli_var.paths);
+            if !exclude_folders.is_empty() {
+                eprintln!("   Exclude folders: {exclude_folders:?}");
+            }
+            eprintln!();
+        }
 
         let mut analyzer = crate::analyzer::CytoScnPy::new(
             confidence,
@@ -330,22 +341,125 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             include_tests,
             exclude_folders,
             include_folders,
-            cli_var.include_ipynb,
-            cli_var.ipynb_cells,
+            cli_var.include.include_ipynb,
+            cli_var.include.ipynb_cells,
             danger, // taint is now automatically enabled with --danger
             config.clone(),
         );
-        let result = analyzer.analyze_paths(&cli_var.paths);
 
-        if let Some(s) = spinner {
-            s.finish_and_clear();
+        // Count files first to create progress bar with accurate total
+        let total_files = analyzer.count_files(&cli_var.paths);
+
+        // Create progress bar with file count for visual feedback
+        let progress = if cli_var.output.json {
+            None
+        } else if total_files > 0 {
+            Some(crate::output::create_progress_bar(total_files as u64))
+        } else {
+            Some(crate::output::create_spinner())
+        };
+
+        let start_time = std::time::Instant::now();
+
+        // Debug: Simulate progress for testing progress bar visibility
+        if let Some(delay_ms) = cli_var.debug_delay {
+            eprintln!(
+                "[DEBUG] delay_ms = {delay_ms}, total_files = {total_files}"
+            );
+            if let Some(ref pb) = progress {
+                for i in 0..total_files {
+                    pb.set_position(i as u64);
+                    pb.set_message(format!("file {}/{}", i + 1, total_files));
+                    pb.tick();
+                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                }
+                pb.set_position(total_files as u64);
+            }
         }
 
-        if cli_var.json {
+        let result = analyzer.analyze_paths(&cli_var.paths);
+
+        if let Some(p) = progress {
+            p.finish_and_clear();
+        }
+
+        // Print verbose timing info
+        if cli_var.output.verbose && !cli_var.output.json {
+            let elapsed = start_time.elapsed();
+            eprintln!(
+                "[VERBOSE] Analysis completed in {:.2}s",
+                elapsed.as_secs_f64()
+            );
+            eprintln!("   Files analyzed: {}", result.analysis_summary.total_files);
+            eprintln!(
+                "   Lines analyzed: {}",
+                result.analysis_summary.total_lines_analyzed
+            );
+            eprintln!("[VERBOSE] Findings breakdown:");
+            eprintln!(
+                "   Unreachable functions: {}",
+                result.unused_functions.len()
+            );
+            eprintln!("   Unreachable methods: {}", result.unused_methods.len());
+            eprintln!("   Unused classes: {}", result.unused_classes.len());
+            eprintln!("   Unused imports: {}", result.unused_imports.len());
+            eprintln!("   Unused variables: {}", result.unused_variables.len());
+            eprintln!("   Unused parameters: {}", result.unused_parameters.len());
+            eprintln!("   Parse errors: {}", result.parse_errors.len());
+
+            // Show files with most issues
+            let mut file_counts: std::collections::HashMap<String, usize> =
+                std::collections::HashMap::new();
+            for item in &result.unused_functions {
+                *file_counts
+                    .entry(crate::utils::normalize_display_path(&item.file))
+                    .or_insert(0) += 1;
+            }
+            for item in &result.unused_methods {
+                *file_counts
+                    .entry(crate::utils::normalize_display_path(&item.file))
+                    .or_insert(0) += 1;
+            }
+            for item in &result.unused_classes {
+                *file_counts
+                    .entry(crate::utils::normalize_display_path(&item.file))
+                    .or_insert(0) += 1;
+            }
+            for item in &result.unused_imports {
+                *file_counts
+                    .entry(crate::utils::normalize_display_path(&item.file))
+                    .or_insert(0) += 1;
+            }
+            for item in &result.unused_variables {
+                *file_counts
+                    .entry(crate::utils::normalize_display_path(&item.file))
+                    .or_insert(0) += 1;
+            }
+            for item in &result.unused_parameters {
+                *file_counts
+                    .entry(crate::utils::normalize_display_path(&item.file))
+                    .or_insert(0) += 1;
+            }
+
+            if !file_counts.is_empty() {
+                let mut sorted: Vec<_> = file_counts.into_iter().collect();
+                sorted.sort_by(|a, b| b.1.cmp(&a.1));
+                eprintln!("[VERBOSE] Files with most issues:");
+                for (file, count) in sorted.iter().take(5) {
+                    eprintln!("   {count:3} issues: {file}");
+                }
+            }
+            eprintln!();
+        }
+
+        if cli_var.output.json {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
             let mut stdout = std::io::stdout();
             crate::output::print_report(&mut stdout, &result)?;
+            // Show processing time
+            let elapsed = start_time.elapsed();
+            println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
         }
 
         // Check for fail threshold
@@ -368,6 +482,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 + result.unused_variables.len()
                 + result.unused_parameters.len();
 
+            #[allow(clippy::cast_precision_loss)] // Counts are far below 2^52
             let percentage =
                 (total_unused as f64 / result.analysis_summary.total_definitions as f64) * 100.0;
 

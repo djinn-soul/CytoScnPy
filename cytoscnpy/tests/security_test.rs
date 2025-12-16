@@ -457,11 +457,9 @@ fn test_skip_comments_when_disabled() {
     let mut config = SecretsConfig::default();
     config.scan_comments = false;
 
-    let findings = scan_secrets(source, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(source, &PathBuf::from("test.py"), &config, None);
     assert!(
         findings.is_empty(),
         "Should skip comments when scan_comments is false"
     );
 }
-
-

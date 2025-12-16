@@ -145,7 +145,7 @@ fn test_no_false_positive_comment_when_disabled() {
     let content = "# This is a comment with api_key = 'fake_test_value_12345678901234'";
     let mut config = SecretsConfig::default();
     config.scan_comments = false;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     assert!(
         findings.is_empty(),
         "Should not flag comments when scan_comments is false"
@@ -163,7 +163,7 @@ fn test_no_false_positive_pragma() {
 fn test_no_false_positive_url() {
     let config = SecretsConfig::default();
     let content = r#"url = "https://api.example.com/v1/users/12345""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     // Should not flag URL as high-entropy secret
     let entropy_findings: Vec<_> = findings
         .iter()
@@ -179,7 +179,7 @@ fn test_no_false_positive_url() {
 fn test_no_false_positive_path() {
     let config = SecretsConfig::default();
     let content = r#"path = "/usr/local/bin/python3""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     let entropy_findings: Vec<_> = findings
         .iter()
         .filter(|f| f.rule_id == "CSP-S200")
@@ -191,7 +191,7 @@ fn test_no_false_positive_path() {
 fn test_short_string_not_flagged() {
     let config = SecretsConfig::default();
     let content = r#"code = "ABC123""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     let entropy_findings: Vec<_> = findings
         .iter()
         .filter(|f| f.rule_id == "CSP-S200")
@@ -217,7 +217,7 @@ fn test_custom_pattern_detection() {
     });
 
     let content = r#"token = "INTERNAL_ABCD1234EFGH5678""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     assert!(!findings.is_empty(), "Should detect custom pattern");
     assert!(findings.iter().any(|f| f.rule_id == "CUSTOM-001"));
 }
@@ -233,7 +233,7 @@ fn test_custom_pattern_auto_rule_id() {
     });
 
     let content = r#"key = "MYSECRET_abcdefghij""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     assert!(!findings.is_empty());
     assert!(findings[0].rule_id.starts_with("CSP-CUSTOM-"));
 }
@@ -249,7 +249,7 @@ fn test_entropy_disabled() {
 
     // This would normally trigger entropy detection
     let content = r#"random = "aB3xK9pQ2mL7nR4wE6yTzU8vW1""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     let entropy_findings: Vec<_> = findings
         .iter()
         .filter(|f| f.rule_id == "CSP-S200")
@@ -266,7 +266,7 @@ fn test_entropy_threshold_adjustment() {
     config.entropy_threshold = 6.0; // Very high threshold
 
     let content = r#"token = "aB3xK9pQ2mL7nR4wE6yT""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config);
+    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     let _entropy_findings: Vec<_> = findings
         .iter()
         .filter(|f| f.rule_id == "CSP-S200")

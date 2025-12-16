@@ -87,3 +87,25 @@ pub fn parse_exclude_folders<S: std::hash::BuildHasher>(
 
     exclude_folders
 }
+
+/// Normalizes a path for CLI display.
+///
+/// - Converts backslashes to forward slashes (for cross-platform consistency)
+/// - Strips leading "./" or ".\" prefix (for cleaner output)
+///
+/// # Examples
+/// ```
+/// use std::path::Path;
+/// use cytoscnpy::utils::normalize_display_path;
+///
+/// assert_eq!(normalize_display_path(Path::new(".\\benchmark\\test.py")), "benchmark/test.py");
+/// assert_eq!(normalize_display_path(Path::new("./src/main.py")), "src/main.py");
+/// ```
+pub fn normalize_display_path(path: &std::path::Path) -> String {
+    let s = path.to_string_lossy();
+    let normalized = s.replace('\\', "/");
+    normalized
+        .strip_prefix("./")
+        .unwrap_or(&normalized)
+        .to_string()
+}

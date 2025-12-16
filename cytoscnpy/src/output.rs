@@ -1,5 +1,6 @@
 use crate::analyzer::{AnalysisResult, AnalysisSummary};
 use crate::rules::Finding;
+use crate::utils::normalize_display_path;
 use crate::visitor::Definition;
 use colored::Colorize;
 use comfy_table::presets::UTF8_FULL;
@@ -183,7 +184,7 @@ pub fn print_findings(
     let mut table = create_table(vec!["Rule ID", "Message", "Location", "Severity"]);
 
     for f in findings {
-        let location = format!("{}:{}", f.file.display(), f.line);
+        let location = format!("{}:{}", normalize_display_path(&f.file), f.line);
         let severity_color = get_severity_color(&f.severity);
 
         table.add_row(vec![
@@ -213,7 +214,7 @@ pub fn print_secrets(
     let mut table = create_table(vec!["Rule ID", "Message", "Location", "Severity"]);
 
     for s in secrets {
-        let location = format!("{}:{}", s.file.display(), s.line);
+        let location = format!("{}:{}", normalize_display_path(&s.file), s.line);
         let severity_color = get_severity_color(&s.severity);
 
         table.add_row(vec![
@@ -250,10 +251,11 @@ pub fn print_unused_items(
             let function_name = parts.get(1).unwrap_or(&"unknown");
             format!("{} in {}", item.simple_name, function_name)
         } else {
-            item.name.clone()
+            // Use simple_name for cleaner display, avoiding long qualified names
+            item.simple_name.clone()
         };
 
-        let location = format!("{}:{}", item.file.display(), item.line);
+        let location = format!("{}:{}", normalize_display_path(&item.file), item.line);
 
         table.add_row(vec![
             Cell::new(item_type_label),
@@ -281,7 +283,7 @@ pub fn print_parse_errors(
 
     for e in errors {
         table.add_row(vec![
-            Cell::new(e.file.display()).add_attribute(Attribute::Bold),
+            Cell::new(normalize_display_path(&e.file)).add_attribute(Attribute::Bold),
             Cell::new(&e.error).fg(Color::Red),
         ]);
     }

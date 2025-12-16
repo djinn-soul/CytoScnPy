@@ -6,10 +6,30 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// Help text for configuration file options, shown at the bottom of --help.
+const CONFIG_HELP: &str = "\
+CONFIGURATION FILE:
+  Create a .cytoscnpy.toml file in your project root:
+
+  [cytoscnpy]
+  confidence = 60          # Confidence threshold (0-100)
+  secrets = true           # Enable secrets scanning
+  danger = true            # Enable dangerous code scanning
+  quality = true           # Enable quality checks
+  include_tests = false    # Include test files
+  complexity = 10          # Max cyclomatic complexity
+  nesting = 3              # Max nesting depth
+  max_args = 5             # Max function arguments
+  max_lines = 50           # Max function lines
+  min_mi = 40.0            # Min Maintainability Index
+  exclude_folders = [\"build\", \"dist\"]
+";
+
 /// Command line interface configuration using `clap`.
 /// This struct defines the arguments and flags accepted by the program.
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, after_help = CONFIG_HELP)]
+
 pub struct Cli {
     #[command(subcommand)]
     /// The subcommand to execute (e.g., raw, cc, hal).

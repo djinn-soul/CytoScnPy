@@ -25,6 +25,7 @@ fn test_print_report_formatting() {
             base_classes: smallvec::smallvec![],
             is_type_checking: false,
             cell_number: None,
+            is_self_referential: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -95,5 +96,3 @@ fn test_print_report_formatting() {
     assert!(output.contains("Type"));
     assert!(output.contains("Name"));
 }
-
-

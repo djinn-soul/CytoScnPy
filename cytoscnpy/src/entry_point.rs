@@ -363,9 +363,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
 
         // Debug: Simulate progress for testing progress bar visibility
         if let Some(delay_ms) = cli_var.debug_delay {
-            eprintln!(
-                "[DEBUG] delay_ms = {delay_ms}, total_files = {total_files}"
-            );
+            eprintln!("[DEBUG] delay_ms = {delay_ms}, total_files = {total_files}");
             if let Some(ref pb) = progress {
                 for i in 0..total_files {
                     pb.set_position(i as u64);
@@ -473,7 +471,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             })
             .unwrap_or(100.0); // Default to 100% (never fail unless 0.0 is passed explicitly)
 
-        // Calculate unused percentage
+        // Calculate unused percentage and show gate status
         if result.analysis_summary.total_definitions > 0 {
             let total_unused = result.unused_functions.len()
                 + result.unused_methods.len()
@@ -486,11 +484,20 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             let percentage =
                 (total_unused as f64 / result.analysis_summary.total_definitions as f64) * 100.0;
 
+            // Only show gate banner if threshold is configured (not default 100%)
+            let show_gate = fail_threshold < 100.0;
+
             if percentage > fail_threshold {
-                eprintln!(
-                    "Error: Unused code percentage ({percentage:.2}%) exceeds threshold ({fail_threshold:.2}%)."
-                );
+                if !cli_var.output.json {
+                    eprintln!(
+                        "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - FAILED"
+                    );
+                }
                 return Ok(1);
+            } else if show_gate && !cli_var.output.json {
+                println!(
+                    "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - PASSED"
+                );
             }
         }
 

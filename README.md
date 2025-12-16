@@ -2,21 +2,19 @@
 
 [![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/djinn09/CytoScnPy)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/djinn09/CytoScnPy)
 
-A lightning-fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
+A fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
 
-## 🚀 Why CytoScnPy?
+## Why CytoScnPy?
 
 - **🔥 Blazing Fast**: Faster in dead code detection.
 - **💾 Memory Efficient**: Uses less memory.
-- **🐍 Python Native**: Installable via `pip`, importable in Python code
-- **⚡ CLI Ready**: Standalone command-line tool with rich output
 - **🔍 Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
 - **🎯 Framework Aware**: Understands Flask, Django, FastAPI patterns
 - **📊 Benchmarked**: Continuous benchmarking with 126-item ground truth suite
 
-## 📦 Installation
+## Installation
 
 ```bash
 pip install cytoscnpy
@@ -28,11 +26,11 @@ pip install maturin
 maturin develop -m cytoscnpy/Cargo.toml
 ```
 
-### 🤖 MCP Server (for AI Assistants)
+### MCP Server (for AI Assistants)
 
 To use CytoScnPy MCP Server, see the **[MCP Server Documentation](cytoscnpy-mcp/README.md)** for installation instructions.
 
-## ✨ Features
+## Features
 
 - **Dead Code Detection**: Unused functions, classes, imports, and variables with cross-module tracking.
 - **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys), and dangerous code patterns (`eval`, `exec`).
@@ -40,7 +38,7 @@ To use CytoScnPy MCP Server, see the **[MCP Server Documentation](cytoscnpy-mcp/
 - **Framework Support**: Native understanding of Flask, Django, and FastAPI patterns.
 - **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
 
-## 🛠️ Usage
+## Usage
 
 ### Command Line
 
@@ -149,14 +147,7 @@ Configure a fail threshold for unused code. If the percentage exceeds this thres
 - **Default**: `100.0` (effectively disabled)
 - **Zero Tolerance**: Set to `0.0` to fail on any unused code
 
-## 📊 Performance
-
-### Speed Comparison
-
-| Metric | Rust (CytoScnPy) |
-| ------ | ---------------- |
-| Time   | **0.07s**        |
-| Memory | **~14MB**        |
+## Performance
 
 ### Accuracy (Benchmark Suite: 126 items)
 
@@ -171,7 +162,7 @@ Configure a fail threshold for unused code. If the percentage exceeds this thres
 
 > See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
-## 🏗️ Architecture
+## Architecture
 
 See [cytoscnpy/README.md](cytoscnpy/README.md#architecture) for detailed architecture and technology stack information.
 
@@ -179,15 +170,15 @@ See [cytoscnpy/README.md](cytoscnpy/README.md#architecture) for detailed archite
 
 See [CONTRIBUTING.md](CONTRIBUTING.md#testing) for testing instructions.
 
-## 🤝 Contributing
+## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
-## 📝 License
+## License
 
 Apache-2.0 License - see [License](License) file for details.
 
-## 🔗 Links
+## Links
 
 - [Rust Core Documentation](cytoscnpy/README.md)
 - [Benchmarks & Accuracy](benchmark/README.md)

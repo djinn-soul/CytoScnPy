@@ -14,18 +14,18 @@ This comprehensive document details the complete development roadmap for CytoScn
 ## 📋 Table of Contents
 
 1. [Project Status](#project-status)
-2. [Phase 1: Critical Fixes](#phase-1-critical-fixes-done)
-3. [Phase 2: Feature Parity](#phase-2-feature-parity-done)
-4. [Phase 3: Advanced Features](#phase-3-advanced-features-done)
-5. [Phase 4: Code Architecture](#phase-4-code-architecture-done)
-6. [Phase 5: Radon Metrics Integration](#phase-5-radon-metrics-integration-done)
-7. [Phase 6: Editor Integration](#phase-6-editor-integration-done)
-8. [Phase 7: Infrastructure & Quality](#phase-7-infrastructure--quality-done)
+2. [Phase 1: Critical Fixes](#phase-1)
+3. [Phase 2: Feature Parity](#phase-2)
+4. [Phase 3: Advanced Features](#phase-3)
+5. [Phase 4: Code Architecture](#phase-4)
+6. [Phase 5: Radon Metrics Integration](#phase-5)
+7. [Phase 6: Editor Integration](#phase-6)
+8. [Phase 7: Infrastructure & Quality](#phase-7)
 9. [Future Roadmap](#future-roadmap)
-   - [Phase 8: Advanced Framework Support](#phase-8-advanced-framework-support)
-   - [Phase 9: Developer Experience](#phase-9-developer-experience)
-   - [Phase 10: Deep Analysis & Security](#phase-10-deep-analysis--security)
-   - [Phase 11: Auto-Remediation](#phase-11-auto-remediation)
+   - [Phase 8: Advanced Framework Support](#phase-8)
+   - [Phase 9: Developer Experience](#phase-9)
+   - [Phase 10: Deep Analysis & Security](#phase-10)
+   - [Phase 11: Auto-Remediation](#phase-11)
 
 ---
 
@@ -101,7 +101,7 @@ Completed full migration from the deprecated `rustpython-parser` to `ruff_python
 
 ---
 
-## Phase 1: Critical Fixes ✅ DONE
+## <a id="phase-1"></a>Phase 1: Critical Fixes ✅ DONE
 
 These foundational fixes were essential for accuracy and addressed the largest sources of false positives.
 
@@ -193,7 +193,7 @@ let qualified_name = if let Some(class_name) = self.class_stack.last() {
 
 ---
 
-## Phase 2: Feature Parity ✅ DONE
+## <a id="phase-2"></a>Phase 2: Feature Parity ✅ DONE
 
 Bringing Rust implementation to feature parity with the Python version.
 
@@ -319,7 +319,7 @@ Multiple heuristics to reduce false positives for common patterns.
 
 ---
 
-## Phase 3: Advanced Features ✅ DONE
+## <a id="phase-3"></a>Phase 3: Advanced Features ✅ DONE
 
 Features exceeding the original Python implementation.
 
@@ -370,7 +370,7 @@ pub struct Scope {
 
 ---
 
-## Phase 4: Code Architecture ✅ DONE
+## <a id="phase-4"></a>Phase 4: Code Architecture ✅ DONE
 
 ### 4.0 Modular Rule System ✅
 
@@ -410,7 +410,7 @@ pub trait Rule {
 
 ---
 
-## Phase 5: Radon Metrics Integration ✅ DONE
+## <a id="phase-5"></a>Phase 5: Radon Metrics Integration ✅ DONE
 
 Integration of code metrics compatible with `radon`.
 
@@ -503,7 +503,7 @@ These features are tested but not yet implemented. Remove `#[ignore]` from tests
 
 ---
 
-## Phase 6: Editor Integration ✅ DONE
+## <a id="phase-6"></a>Phase 6: Editor Integration ✅ DONE
 
 ### 6.1 VS Code Extension ✅
 
@@ -528,7 +528,7 @@ _Alignment with Rust CLI capabilities and compatibility fixes._
 
 ---
 
-## Phase 7: Infrastructure & Quality ✅ DONE
+## <a id="phase-7"></a>Phase 7: Infrastructure & Quality ✅ DONE
 
 ### 7.2 Error Handling ✅
 
@@ -541,16 +541,16 @@ _Alignment with Rust CLI capabilities and compatibility fixes._
 
 ---
 
-### 7.3 Parser Migration: `rustpython-parser` → `ruff_python_parser`
+### 7.3 Parser Migration: `rustpython-parser` → `ruff_python_parser` ✅
 
-> [!CAUTION] > **`rustpython-parser` is deprecated!** The RustPython maintainers are archiving the repository and have declared it unmaintained. It also has a RustSec advisory for the unmaintained `unic` dependency.
+> [!NOTE] > Migration completed. CytoScnPy now uses `ruff_python_parser` from the Ruff project.
 
-**Current State:**
+**Previous State (Before Migration):**
 
-- CytoScnPy uses `rustpython-parser = "0.4.0"` (deprecated)
-- RustPython itself has migrated to `ruff_python_parser`
+- CytoScnPy previously used `rustpython-parser = "0.4.0"` (deprecated)
+- RustPython itself migrated to `ruff_python_parser`
 
-**Why Migrate:**
+**Why We Migrated:**
 
 1. **Security:** Avoid using crates with known RustSec advisories
 2. **Maintenance:** `ruff_python_parser` is actively maintained by Astral
@@ -587,7 +587,7 @@ ruff_source_file = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffe
 - [x] Update all rule files in `src/rules/`
 - [x] Update taint analysis in `src/taint/`
 - [x] Run full test suite
-- [ ] Update benchmark baselines
+- [x] Update benchmark baselines
 
 **Reference:** See [RustPython/Cargo.toml](https://github.com/RustPython/RustPython/blob/main/Cargo.toml) for working example.
 
@@ -853,7 +853,7 @@ def func():
 
 ## Future Roadmap
 
-### Phase 8: Advanced Framework Support
+### <a id="phase-8"></a>Phase 8: Advanced Framework Support
 
 _Deepen understanding of popular Python frameworks to reduce false positives._
 
@@ -870,7 +870,7 @@ _Deepen understanding of popular Python frameworks to reduce false positives._
 - [x] **Pydantic Support** ✅
   - **Field Tracking:** Explicitly track fields in `BaseModel` subclasses to avoid marking them as unused variables.
 
-### Phase 9: Developer Experience
+### <a id="phase-9"></a>Phase 9: Developer Experience
 
 _Tools to improve the workflow around CytoScnPy._
 
@@ -979,7 +979,7 @@ _Tools to improve the workflow around CytoScnPy._
 5. **Confidence Threshold Sweep**: Test Vulture at multiple confidence levels (0%, 30%, 60%, 90%)
 6. **Cross-Language Comparison**: Compare Python tools with similar tools for other languages
 
-### Phase 10: Deep Analysis & Security
+### <a id="phase-10"></a>Phase 10: Deep Analysis & Security
 
 _Pushing the boundaries of static analysis._
 
@@ -1127,7 +1127,7 @@ _Pushing the boundaries of static analysis._
 - [ ] **License Compliance**
   - Scan `requirements.txt` and `Cargo.toml` for incompatible licenses.
 
-### Phase 11: Auto-Remediation
+### <a id="phase-11"></a>Phase 11: Auto-Remediation
 
 _Safe, automated code fixes._
 

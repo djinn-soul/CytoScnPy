@@ -93,7 +93,7 @@ CytoScnPy/
 
 | Component           | Technology                                         |
 | ------------------- | -------------------------------------------------- |
-| **Parser**          | `rustpython-parser` (Python 3.12 compatible)       |
+| **Parser**          | `ruff_python_parser` (Python 3.12+ compatible)     |
 | **Parallelization** | `rayon` for multi-threaded file processing         |
 | **CLI**             | `clap` with derive macros                          |
 | **Python Bindings** | `PyO3` + `maturin` build system                    |

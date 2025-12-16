@@ -25,7 +25,7 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",
     "Unicode-3.0",
-    "LGPL-3.0-only",                  # malachite crates via rustpython-parser
+    "LGPL-3.0-only",                  # malachite crates (transitive)
 ]
 
 # =============================================================================
@@ -50,11 +50,9 @@ skip = []
 # List of advisory IDs to ignore (with rationale)
 ignore = [
     # =====================================================================
-    # Unmaintained unic-* crates from rustpython-parser
-    # These are transitive dependencies we can't control directly.
-    # rustpython-parser 0.4.0 (latest) still depends on these crates.
-    # Will be resolved when rustpython-parser removes these dependencies.
-    # Tracking: https://github.com/RustPython/Parser/issues
+    # NOTE: These unic-* advisories were from the old rustpython-parser.
+    # After migration to ruff_python_parser, these may no longer be needed.
+    # Run `cargo deny check` to verify if these can be removed.
     # =====================================================================
     "RUSTSEC-2025-0075", # unic-char-range
     "RUSTSEC-2025-0080", # unic-common  

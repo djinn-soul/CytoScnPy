@@ -15,6 +15,7 @@ fn run_cytoscnpy(path: &str, flags: &[&str]) -> Value {
         .output()
         .expect("Failed to execute cytoscnpy binary");
 
+    println!("-----------------Output===================: {:#?}", output);
     assert!(
         output.status.success(),
         "Command failed: {}",
@@ -162,7 +163,7 @@ fn test_itertools_chaining() {
         "../benchmark/examples/cases/02_imports/test_004_itertools_chaining.py",
         &["--include-tests"],
     );
-
+    println!("Result: {:#?}", result);
     // Should detect 0 unused items
     assert_eq!(count_items(&result, "unused_functions"), 0);
     assert_eq!(count_items(&result, "unused_imports"), 0);

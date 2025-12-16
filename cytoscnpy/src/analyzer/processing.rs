@@ -81,7 +81,6 @@ impl CytoScnPy {
         while let Some(res) = it.next() {
             if let Ok(entry) = res {
                 let name = entry.file_name().to_string_lossy();
-                // println!("Visiting: {:?} (is_dir: {})", entry.path(), entry.file_type().is_dir());
 
                 // Check if this folder is explicitly included
                 let is_force_included =
@@ -94,7 +93,6 @@ impl CytoScnPy {
                         || self.exclude_folders.iter().any(|f| f == &name));
 
                 if should_exclude {
-                    // println!("Skipping excluded folder: {}", name);
                     it.skip_current_dir();
                     continue;
                 }
@@ -104,7 +102,6 @@ impl CytoScnPy {
                     .extension()
                     .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
                 {
-                    // println!("Found python file: {:?}", entry.path());
                     files.push(entry.path().to_path_buf());
                 }
             }
@@ -363,6 +360,12 @@ impl CytoScnPy {
                 &ignored_lines,
                 self.include_tests,
             );
+
+            // Mark self-referential methods (recursive methods)
+            if def.def_type == "method" && visitor.self_referential_methods.contains(&def.full_name)
+            {
+                def.is_self_referential = true;
+            }
         }
 
         (
@@ -396,7 +399,8 @@ impl CytoScnPy {
         total_files: usize,
     ) -> AnalysisResult {
         let mut all_defs = Vec::new();
-        let mut ref_counts: FxHashMap<String, usize> = FxHashMap::default();
+        let mut ref_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut all_secrets = Vec::new();
         let mut all_danger = Vec::new();
         let mut all_quality = Vec::new();
@@ -409,6 +413,7 @@ impl CytoScnPy {
         for (defs, refs, secrets, danger, quality, parse_errors, lines, complexity, mi) in results {
             all_defs.extend(defs);
             // Merge reference counts from each file
+            
             for (name, count) in refs {
                 *ref_counts.entry(name).or_insert(0) += count;
             }
@@ -433,6 +438,7 @@ impl CytoScnPy {
         let mut unused_parameters = Vec::new();
 
         let total_definitions = all_defs.len();
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
@@ -445,6 +451,12 @@ impl CytoScnPy {
 
             if def.confidence < self.confidence_threshold {
                 continue;
+            }
+
+
+            // Collect methods with references for class-method linking
+            if def.def_type == "method" && def.references > 0 {
+                methods_with_refs.push(def.clone());
             }
 
             if def.references == 0 {
@@ -460,9 +472,28 @@ impl CytoScnPy {
             }
         }
 
-        // Note: Class-method linking (flagging methods of unused classes based on parent class)
-        // is not implemented because methods called via self.method() have references
-        // and should not be flagged even if the class is unused.
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    if unused_class_names.contains(parent_class) {
+                        unused_methods.push(def.clone());
+                    }
+                }
+            }
+        }
 
         // Run taint analysis if enabled
         let taint_findings = if self.enable_taint {
@@ -491,6 +522,29 @@ impl CytoScnPy {
         };
 
         let taint_count = taint_findings.len();
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    let is_unused = unused_class_names.contains(parent_class);
+                    if is_unused {
+                        unused_methods.push(def.clone());
+                    }
+                }
+            }
+        }
 
         AnalysisResult {
             unused_functions,
@@ -581,7 +635,8 @@ impl CytoScnPy {
         // Each chunk is processed in parallel, results are merged before next chunk.
         // This limits peak memory usage to approximately CHUNK_SIZE * avg_file_size.
         let mut all_defs = Vec::new();
-        let mut ref_counts: FxHashMap<String, usize> = FxHashMap::default();
+        let mut ref_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut all_secrets = Vec::new();
         let mut all_danger = Vec::new();
         let mut all_quality = Vec::new();
@@ -639,6 +694,7 @@ impl CytoScnPy {
         let mut unused_parameters = Vec::new();
 
         let total_definitions = all_defs.len();
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             // Update the reference count for the definition.
@@ -669,12 +725,34 @@ impl CytoScnPy {
                     "parameter" => unused_parameters.push(def),
                     _ => {}
                 }
+            } else if def.def_type == "method" {
+                // Collect methods with references for possible class-method linking (recursion check)
+                methods_with_refs.push(def.clone());
             }
         }
 
-        // Note: Class-method linking (flagging methods of unused classes based on parent class)
-        // is not implemented because methods called via self.method() have references
-        // and should not be flagged even if the class is unused.
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    if unused_class_names.contains(parent_class) {
+                        unused_methods.push(def.clone());
+                    }
+                }
+            }
+        }
 
         // Run taint analysis if enabled
         let taint_findings = if self.enable_taint {
@@ -708,6 +786,29 @@ impl CytoScnPy {
         let taint_count = taint_findings.len();
 
         // Construct and return the final result.
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    let is_unused = unused_class_names.contains(parent_class);
+                    if is_unused {
+                        unused_methods.push(def.clone());
+                    }
+                }
+            }
+        }
+
         AnalysisResult {
             unused_functions,
             unused_methods,
@@ -872,6 +973,7 @@ impl CytoScnPy {
         let mut unused_imports = Vec::new();
         let mut unused_variables = Vec::new();
         let mut unused_parameters = Vec::new();
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
@@ -886,6 +988,11 @@ impl CytoScnPy {
                 continue;
             }
 
+            // Collect methods with references for class-method linking
+            if def.def_type == "method" && def.references > 0 {
+                methods_with_refs.push(def.clone());
+            }
+
             if def.references == 0 {
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
@@ -895,6 +1002,29 @@ impl CytoScnPy {
                     "variable" => unused_variables.push(def),
                     "parameter" => unused_parameters.push(def),
                     _ => {}
+                }
+            }
+        }
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    let is_unused = unused_class_names.contains(parent_class);
+                    if is_unused {
+                        unused_methods.push(def.clone());
+                    }
                 }
             }
         }

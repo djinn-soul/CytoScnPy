@@ -119,6 +119,10 @@ pub struct Definition {
     /// The cell number if this definition is from a Jupyter notebook (0-indexed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cell_number: Option<usize>,
+    /// Whether this method only references itself (recursive with no external callers).
+    /// Used for class-method linking to identify truly unused recursive methods.
+    #[serde(default)]
+    pub is_self_referential: bool,
 }
 
 impl Definition {
@@ -195,6 +199,9 @@ pub struct CytoScnPyVisitor<'a> {
     pub is_dynamic: bool,
     /// Set of class names that have a metaclass (used to detect metaclass inheritance).
     pub metaclass_classes: FxHashSet<String>,
+    /// Set of method qualified names that are self-referential (recursive).
+    /// Used for class-method linking to detect methods that only call themselves.
+    pub self_referential_methods: FxHashSet<String>,
     /// Cached scope prefix for faster qualified name building.
     /// Updated on scope push/pop to avoid rebuilding on every `resolve_name` call.
     cached_scope_prefix: String,
@@ -223,6 +230,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
             is_dynamic: false,
             metaclass_classes: FxHashSet::default(),
+            self_referential_methods: FxHashSet::default(),
             cached_scope_prefix: cached_prefix,
         }
     }
@@ -403,6 +411,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             base_classes,
             is_type_checking: self.in_type_checking_block,
             cell_number: None,
+            is_self_referential: false,
         };
 
         self.definitions.push(definition);
@@ -1107,6 +1116,28 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Always track the attribute name as a reference (loose tracking)
                 // This ensures we catch methods in chains like `obj.method().other_method()`
                 self.add_ref(node.attr.to_string());
+
+                // Check for self-referential method call (recursive method)
+                // If we see self.method_name() and method_name matches current function in function_stack
+                if let Expr::Name(base_node) = &*node.value {
+                    if base_node.id.as_str() == "self" || base_node.id.as_str() == "cls" {
+                        let attr_name = node.attr.as_str();
+                        // Check if this is a call to the current method (recursive)
+                        if let Some(current_method_qualified) = self.function_stack.last() {
+                            // Extract simple name from qualified name stored in stack
+                            let current_method_simple = if let Some(idx) = current_method_qualified.rfind('.') {
+                                &current_method_qualified[idx + 1..]
+                            } else {
+                                current_method_qualified.as_str()
+                            };
+
+                            if current_method_simple == attr_name {
+                                // This is a self-referential call
+                                self.self_referential_methods.insert(current_method_qualified.clone());
+                            }
+                        }
+                    }
+                }
 
                 if let Expr::Name(name_node) = &*node.value {
                     let base_id = name_node.id.as_str();

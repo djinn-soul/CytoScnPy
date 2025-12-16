@@ -174,13 +174,12 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
 
   # =============================================================================
-  # Create GitHub Release with MCP binaries
+  # Create GitHub Release (Production - clean tags)
   # =============================================================================
-  github-release:
-    name: Create GitHub Release
+  github-release-prod:
+    name: Create GitHub Release (Production)
     needs: [build-mcp, publish-pypi]
     runs-on: ubuntu-latest
-    # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
     if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
     steps:
       - uses: actions/download-artifact@v4
@@ -206,5 +205,41 @@ jobs:
           files: release-assets/*
           generate_release_notes: true
           draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =============================================================================
+  # Create GitHub Release (Test - test tags)
+  # =============================================================================
+  github-release-test:
+    name: Create GitHub Release (Test)
+    needs: [build-mcp, publish-testpypi]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-x86_64-unknown-linux-gnu
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-x86_64-pc-windows-msvc
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-aarch64-apple-darwin
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-x86_64-apple-darwin
+          path: release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          draft: true
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

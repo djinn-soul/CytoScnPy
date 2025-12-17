@@ -99,6 +99,7 @@ pub struct FrameworkAwareVisitor<'a> {
 
 impl<'a> FrameworkAwareVisitor<'a> {
     /// Creates a new `FrameworkAwareVisitor`.
+    #[must_use]
     pub fn new(line_index: &'a LineIndex) -> Self {
         Self {
             is_framework_file: false,
@@ -469,6 +470,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
 /// # Returns
 /// * `Some(100)` - If the definition is a decorated framework endpoint (confidence = 1.0)
 /// * `None` - If the definition is not a framework endpoint or should be ignored
+#[must_use]
 pub fn detect_framework_usage(
     line: usize,
     simple_name: &str,

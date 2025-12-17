@@ -3,6 +3,12 @@
 //! NOTE: These tests require the binary to be built first (`cargo build`).
 //! They are marked #[ignore] because CI coverage runs use a different target directory.
 //! Run locally with: `cargo test --test quality_gate_test -- --ignored`
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::expect_used,
+    clippy::needless_raw_string_hashes
+)]
 
 use std::fs;
 use std::process::Command;
@@ -26,11 +32,11 @@ fn run_cytoscnpy(args: &[&str], dir: &std::path::Path) -> std::process::Output {
         .args(args)
         .current_dir(dir)
         .output()
-        .unwrap_or_else(|_| panic!("Failed to execute cytoscnpy at {:?}", binary_path))
+        .unwrap_or_else(|_| panic!("Failed to execute cytoscnpy at {}", binary_path.display()))
 }
 
 #[test]
-#[ignore] // Requires pre-built binary
+#[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_passes_when_below_threshold() {
     let temp_dir = tempdir().unwrap();
 
@@ -59,13 +65,13 @@ print(result)
 }
 
 #[test]
-#[ignore] // Requires pre-built binary
+#[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_fails_when_above_threshold() {
     let temp_dir = tempdir().unwrap();
 
     // Create Python files with lots of unused code (high percentage)
     for i in 0..3 {
-        let file_path = temp_dir.path().join(format!("unused_{}.py", i));
+        let file_path = temp_dir.path().join(format!("unused_{i}.py"));
         fs::write(
             &file_path,
             r#"
@@ -98,7 +104,7 @@ class UnusedClass:
 }
 
 #[test]
-#[ignore] // Requires pre-built binary
+#[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_with_env_var() {
     let temp_dir = tempdir().unwrap();
 
@@ -144,7 +150,7 @@ result = used_function()
 }
 
 #[test]
-#[ignore] // Requires pre-built binary
+#[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_cli_overrides_env_var() {
     let temp_dir = tempdir().unwrap();
 
@@ -184,7 +190,7 @@ def unused_function():
 }
 
 #[test]
-#[ignore] // Requires pre-built binary
+#[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_no_quality_gate_when_not_specified() {
     let temp_dir = tempdir().unwrap();
 
@@ -216,7 +222,7 @@ class Unused2: pass
 }
 
 #[test]
-#[ignore] // Requires pre-built binary
+#[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_max_complexity_gate_passes() {
     let temp_dir = tempdir().unwrap();
 
@@ -409,7 +415,7 @@ def function():
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let combined = format!("{}{}", stdout, stderr);
+    let combined = format!("{stdout}{stderr}");
 
     // Should contain gate result
     assert!(

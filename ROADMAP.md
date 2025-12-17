@@ -513,18 +513,66 @@ These features are tested but not yet implemented. Remove `#[ignore]` from tests
 
 ### 6.2 Extension Code Audit (Pending Fixes) 🔄
 
-_Alignment with Rust CLI capabilities and compatibility fixes._
+_Comprehensive alignment with Rust CLI capabilities.
 
-- [ ] **Compatibility:** Downgrade `engines.vscode` requirement from `^1.106.1` to `^1.104.0` to support current editor versions.
-- [ ] **Metadata:** Fix version mismatch (`package.json` says `0.0.1`, changelog says `0.1.0`) and complete the description.
-- [ ] **Config Parity:**
-  - Change `confidenceThreshold` to numeric input (slider 0-100).
-  - Add `exclude_folders` and `include_folders` arrays.
-  - Add `include_tests` and `include_ipynb` booleans.
-- [ ] **JSON Parsing:**
-  - Update interface to capture `unused_methods` and `taint_findings` (currently ignored).
-  - Map `confidence` enum to numeric values if keeping enum UI.
-- [ ] **Path Handling:** Implement fallback to pip-installed `cytoscnpy` if the bundled binary is missing.
+#### 6.2.1 Critical Fixes ✅
+
+| Issue                 | Description                                             | Status |
+| --------------------- | ------------------------------------------------------- | ------ |
+| Version Mismatch      | `package.json` = `0.0.1`, `CHANGELOG.md` = `0.1.0`      | ✅     |
+| Engine Too New        | `engines.vscode: ^1.106.1` excludes older VS Code users | ✅     |
+| Description Truncated | Line 5 ends with `dead    ` (incomplete text)           | ✅     |
+
+#### 6.2.2 Configuration Parity ✅
+
+_Missing CLI flags that should be exposed as extension settings:_
+
+| CLI Flag               | Extension Setting                       | Status |
+| ---------------------- | --------------------------------------- | ------ |
+| `--confidence <0-100>` | Change from enum to numeric slider      | ✅     |
+| `--exclude-folders`    | Add `excludeFolders` array setting      | ✅     |
+| `--include-folders`    | Add `includeFolders` array setting      | ✅     |
+| `--include-tests`      | Add `includeTests` boolean              | ✅     |
+| `--include-ipynb`      | Add `includeIpynb` boolean              | ✅     |
+| `--max-complexity`     | Add `maxComplexity` threshold           | ✅     |
+| `--min-mi`             | Add `minMaintainabilityIndex` threshold | ✅     |
+| `--max-nesting`        | Add `maxNesting` threshold              | ✅     |
+| `--max-args`           | Add `maxArguments` threshold            | ✅     |
+| `--max-lines`          | Add `maxLines` threshold                | ✅     |
+
+#### 6.2.3 JSON Parsing Completeness ✅
+
+_Fields in CLI JSON output not captured by `analyzer.ts`:_
+
+- [x] Add `unused_methods` to `RawCytoScnPyResult` interface
+- [x] Add `taint_findings` to interface
+- [x] Add `parse_errors` handling and display
+- [ ] Add `summary` stats display in output channel
+
+#### 6.2.4 Missing Commands 🔄
+
+| Command                      | Description                           | Status |
+| ---------------------------- | ------------------------------------- | ------ |
+| `cytoscnpy.rawMetrics`       | Calculate Raw Metrics (LOC/LLOC/SLOC) | ✅     |
+| `cytoscnpy.analyzeWorkspace` | Analyze entire workspace              | ✅     |
+| `cytoscnpy.taintAnalysis`    | Run taint analysis specifically       | ❌     |
+
+#### 6.2.5 Path Handling ✅
+
+- [x] Implement fallback to pip-installed `cytoscnpy` if bundled binary missing
+- [ ] Add macOS (`cytoscnpy-cli-darwin`) binary bundling
+- [ ] Add Linux (`cytoscnpy-cli-linux`) binary bundling
+
+#### 6.2.6 UX Enhancements
+
+| Feature            | Description                                | Priority | Status |
+| ------------------ | ------------------------------------------ | -------- | ------ |
+| Status Bar         | Show finding count in status bar           | Medium   | ❌     |
+| Quick Fixes        | Code actions to remove/comment unused code | High     | ❌     |
+| Gutter Decorations | Visual icons for severity levels           | Low      | ❌     |
+| Progress Indicator | Show progress during workspace analysis    | Medium   | ❌     |
+| File Caching       | Skip re-analyzing unchanged files          | Low      | ❌     |
+| Problem Grouping   | Better categorization in Problems panel    | Low      | ❌     |
 
 ---
 

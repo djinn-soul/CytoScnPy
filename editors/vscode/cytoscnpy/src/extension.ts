@@ -28,10 +28,24 @@ function getExecutablePath(context: vscode.ExtensionContext): string {
       executableName = "cytoscnpy-cli-darwin";
       break;
     default:
-      throw new Error(`Unsupported platform: ${platform}`);
+      // Fall back to pip-installed version
+      return "cytoscnpy";
   }
 
-  return path.join(context.extensionPath, "bin", executableName);
+  const bundledPath = path.join(context.extensionPath, "bin", executableName);
+
+  // Check if bundled binary exists, otherwise fall back to pip-installed version
+  try {
+    const fs = require("fs");
+    if (fs.existsSync(bundledPath)) {
+      return bundledPath;
+    }
+  } catch {
+    // Ignore errors, fall through to pip fallback
+  }
+
+  // Fall back to pip-installed cytoscnpy (assumes it's in PATH)
+  return "cytoscnpy";
 }
 
 // Helper function to get configuration
@@ -48,7 +62,17 @@ function getCytoScnPyConfiguration(
     enableSecretsScan: config.get<boolean>("enableSecretsScan") || false,
     enableDangerScan: config.get<boolean>("enableDangerScan") || false,
     enableQualityScan: config.get<boolean>("enableQualityScan") || false,
-    confidenceThreshold: config.get<string>("confidenceThreshold") || "all",
+    confidenceThreshold: config.get<number>("confidenceThreshold") || 0,
+    excludeFolders: config.get<string[]>("excludeFolders") || [],
+    includeFolders: config.get<string[]>("includeFolders") || [],
+    includeTests: config.get<boolean>("includeTests") || false,
+    includeIpynb: config.get<boolean>("includeIpynb") || false,
+    maxComplexity: config.get<number>("maxComplexity") || 10,
+    minMaintainabilityIndex:
+      config.get<number>("minMaintainabilityIndex") || 40,
+    maxNesting: config.get<number>("maxNesting") || 3,
+    maxArguments: config.get<number>("maxArguments") || 5,
+    maxLines: config.get<number>("maxLines") || 50,
   };
 }
 
@@ -172,7 +196,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Helper function to run metric commands
     async function runMetricCommand(
       context: vscode.ExtensionContext,
-      commandType: "cc" | "hal" | "mi",
+      commandType: "cc" | "hal" | "mi" | "raw",
       commandName: string
     ) {
       if (
@@ -229,6 +253,60 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand("cytoscnpy.maintainability", () =>
         runMetricCommand(context, "mi", "Maintainability Index")
+      )
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("cytoscnpy.rawMetrics", () =>
+        runMetricCommand(context, "raw", "Raw Metrics")
+      )
+    );
+
+    // Register analyze workspace command
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "cytoscnpy.analyzeWorkspace",
+        async () => {
+          const workspaceFolders = vscode.workspace.workspaceFolders;
+          if (!workspaceFolders || workspaceFolders.length === 0) {
+            vscode.window.showWarningMessage("No workspace folder open.");
+            return;
+          }
+
+          const workspacePath = workspaceFolders[0].uri.fsPath;
+          const config = getCytoScnPyConfiguration(context);
+
+          cytoscnpyOutputChannel.clear();
+          cytoscnpyOutputChannel.show();
+          cytoscnpyOutputChannel.appendLine(
+            `Analyzing workspace: ${workspacePath}\n`
+          );
+
+          let command = `"${config.path}" "${workspacePath}" --json`;
+          if (config.enableSecretsScan) {
+            command += " --secrets";
+          }
+          if (config.enableDangerScan) {
+            command += " --danger";
+          }
+          if (config.enableQualityScan) {
+            command += " --quality";
+          }
+
+          exec(command, (error, stdout, stderr) => {
+            if (error) {
+              cytoscnpyOutputChannel.appendLine(`Error: ${error.message}`);
+              if (stderr) {
+                cytoscnpyOutputChannel.appendLine(`Stderr: ${stderr}`);
+              }
+            }
+            if (stdout) {
+              cytoscnpyOutputChannel.appendLine(`Results:\n${stdout}`);
+            }
+            vscode.window.showInformationMessage(
+              "Workspace analysis complete. See output channel."
+            );
+          });
+        }
       )
     );
 

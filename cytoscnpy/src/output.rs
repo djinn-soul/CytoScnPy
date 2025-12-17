@@ -377,8 +377,29 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
     let security = result.danger.len() + result.secrets.len() + result.quality.len();
     writeln!(
         writer,
-        "\n[SUMMARY] {} unused code issues, {} security/quality issues",
-        total, security
+        "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
+    )?;
+
+    Ok(())
+}
+
+/// Print a quiet report (no detailed tables) for CI/CD mode
+pub fn print_report_quiet(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
+    writeln!(writer)?; // Just a newline instead of header box
+    print_summary_pills(writer, result)?;
+    print_analysis_stats(writer, &result.analysis_summary)?;
+
+    // Summary recap
+    let total = result.unused_functions.len()
+        + result.unused_methods.len()
+        + result.unused_imports.len()
+        + result.unused_parameters.len()
+        + result.unused_classes.len()
+        + result.unused_variables.len();
+    let security = result.danger.len() + result.secrets.len() + result.quality.len();
+    writeln!(
+        writer,
+        "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
     )?;
 
     Ok(())

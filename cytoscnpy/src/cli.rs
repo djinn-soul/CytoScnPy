@@ -48,6 +48,7 @@ pub struct ScanOptions {
 
 /// Options for output formatting and verbosity.
 #[derive(Args, Debug, Default, Clone)]
+#[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
 pub struct OutputOptions {
     /// Output raw JSON.
     #[arg(long)]
@@ -56,6 +57,10 @@ pub struct OutputOptions {
     /// Enable verbose output for debugging (shows files being analyzed).
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Quiet mode: show only summary, time, and gate results (no detailed tables).
+    #[arg(short, long)]
+    pub quiet: bool,
 
     /// Exit with code 1 if any quality issues are found.
     #[arg(long)]
@@ -119,9 +124,9 @@ pub struct Cli {
     pub include_folders: Vec<String>,
 
     /// Exit with code 1 if finding percentage exceeds this threshold (0-100).
-    /// For CI/CD integration: --fail-under 5 fails if >5% of definitions are unused.
-    #[arg(long)]
-    pub fail_under: Option<f64>,
+    /// For CI/CD integration: --fail-threshold 5 fails if >5% of definitions are unused.
+    #[arg(long, alias = "fail-under")]
+    pub fail_threshold: Option<f64>,
 
     /// Set maximum allowed Cyclomatic Complexity (overrides config).
     /// Findings with complexity > N will be reported.

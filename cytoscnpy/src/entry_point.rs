@@ -301,7 +301,15 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             .unwrap_or(60);
         let secrets = cli_var.scan.secrets || config.cytoscnpy.secrets.unwrap_or(false);
         let danger = cli_var.scan.danger || config.cytoscnpy.danger.unwrap_or(false);
-        let quality = cli_var.scan.quality || config.cytoscnpy.quality.unwrap_or(false);
+
+        // Auto-enable quality mode when --min-mi or --max-complexity is set
+        let quality = cli_var.scan.quality
+            || config.cytoscnpy.quality.unwrap_or(false)
+            || cli_var.min_mi.is_some()
+            || cli_var.max_complexity.is_some()
+            || config.cytoscnpy.min_mi.is_some()
+            || config.cytoscnpy.complexity.is_some();
+
         let include_tests =
             cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
 
@@ -454,22 +462,26 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
             let mut stdout = std::io::stdout();
-            crate::output::print_report(&mut stdout, &result)?;
+            if cli_var.output.quiet {
+                crate::output::print_report_quiet(&mut stdout, &result)?;
+            } else {
+                crate::output::print_report(&mut stdout, &result)?;
+            }
             // Show processing time
             let elapsed = start_time.elapsed();
             println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
         }
 
-        // Check for fail threshold
-        let fail_threshold = config
-            .cytoscnpy
+        // Check for fail threshold (CLI > config > env var > default)
+        let fail_threshold = cli_var
             .fail_threshold
+            .or(config.cytoscnpy.fail_threshold)
             .or_else(|| {
                 std::env::var("CYTOSCNPY_FAIL_THRESHOLD")
                     .ok()
                     .and_then(|v| v.parse::<f64>().ok())
             })
-            .unwrap_or(100.0); // Default to 100% (never fail unless 0.0 is passed explicitly)
+            .unwrap_or(100.0); // Default to 100% (never fail unless explicitly set)
 
         // Calculate unused percentage and show gate status
         if result.analysis_summary.total_definitions > 0 {
@@ -498,6 +510,62 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 println!(
                     "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - PASSED"
                 );
+            }
+        }
+
+        // Complexity gate check
+        let max_complexity = cli_var.max_complexity.or(config.cytoscnpy.complexity);
+        if let Some(threshold) = max_complexity {
+            // Find the highest complexity violation
+            let complexity_violations: Vec<usize> = result
+                .quality
+                .iter()
+                .filter(|f| f.rule_id == "CSP-Q301")
+                .filter_map(|f| {
+                    // Extract complexity value from message like "Function is too complex (McCabe=15)"
+                    f.message
+                        .split("McCabe=")
+                        .nth(1)
+                        .and_then(|s| s.trim_end_matches(')').parse::<usize>().ok())
+                })
+                .collect();
+
+            if let Some(&max_found) = complexity_violations.iter().max() {
+                if max_found > threshold {
+                    if !cli_var.output.json {
+                        eprintln!(
+                            "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - FAILED"
+                        );
+                    }
+                    return Ok(1);
+                } else if !cli_var.output.json {
+                    println!(
+                        "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - PASSED"
+                    );
+                }
+            } else if !cli_var.output.json && !result.quality.is_empty() {
+                // No complexity violations found, all functions are below threshold
+                println!("\n[GATE] Max complexity: OK (threshold: {threshold}) - PASSED");
+            }
+        }
+
+        // Maintainability Index gate check
+        let min_mi = cli_var.min_mi.or(config.cytoscnpy.min_mi);
+        if let Some(threshold) = min_mi {
+            let mi = result.analysis_summary.average_mi;
+            if mi > 0.0 {
+                if mi < threshold {
+                    if !cli_var.output.json {
+                        eprintln!(
+                            "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - FAILED"
+                        );
+                    }
+                    return Ok(1);
+                } else if !cli_var.output.json {
+                    println!(
+                        "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - PASSED"
+                    );
+                }
             }
         }
 

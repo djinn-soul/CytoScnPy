@@ -77,11 +77,24 @@ cytoscnpy . --include-ipynb --ipynb-cells
 | `--danger`               | Scan for dangerous code + taint analysis |
 | `--quality`              | Scan for code quality issues             |
 | `--json`                 | Output results as JSON                   |
+| `-v, --verbose`          | Enable verbose output for debugging      |
+| `-q, --quiet`            | Quiet mode: summary only, no tables      |
 | `--include-tests`        | Include test files in analysis           |
 | `--exclude-folder <DIR>` | Exclude specific folders                 |
 | `--include-folder <DIR>` | Force include folders                    |
 | `--include-ipynb`        | Include Jupyter notebooks                |
 | `--ipynb-cells`          | Report findings per notebook cell        |
+
+**CI/CD Gate Options:**
+
+| Flag                   | Description                                |
+| ---------------------- | ------------------------------------------ |
+| `--fail-threshold <N>` | Exit code 1 if unused code % > N           |
+| `--max-complexity <N>` | Exit code 1 if any function complexity > N |
+| `--min-mi <N>`         | Exit code 1 if maintainability index < N   |
+| `--fail-on-quality`    | Exit code 1 if any quality issues found    |
+
+> **Full CLI Reference:** See [docs/CLI.md](docs/CLI.md) for complete command documentation.
 
 ### Metric Subcommands
 
@@ -140,12 +153,29 @@ regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
 ```
 
-### Fail Threshold
+### CI/CD Quality Gates
 
-Configure a fail threshold for unused code. If the percentage exceeds this threshold, the CLI exits with code `1`.
+Configure quality gates for CI/CD pipelines. Set thresholds and the CLI exits with code `1` if exceeded.
 
-- **Default**: `100.0` (effectively disabled)
-- **Zero Tolerance**: Set to `0.0` to fail on any unused code
+**CLI Flags:**
+
+```bash
+# Unused code percentage gate
+cytoscnpy . --fail-threshold 5  # Fail if >5% unused
+
+# Complexity gate
+cytoscnpy . --max-complexity 10  # Fail if any function >10
+
+# Maintainability Index gate
+cytoscnpy . --min-mi 40  # Fail if MI <40
+
+# Quiet mode for clean CI output
+cytoscnpy . --fail-threshold 5 --quiet
+```
+
+**Priority:** CLI flag > config file > environment variable > default
+
+**Environment Variable:** `CYTOSCNPY_FAIL_THRESHOLD=5.0`
 
 ## Performance
 

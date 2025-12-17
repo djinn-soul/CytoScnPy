@@ -252,7 +252,14 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 path,
                 json,
                 exclude,
-                ..
+                ignore,
+                min_rank,
+                max_rank,
+                multi,
+                show,
+                average,
+                fail_threshold,
+                output_file,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -266,14 +273,14 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     crate::commands::MiOptions {
                         json,
                         exclude,
-                        ignore: Vec::new(),
-                        min_rank: None,
-                        max_rank: None,
-                        multi: false,
-                        show: false,
-                        average: false,
-                        fail_under: None,
-                        output_file: None,
+                        ignore,
+                        min_rank,
+                        max_rank,
+                        multi,
+                        show,
+                        average,
+                        fail_threshold,
+                        output_file,
                     },
                     &mut stdout,
                 )?;

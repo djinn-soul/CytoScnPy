@@ -66,7 +66,7 @@ pub struct MiOptions {
     /// Calculate and show average MI.
     pub average: bool,
     /// Fail if any file MI is under this threshold.
-    pub fail_under: Option<f64>,
+    pub fail_threshold: Option<f64>,
     /// Write output to this file path.
     pub output_file: Option<String>,
 }
@@ -526,7 +526,7 @@ pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Resul
     }
 
     // Check failure threshold
-    if let Some(threshold) = options.fail_under {
+    if let Some(threshold) = options.fail_threshold {
         let violations: Vec<&MiResult> = results.iter().filter(|r| r.mi < threshold).collect();
         if !violations.is_empty() {
             eprintln!(

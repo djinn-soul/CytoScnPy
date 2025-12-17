@@ -152,18 +152,18 @@ Calculate Maintainability Index (0-100 scale).
 cytoscnpy mi [PATH] [OPTIONS]
 ```
 
-| Flag            | Short | Description                         |
-| --------------- | ----- | ----------------------------------- |
-| `--json`        | `-j`  | Output JSON                         |
-| `--exclude`     | `-e`  | Exclude folders                     |
-| `--ignore`      | `-i`  | Ignore directories matching glob    |
-| `--min-rank`    | `-n`  | Minimum MI rank (A-C)               |
-| `--max-rank`    | `-x`  | Maximum MI rank (A-C)               |
-| `--multi`       | `-m`  | Count multiline strings as comments |
-| `--show`        | `-s`  | Show actual MI value                |
-| `--average`     | `-a`  | Show average MI                     |
-| `--fail-under`  |       | Exit code 1 if any file MI < N      |
-| `--output-file` | `-O`  | Save output to file                 |
+| Flag               | Short | Description                         |
+| ------------------ | ----- | ----------------------------------- |
+| `--json`           | `-j`  | Output JSON                         |
+| `--exclude`        | `-e`  | Exclude folders                     |
+| `--ignore`         | `-i`  | Ignore directories matching glob    |
+| `--min-rank`       | `-n`  | Minimum MI rank (A-C)               |
+| `--max-rank`       | `-x`  | Maximum MI rank (A-C)               |
+| `--multi`          | `-m`  | Count multiline strings as comments |
+| `--show`           | `-s`  | Show actual MI value                |
+| `--average`        | `-a`  | Show average MI                     |
+| `--fail-threshold` |       | Exit code 1 if any file MI < N      |
+| `--output-file`    | `-O`  | Save output to file                 |
 
 **MI Ranks:**
 | Rank | MI Score | Description |

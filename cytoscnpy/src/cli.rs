@@ -138,6 +138,18 @@ pub struct Cli {
     #[arg(long)]
     pub min_mi: Option<f64>,
 
+    /// Set maximum allowed nesting depth.
+    #[arg(long)]
+    pub max_nesting: Option<usize>,
+
+    /// Set maximum allowed function arguments.
+    #[arg(long)]
+    pub max_args: Option<usize>,
+
+    /// Set maximum allowed function lines.
+    #[arg(long)]
+    pub max_lines: Option<usize>,
+
     /// Add artificial delay (ms) per file for testing progress bar.
     #[arg(long, hide = true)]
     pub debug_delay: Option<u64>,
@@ -295,8 +307,8 @@ pub enum Commands {
         average: bool,
 
         /// Exit with code 1 if any file has MI lower than this value
-        #[arg(long)]
-        fail_under: Option<f64>,
+        #[arg(long, alias = "fail-under")]
+        fail_threshold: Option<f64>,
 
         /// Save output to file
         #[arg(long, short = 'O')]

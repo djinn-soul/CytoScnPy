@@ -6,7 +6,7 @@
 //! ```
 //!
 //! This will output a `dhat-heap.json` file that can be viewed at:
-//! https://nnethercote.github.io/dh_view/dh_view.html
+//! <https://nnethercote.github.io/dh_view/dh_view.html>
 
 #[cfg(feature = "heap-profile")]
 #[global_allocator]
@@ -29,7 +29,7 @@ fn main() {
 
     let path = PathBuf::from(&args[1]);
 
-    println!("Analyzing: {path:?}");
+    println!("Analyzing: {}", path.display());
 
     // Create analyzer with default settings
     let mut analyzer = CytoScnPy::default()
@@ -53,7 +53,7 @@ fn main() {
         + summary.unused_classes.len()
         + summary.unused_variables.len()
         + summary.unused_parameters.len();
-    println!("  Unused: {}", unused_count);
+    println!("  Unused: {unused_count}");
 
     #[cfg(feature = "heap-profile")]
     {

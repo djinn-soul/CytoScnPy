@@ -390,7 +390,8 @@ cargo install cargo-tarpaulin cargo-mutants cargo-semver-checks
 
 ### Clippy (Linting)
 
-Configured via `Cargo.toml` workspace lints and `clippy.toml`. Pedantic lints are enabled.
+
+Clippy is a Rust linting tool that provides additional checks beyond the standard Rust compiler. It is configured via `Cargo.toml` workspace lints and `clippy.toml`. Pedantic lints are enabled.
 
 ```bash
 # Run clippy on all targets

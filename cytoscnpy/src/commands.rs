@@ -17,6 +17,7 @@ use walkdir::WalkDir;
 
 /// Options for Cyclomatic Complexity analysis
 #[derive(Debug, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct CcOptions {
     /// Output in JSON format.
     pub json: bool,
@@ -48,6 +49,7 @@ pub struct CcOptions {
 
 /// Options for Maintainability Index analysis
 #[derive(Debug, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct MiOptions {
     /// Output in JSON format.
     pub json: bool,
@@ -83,6 +85,10 @@ struct RawResult {
 }
 
 /// Executes the raw metrics analysis (LOC, SLOC, etc.).
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or JSON serialization fails.
 pub fn run_raw<W: Write>(
     path: &Path,
     json: bool,
@@ -209,6 +215,11 @@ struct CcResult {
 }
 
 /// Executes the cyclomatic complexity analysis.
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or JSON/XML serialization fails.
+#[allow(clippy::cast_precision_loss)]
 pub fn run_cc<W: Write>(path: &Path, options: CcOptions, mut writer: W) -> Result<()> {
     let mut all_exclude = options.exclude;
     all_exclude.extend(options.ignore);
@@ -353,6 +364,10 @@ struct HalResult {
 }
 
 /// Executes the Halstead metrics analysis.
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or JSON serialization fails.
 pub fn run_hal<W: Write>(
     path: &Path,
     json: bool,
@@ -472,6 +487,11 @@ struct MiResult {
 }
 
 /// Executes the Maintainability Index (MI) analysis.
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or JSON serialization fails.
+#[allow(clippy::cast_precision_loss)]
 pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Result<()> {
     let mut all_exclude = options.exclude;
     all_exclude.extend(options.ignore);

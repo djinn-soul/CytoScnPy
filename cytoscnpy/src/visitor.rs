@@ -123,6 +123,9 @@ pub struct Definition {
     /// Used for class-method linking to identify truly unused recursive methods.
     #[serde(default)]
     pub is_self_referential: bool,
+    /// Human-readable message for this finding (generated based on def_type).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 impl Definition {
@@ -397,6 +400,16 @@ impl<'a> CytoScnPyVisitor<'a> {
         // This treats the definition as "used".
         let references = usize::from(is_implicitly_used);
 
+        // Generate human-readable message based on def_type
+        let message = match def_type {
+            "method" => format!("Method '{simple_name}' is defined but never used"),
+            "class" => format!("Class '{simple_name}' is defined but never used"),
+            "import" => format!("'{simple_name}' is imported but never used"),
+            "variable" => format!("Variable '{simple_name}' is assigned but never used"),
+            "parameter" => format!("Parameter '{simple_name}' is never used"),
+            _ => format!("'{simple_name}' is defined but never used"),
+        };
+
         let definition = Definition {
             name: name.clone(),
             full_name: name,
@@ -412,6 +425,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             is_type_checking: self.in_type_checking_block,
             cell_number: None,
             is_self_referential: false,
+            message: Some(message),
         };
 
         self.definitions.push(definition);
@@ -606,7 +620,12 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for keyword in node.keywords() {
                     self.visit_expr(&keyword.value);
                     // Check if this is a metaclass keyword (use as_str() directly)
-                    if keyword.arg.as_ref().map(ruff_python_ast::Identifier::as_str) == Some("metaclass") {
+                    if keyword
+                        .arg
+                        .as_ref()
+                        .map(ruff_python_ast::Identifier::as_str)
+                        == Some("metaclass")
+                    {
                         has_metaclass = true;
                     }
                     // Also add direct reference for simple name metaclasses
@@ -1125,15 +1144,17 @@ impl<'a> CytoScnPyVisitor<'a> {
                         // Check if this is a call to the current method (recursive)
                         if let Some(current_method_qualified) = self.function_stack.last() {
                             // Extract simple name from qualified name stored in stack
-                            let current_method_simple = if let Some(idx) = current_method_qualified.rfind('.') {
-                                &current_method_qualified[idx + 1..]
-                            } else {
-                                current_method_qualified.as_str()
-                            };
+                            let current_method_simple =
+                                if let Some(idx) = current_method_qualified.rfind('.') {
+                                    &current_method_qualified[idx + 1..]
+                                } else {
+                                    current_method_qualified.as_str()
+                                };
 
                             if current_method_simple == attr_name {
                                 // This is a self-referential call
-                                self.self_referential_methods.insert(current_method_qualified.clone());
+                                self.self_referential_methods
+                                    .insert(current_method_qualified.clone());
                             }
                         }
                     }
@@ -1198,11 +1219,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                             current_word.push(ch);
                         } else if !current_word.is_empty() {
                             // Check if it looks like a type name (starts with uppercase)
-                            if current_word
-                                .chars()
-                                .next()
-                                .is_some_and(char::is_uppercase)
-                            {
+                            if current_word.chars().next().is_some_and(char::is_uppercase) {
                                 self.add_ref(current_word.clone());
                             }
                             current_word.clear();
@@ -1210,13 +1227,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                     // Don't forget the last word
                     if !current_word.is_empty()
-                        && current_word
-                            .chars()
-                            .next()
-                            .is_some_and(char::is_uppercase)
-                        {
-                            self.add_ref(current_word);
-                        }
+                        && current_word.chars().next().is_some_and(char::is_uppercase)
+                    {
+                        self.add_ref(current_word);
+                    }
                 }
             }
 

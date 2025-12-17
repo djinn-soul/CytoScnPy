@@ -33,6 +33,7 @@ pub struct CallGraph {
 
 impl CallGraph {
     /// Creates a new empty call graph.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -256,6 +257,7 @@ impl CallGraph {
     }
 
     /// Gets all functions that a given function can reach.
+    #[must_use]
     pub fn get_reachable(&self, func_name: &str) -> FxHashSet<String> {
         let mut visited = FxHashSet::default();
         let mut stack = vec![func_name.to_owned()];
@@ -279,6 +281,7 @@ impl CallGraph {
     }
 
     /// Gets topological order for analysis (reverse post-order).
+    #[must_use]
     pub fn get_analysis_order(&self) -> Vec<String> {
         let mut visited = FxHashSet::default();
         let mut order = Vec::new();

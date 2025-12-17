@@ -1,4 +1,5 @@
 //! Tests for unused parameter detection.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

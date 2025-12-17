@@ -62,7 +62,7 @@ def complex_part(x):
             multi: false,
             show: true,
             average: false,
-            fail_under: None,
+            fail_threshold: None,
             output_file: None,
         },
         &mut buffer_no_multi,
@@ -86,7 +86,7 @@ def complex_part(x):
             multi: true,
             show: true,
             average: false,
-            fail_under: None,
+            fail_threshold: None,
             output_file: None,
         },
         &mut buffer_multi,
@@ -97,8 +97,8 @@ def complex_part(x):
     let results_multi: Vec<MiResult> = serde_json::from_str(&output_multi).unwrap();
     let mi_multi = results_multi[0].mi;
 
-    println!("MI without multi: {}", mi_no_multi);
-    println!("MI with multi: {}", mi_multi);
+    println!("MI without multi: {mi_no_multi}");
+    println!("MI with multi: {mi_multi}");
 
     // With multi flag, comments count should increase, and thus MI should increase
     assert!(

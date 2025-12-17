@@ -14,6 +14,7 @@ pub struct LinterVisitor {
 
 impl LinterVisitor {
     /// Creates a new `LinterVisitor` with the given rules and context.
+    #[must_use]
     pub fn new(
         rules: Vec<Box<dyn Rule>>,
         filename: PathBuf,

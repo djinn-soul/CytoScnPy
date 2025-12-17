@@ -21,6 +21,7 @@ pub struct SinkInfo {
 }
 
 /// Checks if a call expression is a dangerous sink.
+#[allow(clippy::too_many_lines)]
 pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
     let name = get_call_name(&call.func)?;
 

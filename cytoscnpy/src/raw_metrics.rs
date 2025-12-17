@@ -52,6 +52,7 @@ impl<'a> Visitor<'a> for StringCollector {
 }
 
 /// Analyzes raw metrics (LOC, SLOC, etc.) from source code.
+#[must_use]
 pub fn analyze_raw(code: &str) -> RawMetrics {
     let mut metrics = RawMetrics::default();
 

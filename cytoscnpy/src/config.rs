@@ -136,11 +136,13 @@ struct ToolConfig {
 
 impl Config {
     /// Loads configuration from default locations (.cytoscnpy.toml or pyproject.toml in current dir).
+    #[must_use]
     pub fn load() -> Self {
         Self::load_from_path(Path::new("."))
     }
 
     /// Loads configuration starting from a specific path and traversing up.
+    #[must_use]
     pub fn load_from_path(path: &Path) -> Self {
         let mut current = path.to_path_buf();
         if current.is_file() {

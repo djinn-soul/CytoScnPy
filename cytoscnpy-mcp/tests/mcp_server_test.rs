@@ -6,6 +6,7 @@ use cytoscnpy_mcp::tools::{AnalyzeCodeRequest, CytoScnPyServer};
 use rmcp::handler::server::wrapper::Parameters;
 
 #[test]
+#[allow(clippy::expect_used)]
 fn test_analyze_code_basic() {
     let server = CytoScnPyServer::new();
     let params = Parameters(AnalyzeCodeRequest {
@@ -17,13 +18,13 @@ fn test_analyze_code_basic() {
     // Check that we get a valid result
     assert!(result.is_ok(), "Result should be Ok");
 
-    let call_result = result.unwrap();
+    let call_result = result.expect("Analysis failed");
     // Check that we have content in the result
     assert!(!call_result.content.is_empty(), "Should have content");
 
     // Get the text content and verify it contains expected fields
     if let Some(content) = call_result.content.first() {
-        let text = format!("{:?}", content);
+        let text = format!("{content:?}");
         assert!(
             text.contains("unused_functions") || text.contains("unused"),
             "Response should contain analysis results"

@@ -161,6 +161,11 @@ fn get_call_name(expr: &Expr) -> Option<String> {
 }
 
 /// Runs the analyzer (or other commands) with the given arguments.
+///
+/// # Errors
+///
+/// Returns an error if argument parsing fails, or if the command execution fails.
+#[allow(clippy::too_many_lines)]
 pub fn run_with_args(args: Vec<String>) -> Result<i32> {
     let mut program_args = vec!["cytoscnpy".to_owned()];
     program_args.extend(args);

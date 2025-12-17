@@ -1,4 +1,5 @@
 //! Test suite for the multi-path analyzer functionality.
+#![allow(clippy::unwrap_used)]
 //!
 //! These tests verify that the `analyze_paths` method correctly handles:
 //! - Single directory paths (delegating to standard analyze)
@@ -12,7 +13,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use tempfile::tempdir;
 
-/// Test that analyze_paths with a single directory works the same as analyze
+/// Test that `analyze_paths` with a single directory works the same as analyze
 #[test]
 fn test_analyze_paths_single_directory() {
     let dir = tempdir().unwrap();
@@ -46,7 +47,7 @@ result = used_function()
     assert_eq!(result.analysis_summary.total_files, 1);
 }
 
-/// Test that analyze_paths with multiple individual files works
+/// Test that `analyze_paths` with multiple individual files works
 #[test]
 fn test_analyze_paths_multiple_files() {
     let dir = tempdir().unwrap();
@@ -89,7 +90,7 @@ fn test_analyze_paths_multiple_files() {
     assert_eq!(result.analysis_summary.total_files, 2);
 }
 
-/// Test that analyze_paths with empty paths analyzes current directory
+/// Test that `analyze_paths` with empty paths analyzes current directory
 #[test]
 fn test_analyze_paths_empty_defaults_to_current_dir() {
     let dir = tempdir().unwrap();
@@ -111,7 +112,7 @@ fn test_analyze_paths_empty_defaults_to_current_dir() {
     assert_eq!(result.analysis_summary.total_files, 1);
 }
 
-/// Test that analyze_paths with mixed files and directories works
+/// Test that `analyze_paths` with mixed files and directories works
 #[test]
 fn test_analyze_paths_mixed_files_and_directories() {
     let dir = tempdir().unwrap();
@@ -137,7 +138,7 @@ fn test_analyze_paths_mixed_files_and_directories() {
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
     // Analyze root_file.py and the subdir directory
-    let paths = vec![file1_path.clone(), subdir.clone()];
+    let paths = vec![file1_path, subdir];
     let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
@@ -151,7 +152,7 @@ fn test_analyze_paths_mixed_files_and_directories() {
     assert!(!unused_funcs.contains(&"func_excluded".to_owned()));
 }
 
-/// Test that analyze_paths filters non-Python files
+/// Test that `analyze_paths` filters non-Python files
 #[test]
 fn test_analyze_paths_filters_non_python() {
     let dir = tempdir().unwrap();
@@ -174,7 +175,7 @@ fn test_analyze_paths_filters_non_python() {
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
     // Pass all files (only .py should be analyzed)
-    let paths = vec![py_path.clone(), txt_path.clone(), js_path.clone()];
+    let paths = vec![py_path, txt_path, js_path];
     let result = analyzer.analyze_paths(&paths);
 
     // Should only analyze the Python file
@@ -189,7 +190,7 @@ fn test_analyze_paths_filters_non_python() {
     assert!(unused_funcs.contains(&"python_func".to_owned()));
 }
 
-/// Test that analyze_paths respects exclude_folders
+/// Test that `analyze_paths` respects exclude_folders
 #[test]
 fn test_analyze_paths_respects_exclusions() {
     let dir = tempdir().unwrap();
@@ -213,7 +214,7 @@ fn test_analyze_paths_respects_exclusions() {
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
     // Analyze both directories
-    let paths = vec![venv_dir.clone(), src_dir.clone()];
+    let paths = vec![venv_dir, src_dir];
     let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
@@ -229,7 +230,7 @@ fn test_analyze_paths_respects_exclusions() {
     assert!(!unused_funcs.contains(&"venv_func".to_owned()));
 }
 
-/// Test that analyze_paths works with secrets scanning on specific files
+/// Test that `analyze_paths` works with secrets scanning on specific files
 #[test]
 fn test_analyze_paths_with_secrets_scanning() {
     let dir = tempdir().unwrap();
@@ -244,14 +245,14 @@ fn test_analyze_paths_with_secrets_scanning() {
         .with_secrets(true)
         .with_tests(false);
 
-    let paths = vec![file_path.clone()];
+    let paths = vec![file_path];
     let result = analyzer.analyze_paths(&paths);
 
     // Should find the AWS-style key
     assert!(result.analysis_summary.secrets_count > 0);
 }
 
-/// Test that analyze_paths works with danger scanning on specific files
+/// Test that `analyze_paths` works with danger scanning on specific files
 #[test]
 fn test_analyze_paths_with_danger_scanning() {
     let dir = tempdir().unwrap();
@@ -274,14 +275,14 @@ os.system(user_input)
         .with_danger(true)
         .with_tests(false);
 
-    let paths = vec![file_path.clone()];
+    let paths = vec![file_path];
     let result = analyzer.analyze_paths(&paths);
 
     // Should find dangerous patterns
     assert!(result.analysis_summary.danger_count > 0);
 }
 
-/// Test that analyze_paths handles cross-file references
+/// Test that `analyze_paths` handles cross-file references
 #[test]
 fn test_analyze_paths_cross_file_references() {
     let dir = tempdir().unwrap();
@@ -306,7 +307,7 @@ result = helper_function()
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
     // Analyze both files
-    let paths = vec![module_path.clone(), main_path.clone()];
+    let paths = vec![module_path, main_path];
     let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
@@ -319,7 +320,7 @@ result = helper_function()
     assert!(!unused_funcs.contains(&"helper_function".to_owned()));
 }
 
-/// Test that analyze_paths includes notebooks when enabled
+/// Test that `analyze_paths` includes notebooks when enabled
 #[test]
 fn test_analyze_paths_with_notebooks() {
     let dir = tempdir().unwrap();
@@ -348,7 +349,7 @@ fn test_analyze_paths_with_notebooks() {
         .with_tests(false)
         .with_ipynb(true);
 
-    let paths = vec![notebook_path.clone()];
+    let paths = vec![notebook_path];
     let result = analyzer.analyze_paths(&paths);
 
     // Should analyze the notebook
@@ -363,9 +364,9 @@ fn test_analyze_paths_precommit_style() {
     // Simulate a project with many files
     let files: Vec<PathBuf> = (0..5)
         .map(|i| {
-            let path = dir.path().join(format!("file{}.py", i));
+            let path = dir.path().join(format!("file{i}.py"));
             let mut f = File::create(&path).unwrap();
-            write!(f, "def func_in_file{}(): pass", i).unwrap();
+            write!(f, "def func_in_file{i}(): pass").unwrap();
             path
         })
         .collect();

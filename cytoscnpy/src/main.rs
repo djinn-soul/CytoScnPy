@@ -1,6 +1,6 @@
 //! Main binary entry point for the `CytoScnPy` static analysis tool.
 //!
-//! This binary simply delegates to the shared entry_point::run_with_args() function
+//! This binary simply delegates to the shared `entry_point::run_with_args()` function
 //! to ensure consistent behavior across all entry points (CLI, Python bindings, etc.)
 
 use anyhow::Result;

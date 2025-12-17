@@ -18,6 +18,7 @@ use crate::config::Config;
 
 /// The main analyzer struct.
 /// Configuration options for the analysis are stored here.
+#[allow(clippy::struct_excessive_bools)]
 pub struct CytoScnPy {
     /// Confidence threshold (0-100). Findings below this are ignored.
     pub confidence_threshold: u8,
@@ -69,6 +70,7 @@ impl Default for CytoScnPy {
 
 impl CytoScnPy {
     /// Creates a new `CytoScnPy` analyzer instance with the given configuration.
+    #[must_use]
     #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
     pub fn new(
         confidence_threshold: u8,
@@ -179,6 +181,7 @@ impl CytoScnPy {
 
     /// Counts the total number of Python files that would be analyzed.
     /// Useful for setting up a progress bar before analysis.
+    #[must_use]
     pub fn count_files(&self, paths: &[std::path::PathBuf]) -> usize {
         use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
         use walkdir::WalkDir;

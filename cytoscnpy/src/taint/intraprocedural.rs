@@ -55,6 +55,7 @@ pub fn analyze_stmt_public(
 }
 
 /// Analyzes a statement for taint flow.
+#[allow(clippy::too_many_lines)]
 fn analyze_stmt(
     stmt: &Stmt,
     state: &mut TaintState,

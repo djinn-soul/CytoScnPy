@@ -7,6 +7,7 @@ pub mod type_inference;
 use type_inference::MethodMisuseRule;
 
 /// Returns a list of all security/danger rules, organized by category.
+#[must_use]
 pub fn get_danger_rules() -> Vec<Box<dyn Rule>> {
     vec![
         // ═══════════════════════════════════════════════════════════════════════

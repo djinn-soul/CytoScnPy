@@ -8,7 +8,7 @@ on:
       - "cytoscnpy-mcp/**"
       - "cytoscnpy-cli/**"
       - "editors/vscode/**"
-      - ".github/workflows/rust-ci.yml"
+      - ".github/workflows/test-ci.yml"
   workflow_dispatch:
 
 env:

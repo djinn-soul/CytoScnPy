@@ -1,4 +1,4 @@
-//! Integration tests for CI/CD quality gate feature (--fail-under flag)
+//! Integration tests for CI/CD quality gate feature (--fail-threshold flag)
 //!
 //! NOTE: These tests require the binary to be built first (`cargo build`).
 //! They are marked #[ignore] because CI coverage runs use a different target directory.
@@ -48,7 +48,7 @@ print(result)
     )
     .unwrap();
 
-    let output = run_cytoscnpy(&[".", "--fail-under", "50", "--json"], temp_dir.path());
+    let output = run_cytoscnpy(&[".", "--fail-threshold", "50", "--json"], temp_dir.path());
 
     // Should pass (exit code 0) because there's minimal unused code
     assert!(
@@ -86,7 +86,7 @@ class UnusedClass:
     }
 
     // Very low threshold - should fail
-    let output = run_cytoscnpy(&[".", "--fail-under", "0.1", "--json"], temp_dir.path());
+    let output = run_cytoscnpy(&[".", "--fail-threshold", "0.1", "--json"], temp_dir.path());
 
     // Should fail (exit code 1) because percentage exceeds ultra-low threshold
     // Note: In JSON mode, the gate banner is suppressed but exit code is still set
@@ -169,7 +169,7 @@ def unused_function():
 
     // Env var says fail at 0.01%, but CLI says 1000% (should always pass)
     let output = Command::new(&binary_path)
-        .args(&[".", "--fail-under", "1000", "--json"])
+        .args(&[".", "--fail-threshold", "1000", "--json"])
         .current_dir(temp_dir.path())
         .env("CYTOSCNPY_FAIL_THRESHOLD", "0.01")
         .output()
@@ -204,13 +204,13 @@ class Unused2: pass
     )
     .unwrap();
 
-    // Run without --fail-under and without env var
+    // Run without --fail-threshold and without env var
     let output = run_cytoscnpy(&[".", "--json"], temp_dir.path());
 
     // Should always pass when quality gate is not enabled
     assert!(
         output.status.success(),
-        "Expected success when --fail-under not specified. stderr: {}",
+        "Expected success when --fail-threshold not specified. stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }

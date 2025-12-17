@@ -125,7 +125,7 @@ pub struct Cli {
 
     /// Exit with code 1 if finding percentage exceeds this threshold (0-100).
     /// For CI/CD integration: --fail-threshold 5 fails if >5% of definitions are unused.
-    #[arg(long, alias = "fail-under")]
+    #[arg(long)]
     pub fail_threshold: Option<f64>,
 
     /// Set maximum allowed Cyclomatic Complexity (overrides config).
@@ -307,7 +307,7 @@ pub enum Commands {
         average: bool,
 
         /// Exit with code 1 if any file has MI lower than this value
-        #[arg(long, alias = "fail-under")]
+        #[arg(long)]
         fail_threshold: Option<f64>,
 
         /// Save output to file

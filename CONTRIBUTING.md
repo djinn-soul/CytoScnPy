@@ -585,8 +585,9 @@ The Rust implementation includes a comprehensive test suite in `cytoscnpy/tests/
 - **73 test files** covering all analyzer functionality
 - **Isolated fixtures** using `tempfile` crate
 - **Covers advanced Python patterns** (decorators, async/await, metaclasses, etc.)
-- **Tests all CLI flags** (--danger, --quality, --secrets, --confidence)
+- **Tests all CLI flags** (--danger, --quality, --secrets, --fail-threshold)
 - **Framework detection tests** for Flask, FastAPI, Django
+
 
 #### **Running Rust Tests:**
 

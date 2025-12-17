@@ -360,7 +360,7 @@ cytoscnpy hal . --functions --json
 cytoscnpy mi . --show --average
 
 # MI gate: fail if any file <40
-cytoscnpy mi . --fail-under 40
+cytoscnpy mi . --fail-threshold 40
 
 # MI showing only poor maintainability (rank C)
 cytoscnpy mi . --max-rank C --show

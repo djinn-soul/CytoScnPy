@@ -14,6 +14,8 @@ use std::f64;
 /// MI = MI + 50 * sin(sqrt(2.4 * (comments / LOC)))
 ///
 /// The result is clamped to [0, 100].
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
 pub fn mi_compute(volume: f64, complexity: usize, sloc: usize, comments: usize) -> f64 {
     let mut mi = 171.0;
 
@@ -45,6 +47,7 @@ pub fn mi_compute(volume: f64, complexity: usize, sloc: usize, comments: usize) 
 /// A: 20 - 100
 /// B: 10 - 19
 /// C: 0 - 9
+#[must_use]
 pub fn mi_rank(score: f64) -> char {
     if score >= 20.0 {
         'A'
@@ -63,6 +66,7 @@ pub fn mi_rank(score: f64) -> char {
 /// D: 21 - 30
 /// E: 31 - 40
 /// F: 41+
+#[must_use]
 pub fn cc_rank(cc: usize) -> char {
     if cc <= 5 {
         'A'

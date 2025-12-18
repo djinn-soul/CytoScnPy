@@ -302,6 +302,8 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
 struct NestingRule {
     current_depth: usize,
     max_depth: usize,
+    /// Track lines we've already reported to avoid duplicates
+    reported_lines: std::collections::HashSet<usize>,
 }
 
 impl NestingRule {
@@ -309,16 +311,22 @@ impl NestingRule {
         Self {
             current_depth: 0,
             max_depth,
+            reported_lines: std::collections::HashSet::new(),
         }
     }
 
     fn check_depth(
-        &self,
+        &mut self,
         context: &Context,
         location: ruff_text_size::TextSize,
     ) -> Option<Finding> {
         if self.current_depth > self.max_depth {
             let line = context.line_index.line_index(location);
+            // Only report once per line
+            if self.reported_lines.contains(&line) {
+                return None;
+            }
+            self.reported_lines.insert(line);
             Some(Finding {
                 message: format!("Deeply nested code (depth {})", self.current_depth),
                 rule_id: self.code().to_owned(),

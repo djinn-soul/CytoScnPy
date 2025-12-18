@@ -267,10 +267,14 @@ fn redact_value(s: &str) -> String {
 // ============================================================================
 
 /// Scans the content of a file for secrets using regex patterns and entropy analysis.
+///
+/// If `docstring_lines` is provided and `config.skip_docstrings` is true,
+/// lines in that set will be skipped during entropy-based detection.
 pub fn scan_secrets(
     content: &str,
     file_path: &PathBuf,
     config: &SecretsConfig,
+    docstring_lines: Option<&rustc_hash::FxHashSet<usize>>,
 ) -> Vec<SecretFinding> {
     let mut findings = Vec::new();
 
@@ -336,22 +340,30 @@ pub fn scan_secrets(
 
         // 3. Entropy-based detection for high-entropy strings
         if config.entropy_enabled {
-            for literal in extract_string_literals(line) {
-                if is_high_entropy(literal, config.entropy_threshold, config.min_length) {
-                    let entropy = calculate_entropy(literal);
-                    // Additional filter: skip if it looks like a path or URL
-                    if !looks_like_path_or_url(literal) {
-                        findings.push(SecretFinding {
-                            message: format!(
-                                "High-entropy string detected (entropy: {entropy:.2})"
-                            ),
-                            rule_id: "CSP-S200".to_owned(),
-                            file: file_path.clone(),
-                            line: line_idx + 1,
-                            severity: "MEDIUM".to_owned(),
-                            matched_value: Some(redact_value(literal)),
-                            entropy: Some(entropy),
-                        });
+            // Skip this line if it's a docstring and skip_docstrings is enabled
+            let is_docstring_line = config.skip_docstrings
+                && docstring_lines
+                    .map(|lines| lines.contains(&(line_idx + 1)))
+                    .unwrap_or(false);
+
+            if !is_docstring_line {
+                for literal in extract_string_literals(line) {
+                    if is_high_entropy(literal, config.entropy_threshold, config.min_length) {
+                        let entropy = calculate_entropy(literal);
+                        // Additional filter: skip if it looks like a path or URL
+                        if !looks_like_path_or_url(literal) {
+                            findings.push(SecretFinding {
+                                message: format!(
+                                    "High-entropy string detected (entropy: {entropy:.2})"
+                                ),
+                                rule_id: "CSP-S200".to_owned(),
+                                file: file_path.clone(),
+                                line: line_idx + 1,
+                                severity: "MEDIUM".to_owned(),
+                                matched_value: Some(redact_value(literal)),
+                                entropy: Some(entropy),
+                            });
+                        }
                     }
                 }
             }
@@ -381,9 +393,9 @@ fn looks_like_path_or_url(s: &str) -> bool {
     false
 }
 
-/// Backward-compatible scan function (uses default config).
+/// Backward-compatible scan function (uses default config, no docstring filtering).
 pub fn scan_secrets_compat(content: &str, file_path: &PathBuf) -> Vec<SecretFinding> {
-    scan_secrets(content, file_path, &SecretsConfig::default())
+    scan_secrets(content, file_path, &SecretsConfig::default(), None)
 }
 
 // ============================================================================

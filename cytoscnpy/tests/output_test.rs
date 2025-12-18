@@ -26,6 +26,7 @@ fn test_print_report_formatting() {
             is_type_checking: false,
             cell_number: None,
             is_self_referential: false,
+            message: Some("'unused_func' is defined but never used".to_owned()),
         }],
         unused_methods: vec![],
         unused_imports: vec![],

@@ -24,6 +24,7 @@ pub struct ComplexityFinding {
 /// * `code` - The source code to analyze
 /// * `path` - The file path (for error messages)
 /// * `no_assert` - If true, assert statements don't add to complexity
+#[must_use]
 pub fn analyze_complexity(
     code: &str,
     _path: &std::path::Path,
@@ -47,6 +48,7 @@ pub fn analyze_complexity(
 
 /// Calculates the total cyclomatic complexity of a module (sum of all blocks).
 /// Note: Uses `no_assert=false` as this is typically used for MI calculation.
+#[must_use]
 pub fn calculate_module_complexity(code: &str) -> Option<usize> {
     if let Ok(parsed) = ruff_python_parser::parse_module(code) {
         let module = parsed.into_syntax();

@@ -187,6 +187,7 @@ impl HalsteadVisitor {
         self.total_operands += 1;
     }
 
+    #[allow(clippy::cast_precision_loss)]
     fn calculate_metrics(&self) -> HalsteadMetrics {
         let n1 = self.operators.len() as f64;
         let n2 = self.operands.len() as f64;
@@ -234,6 +235,7 @@ impl HalsteadVisitor {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::FunctionDef(node) => {
@@ -446,6 +448,7 @@ impl HalsteadVisitor {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn visit_expr(&mut self, expr: &Expr) {
         match expr {
             Expr::BoolOp(node) => {

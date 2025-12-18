@@ -1,0 +1,213 @@
+name: Build VS Code Extension Binaries
+
+on:
+  workflow_dispatch: # Manual trigger only
+    inputs:
+      build_all:
+        description: "Build for all platforms"
+        required: false
+        default: true
+        type: boolean
+      publish_to_marketplace:
+        description: "Publish to VS Code Marketplace (requires VSCE_TOKEN secret)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-vscode-cli:
+    name: Build CLI (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary_name: cytoscnpy-cli-linux
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            binary_name: cytoscnpy-cli-win32.exe
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            binary_name: cytoscnpy-cli-darwin-arm64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            binary_name: cytoscnpy-cli-darwin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: vscode-cli-${{ matrix.target }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build Binary
+        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+
+      - name: Rename Binary
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            mv target/${{ matrix.target }}/release/cytoscnpy-cli.exe ${{ matrix.binary_name }}
+          else
+            mv target/${{ matrix.target }}/release/cytoscnpy-cli ${{ matrix.binary_name }}
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: ${{ matrix.binary_name }}
+          retention-days: 30
+
+  # Combine all binaries into single artifact for easy download
+  package-binaries:
+    name: Package All Binaries
+    needs: build-vscode-cli
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries/
+
+      - name: List binaries
+        run: ls -la binaries/
+
+      - name: Create combined archive
+        run: |
+          mkdir -p vscode-extension-bin
+          find binaries -type f -exec cp {} vscode-extension-bin/ \;
+          ls -la vscode-extension-bin/
+          zip -r vscode-cli-binaries.zip vscode-extension-bin/
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-cli-all-platforms
+          path: vscode-cli-binaries.zip
+          retention-days: 30
+
+  # =============================================================================
+  # Run Extension Tests (Headless)
+  # =============================================================================
+  run-tests:
+    name: Run Extension Tests
+    needs: build-vscode-cli
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cytoscnpy-cli-linux
+          path: editors/vscode/cytoscnpy/bin/
+
+      - name: Rename binary for consistency
+        run: mv editors/vscode/cytoscnpy/bin/cytoscnpy-cli-linux editors/vscode/cytoscnpy/bin/cytoscnpy-cli-linux-x64
+
+      - name: Make binary executable
+        run: chmod +x editors/vscode/cytoscnpy/bin/*
+
+      - name: Install dependencies
+        working-directory: editors/vscode/cytoscnpy
+        run: npm ci
+
+      - name: Run Tests (Headless with xvfb)
+        working-directory: editors/vscode/cytoscnpy
+        run: |
+          /usr/bin/Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          export DISPLAY=':99.0'
+          npm test
+
+  # =============================================================================
+  # Package VS Code Extension with binaries and optionally publish
+  # =============================================================================
+  package-and-publish-extension:
+    name: Package & Publish Extension
+    needs: [build-vscode-cli, run-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cytoscnpy-cli-linux
+          path: editors/vscode/cytoscnpy/bin/
+
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cytoscnpy-cli-win32.exe
+          path: editors/vscode/cytoscnpy/bin/
+
+      - name: Download macOS ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cytoscnpy-cli-darwin-arm64
+          path: editors/vscode/cytoscnpy/bin/
+
+      - name: Download macOS x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cytoscnpy-cli-darwin
+          path: editors/vscode/cytoscnpy/bin/
+
+      - name: Make binaries executable
+        run: chmod +x editors/vscode/cytoscnpy/bin/*
+
+      - name: List bin directory
+        run: ls -la editors/vscode/cytoscnpy/bin/
+
+      - name: Install extension dependencies
+        working-directory: editors/vscode/cytoscnpy
+        run: npm ci
+
+      - name: Compile extension
+        working-directory: editors/vscode/cytoscnpy
+        run: npm run compile
+
+      - name: Package extension (VSIX)
+        working-directory: editors/vscode/cytoscnpy
+        run: npx vsce package --no-dependencies
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension-vsix
+          path: editors/vscode/cytoscnpy/*.vsix
+          retention-days: 30
+
+      - name: Publish to VS Code Marketplace
+        if: ${{ inputs.publish_to_marketplace }}
+        working-directory: editors/vscode/cytoscnpy
+        run: npx vsce publish -p ${{ secrets.VSCE_TOKEN }}
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}

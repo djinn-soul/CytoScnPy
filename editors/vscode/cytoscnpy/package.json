@@ -52,6 +52,16 @@
         "title": "CytoScnPy: Calculate Raw Metrics (raw)"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "cytoscnpy-issues",
+          "name": "CytoScnPy",
+          "visibility": "visible",
+          "contextualTitle": "CytoScnPy Issues"
+        }
+      ]
+    },
     "configuration": {
       "title": "CytoScnPy Configuration",
       "properties": {

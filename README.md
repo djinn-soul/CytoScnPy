@@ -37,6 +37,7 @@ To use CytoScnPy MCP Server, see the **[MCP Server Documentation](cytoscnpy-mcp/
 - **Code Quality Metrics**: Cyclomatic complexity, Halstead metrics, Maintainability Index, and raw metrics (LOC, SLOC).
 - **Framework Support**: Native understanding of Flask, Django, and FastAPI patterns.
 - **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
+- **Cross-File Detection**: Tracks symbol usage across the entire codebase, including nested packages and complex import chains, to ensure code used in other modules is never incorrectly flagged.
 
 ## Usage
 

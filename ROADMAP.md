@@ -1,28 +1,17 @@
-# CytoScnPy - Complete Roadmap & Development Guide
+# CytoScnPy - Roadmap & Development Guide
 
 > **Architecture:** Hybrid PyO3 + Standalone CLI
 > **Status:** Production-ready core, active development
 
-This comprehensive document details the complete development roadmap for CytoScnPy - a high-performance Python static analyzer written in Rust with Python integration.
-
-**Performance Highlights:**
-
-- **Hybrid distribution** - pip installable with both Python API and CLI
+For completed features and implementation history, see [HISTORY.md](HISTORY.md).
 
 ---
 
 ## 📋 Table of Contents
 
 1. [Project Status](#project-status)
-2. [Phase 1: Critical Fixes](#phase-1)
-3. [Phase 2: Feature Parity](#phase-2)
-4. [Phase 3: Advanced Features](#phase-3)
-5. [Phase 4: Code Architecture](#phase-4)
-6. [Phase 5: Radon Metrics Integration](#phase-5)
-7. [Phase 6: Editor Integration](#phase-6)
-8. [Phase 7: Infrastructure & Quality](#phase-7)
-9. [Future Roadmap](#future-roadmap)
-   - [Phase 8: Advanced Framework Support](#phase-8)
+2. [In Progress](#in-progress)
+3. [Future Roadmap](#future-roadmap)
    - [Phase 9: Developer Experience](#phase-9)
    - [Phase 10: Deep Analysis & Security](#phase-10)
    - [Phase 11: Auto-Remediation](#phase-11)
@@ -31,436 +20,7 @@ This comprehensive document details the complete development roadmap for CytoScn
 
 ## Project Status
 
-### Current Capabilities ✅
-
-**Core Detection:**
-
-- Unused functions, classes, methods
-- Unused imports (with aliasing support)
-- Unused variables and parameters
-- Cross-module reference tracking
-- Entry point detection (`if __name__ == "__main__"`)
-
-**Security Analysis:**
-
-- Hardcoded secrets (API keys, tokens, private keys)
-- SQL injection risks
-- Command injection patterns
-- Dangerous code (`eval`, `exec`, `pickle`, `yaml.unsafe_load`)
-- Weak cryptography (`md5`, `sha1`)
-
-**Code Quality:**
-
-- Cyclomatic complexity (with A-F ranking)
-- Halstead metrics (vocabulary, volume, difficulty, effort)
-- Raw metrics (LOC, LLOC, SLOC, comments)
-- Maintainability Index (0-100 score)
-- Nesting depth analysis
-- Argument count detection
-
-**Configuration & UX:**
-
-- `.cytoscnpy.toml` and `pyproject.toml` support
-- Inline pragma support (`# pragma: no cytoscnpy`)
-- Rich CLI output with tables and colors
-- JSON output for CI/CD integration
-- Progress spinner and file statistics
-- Taint analysis (`--taint` flag)
-
-**Parser Backend:**
-
-- **ruff_python_parser** - Migrated from deprecated `rustpython-parser` to `ruff_python_parser`
-  - Improved performance and Python 3.12+ syntax support
-  - Active maintenance from the Ruff project
-  - Better error messages and edge case handling
-
----
-
-### Recent Changes
-
-#### Parser Migration: rustpython-parser → ruff_python_parser ✅
-
-Completed full migration from the deprecated `rustpython-parser` to `ruff_python_parser`:
-
-**Key Changes:**
-
-- Updated `Cargo.toml` with ruff git dependencies (`ruff_python_parser`, `ruff_python_ast`, `ruff_text_size`, `ruff_source_file`)
-- Merged async variants (`AsyncFunctionDef` → `FunctionDef.is_async`)
-- Updated parameter access (`args` → `parameters`)
-- Fixed f-string handling with new `InterpolatedStringElement` structure
-- Updated complexity calculations for `elif_else_clauses` vs `orelse`
-- Added `Stmt::Assign` handling to type inference rule
-- All 200+ tests pass
-
-**Benefits:**
-
-- Improved Python 3.12+ match statement support
-- Better performance from optimized Ruff parser
-- Avoids deprecated `rustpython-parser` with known `unic` vulnerability
-- Active maintenance and community support
-
----
-
-## <a id="phase-1"></a>Phase 1: Critical Fixes ✅ DONE
-
-These foundational fixes were essential for accuracy and addressed the largest sources of false positives.
-
-### 1.1 Import Resolution (Aliasing) ✅
-
-**Problem:** Rust didn't track import aliases, causing false positives:
-
-```python
-import pandas as pd
-df = pd.DataFrame()  # Rust reported 'pandas' as unused
-```
-
-**Solution:**
-
-- Added `alias_map: HashMap<String, String>` to `CytoScnPyVisitor`
-- Tracks `Import` and `ImportFrom` aliases during AST traversal
-- Resolves aliases during reference collection
-
-**Implementation Details:**
-
-```rust
-// In visit_import()
-if let Some(alias) = &alias.asname {
-    self.alias_map.insert(alias.id.to_string(), name.id.to_string());
-}
-// In visit_name()
-let resolved_name = self.alias_map.get(id).unwrap_or(id);
-```
-
-**Impact:** Eliminated ~79 false positives in test suite
-**Files Modified:** `src/visitor.rs`
-**Test Coverage:** `import_resolution_test.rs`
-
----
-
-### 1.2 Method and Class Context ✅
-
-**Problem:** Methods weren't qualified with class names:
-
-```python
-class MyClass:
-    def method(self): pass
-    def caller(self):
-        self.method()  # Rust didn't recognize this as using 'method'
-```
-
-**Solution:**
-
-- Added `class_stack: Vec<String>` to track class nesting
-- Qualify method definitions: `MyClass.method`
-- Qualify `self.method()` calls with current class context
-- Added decorator visitation to handle `@property`, etc.
-
-**Implementation Details:**
-
-```rust
-// Entering class
-self.class_stack.push(class_name.clone());
-
-// Method definition
-let qualified_name = if let Some(class_name) = self.class_stack.last() {
-    format!("{}.{}", class_name, func_name)
-} else {
-    func_name.clone()
-};
-```
-
-**Impact:** Eliminated ~184 false positives
-**Files Modified:** `src/visitor.rs`
-**Test Coverage:** `method_context_test.rs`, `class_context_test.rs`
-
----
-
-### 1.3 Qualified Name Matching ✅
-
-**Problem:** References didn't always match definitions due to different qualification levels.
-
-**Solution:**
-
-- Implemented smart name resolution in `resolve_name()`
-- Checks multiple qualification levels:
-  1. Exact match
-  2. Module.name match
-  3. Class.method match
-  4. Partial qualified match
-
-**Impact:** Improved accuracy by ~15%
-**Files Modified:** `src/visitor.rs`
-
----
-
-## <a id="phase-2"></a>Phase 2: Feature Parity ✅ DONE
-
-Bringing Rust implementation to feature parity with the Python version.
-
-### 2.1 Pragma Support ✅
-
-**Feature:** Inline suppression of warnings
-
-```python
-def unused_function():  # pragma: no cytoscnpy
-    pass  # Won't be reported as unused
-```
-
-**Implementation:**
-
-- Created `get_ignored_lines()` in `src/utils.rs`
-- Scans file for `# pragma: no cytoscnpy` comments
-- Returns `HashSet<usize>` of ignored line numbers
-- Integrated into penalty system (confidence = 0 for ignored lines)
-
-**Files:** `src/utils.rs`, `src/analyzer.rs`
-**Test Coverage:** `pragma_test.rs`
-
----
-
-### 2.2 Configuration File Support ✅
-
-**Feature:** Project-level configuration via `.cytoscnpy.toml` or `pyproject.toml`.
-
-**Implementation:**
-
-- Created `src/config.rs` with `CytoScnPyConfig` struct
-- Searches for `.cytoscnpy.toml` in project root
-- Falls back to `pyproject.toml` under `[tool.cytoscnpy]`
-- Merges config with CLI arguments (CLI takes precedence)
-
-**Priority Order:**
-
-1. CLI arguments (highest priority)
-2. `.cytoscnpy.toml`
-3. `pyproject.toml` (`[tool.cytoscnpy]`)
-4. Defaults
-
-**Files:** `src/config.rs`
-**Test Coverage:** `config_test.rs`
-
----
-
-### 2.3 Unused Parameter Detection ✅
-
-**Feature:** Detect function parameters that are never used.
-
-```python
-def process(data, unused_param):  # 'unused_param' flagged
-    return data
-```
-
-**Implementation:**
-
-- Added `function_stack` and `function_params` map
-- Extracts all parameter types (positional, keyword, \*args, \*\*kwargs)
-- Automatically skips `self` and `cls`
-- Applied **70% confidence** (vs 100% for other code)
-
-**Files:** `src/visitor.rs`
-**Test Coverage:** `parameter_test.rs`
-
----
-
-### 2.4 Advanced Heuristics ✅
-
-Multiple heuristics to reduce false positives for common patterns.
-
-1.  **Settings/Config Classes:**
-
-    - **Pattern:** Uppercase variables in classes named `*Settings` or `*Config`.
-    - **Action:** Set confidence = 0 (effectively ignored).
-
-2.  **Visitor Pattern:**
-
-    - **Pattern:** Methods starting with `visit_`, `leave_`, `transform_`.
-    - **Action:** Increment reference count (always used).
-
-3.  **Dataclass Fields:**
-
-    - **Pattern:** Fields in `@dataclass` decorated classes.
-    - **Action:** Mark all class-level annotations as used.
-
-4.  **Dunder Methods:**
-    - **Pattern:** `__init__`, `__str__`, etc.
-    - **Action:** Lower confidence penalty.
-
-**Files:** `src/visitor.rs`, `src/analyzer.rs`
-**Test Coverage:** `heuristics_test.rs`
-
----
-
-### 2.5 `__all__` Export Detection ✅
-
-**Feature:** Respect module exports defined in `__all__`.
-
-**Implementation:**
-
-- Parse `__all__ = [...]` assignments in AST
-- Extract string literals from the list
-- Mark corresponding definitions as exported (used)
-
-**Files:** `src/visitor.rs`
-
----
-
-### 2.6 Rich CLI Output ✅
-
-**Feature:** Professional, colored, tabular output matching Python version.
-
-**Features:**
-
-- **Progress Spinner:** `indicatif`
-- **Tabular Results:** `comfy-table` with box-drawing characters
-- **Severity Coloring:** Red (Critical), Yellow (Medium), Blue (Info)
-- **Organized Sections:** Summary, Unused Code, Security, Quality
-
-**Files:** `src/output.rs`, `src/main.rs`
-
----
-
-## <a id="phase-3"></a>Phase 3: Advanced Features ✅ DONE
-
-Features exceeding the original Python implementation.
-
-### 3.1 Local Scope Tracking ✅
-
-**Problem:** Local variables not properly qualified across nested scopes.
-
-**Solution:**
-
-- Added `local_var_map: HashMap<String, String>` to `Scope` struct.
-- Maps unqualified name → fully qualified name per scope.
-- Enhanced `resolve_name()` to check `local_var_map` first.
-
-**Implementation:**
-
-```rust
-pub struct Scope {
-    pub name: String,
-    pub scope_type: ScopeType,
-    pub local_var_map: HashMap<String, String>,  // NEW
-}
-```
-
-**Impact:** Accurate variable tracking in complex scopes.
-**Files:** `src/visitor.rs`
-**Test Coverage:** `local_scope_test.rs`
-
----
-
-### 3.2 Dynamic Code Patterns ✅
-
-1.  **Globals Tracking:**
-
-    - **Pattern:** `globals()["var"]`
-    - **Action:** Mark calling module as having dynamic references.
-
-2.  **Eval/Exec Detection:**
-
-    - **Pattern:** `eval(code)`, `exec(code)`
-    - **Action:** Mark module as dynamic (lower confidence for all definitions).
-
-3.  **Hasattr Pattern:**
-    - **Pattern:** `hasattr(obj, "attr")`
-    - **Action:** Add reference to the attribute name.
-
-**Files:** `src/visitor.rs`
-**Test Coverage:** `dynamic_patterns_test.rs`
-
----
-
-## <a id="phase-4"></a>Phase 4: Code Architecture ✅ DONE
-
-### 4.0 Modular Rule System ✅
-
-**Problem:** Monolithic visitors were hard to extend and test.
-
-**Solution:** Refactored into a trait-based architecture.
-
-```rust
-pub trait Rule {
-    fn name(&self) -> &str;
-    fn enter_stmt(&mut self, stmt: &Stmt) -> Option<Finding>;
-    fn leave_stmt(&mut self, stmt: &Stmt) -> Option<Finding>;
-    fn visit_expr(&mut self, expr: &Expr) -> Option<Finding>;
-}
-```
-
-**Implemented Rules:**
-
-- **Danger:** Eval/Exec, Pickle, Yaml, Hashlib, Requests, Subprocess, SQL Injection, Command Injection.
-- **Quality:** Complexity, Nesting, Argument Count.
-
-**Files:** `src/rules/mod.rs`, `src/linter.rs`
-
----
-
-### 4.1 Hybrid PyO3 Distribution ✅
-
-**Architecture:** Python package with Rust extension + Standalone CLI.
-
-**Components:**
-
-1.  **`cytoscnpy/` (Rust Library):** Core logic + `#[pymodule]`.
-2.  **`python/cytoscnpy/` (Python Wrapper):** CLI wrapper calling Rust.
-3.  **`cytoscnpy-cli/` (Standalone Binary):** Minimal binary wrapper.
-
-**Benefits:** Single codebase, multiple interfaces (Python API, CLI, Standalone).
-
----
-
-## <a id="phase-5"></a>Phase 5: Radon Metrics Integration ✅ DONE
-
-Integration of code metrics compatible with `radon`.
-
-### 5.1 Raw Metrics (LOC/LLOC/SLOC) ✅
-
-**Feature:** Radon-compatible line counting.
-
-- **LOC:** Total lines
-- **LLOC:** Logical lines (statements)
-- **SLOC:** Source lines (code only)
-
-**Files:** `src/raw_metrics.rs`
-
-### 5.2 Halstead Metrics ✅
-
-**Feature:** Program vocabulary and complexity.
-
-- **Metrics:** Vocabulary, Volume, Difficulty, Effort, Bugs.
-- **Implementation:** AST visitor to count operators and operands.
-
-**Files:** `src/halstead.rs`
-
-### 5.3 Maintainability Index (MI) ✅
-
-**Feature:** Visual Studio-style Maintainability Index (0-100).
-
-- **Formula:** Based on Halstead Volume, Cyclomatic Complexity, SLOC, and Comments.
-- **Ranking:** A (>19), B (10-19), C (<10).
-
-### 5.4 Cyclomatic Complexity Enhancements ✅
-
-**Feature:** McCabe complexity with A-F ranking.
-
-- **Ranks:** A (1-5), B (6-10), C (11-20), D (21-30), E (31-40), F (41+).
-
-### 5.5 CLI Integration ✅
-
-**Feature:** Full CLI parity with `radon` commands.
-
-- `cytoscnpy cc`, `raw`, `hal`, `mi`
-- Flags: `--average`, `--total-average`, `--min`, `--max`, `--json`, `--xml`.
-
-### 5.6 Quality Gates & Failure Thresholds ✅
-
-**Feature:** CI/CD integration with exit code 1 on failure.
-
-- `cc --fail-threshold <N>`: Fail if complexity > N
-- `mi --fail-under <N>`: Fail if MI < N
-- `mi --average`: Show average MI
-- `--fail-on-quality`: Integrated check in main analysis
+## In Progress
 
 ### 5.7 Radon Parity Gaps 🔄 IN PROGRESS
 
@@ -468,7 +28,7 @@ Integration of code metrics compatible with `radon`.
 
 These features are tested but not yet implemented. Remove `#[ignore]` from tests when implementing.
 
-#### 5.7.1 Complexity Gaps (19 tests ignored)
+#### Complexity Gaps (19 tests ignored)
 
 | Feature                     | Description                           | Test File                         | Radon Behavior                                     |
 | --------------------------- | ------------------------------------- | --------------------------------- | -------------------------------------------------- |
@@ -481,13 +41,13 @@ These features are tested but not yet implemented. Remove `#[ignore]` from tests
 | **Nested generator**        | Inner generator adds complexity       | `radon_parity_complexity_test.rs` | Each `for`/`if` in nested generator                |
 | **Class method `or`**       | Boolean `or` in condition             | `radon_parity_complexity_test.rs` | `or` adds +1 complexity                            |
 
-#### 5.7.2 Halstead Gaps (1 test ignored)
+#### Halstead Gaps (1 test ignored)
 
 | Feature                       | Description                | Test File                       | Radon Behavior               |
 | ----------------------------- | -------------------------- | ------------------------------- | ---------------------------- |
 | **Distinct operand counting** | `if a and b: elif b or c:` | `radon_parity_halstead_test.rs` | `b` counted once as distinct |
 
-#### 5.7.3 Raw Metrics Gaps (2 tests ignored)
+#### Raw Metrics Gaps (2 tests ignored)
 
 | Feature                            | Description                  | Test File                  | Radon Behavior                 |
 | ---------------------------------- | ---------------------------- | -------------------------- | ------------------------------ |
@@ -507,59 +67,22 @@ These features are tested but not yet implemented. Remove `#[ignore]` from tests
 
 ### 6.1 VS Code Extension ✅
 
-- **Verification:** Verified extension code, compilation, and bundled binary.
-- **File Switching:** Implemented `onDidChangeActiveTextEditor` to trigger analysis on tab switch.
-- **Build Guide:** Created comprehensive guide for cross-platform builds.
-
 ### 6.2 Extension Code Audit (Pending Fixes) 🔄
-
-_Comprehensive alignment with Rust CLI capabilities.
-
-#### 6.2.1 Critical Fixes ✅
-
-| Issue                 | Description                                             | Status |
-| --------------------- | ------------------------------------------------------- | ------ |
-| Version Mismatch      | `package.json` = `0.0.1`, `CHANGELOG.md` = `0.1.0`      | ✅     |
-| Engine Too New        | `engines.vscode: ^1.106.1` excludes older VS Code users | ✅     |
-| Description Truncated | Line 5 ends with `dead    ` (incomplete text)           | ✅     |
-
-#### 6.2.2 Configuration Parity ✅
-
-_Missing CLI flags that should be exposed as extension settings:_
-
-| CLI Flag               | Extension Setting                       | Status |
-| ---------------------- | --------------------------------------- | ------ |
-| `--confidence <0-100>` | Change from enum to numeric slider      | ✅     |
-| `--exclude-folders`    | Add `excludeFolders` array setting      | ✅     |
-| `--include-folders`    | Add `includeFolders` array setting      | ✅     |
-| `--include-tests`      | Add `includeTests` boolean              | ✅     |
-| `--include-ipynb`      | Add `includeIpynb` boolean              | ✅     |
-| `--max-complexity`     | Add `maxComplexity` threshold           | ✅     |
-| `--min-mi`             | Add `minMaintainabilityIndex` threshold | ✅     |
-| `--max-nesting`        | Add `maxNesting` threshold              | ✅     |
-| `--max-args`           | Add `maxArguments` threshold            | ✅     |
-| `--max-lines`          | Add `maxLines` threshold                | ✅     |
 
 #### 6.2.3 JSON Parsing Completeness ✅
 
 _Fields in CLI JSON output not captured by `analyzer.ts`:_
 
-- [x] Add `unused_methods` to `RawCytoScnPyResult` interface
-- [x] Add `taint_findings` to interface
-- [x] Add `parse_errors` handling and display
 - [ ] Add `summary` stats display in output channel
 
 #### 6.2.4 Missing Commands 🔄
 
-| Command                      | Description                           | Status |
-| ---------------------------- | ------------------------------------- | ------ |
-| `cytoscnpy.rawMetrics`       | Calculate Raw Metrics (LOC/LLOC/SLOC) | ✅     |
-| `cytoscnpy.analyzeWorkspace` | Analyze entire workspace              | ✅     |
-| `cytoscnpy.taintAnalysis`    | Run taint analysis specifically       | ❌     |
+| Command                   | Description                     | Status |
+| ------------------------- | ------------------------------- | ------ |
+| `cytoscnpy.taintAnalysis` | Run taint analysis specifically | ❌     |
 
 #### 6.2.5 Path Handling ✅
 
-- [x] Implement fallback to pip-installed `cytoscnpy` if bundled binary missing
 - [ ] Add macOS (`cytoscnpy-cli-darwin`) binary bundling
 - [ ] Add Linux (`cytoscnpy-cli-linux`) binary bundling
 
@@ -568,11 +91,12 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 | Feature            | Description                                | Priority | Status |
 | ------------------ | ------------------------------------------ | -------- | ------ |
 | Status Bar         | Show finding count in status bar           | Medium   | ❌     |
-| Quick Fixes        | Code actions to remove/comment unused code | High     | ❌     |
-| Gutter Decorations | Visual icons for severity levels           | Low      | ❌     |
+| Sidebar Badge      | Show issue count in Explorer sidebar       | Medium   | ✅     |
+| Quick Fixes        | Code actions to remove/comment unused code | High     | ✅     |
+| Gutter Decorations | Visual icons for severity levels           | Low      | ✅     |
 | Progress Indicator | Show progress during workspace analysis    | Medium   | ❌     |
-| File Caching       | Skip re-analyzing unchanged files          | Low      | ❌     |
-| Problem Grouping   | Better categorization in Problems panel    | Low      | ❌     |
+| File Caching       | Skip re-analyzing unchanged files          | Low      | ✅     |
+| Problem Grouping   | Better categorization in Problems panel    | Low      | ✅     |
 
 ---
 
@@ -580,157 +104,13 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 
 ### 7.2 Error Handling ✅
 
-**Problem:** Silently skipped files with syntax errors.
-**Solution:**
-
-- Implemented `ParseError` struct.
-- Modified `analyzer.rs` to capture `rustpython_parser` errors.
-- Updated `output.rs` to display a "Parse Errors" table.
-
----
-
 ### 7.3 Parser Migration: `rustpython-parser` → `ruff_python_parser` ✅
-
-> [!NOTE] > Migration completed. CytoScnPy now uses `ruff_python_parser` from the Ruff project.
-
-**Previous State (Before Migration):**
-
-- CytoScnPy previously used `rustpython-parser = "0.4.0"` (deprecated)
-- RustPython itself migrated to `ruff_python_parser`
-
-**Why We Migrated:**
-
-1. **Security:** Avoid using crates with known RustSec advisories
-2. **Maintenance:** `ruff_python_parser` is actively maintained by Astral
-3. **Performance:** Ruff's parser is optimized for speed
-4. **Python Support:** Better support for latest Python syntax
-
-**Migration Strategy (from RustPython's approach):**
-
-```toml
-# Cargo.toml - Use git dependencies with pinned commit for reproducibility
-[dependencies]
-ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
-ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
-ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
-ruff_source_file = { git = "https://github.com/astral-sh/ruff.git", rev = "2bffef59665ce7d2630dfd72ee99846663660db8" }
-```
-
-**Required Code Changes:**
-
-| File                   | Change Required                                               |
-| ---------------------- | ------------------------------------------------------------- |
-| `cytoscnpy/Cargo.toml` | Replace `rustpython-parser` and `rustpython-ast` dependencies |
-| `src/visitor.rs`       | Update all AST type imports and visitor patterns              |
-| `src/complexity.rs`    | Update statement/expression matching                          |
-| `src/halstead.rs`      | Update operator/operand extraction                            |
-| `src/analyzer/*.rs`    | Update parse function calls                                   |
-
-**Migration Checklist:**
-
-- [x] Update `Cargo.toml` with ruff git dependencies
-- [x] Update `src/visitor.rs` AST imports and visitor trait
-- [x] Update `src/complexity.rs` for new AST types
-- [x] Update `src/halstead.rs` for new AST types
-- [x] Update all rule files in `src/rules/`
-- [x] Update taint analysis in `src/taint/`
-- [x] Run full test suite
-- [x] Update benchmark baselines
 
 **Reference:** See [RustPython/Cargo.toml](https://github.com/RustPython/RustPython/blob/main/Cargo.toml) for working example.
 
 ---
 
 ## Phase 7.5: Performance Optimizations ✅ DONE
-
-_Systematic performance improvements achieving 55% speed improvement._
-
-### 7.5.1 Compiler Optimizations ✅
-
-**Feature:** Aggressive release profile settings.
-
-```toml
-[profile.release]
-lto = "thin"
-codegen-units = 1
-opt-level = 3
-strip = true
-```
-
-**Impact:** ~15% performance improvement.
-**Files:** `Cargo.toml`
-
-### 7.5.2 Fast Hashing (FxHashMap) ✅
-
-**Problem:** `std::collections::HashMap` uses SipHash (cryptographic, slower).
-
-**Solution:** Replaced with `rustc-hash::FxHashMap` and `FxHashSet` throughout.
-
-**Impact:** ~10-15% faster hash operations.
-**Files:** `src/visitor.rs`, `src/analyzer/`
-
-### 7.5.3 Reference Counting Optimization ✅
-
-**Problem:** References stored as `Vec<(String, PathBuf)>` - PathBuf was never used.
-
-**Solution:** Changed to `FxHashMap<String, usize>` for direct counting.
-
-**Impact:** ~20% faster, 40-60% less memory.
-**Files:** `src/visitor.rs`, `src/analyzer/processing.rs`
-
-### 7.5.4 LineIndex Byte Iteration ✅
-
-**Problem:** `char_indices()` iterates Unicode characters.
-
-**Solution:** Use `as_bytes().iter()` since `\n` is always single byte in UTF-8.
-
-**Impact:** ~5-10% faster LineIndex creation.
-**Files:** `src/utils.rs`
-
-### 7.5.5 Analyzer Module Refactor ✅
-
-**Problem:** Monolithic `analyzer.rs` (1100+ lines).
-
-**Solution:** Split into modular structure:
-
-- `analyzer/mod.rs` - CytoScnPy struct + builders
-- `analyzer/types.rs` - ParseError, AnalysisResult, AnalysisSummary
-- `analyzer/heuristics.rs` - apply_penalties, apply_heuristics
-- `analyzer/processing.rs` - Core processing methods
-
-**Impact:** Improved maintainability, no performance regression.
-
-### 7.5.6 lazy_static → OnceLock ✅
-
-**Problem:** Using `lazy_static!` crate for static initialization.
-
-**Solution:** Migrated to `std::sync::OnceLock` (Rust 1.70+).
-
-**Impact:** Removes dependency, slightly faster initialization.
-**Files:** `src/constants.rs`, `src/framework.rs`, `src/rules/secrets.rs`
-
-### Performance Summary
-
-| Stage                              | Time        | Improvement |
-| ---------------------------------- | ----------- | ----------- |
-| Baseline                           | 5.223 s     | -           |
-| Phase 1 (LTO + FxHashMap)          | 4.044 s     | 22.6%       |
-| Phase 2 (Reference counts)         | 3.059 s     | 41.4%       |
-| **Phase 3 (LineIndex + OnceLock)** | **2.357 s** | **54.9%**   |
-
-### 7.5.7 Additional Optimizations
-
-_Status tracking for advanced optimizations identified in code review._
-
-#### ✅ Completed Optimizations
-
-| Optimization               | Description                                                                                                   | Files                         | Impact                            |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------- |
-| **SmallVec for stacks**    | Stack-allocated vectors for `scope_stack`, `class_stack`, `function_stack`, `dataclass_stack`, `base_classes` | `visitor.rs`                  | Reduced heap allocations          |
-| **Arc\<PathBuf\> sharing** | File paths shared via `Arc` instead of cloned `PathBuf`                                                       | `visitor.rs`                  | O(1) clone vs O(n)                |
-| **Cached scope prefix**    | Maintains `cached_scope_prefix` string, updated incrementally on scope push/pop                               | `visitor.rs`                  | Avoids rebuilding qualified names |
-| **Pre-allocated strings**  | Uses `String::with_capacity()` for known-size string building                                                 | `visitor.rs`, `processing.rs` | Fewer reallocations               |
-| **Chunk-based Rayon**      | Processes files in chunks of 500 to prevent OOM on large projects                                             | `processing.rs`               | 85% memory reduction              |
 
 #### 🔄 Pending Optimizations (Low Priority)
 
@@ -758,35 +138,6 @@ _Systematic improvements to detection accuracy based on benchmark analysis._
 **Current Status:** F1 = 0.63 (77 TP, 34 FP, 60 FN)
 
 ### 7.6.1 Completed Fixes ✅
-
-#### Return Type Annotation Tracking ✅
-
-**Problem:** String annotations in return types were not being tracked:
-
-```python
-def get_data() -> "OrderedDict":  # "OrderedDict" was not tracked as a reference
-    return {}
-```
-
-**Solution:** Added `visit_expr(node.returns)` for `FunctionDef` and `AsyncFunctionDef`.
-
-**Files:** `src/visitor.rs`
-
-#### TYPE_CHECKING Import Handling ✅
-
-**Problem:** All TYPE_CHECKING imports were ignored, even genuinely unused ones:
-
-```python
-if TYPE_CHECKING:
-    from typing import List  # Used in "List[str]" annotation - should be ignored ✅
-    import json              # Never used - should be flagged ✅
-```
-
-**Solution:** Moved TYPE_CHECKING penalty from `apply_penalties()` to `apply_heuristics()` (runs after cross-file reference merge). Only suppresses imports with `references > 0`.
-
-**Files:** `src/analyzer/heuristics.rs`
-
----
 
 ### 7.6.2 Remaining False Positives (34 items)
 
@@ -853,9 +204,9 @@ _Genuinely unused items we fail to detect._
 | **Methods**   | 10    | Methods inside unused classes not linked        | High     | Medium            |
 | **Classes**   | 1     | Complex inheritance patterns                    | Low      | Hard              |
 
-#### Priority 1: Class-Method Linking
+##### Priority 1: Class-Method Linking
 
-**Problem:** Methods inside unused classes are not detected:
+**Problem:** Methods inside unused classes are not detected.
 
 ```python
 class UnusedClass:  # Detected as unused ✅
@@ -865,9 +216,9 @@ class UnusedClass:  # Detected as unused ✅
 
 **Solution:** When a class is unused, automatically mark all its methods as unused.
 
-#### Priority 2: Variable Scope Improvements
+##### Priority 2: Variable Scope Improvements
 
-**Problem:** Local variables in complex scopes are missed:
+**Problem:** Local variables in complex scopes are missed.
 
 ```python
 def func():
@@ -903,34 +254,11 @@ def func():
 
 ### <a id="phase-8"></a>Phase 8: Advanced Framework Support
 
-_Deepen understanding of popular Python frameworks to reduce false positives._
-
-- [x] **Django Support** ✅
-
-  - **URL Patterns:** Parse `urlpatterns` to find view functions referenced as strings.
-  - **Admin:** Detect `admin.site.register(Model)` to mark models as used.
-  - **Signals:** Detect `pre_save.connect(receiver)` to mark receivers.
-
-- [x] **FastAPI Support** ✅
-
-  - **Dependencies:** Scan `Depends(func)` in route handlers to mark dependency functions.
-
-- [x] **Pydantic Support** ✅
-  - **Field Tracking:** Explicitly track fields in `BaseModel` subclasses to avoid marking them as unused variables.
+Django, FastAPI, Pydantic is done ✅.
 
 ### <a id="phase-9"></a>Phase 9: Developer Experience
 
 _Tools to improve the workflow around CytoScnPy._
-
-- [x] **MCP Server (Model Context Protocol)**
-
-  - Implemented `cytoscnpy-mcp` binary exposing CytoScnPy as MCP tools.
-  - **Tools:** `analyze_path`, `analyze_code`, `cyclomatic_complexity`, `maintainability_index`
-  - Stdio transport for Claude Desktop, Cursor IDE, and other MCP clients.
-  - Usage: Add to `claude_desktop_config.json`:
-    ```json
-    { "mcpServers": { "cytoscnpy": { "command": "path/to/cytoscnpy-mcp" } } }
-    ```
 
 - [ ] **MCP HTTP/SSE Transport**
 
@@ -960,7 +288,7 @@ _Tools to improve the workflow around CytoScnPy._
   - **Blame Analysis:** Identify who introduced unused code.
   - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
 
-- [ ] **HTML Report Generation** _(NEW)_
+- [ ] **HTML Report Generation**
 
   - Generate self-contained HTML reports for large codebase analysis.
   - **Features:**
@@ -980,7 +308,7 @@ _Tools to improve the workflow around CytoScnPy._
     - Embed CSS/JS for self-contained output
     - Optional: Split large reports into multiple HTML files with index
 
-- [ ] **Live Server Mode** _(NEW)_
+- [ ] **Live Server Mode**
 
   - Built-in HTTP server to browse analysis results interactively.
   - **Features:**
@@ -1003,9 +331,6 @@ _Tools to improve the workflow around CytoScnPy._
     - CI/CD dashboard integration
     - Local development feedback loop
 
-- [x] **Continuous Benchmarking**
-  - Created benchmark suite with regression detection in `benchmark/`.
-
 #### Benchmarking Infrastructure Ideas
 
 | Component                   | Description                             | Tools/Approaches             |
@@ -1027,14 +352,11 @@ _Tools to improve the workflow around CytoScnPy._
 5. **Confidence Threshold Sweep**: Test Vulture at multiple confidence levels (0%, 30%, 60%, 90%)
 6. **Cross-Language Comparison**: Compare Python tools with similar tools for other languages
 
+---
+
 ### <a id="phase-10"></a>Phase 10: Deep Analysis & Security
 
 _Pushing the boundaries of static analysis._
-
-- [x] **Taint Analysis**
-
-  - Track data flow from user inputs (e.g., Flask `request.args`) to dangerous sinks (`eval`, `subprocess`, SQL).
-  - Move beyond heuristic-based security checks.
 
 - [x] **Secret Scanning 2.0**
 
@@ -1094,7 +416,6 @@ _Pushing the boundaries of static analysis._
   - **Goal:** Refactor secret detection into a pluggable, trait-based architecture with unified context-based scoring.
 
   - **Architecture:**
-
     ```
     SecretScanner (Orchestrator)
            │
@@ -1110,9 +431,7 @@ _Pushing the boundaries of static analysis._
                       ▼
               Final Findings (scored & filtered)
     ```
-
   - **Pluggable Recognizers (Trait-based):**
-
     ```rust
     pub trait SecretRecognizer: Send + Sync {
         fn name(&self) -> &str;
@@ -1120,7 +439,6 @@ _Pushing the boundaries of static analysis._
         fn scan(&self, content: &str, line: usize) -> Vec<RawFinding>;
     }
     ```
-
   - **Context-Based Scoring Rules:**
     | Signal | Adjustment | Rationale |
     |--------|------------|-----------|
@@ -1130,7 +448,6 @@ _Pushing the boundaries of static analysis._
     | High entropy | +15 | Random = suspicious |
     | Known FP pattern (URL/path) | -100 | Skip |
     | `os.environ.get()` | -100 | Not hardcoded |
-
   - **Configuration (TOML):**
 
     ```toml
@@ -1148,25 +465,19 @@ _Pushing the boundaries of static analysis._
 
   - **Implementation Plan:**
 
-    1. **Phase 1:** Add `confidence: u8` to `SecretFinding` struct
-    2. **Phase 2:** Create `SecretRecognizer` trait in `src/rules/recognizers/mod.rs`
-    3. **Phase 3:** Refactor existing patterns into `RegexRecognizer`
-    4. **Phase 4:** Implement `AstRecognizer` (CSP-S300)
-    5. **Phase 5:** Create `ContextScorer` with scoring rules
-    6. **Phase 6:** Update `scan_secrets()` to use orchestrator pattern
-    7. **Phase 7:** Add TOML config for custom recognizers
+    1. Add `confidence: u8` to `SecretFinding` struct
+    2. Create `SecretRecognizer` trait in `src/rules/recognizers/mod.rs`
+    3. Refactor existing patterns into `RegexRecognizer`
+    4. Implement `AstRecognizer` (CSP-S300)
+    5. Create `ContextScorer` with scoring rules
+    6. Update `scan_secrets()` to use orchestrator pattern
+    7. Add TOML config for custom recognizers
 
   - **Files:**
     - `src/rules/secrets.rs` → `src/rules/secrets/mod.rs` (split)
     - `src/rules/secrets/recognizers.rs` (new)
     - `src/rules/secrets/scoring.rs` (new)
     - `src/config.rs` (extend `SecretsConfig`)
-
-- [x] **Type Inference (Lightweight)**
-
-  - **Strategy:** Focus on fast, local, heuristic-based inference (e.g., literal tracking) to catch obvious errors (`str.append`).
-  - **Non-Goal:** Do not attempt full constraint-based type solving (generics, cross-module). Leave that to dedicated tools like `mypy` or `ty`.
-  - Basic inference for method misuse detection.
 
 - [ ] **Dependency Graph**
 
@@ -1175,6 +486,8 @@ _Pushing the boundaries of static analysis._
 - [ ] **License Compliance**
   - Scan `requirements.txt` and `Cargo.toml` for incompatible licenses.
 
+---
+
 ### <a id="phase-11"></a>Phase 11: Auto-Remediation
 
 _Safe, automated code fixes._
@@ -1182,19 +495,3 @@ _Safe, automated code fixes._
 - [ ] **Safe Code Removal (`--fix`)**
   - **Challenge:** Standard AST parsers discard whitespace/comments.
   - **Strategy:** Use `RustPython` AST byte ranges or `tree-sitter` to identify ranges, then perform precise string manipulation to preserve formatting.
-
----
-
-## 📦 Release Checklist
-
-- [x] **Publish to PyPI** ✅
-
-  - Verified `pyproject.toml` metadata.
-  - Published via `maturin publish`.
-  - Available: `pip install cytoscnpy`
-
-- [x] **Publish MCP Binary** ✅
-  - GitHub Actions workflow (`.github/workflows/mcp-release.yml`) for automated cross-platform builds.
-  - Installation scripts: `install.sh` (Linux/macOS), `install.ps1` (Windows).
-  - Documentation updated in `cytoscnpy-mcp/README.md`.
-  - **To release:** Push a version tag (e.g., `git tag v1.0.0 && git push origin v1.0.0`).

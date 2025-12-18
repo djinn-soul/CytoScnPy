@@ -92,32 +92,69 @@ export function activate(context: vscode.ExtensionContext) {
         const result = await runCytoScnPyAnalysis(filePath, config); // Pass config
         const diagnostics: vscode.Diagnostic[] = result.findings.map(
           (finding) => {
+            const lineIndex = finding.line_number - 1;
+            const lineText = document.lineAt(lineIndex);
+
+            // Use column from finding if available (1-based -> 0-based)
+            // If explicit column is 0 or missing, default to first non-whitespace char for cleaner look
+            const startCol =
+              finding.col && finding.col > 0
+                ? finding.col // Rust CLI 0-based? Need to verify. Assuming 1-based for safety check first.
+                : lineText.firstNonWhitespaceCharacterIndex;
+
+            // Just usage of startCol.
+            // Actually, let's assume if col is provided it's the start char.
+            // If col is missing (0), we use firstNonWhitespaceCharacterIndex.
+
             const range = new vscode.Range(
-              new vscode.Position(finding.line_number - 1, 0), // line_number is 1-based
-              new vscode.Position(
-                finding.line_number - 1,
-                document.lineAt(finding.line_number - 1).text.length
-              )
+              new vscode.Position(lineIndex, startCol),
+              new vscode.Position(lineIndex, lineText.text.length)
             );
             let severity: vscode.DiagnosticSeverity;
-            switch (finding.severity) {
-              case "error":
+            // Map CytoScnPy severity levels to VS Code severities
+            switch (finding.severity.toUpperCase()) {
+              case "CRITICAL":
+              case "ERROR":
                 severity = vscode.DiagnosticSeverity.Error;
                 break;
-              case "warning":
+              case "HIGH":
+              case "WARNING":
                 severity = vscode.DiagnosticSeverity.Warning;
                 break;
-              case "info":
+              case "MEDIUM":
+              case "INFO":
                 severity = vscode.DiagnosticSeverity.Information;
+                break;
+              case "LOW":
+                severity = vscode.DiagnosticSeverity.Hint;
                 break;
               default:
                 severity = vscode.DiagnosticSeverity.Information;
             }
-            return new vscode.Diagnostic(
+            const diagnostic = new vscode.Diagnostic(
               range,
               `${finding.message} [${finding.rule_id}]`,
               severity
             );
+
+            // Add tags for better visual highlighting
+            // Unused code gets "Unnecessary" tag which fades the code
+            const unusedRules = [
+              "unused-function",
+              "unused-method",
+              "unused-class",
+              "unused-import",
+              "unused-variable",
+              "unused-parameter",
+            ];
+            if (unusedRules.includes(finding.rule_id)) {
+              diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
+            }
+
+            // Set the source for filtering in Problems panel
+            diagnostic.source = "CytoScnPy";
+
+            return diagnostic;
           }
         );
         cytoscnpyDiagnostics.set(document.uri, diagnostics);

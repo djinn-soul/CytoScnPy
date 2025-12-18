@@ -546,29 +546,6 @@ impl CytoScnPy {
 
         let taint_count = taint_findings.len();
 
-        // Class-method linking: Methods of unused classes should also be flagged
-        // BUT ONLY if they are self-referential (recursive) and have no external references.
-        let unused_class_names: std::collections::HashSet<_> =
-            unused_classes.iter().map(|c| c.full_name.clone()).collect();
-
-        for def in &methods_with_refs {
-            if def.confidence >= self.confidence_threshold {
-                // Only process if the method is marked as self-referential
-                // This means the only reference comes from itself (recursion)
-                if !def.is_self_referential {
-                    continue;
-                }
-
-                if let Some(last_dot) = def.full_name.rfind('.') {
-                    let parent_class = &def.full_name[..last_dot];
-                    let is_unused = unused_class_names.contains(parent_class);
-                    if is_unused {
-                        unused_methods.push(def.clone());
-                    }
-                }
-            }
-        }
-
         AnalysisResult {
             unused_functions,
             unused_methods,
@@ -810,28 +787,6 @@ impl CytoScnPy {
         let taint_count = taint_findings.len();
 
         // Construct and return the final result.
-        // Class-method linking: Methods of unused classes should also be flagged
-        // BUT ONLY if they are self-referential (recursive) and have no external references.
-        let unused_class_names: std::collections::HashSet<_> =
-            unused_classes.iter().map(|c| c.full_name.clone()).collect();
-
-        for def in &methods_with_refs {
-            if def.confidence >= self.confidence_threshold {
-                // Only process if the method is marked as self-referential
-                // This means the only reference comes from itself (recursion)
-                if !def.is_self_referential {
-                    continue;
-                }
-
-                if let Some(last_dot) = def.full_name.rfind('.') {
-                    let parent_class = &def.full_name[..last_dot];
-                    let is_unused = unused_class_names.contains(parent_class);
-                    if is_unused {
-                        unused_methods.push(def.clone());
-                    }
-                }
-            }
-        }
 
         AnalysisResult {
             unused_functions,

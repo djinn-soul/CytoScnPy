@@ -3,6 +3,7 @@
 interface CytoScnPyFinding {
   file_path: string;
   line_number: number;
+  col?: number;
   message: string;
   rule_id: string;
   severity: "error" | "warning" | "info";
@@ -40,6 +41,7 @@ export interface CytoScnPyConfig {
 interface RawCytoScnPyFinding {
   file: string;
   line: number;
+  col?: number;
   message?: string;
   rule_id?: string;
   severity?: string;
@@ -97,6 +99,7 @@ function transformRawResult(
       findings.push({
         file_path: rawFinding.file,
         line_number: rawFinding.line,
+        col: rawFinding.col,
         message: rawFinding.message || messageFormatter(rawFinding),
         rule_id: rawFinding.rule_id || defaultRuleId,
         severity: normalizeSeverity(rawFinding.severity) || defaultSeverity,

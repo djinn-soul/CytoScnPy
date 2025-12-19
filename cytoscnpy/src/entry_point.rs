@@ -484,6 +484,62 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
         }
 
+        // Handle --clones flag
+        if cli_var.clones {
+            if cli_var.output.verbose && !cli_var.output.json {
+                eprintln!("[VERBOSE] Clone detection enabled");
+                eprintln!(
+                    "   Similarity threshold: {:.0}%",
+                    cli_var.clone_similarity * 100.0
+                );
+                if cli_var.fix {
+                    eprintln!(
+                        "   Fix mode: {} (confidence >= 90%)",
+                        if cli_var.dry_run { "dry-run" } else { "apply" }
+                    );
+                }
+                eprintln!();
+            }
+            let mut stdout = std::io::stdout();
+            let clone_options = crate::commands::CloneOptions {
+                similarity: cli_var.clone_similarity,
+                json: cli_var.output.json,
+                fix: cli_var.fix,
+                dry_run: cli_var.dry_run,
+                exclude: vec![], // Use empty - files already filtered by analyzer
+                verbose: cli_var.output.verbose,
+            };
+            crate::commands::run_clones(&cli_var.paths, clone_options, &mut stdout)?;
+        }
+
+        // Handle --fix flag for dead code removal
+        if cli_var.fix && !cli_var.clones {
+            if cli_var.output.verbose && !cli_var.output.json {
+                eprintln!("[VERBOSE] Dead code fix mode enabled");
+                eprintln!(
+                    "   Mode: {}",
+                    if cli_var.dry_run {
+                        "dry-run (preview)"
+                    } else {
+                        "apply changes"
+                    }
+                );
+                eprintln!("   Min confidence: 90%");
+                eprintln!("   Targets: functions, classes, imports");
+                eprintln!();
+            }
+            let mut stdout = std::io::stdout();
+            let fix_options = crate::commands::DeadCodeFixOptions {
+                min_confidence: 90, // Only fix high-confidence items
+                dry_run: cli_var.dry_run,
+                fix_functions: true,
+                fix_classes: true,
+                fix_imports: true,
+                verbose: cli_var.output.verbose,
+            };
+            crate::commands::run_fix_deadcode(&result, fix_options, &mut stdout)?;
+        }
+
         // Check for fail threshold (CLI > config > env var > default)
         let fail_threshold = cli_var
             .fail_threshold

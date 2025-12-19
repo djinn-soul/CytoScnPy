@@ -123,7 +123,7 @@ pub struct Definition {
     /// Used for class-method linking to identify truly unused recursive methods.
     #[serde(default)]
     pub is_self_referential: bool,
-    /// Human-readable message for this finding (generated based on def_type).
+    /// Human-readable message for this finding (generated based on `def_type`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
@@ -962,7 +962,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         // Register the function in the current (parent) scope's local_var_map
         // This allows nested function calls like `used_inner()` to be resolved
         // when the call happens in the parent scope.
-        self.add_local_def(name.to_string(), qualified_name.clone());
+        self.add_local_def(name.to_owned(), qualified_name.clone());
 
         // Enter function scope
         self.enter_scope(ScopeType::Function(CompactString::from(name)));

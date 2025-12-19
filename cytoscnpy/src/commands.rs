@@ -618,3 +618,525 @@ fn find_python_files(root: &Path, exclude: &[String]) -> Vec<PathBuf> {
         .map(|e| e.path().to_path_buf())
         .collect()
 }
+
+/// Options for clone detection
+#[derive(Debug, Default)]
+pub struct CloneOptions {
+    /// Minimum similarity threshold (0.0-1.0)
+    pub similarity: f64,
+    /// Output in JSON format
+    pub json: bool,
+    /// Auto-fix mode
+    pub fix: bool,
+    /// Dry-run mode (show what would change)
+    pub dry_run: bool,
+    /// List of paths to exclude
+    pub exclude: Vec<String>,
+    /// Verbose output
+    pub verbose: bool,
+}
+
+/// Executes clone detection analysis.
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or analysis fails.
+#[allow(clippy::too_many_lines)]
+pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer: W) -> Result<()> {
+    use crate::clones::{CloneConfig, CloneDetector, CloneFinding};
+    use crate::fix::{ByteRangeRewriter, Edit};
+
+    // Collect all Python files
+    let mut all_files: Vec<(PathBuf, String)> = Vec::new();
+    for path in paths {
+        let files = find_python_files(path, &options.exclude);
+        for file in files {
+            if let Ok(content) = fs::read_to_string(&file) {
+                all_files.push((file, content));
+            }
+        }
+    }
+
+    if all_files.is_empty() {
+        writeln!(writer, "No Python files found.")?;
+        return Ok(());
+    }
+
+    // Configure detector
+    let config = CloneConfig::default().with_min_similarity(options.similarity);
+    let detector = CloneDetector::with_config(config);
+
+    // Run detection
+    let result = detector.detect(&all_files)?;
+
+    // Verbose: show detection statistics
+    if options.verbose && !options.json {
+        eprintln!("[VERBOSE] Clone Detection Statistics:");
+        eprintln!("   Files scanned: {}", all_files.len());
+        eprintln!("   Clone pairs found: {}", result.pairs.len());
+
+        // Count by type
+        let mut type1_count = 0;
+        let mut type2_count = 0;
+        let mut type3_count = 0;
+        for pair in &result.pairs {
+            match pair.clone_type {
+                crate::clones::CloneType::Type1 => type1_count += 1,
+                crate::clones::CloneType::Type2 => type2_count += 1,
+                crate::clones::CloneType::Type3 => type3_count += 1,
+            }
+        }
+        eprintln!("   Exact Copies: {type1_count}");
+        eprintln!("   Renamed Copies: {type2_count}");
+        eprintln!("   Similar Code: {type3_count}");
+
+        // Show average similarity
+        if !result.pairs.is_empty() {
+            let avg_similarity: f64 =
+                result.pairs.iter().map(|p| p.similarity).sum::<f64>() / result.pairs.len() as f64;
+            eprintln!("   Average similarity: {:.0}%", avg_similarity * 100.0);
+        }
+        eprintln!();
+    }
+
+    if result.pairs.is_empty() {
+        if options.json {
+            writeln!(writer, "[]")?;
+        } else {
+            writeln!(writer, "{}", "No clones detected.".green())?;
+        }
+        return Ok(());
+    }
+
+    // Convert to findings for output
+    let findings: Vec<CloneFinding> = result
+        .pairs
+        .iter()
+        .flat_map(|pair| {
+            // Set confidence based on clone type
+            let base_confidence = match pair.clone_type {
+                crate::clones::CloneType::Type1 => 95, // Exact copy - safe to auto-fix
+                crate::clones::CloneType::Type2 => 85, // Renamed - review recommended
+                crate::clones::CloneType::Type3 => 70, // Similar - manual review needed
+            };
+            vec![
+                CloneFinding::from_pair(pair, false, base_confidence), // canonical
+                CloneFinding::from_pair(pair, true, base_confidence),  // duplicate
+            ]
+        })
+        .collect();
+
+    // Output results
+    if options.json {
+        let output = serde_json::to_string_pretty(&findings)?;
+        writeln!(writer, "{output}")?;
+    } else {
+        writeln!(writer, "\n{}", "Clone Detection Results".bold().cyan())?;
+        writeln!(writer, "{}\n", "=".repeat(40))?;
+
+        let mut table = Table::new();
+        table.set_header(vec![
+            "Type",
+            "File",
+            "Name",
+            "Lines",
+            "Similarity",
+            "Related To",
+        ]);
+
+        for finding in &findings {
+            if finding.is_duplicate {
+                let type_str = finding.clone_type.display_name();
+
+                table.add_row(vec![
+                    type_str.yellow().to_string(),
+                    finding.file.to_string_lossy().to_string(),
+                    finding
+                        .name
+                        .clone()
+                        .unwrap_or_else(|| "<anonymous>".to_owned()),
+                    format!("{}-{}", finding.line, finding.end_line),
+                    format!("{:.0}%", finding.similarity * 100.0),
+                    finding
+                        .related_clone
+                        .name
+                        .clone()
+                        .unwrap_or_else(|| "canonical".to_owned()),
+                ]);
+            }
+        }
+
+        writeln!(writer, "{table}")?;
+        writeln!(
+            writer,
+            "\n{}: {} clone pairs found",
+            "Summary".bold(),
+            result.pairs.len()
+        )?;
+    }
+
+    // Handle --fix mode
+    if options.fix {
+        if options.dry_run {
+            writeln!(
+                writer,
+                "\n{}",
+                "[DRY-RUN] Would apply the following fixes:".yellow()
+            )?;
+        } else {
+            writeln!(writer, "\n{}", "Applying fixes...".cyan())?;
+        }
+
+        // Group by file for batch editing - use HashSet to track seen ranges
+        let mut edits_by_file: std::collections::HashMap<PathBuf, Vec<Edit>> =
+            std::collections::HashMap::new();
+        let mut seen_ranges: std::collections::HashSet<(PathBuf, usize, usize)> =
+            std::collections::HashSet::new();
+
+        for finding in &findings {
+            if finding.is_duplicate && finding.fix_confidence >= 90 {
+                // Use AST-derived byte ranges directly (no manual calculation needed)
+                let start_byte = finding.start_byte;
+                let end_byte = finding.end_byte;
+
+                // Skip if we've already seen this range (avoid duplicate edits)
+                let range_key = (finding.file.clone(), start_byte, end_byte);
+                if seen_ranges.contains(&range_key) {
+                    continue;
+                }
+                seen_ranges.insert(range_key);
+
+                if options.dry_run {
+                    writeln!(
+                        writer,
+                        "  Would remove {} (lines {}-{}, bytes {}-{}) from {}",
+                        finding.name.as_deref().unwrap_or("<anonymous>"),
+                        finding.line,
+                        finding.end_line,
+                        start_byte,
+                        end_byte,
+                        finding.file.display()
+                    )?;
+                } else {
+                    edits_by_file
+                        .entry(finding.file.clone())
+                        .or_default()
+                        .push(Edit::delete(start_byte, end_byte));
+                }
+            }
+        }
+
+        if !options.dry_run {
+            for (file_path, edits) in edits_by_file {
+                if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &file_path) {
+                    let mut rewriter = ByteRangeRewriter::new(content.clone());
+                    rewriter.add_edits(edits);
+
+                    match rewriter.apply() {
+                        Ok(fixed_content) => {
+                            fs::write(&file_path, fixed_content)?;
+                            writeln!(writer, "  {} {}", "Fixed:".green(), file_path.display())?;
+                        }
+                        Err(e) => {
+                            writeln!(
+                                writer,
+                                "  {} {}: {}",
+                                "Error:".red(),
+                                file_path.display(),
+                                e
+                            )?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Options for dead code fix
+#[derive(Debug, Default)]
+pub struct DeadCodeFixOptions {
+    /// Minimum confidence threshold for auto-fix (0-100)
+    pub min_confidence: u8,
+    /// Dry-run mode (show what would change)
+    pub dry_run: bool,
+    /// Types to fix
+    /// Fix functions
+    pub fix_functions: bool,
+    /// Fix classes
+    pub fix_classes: bool,
+    /// Fix imports
+    pub fix_imports: bool,
+    /// Verbose output
+    pub verbose: bool,
+}
+
+/// Result of dead code fix operation
+#[derive(Debug, Serialize)]
+pub struct FixResult {
+    /// File that was fixed
+    pub file: String,
+    /// Number of items removed
+    pub items_removed: usize,
+    /// Names of removed items
+    pub removed_names: Vec<String>,
+}
+
+/// Apply --fix to dead code findings.
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or fix fails.
+#[allow(clippy::too_many_lines)]
+pub fn run_fix_deadcode<W: Write>(
+    results: &crate::analyzer::AnalysisResult,
+    options: DeadCodeFixOptions,
+    mut writer: W,
+) -> Result<Vec<FixResult>> {
+    use crate::fix::{ByteRangeRewriter, Edit};
+    use std::collections::HashMap;
+
+    if options.dry_run {
+        writeln!(
+            writer,
+            "\n{}",
+            "[DRY-RUN] Dead code that would be removed:".yellow()
+        )?;
+    } else {
+        writeln!(writer, "\n{}", "Applying dead code fixes...".cyan())?;
+    }
+
+    // Collect items to remove, grouped by file
+    let mut items_by_file: HashMap<PathBuf, Vec<(&str, &crate::visitor::Definition)>> =
+        HashMap::new();
+
+    if options.fix_functions {
+        for def in &results.unused_functions {
+            if def.confidence >= options.min_confidence {
+                items_by_file
+                    .entry((*def.file).clone())
+                    .or_default()
+                    .push(("function", def));
+            }
+        }
+    }
+
+    if options.fix_classes {
+        for def in &results.unused_classes {
+            if def.confidence >= options.min_confidence {
+                items_by_file
+                    .entry((*def.file).clone())
+                    .or_default()
+                    .push(("class", def));
+            }
+        }
+    }
+
+    if options.fix_imports {
+        for def in &results.unused_imports {
+            if def.confidence >= options.min_confidence {
+                items_by_file
+                    .entry((*def.file).clone())
+                    .or_default()
+                    .push(("import", def));
+            }
+        }
+    }
+
+    if items_by_file.is_empty() {
+        writeln!(
+            writer,
+            "  No items with confidence >= {} to fix.",
+            options.min_confidence
+        )?;
+        return Ok(vec![]);
+    }
+
+    // Verbose: show fix statistics
+    if options.verbose {
+        let total_items: usize = items_by_file.values().map(std::vec::Vec::len).sum();
+        let files_count = items_by_file.len();
+
+        let mut func_count = 0;
+        let mut class_count = 0;
+        let mut import_count = 0;
+        for items in items_by_file.values() {
+            for (item_type, _) in items {
+                match *item_type {
+                    "function" => func_count += 1,
+                    "class" => class_count += 1,
+                    "import" => import_count += 1,
+                    _ => {}
+                }
+            }
+        }
+
+        eprintln!("[VERBOSE] Fix Statistics:");
+        eprintln!("   Files to modify: {files_count}");
+        eprintln!("   Items to remove: {total_items}");
+        eprintln!("   Functions: {func_count}");
+        eprintln!("   Classes: {class_count}");
+        eprintln!("   Imports: {import_count}");
+
+        // Show items below threshold that were skipped
+        let skipped_funcs = results
+            .unused_functions
+            .iter()
+            .filter(|d| d.confidence < options.min_confidence)
+            .count();
+        let skipped_classes = results
+            .unused_classes
+            .iter()
+            .filter(|d| d.confidence < options.min_confidence)
+            .count();
+        let skipped_imports = results
+            .unused_imports
+            .iter()
+            .filter(|d| d.confidence < options.min_confidence)
+            .count();
+        let total_skipped = skipped_funcs + skipped_classes + skipped_imports;
+
+        if total_skipped > 0 {
+            eprintln!(
+                "   Skipped (confidence < {}%): {}",
+                options.min_confidence, total_skipped
+            );
+        }
+        eprintln!();
+    }
+
+    let mut all_results = Vec::new();
+
+    for (file_path, items) in items_by_file {
+        let content = match fs::read_to_string(&file_path) {
+            Ok(c) => c,
+            Err(e) => {
+                writeln!(
+                    writer,
+                    "  {} {}: {}",
+                    "Skip:".yellow(),
+                    file_path.display(),
+                    e
+                )?;
+                continue;
+            }
+        };
+
+        // Re-parse to get exact byte ranges
+        let parsed = match ruff_python_parser::parse_module(&content) {
+            Ok(p) => p,
+            Err(e) => {
+                writeln!(
+                    writer,
+                    "  {} {}: {}",
+                    "Parse error:".red(),
+                    file_path.display(),
+                    e
+                )?;
+                continue;
+            }
+        };
+
+        let module = parsed.into_syntax();
+        let mut edits = Vec::new();
+        let mut removed_names = Vec::new();
+
+        for (item_type, def) in &items {
+            if let Some((start, end)) = find_def_range(&module.body, &def.simple_name, item_type) {
+                if options.dry_run {
+                    writeln!(
+                        writer,
+                        "  Would remove {} '{}' at {}:{}",
+                        item_type,
+                        def.simple_name,
+                        file_path.display(),
+                        def.line
+                    )?;
+                } else {
+                    edits.push(Edit::delete(start, end));
+                    removed_names.push(def.simple_name.clone());
+                }
+            }
+        }
+
+        if !options.dry_run && !edits.is_empty() {
+            let mut rewriter = ByteRangeRewriter::new(content);
+            rewriter.add_edits(edits);
+
+            match rewriter.apply() {
+                Ok(fixed) => {
+                    let count = removed_names.len();
+                    fs::write(&file_path, fixed)?;
+                    writeln!(
+                        writer,
+                        "  {} {} ({} removed)",
+                        "Fixed:".green(),
+                        file_path.display(),
+                        count
+                    )?;
+                    all_results.push(FixResult {
+                        file: file_path.to_string_lossy().to_string(),
+                        items_removed: count,
+                        removed_names,
+                    });
+                }
+                Err(e) => {
+                    writeln!(
+                        writer,
+                        "  {} {}: {}",
+                        "Error:".red(),
+                        file_path.display(),
+                        e
+                    )?;
+                }
+            }
+        }
+    }
+
+    Ok(all_results)
+}
+
+/// Find byte range for a definition in AST
+fn find_def_range(
+    body: &[ruff_python_ast::Stmt],
+    name: &str,
+    def_type: &str,
+) -> Option<(usize, usize)> {
+    use ruff_python_ast::Stmt;
+    use ruff_text_size::Ranged;
+
+    for stmt in body {
+        match stmt {
+            Stmt::FunctionDef(f) if def_type == "function" => {
+                if f.name.as_str() == name {
+                    return Some((f.range().start().to_usize(), f.range().end().to_usize()));
+                }
+            }
+            Stmt::ClassDef(c) if def_type == "class" => {
+                if c.name.as_str() == name {
+                    return Some((c.range().start().to_usize(), c.range().end().to_usize()));
+                }
+            }
+            Stmt::Import(i) if def_type == "import" => {
+                for alias in &i.names {
+                    let import_name = alias.asname.as_ref().unwrap_or(&alias.name);
+                    if import_name.as_str() == name {
+                        return Some((i.range().start().to_usize(), i.range().end().to_usize()));
+                    }
+                }
+            }
+            Stmt::ImportFrom(i) if def_type == "import" => {
+                for alias in &i.names {
+                    let import_name = alias.asname.as_ref().unwrap_or(&alias.name);
+                    if import_name.as_str() == name && i.names.len() == 1 {
+                        return Some((i.range().start().to_usize(), i.range().end().to_usize()));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}

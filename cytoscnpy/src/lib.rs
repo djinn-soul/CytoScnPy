@@ -68,6 +68,14 @@ pub mod raw_metrics;
 /// Module for taint analysis (data flow from sources to sinks).
 pub mod taint;
 
+/// Module for code clone detection and deduplication.
+/// Provides Type-1/2/3 clone detection with safe `--fix` support.
+pub mod clones;
+
+/// Shared fix module for auto-remediation.
+/// Provides reusable byte-range safe code rewriting for `--fix` support.
+pub mod fix;
+
 /// Python bindings module (PyO3 integration).
 /// Contains the implementation of Python-callable functions.
 #[cfg(feature = "python-bindings")]

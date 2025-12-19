@@ -153,6 +153,25 @@ pub struct Cli {
     /// Add artificial delay (ms) per file for testing progress bar.
     #[arg(long, hide = true)]
     pub debug_delay: Option<u64>,
+
+    /// Enable code clone detection (Type-1/2/3).
+    /// Finds duplicate or near-duplicate code fragments.
+    #[arg(long)]
+    pub clones: bool,
+
+    /// Minimum similarity threshold for clone detection (0.0-1.0).
+    /// Default is 0.8 (80% similarity).
+    #[arg(long, default_value = "0.8")]
+    pub clone_similarity: f64,
+
+    /// Auto-fix detected issues (removes dead code, consolidates clones).
+    /// Use with caution: always review changes first with --dry-run.
+    #[arg(long)]
+    pub fix: bool,
+
+    /// Dry-run mode for --fix: show what would be changed without modifying files.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Subcommand, Debug)]

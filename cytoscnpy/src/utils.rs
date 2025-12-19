@@ -106,6 +106,5 @@ pub fn normalize_display_path(path: &std::path::Path) -> String {
     let normalized = s.replace('\\', "/");
     normalized
         .strip_prefix("./")
-        .unwrap_or(&normalized)
-        .to_string()
+        .unwrap_or(&normalized).to_owned()
 }

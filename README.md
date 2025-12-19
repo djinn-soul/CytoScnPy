@@ -1,4 +1,4 @@
-# CytoScnPy - High-Performance Python Static Analysis 🦀🐍
+# CytoScnPy - High-Performance Python Static Analysis
 
 [![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -204,7 +204,7 @@ cytoscnpy . --fail-threshold 5 --quiet
 
 See [cytoscnpy/README.md](cytoscnpy/README.md#architecture) for detailed architecture and technology stack information.
 
-## 🧪 Testing
+## Testing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md#testing) for testing instructions.
 
@@ -223,7 +223,7 @@ Apache-2.0 License - see [License](License) file for details.
 - [Roadmap](ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)
 
-## 📚 References
+## References
 
 CytoScnPy's design and implementation are inspired by:
 

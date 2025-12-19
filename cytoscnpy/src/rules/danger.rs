@@ -22,6 +22,7 @@ pub fn get_danger_rules() -> Vec<Box<dyn Rule>> {
         Box::new(SqlInjectionRule),    // CSP-D101: SQL injection (ORM)
         Box::new(SqlInjectionRawRule), // CSP-D102: SQL injection (raw)
         Box::new(XSSRule),             // CSP-D103: Cross-site scripting
+        Box::new(XmlRule),             // CSP-D104: Insecure XML parsing (XXE/DoS)
         // ═══════════════════════════════════════════════════════════════════════
         // Category 3: Deserialization (CSP-D2xx)
         // ═══════════════════════════════════════════════════════════════════════
@@ -342,10 +343,33 @@ impl Rule for SqlInjectionRule {
                                 "CRITICAL",
                             )]);
                         }
+                        // Check for .format() calls
+                        if let Expr::Call(inner_call) = arg {
+                            if let Expr::Attribute(attr) = &*inner_call.func {
+                                if attr.attr.as_str() == "format" {
+                                    return Some(vec![create_finding(
+                                        "Potential SQL injection (str.format in execute)",
+                                        self.code(),
+                                        context,
+                                        call.range().start(),
+                                        "CRITICAL",
+                                    )]);
+                                }
+                            }
+                        }
                         if let Expr::BinOp(binop) = arg {
                             if matches!(binop.op, ast::Operator::Add) {
                                 return Some(vec![create_finding(
                                     "Potential SQL injection (string concatenation in execute)",
+                                    self.code(),
+                                    context,
+                                    call.range().start(),
+                                    "CRITICAL",
+                                )]);
+                            }
+                            if matches!(binop.op, ast::Operator::Mod) {
+                                return Some(vec![create_finding(
+                                    "Potential SQL injection (% formatting in execute)",
                                     self.code(),
                                     context,
                                     call.range().start(),
@@ -480,6 +504,121 @@ impl Rule for XSSRule {
         }
         None
     }
+}
+
+struct XmlRule;
+impl Rule for XmlRule {
+    fn name(&self) -> &'static str {
+        "XmlRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D104"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            // First check using get_call_name for simple patterns like ET.parse
+            if let Some(name) = get_call_name(&call.func) {
+                // xml.etree.ElementTree aliased as ET
+                if name == "ET.parse" || name == "ET.fromstring" || name == "ET.XML" {
+                    return Some(vec![create_finding(
+                        "Potential XML DoS (Billion Laughs) in xml.etree. Use defusedxml.ElementTree",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "MEDIUM",
+                    )]);
+                }
+            }
+
+            // For nested module access like xml.dom.minidom.parse, check the attribute chain
+            if let Expr::Attribute(attr) = &*call.func {
+                let method_name = attr.attr.as_str();
+
+                // Check for xml.dom.minidom.parse/parseString
+                if (method_name == "parse" || method_name == "parseString")
+                    && is_xml_dom_minidom(&attr.value)
+                {
+                    return Some(vec![create_finding(
+                        "Potential XML DoS (Billion Laughs) in xml.dom.minidom. Use defusedxml.minidom",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "MEDIUM",
+                    )]);
+                }
+
+                // Check for xml.sax.parse/parseString/make_parser
+                if (method_name == "parse"
+                    || method_name == "parseString"
+                    || method_name == "make_parser")
+                    && is_xml_sax(&attr.value)
+                {
+                    return Some(vec![create_finding(
+                        "Potential XML XXE/DoS in xml.sax. Use defusedxml.sax",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "MEDIUM",
+                    )]);
+                }
+
+                // Check for lxml.etree.parse/fromstring/XML
+                if (method_name == "parse" || method_name == "fromstring" || method_name == "XML")
+                    && is_lxml_etree(&attr.value)
+                {
+                    return Some(vec![create_finding(
+                        "Potential XML XXE vulnerability in lxml. Use defusedxml.lxml or configure parser safely (resolve_entities=False)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Check if expression is xml.dom.minidom
+fn is_xml_dom_minidom(expr: &Expr) -> bool {
+    if let Expr::Attribute(attr) = expr {
+        if attr.attr.as_str() == "minidom" {
+            // Check for xml.dom
+            if let Expr::Attribute(parent) = &*attr.value {
+                if parent.attr.as_str() == "dom" {
+                    if let Expr::Name(name) = &*parent.value {
+                        return name.id.as_str() == "xml";
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Check if expression is xml.sax
+fn is_xml_sax(expr: &Expr) -> bool {
+    if let Expr::Attribute(attr) = expr {
+        if attr.attr.as_str() == "sax" {
+            if let Expr::Name(name) = &*attr.value {
+                return name.id.as_str() == "xml";
+            }
+        }
+    }
+    false
+}
+
+/// Check if expression is lxml.etree
+fn is_lxml_etree(expr: &Expr) -> bool {
+    if let Expr::Attribute(attr) = expr {
+        if attr.attr.as_str() == "etree" {
+            if let Expr::Name(name) = &*attr.value {
+                return name.id.as_str() == "lxml";
+            }
+        }
+    }
+    false
 }
 
 // Helper functions

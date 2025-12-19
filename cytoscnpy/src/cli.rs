@@ -333,4 +333,7 @@ pub enum Commands {
         #[arg(long, short = 'O')]
         output_file: Option<String>,
     },
+    /// Start MCP server for LLM integration (Claude Desktop, VS Code Copilot, etc.)
+    #[command(name = "mcp-server")]
+    McpServer,
 }

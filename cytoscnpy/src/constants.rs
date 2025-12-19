@@ -3,6 +3,10 @@ use rustc_hash::FxHashSet;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+/// Maximum recursion depth for AST visitor to prevent stack overflow on deeply nested code.
+/// A depth of 50 is sufficient for any reasonable Python code while providing a safety margin.
+pub const MAX_RECURSION_DEPTH: usize = 50;
+
 /// Confidence adjustment penalties for various code patterns.
 pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
     static PENALTIES: OnceLock<HashMap<&'static str, u8>> = OnceLock::new();

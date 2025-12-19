@@ -12,11 +12,12 @@ Security rules detected by the `--danger` flag, organized by category.
 
 ## Category 2: Injection Attacks (CSP-D1xx)
 
-| Rule ID  | Pattern                                                                           | Why it's risky             | Safer alternative / Fix                                   |
-| -------- | --------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------- |
-| CSP-D101 | `cursor.execute` / `executemany` with f-string or string-built SQL                | SQL injection (cursor)     | Use parameterized queries (`WHERE name = ?` with params)  |
-| CSP-D102 | `sqlalchemy.text(...)`, `pandas.read_sql*`, `*.objects.raw(...)` with dynamic SQL | SQL injection (raw-api)    | Use bound parameters/ORM query builders                   |
-| CSP-D103 | `flask.render_template_string(...)` / `jinja2.Markup(...)` with dynamic content   | XSS (cross-site scripting) | Use `render_template()` with separate files; escape input |
+| Rule ID  | Pattern                                                                           | Why it's risky             | Safer alternative / Fix                                         |
+| -------- | --------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| CSP-D101 | `cursor.execute` / `executemany` with f-string or string-built SQL                | SQL injection (cursor)     | Use parameterized queries (`WHERE name = ?` with params)        |
+| CSP-D102 | `sqlalchemy.text(...)`, `pandas.read_sql*`, `*.objects.raw(...)` with dynamic SQL | SQL injection (raw-api)    | Use bound parameters/ORM query builders                         |
+| CSP-D103 | `flask.render_template_string(...)` / `jinja2.Markup(...)` with dynamic content   | XSS (cross-site scripting) | Use `render_template()` with separate files; escape input       |
+| CSP-D104 | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.sax`, `lxml.etree` parsing       | XXE / Billion Laughs DoS   | Use `defusedxml` library; for lxml use `resolve_entities=False` |
 
 ## Category 3: Deserialization (CSP-D2xx)
 

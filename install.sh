@@ -3,7 +3,7 @@ set -e
 
 # Configuration
 REPO="djinn09/CytoScnPy"
-BINARY_NAME="cytoscnpy-mcp"
+BINARY_NAME="cytoscnpy"
 INSTALL_DIR="/usr/local/bin"
 
 # Detect OS and Architecture
@@ -45,4 +45,12 @@ chmod +x "$BINARY_NAME"
 echo "Installing to $INSTALL_DIR (requires sudo)..."
 sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
 
-echo "Success! Configure it in your MCP client (Claude Desktop, Cursor, etc)."
+echo ""
+echo "Success! CytoScnPy CLI installed."
+echo ""
+echo "Usage:"
+echo "  cytoscnpy .                    # Analyze current directory"
+echo "  cytoscnpy mcp-server           # Start MCP server for AI assistants"
+echo ""
+echo "For MCP configuration (Claude, Cursor, Copilot), see:"
+echo "  https://github.com/djinn09/CytoScnPy/blob/main/cytoscnpy-mcp/README.md"

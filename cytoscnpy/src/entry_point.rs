@@ -290,6 +290,13 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     &mut stdout,
                 )?;
             }
+            Commands::McpServer => {
+                // MCP server is handled in cytoscnpy-cli main.rs before calling entry_point
+                // This should never be reached, but we need the match arm for exhaustiveness
+                eprintln!("Error: mcp-server command should be handled by cytoscnpy-cli directly.");
+                eprintln!("If you're seeing this, please use the cytoscnpy-cli binary.");
+                return Ok(1);
+            }
         }
         Ok(0)
     } else {

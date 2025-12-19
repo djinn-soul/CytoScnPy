@@ -28,7 +28,14 @@ maturin develop -m cytoscnpy/Cargo.toml
 
 ### MCP Server (for AI Assistants)
 
-To use CytoScnPy MCP Server, see the **[MCP Server Documentation](cytoscnpy-mcp/README.md)** for installation instructions.
+CytoScnPy includes an MCP server for AI assistant integration:
+
+```bash
+# Start MCP server (after pip install)
+cytoscnpy mcp-server
+```
+
+For Claude Desktop, Cursor, or GitHub Copilot configuration, see the **[MCP Server Documentation](cytoscnpy-mcp/README.md)**.
 
 ## Features
 

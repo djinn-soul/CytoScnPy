@@ -1,7 +1,7 @@
 # Configuration
 $Repo = "djinn09/CytoScnPy"
-$BinaryName = "cytoscnpy-mcp.exe"
-$AssetName = "cytoscnpy-mcp-windows-x64.exe"
+$BinaryName = "cytoscnpy.exe"
+$AssetName = "cytoscnpy-windows-x64.exe"
 $InstallDir = "$env:LOCALAPPDATA\Programs\CytoScnPy"
 
 Write-Host "Fetching latest release from $Repo..."
@@ -35,9 +35,17 @@ $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if (-not ($UserPath -split ";" -contains $InstallDir)) {
     Write-Host "Adding $InstallDir to User PATH..."
     [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
-    Write-Host "Added to PATH. Please restart your terminal/IDE to use 'cytoscnpy-mcp' command."
+    Write-Host "Added to PATH. Please restart your terminal/IDE."
 } else {
     Write-Host "Already in PATH."
 }
 
-Write-Host "Installation complete! Binary location: $OutputPath"
+Write-Host ""
+Write-Host "Success! CytoScnPy CLI installed."
+Write-Host ""
+Write-Host "Usage:"
+Write-Host "  cytoscnpy .                    # Analyze current directory"
+Write-Host "  cytoscnpy mcp-server           # Start MCP server for AI assistants"
+Write-Host ""
+Write-Host "For MCP configuration (Claude, Cursor, Copilot), see:"
+Write-Host "  https://github.com/djinn09/CytoScnPy/blob/main/cytoscnpy-mcp/README.md"

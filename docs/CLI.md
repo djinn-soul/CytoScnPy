@@ -54,6 +54,16 @@ cytoscnpy [PATHS]... [OPTIONS]
 
 **Environment Variable:** `CYTOSCNPY_FAIL_THRESHOLD=5.0`
 
+### MCP Server
+
+Start an MCP (Model Context Protocol) server over stdio for AI assistant integration:
+
+```bash
+cytoscnpy mcp-server
+```
+
+This enables AI assistants (Claude, GitHub Copilot, Cursor) to use CytoScnPy's analysis tools. See [../cytoscnpy-mcp/README.md](../cytoscnpy-mcp/README.md) for configuration.
+
 ---
 
 ## Metric Subcommands

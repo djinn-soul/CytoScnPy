@@ -1,6 +1,6 @@
 # CytoScnPy MCP Server
 
-MCP (Model Context Protocol) server that exposes CytoScnPy's Python static analysis capabilities to LLMs like Claude, GPT, and other AI assistants.
+MCP (Model Context Protocol) server that exposes CytoScnPy's Python static analysis capabilities to LLMs like Claude, GPT, GitHub Copilot, and other AI assistants.
 
 ## What is MCP?
 
@@ -13,32 +13,52 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) is an open standa
 
 ## Installation
 
-### Automatic Install (Recommended)
+### Option 1: Unified CLI (Recommended)
+
+The MCP server is now integrated into the main `cytoscnpy` CLI as a subcommand:
+
+```bash
+# Install via pip
+pip install cytoscnpy
+
+# Run MCP server
+cytoscnpy mcp-server
+```
+
+### Option 2: VS Code Extension (Automatic)
+
+Install the [CytoScnPy VS Code extension](../editors/vscode/cytoscnpy/README.md). It automatically registers the MCP server with GitHub Copilot—no manual configuration required.
+
+### Option 3: Install Script (Standalone Binary)
 
 **Linux / macOS:**
 
 ```bash
+# Install
 curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+
+# Start MCP server
+cytoscnpy mcp-server
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
+# Install
 irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
-```
 
-> **Note**: These scripts install the **standalone MCP server binary** (`cytoscnpy-mcp`) for use with AI assistants.
-> To install the `cytoscnpy` Python library/CLI for direct use, run `pip install cytoscnpy` (see [main README](../README.md)).
+# Start MCP server (after restarting terminal)
+cytoscnpy mcp-server
+```
 
 ### Build from Source
 
-Build the release binary:
-
 ```bash
-cargo build --release -p cytoscnpy-mcp
-```
+cargo build --release -p cytoscnpy-cli
 
-The binary will be at `target/release/cytoscnpy-mcp` (or `.exe` on Windows).
+# Run MCP server
+./target/release/cytoscnpy mcp-server
+```
 
 ## Usage
 
@@ -50,7 +70,8 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "cytoscnpy": {
-      "command": "/path/to/cytoscnpy-mcp"
+      "command": "cytoscnpy",
+      "args": ["mcp-server"]
     }
   }
 }
@@ -58,20 +79,47 @@ Add to your `claude_desktop_config.json`:
 
 ### Cursor IDE
 
-Add to Cursor's MCP settings with the path to the binary.
+Add to Cursor's MCP settings:
+
+```json
+{
+  "cytoscnpy": {
+    "command": "cytoscnpy",
+    "args": ["mcp-server"]
+  }
+}
+```
+
+### GitHub Copilot (VS Code)
+
+The VS Code extension automatically registers the MCP server. Just install the extension and ask Copilot:
+
+> "Run a quick security scan on this file using CytoScnPy"
 
 ## Available Tools
 
-| Tool                    | Description                        | Parameters                                                               |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| `analyze_path`          | Full analysis on files/directories | `path`, `scan_secrets`, `scan_danger`, `check_quality`, `taint_analysis` |
-| `analyze_code`          | Analyze code snippet directly      | `code`, `filename`                                                       |
-| `cyclomatic_complexity` | Calculate complexity metrics       | `path`                                                                   |
-| `maintainability_index` | Calculate MI scores (0-100)        | `path`                                                                   |
+| Tool                    | Description                                       | Parameters                                                               |
+| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
+| `analyze_path`          | Full analysis on files/directories                | `path`, `scan_secrets`, `scan_danger`, `check_quality`, `taint_analysis` |
+| `analyze_code`          | Analyze code snippet directly                     | `code`, `filename`                                                       |
+| `quick_scan`            | Fast security scan (secrets & dangerous patterns) | `path`                                                                   |
+| `cyclomatic_complexity` | Calculate complexity metrics                      | `path`                                                                   |
+| `maintainability_index` | Calculate MI scores (0-100)                       | `path`                                                                   |
 
 ### Example Tool Calls
 
-**Analyze a project:**
+**Quick security scan:**
+
+```json
+{
+  "tool": "quick_scan",
+  "arguments": {
+    "path": "/home/user/myproject"
+  }
+}
+```
+
+**Full analysis:**
 
 ```json
 {
@@ -79,7 +127,8 @@ Add to Cursor's MCP settings with the path to the binary.
   "arguments": {
     "path": "/home/user/myproject",
     "scan_secrets": true,
-    "scan_danger": true
+    "scan_danger": true,
+    "check_quality": true
   }
 }
 ```
@@ -100,14 +149,14 @@ Add to Cursor's MCP settings with the path to the binary.
 
 ```
 ┌─────────────────────┐
-│  Claude / LLM       │
+│  Claude / Copilot   │
 │  (MCP Client)       │
 └──────────┬──────────┘
            │ JSON-RPC over stdio
            ▼
 ┌─────────────────────┐
-│  cytoscnpy-mcp      │
-│  (This binary)      │
+│  cytoscnpy          │
+│  mcp-server         │
 └──────────┬──────────┘
            │ Direct Rust function calls
            ▼

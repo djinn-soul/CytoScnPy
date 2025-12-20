@@ -44,6 +44,9 @@ compact_str = "0.9"
 smallvec = "1.15"
 # Optional heap profiler
 dhat = { version = "0.3", optional = true }
+# Tree-sitter for CST parsing (optional, for --fix support)
+tree-sitter = { version = "0.24", optional = true }
+tree-sitter-python = { version = "0.23", optional = true }
 
 [features]
 default = []
@@ -53,6 +56,11 @@ python-bindings = ["pyo3"]
 python-tests = ["pyo3/auto-initialize", "python-bindings"]
 # Enable heap profiling with dhat
 heap-profile = ["dhat"]
+# Enable CST-based precise source mapping for --fix support
+cst = ["tree-sitter", "tree-sitter-python"]
+# Enable CFG-based behavioral validation (deferred, secondary filter)
+cfg = []
+
 
 # Inherit lints from workspace
 [lints]

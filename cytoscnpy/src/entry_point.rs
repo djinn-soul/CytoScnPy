@@ -511,15 +511,17 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             let clone_options = crate::commands::CloneOptions {
                 similarity: cli_var.clone_similarity,
                 json: cli_var.output.json,
-                fix: cli_var.fix,
+                fix: false, // Clones are report-only, never auto-fixed
                 dry_run: cli_var.dry_run,
                 exclude: vec![], // Use empty - files already filtered by analyzer
                 verbose: cli_var.output.verbose,
+                with_cst: cli_var.with_cst,
             };
             crate::commands::run_clones(&cli_var.paths, clone_options, &mut stdout)?;
         }
 
         // Handle --fix flag for dead code removal
+        // Only run if we didn't also run clones (clones are report-only)
         if cli_var.fix && !cli_var.clones {
             if cli_var.output.verbose && !cli_var.output.json {
                 eprintln!("[VERBOSE] Dead code fix mode enabled");
@@ -533,6 +535,9 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 );
                 eprintln!("   Min confidence: 90%");
                 eprintln!("   Targets: functions, classes, imports");
+                if cli_var.with_cst {
+                    eprintln!("   CST mode: enabled (precise byte ranges)");
+                }
                 eprintln!();
             }
             let mut stdout = std::io::stdout();
@@ -543,6 +548,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 fix_classes: true,
                 fix_imports: true,
                 verbose: cli_var.output.verbose,
+                with_cst: cli_var.with_cst,
             };
             crate::commands::run_fix_deadcode(&result, fix_options, &mut stdout)?;
         }

@@ -19,7 +19,7 @@ mod similarity;
 mod types;
 
 // Re-exports
-pub use confidence::{ConfidenceScorer, FixConfidence, FixDecision};
+pub use confidence::{ConfidenceScorer, FixConfidence, FixContext, FixDecision};
 pub use config::CloneConfig;
 pub use normalizer::Normalizer;
 pub use parser::AstParser;

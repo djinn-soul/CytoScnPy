@@ -65,6 +65,13 @@ pub struct FixContext {
     pub structural_match_verified: bool,
     /// Is the fix idempotent?
     pub is_idempotent: bool,
+    // ── CST-derived context (populated when --fix-* enabled) ──
+    /// Are there interleaved comments within the definition body?
+    pub has_interleaved_comments: bool,
+    /// Do decorators differ between clones?
+    pub decorators_differ: bool,
+    /// Is the definition deeply nested (>2 levels)?
+    pub deeply_nested: bool,
 }
 
 /// Confidence scorer with configurable thresholds
@@ -180,6 +187,37 @@ impl ConfidenceScorer {
         if context.is_idempotent {
             score += 10;
             factors.push(ConfidenceFactor::new("idempotent", 10, "idempotent fix"));
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // CST-DERIVED FACTORS (when --fix-* enabled)
+        // ══════════════════════════════════════════════════════════════
+
+        if context.has_interleaved_comments {
+            score -= 15;
+            factors.push(ConfidenceFactor::new(
+                "interleaved_comments",
+                -15,
+                "comments interleaved in body",
+            ));
+        }
+
+        if context.decorators_differ {
+            score -= 20;
+            factors.push(ConfidenceFactor::new(
+                "decorators_differ",
+                -20,
+                "decorators differ between clones",
+            ));
+        }
+
+        if context.deeply_nested {
+            score -= 10;
+            factors.push(ConfidenceFactor::new(
+                "deeply_nested",
+                -10,
+                "definition nested >2 levels",
+            ));
         }
 
         // Clamp to 0-100

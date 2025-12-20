@@ -76,6 +76,18 @@ pub mod clones;
 /// Provides reusable byte-range safe code rewriting for `--fix` support.
 pub mod fix;
 
+/// CST (Concrete Syntax Tree) module for precise source mapping.
+/// Provides Tree-sitter based parsing for `--fix` with comment preservation.
+/// Only available with the `cst` feature.
+#[cfg(feature = "cst")]
+pub mod cst;
+
+/// CFG (Control Flow Graph) module for behavioral validation.
+/// Provides secondary filtering for clone detection.
+/// Only available with the `cfg` feature.
+#[cfg(feature = "cfg")]
+pub mod cfg;
+
 /// Python bindings module (PyO3 integration).
 /// Contains the implementation of Python-callable functions.
 #[cfg(feature = "python-bindings")]

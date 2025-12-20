@@ -6,13 +6,14 @@ This benchmark evaluates **11 dead code detection tools** against a curated Pyth
 
 ### Key Highlights
 
-| Metric                     | Winner           | Value           |
-| -------------------------- | ---------------- | --------------- |
-| 🚀 **Fastest Tool**        | CytoScnPy (Rust) | 0.04s           |
-| 🎯 **Best Overall F1**     | deadcode         | 0.6667          |
-| 🔬 **Highest Precision**   | uncalled         | 0.7564          |
-| 💾 **Lowest Memory**       | CytoScnPy (Rust) | 9.7 MB          |
-| ⚖️ **Best Speed/Accuracy** | CytoScnPy        | 0.04s @ F1 0.63 |
+| Metric                       | Winner           | Value           |
+| ---------------------------- | ---------------- | --------------- |
+| 🚀 **Fastest Tool**          | CytoScnPy (Rust) | 0.04s           |
+| 🎯 **Best Overall F1**       | deadcode         | 0.6716          |
+| 🔬 **Highest Precision**     | uncalled         | 0.7564          |
+| 💾 **Lowest Memory**         | CytoScnPy (Rust) | 8.2 MB          |
+| ⚖️ **Best Speed/Accuracy**   | CytoScnPy        | 0.04s @ F1 0.64 |
+| 🏆 **Best Method Detection** | CytoScnPy        | F1=0.81         |
 
 ### Detection Capabilities at a Glance
 
@@ -105,17 +106,17 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Tool                 | Time (s) | Mem (MB) | TP     | FP     | FN     | Precision  | Recall     | F1 Score   |
 | -------------------- | -------- | -------- | ------ | ------ | ------ | ---------- | ---------- | ---------- |
-| **CytoScnPy (Rust)** | **0.04** | **9.7**  | **77** | **38** | **54** | **0.6696** | **0.5878** | **0.6260** |
-| CytoScnPy (Python)   | 0.22     | 27.5     | 77     | 38     | 54     | 0.6696     | 0.5878     | 0.6260     |
-| Skylos               | 1.31     | 64.7     | 64     | 29     | 67     | 0.6882     | 0.4885     | 0.5714     |
-| Vulture (0%)         | 0.26     | 20.1     | 88     | 53     | 43     | 0.6241     | 0.6718     | 0.6471     |
-| Vulture (60%)        | 0.22     | 20.1     | 88     | 53     | 43     | 0.6241     | 0.6718     | 0.6471     |
-| Flake8               | 4.30     | 272.7    | 15     | 17     | 116    | 0.4688     | 0.1145     | 0.1840     |
-| Pylint               | 12.78    | 400.9    | 17     | 18     | 114    | 0.4857     | 0.1298     | 0.2048     |
-| Ruff                 | 0.31     | 38.0     | 24     | 20     | 107    | 0.5455     | 0.1832     | 0.2743     |
-| uncalled             | 0.26     | 18.5     | 59     | 19     | 72     | 0.7564     | 0.4504     | 0.5646     |
-| dead                 | 0.44     | 38.3     | 41     | 51     | 90     | 0.4457     | 0.3130     | 0.3677     |
-| **deadcode**         | 0.35     | 29.1     | **90** | 49     | 41     | 0.6475     | **0.6870** | **0.6667** |
+| **CytoScnPy (Rust)** | **0.04** | **8.2**  | **80** | **37** | **52** | **0.6838** | **0.6061** | **0.6426** |
+| CytoScnPy (Python)   | 0.12     | 22.8     | 78     | 38     | 54     | 0.6724     | 0.5909     | 0.6290     |
+| Skylos               | 1.32     | 64.6     | 64     | 29     | 68     | 0.6882     | 0.4848     | 0.5689     |
+| Vulture (0%)         | 0.23     | 20.1     | 89     | 52     | 43     | 0.6312     | 0.6742     | 0.6520     |
+| Vulture (60%)        | 0.20     | 20.2     | 89     | 52     | 43     | 0.6312     | 0.6742     | 0.6520     |
+| Flake8               | 1.18     | 272.1    | 16     | 16     | 116    | 0.5000     | 0.1212     | 0.1951     |
+| Pylint               | 6.22     | 414.5    | 17     | 18     | 115    | 0.4857     | 0.1288     | 0.2036     |
+| Ruff                 | 0.17     | 38.0     | 25     | 19     | 107    | 0.5682     | 0.1894     | 0.2841     |
+| uncalled             | 0.13     | 18.0     | 59     | 19     | 73     | 0.7564     | 0.4470     | 0.5619     |
+| dead                 | 0.24     | 37.2     | 41     | 51     | 91     | 0.4457     | 0.3130     | 0.3661     |
+| **deadcode**         | 0.31     | 29.0     | **91** | 48     | 41     | 0.6547     | **0.6894** | **0.6716** |
 
 ---
 
@@ -212,31 +213,31 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 ### Method Detection (27 ground truth items)
 
-| Tool             | TP  | FP  | FN  | Precision | Recall | F1 Score |
-| ---------------- | --- | --- | --- | --------- | ------ | -------- |
-| uncalled         | 19  | 0   | 8   | 1.0000    | 0.7037 | 0.8261   |
-| CytoScnPy (Rust) | 19  | 4   | 8   | 0.8261    | 0.7037 | 0.7600   |
-| Vulture          | 19  | 5   | 8   | 0.7917    | 0.7037 | 0.7451   |
-| deadcode         | 19  | 5   | 8   | 0.7917    | 0.7037 | 0.7451   |
-| Skylos           | 16  | 4   | 11  | 0.8000    | 0.5926 | 0.6809   |
-| dead             | 11  | 0   | 16  | 1.0000    | 0.4074 | 0.5789   |
-| Flake8           | 0   | 0   | 27  | 0.0000    | 0.0000 | 0.0000   |
-| Pylint           | 0   | 0   | 27  | 0.0000    | 0.0000 | 0.0000   |
-| Ruff             | 0   | 0   | 27  | 0.0000    | 0.0000 | 0.0000   |
+| Tool                 | TP     | FP  | FN    | Precision | Recall     | F1 Score   |
+| -------------------- | ------ | --- | ----- | --------- | ---------- | ---------- |
+| uncalled             | 19     | 0   | 8     | 1.0000    | 0.7037     | 0.8261     |
+| **CytoScnPy (Rust)** | **21** | 4   | **6** | 0.8400    | **0.7778** | **0.8077** |
+| Vulture              | 19     | 5   | 8     | 0.7917    | 0.7037     | 0.7451     |
+| deadcode             | 19     | 5   | 8     | 0.7917    | 0.7037     | 0.7451     |
+| Skylos               | 16     | 4   | 11    | 0.8000    | 0.5926     | 0.6809     |
+| dead                 | 11     | 0   | 16    | 1.0000    | 0.4074     | 0.5789     |
+| Flake8               | 0      | 0   | 27    | 0.0000    | 0.0000     | 0.0000     |
+| Pylint               | 0      | 0   | 27    | 0.0000    | 0.0000     | 0.0000     |
+| Ruff                 | 0      | 0   | 27    | 0.0000    | 0.0000     | 0.0000     |
 
 #### Analysis
 
-| Tool            | Explanation                                                                                                                                                                                              |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **uncalled** 🥇 | Perfect precision! Every method it flags is genuinely unused. Reports methods as functions, correctly matched via type aliasing. Misses 8 methods (likely in complex inheritance or dynamically called). |
-| **CytoScnPy**   | Strong performer with 19 detections. Good balance of precision and recall for method detection.                                                                                                          |
-| **Vulture**     | Same performance as CytoScnPy. Reports "unused function" for methods. 5 FP likely from methods used via `super()` calls or overridden in subclasses.                                                     |
-| **deadcode**    | Same method detection as Vulture and CytoScnPy. Good at finding unused methods.                                                                                                                          |
-| **Skylos**      | Good detection with 4 FP. Similar to Vulture in approach. FP from methods it can't trace through inheritance chains.                                                                                     |
-| **dead**        | Perfect precision but lowest recall (41%). Very conservative - only flags methods it's absolutely certain are unused.                                                                                    |
-| **Flake8**      | No method detection. Style linter only.                                                                                                                                                                  |
-| **Pylint**      | No `unused-method` rule exists. Would need custom implementation to track method calls.                                                                                                                  |
-| **Ruff**        | No method detection rules implemented.                                                                                                                                                                   |
+| Tool             | Explanation                                                                                                                                                                                              |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **uncalled** 🥇  | Perfect precision! Every method it flags is genuinely unused. Reports methods as functions, correctly matched via type aliasing. Misses 8 methods (likely in complex inheritance or dynamically called). |
+| **CytoScnPy** 🥈 | Improved to 21 detections with best balance of precision (84%) and recall (78%) for method detection. Outperforms Vulture and deadcode.                                                                  |
+| **Vulture**      | Same performance as deadcode. Reports "unused function" for methods. 5 FP likely from methods used via `super()` calls or overridden in subclasses.                                                      |
+| **deadcode**     | Same method detection as Vulture and CytoScnPy. Good at finding unused methods.                                                                                                                          |
+| **Skylos**       | Good detection with 4 FP. Similar to Vulture in approach. FP from methods it can't trace through inheritance chains.                                                                                     |
+| **dead**         | Perfect precision but lowest recall (41%). Very conservative - only flags methods it's absolutely certain are unused.                                                                                    |
+| **Flake8**       | No method detection. Style linter only.                                                                                                                                                                  |
+| **Pylint**       | No `unused-method` rule exists. Would need custom implementation to track method calls.                                                                                                                  |
+| **Ruff**         | No method detection rules implemented.                                                                                                                                                                   |
 
 > **Note:** Method detection is challenging because methods can be called via `self`, `super()`, inheritance, or dynamically via `getattr()`. Tools with 100% precision prioritize avoiding false positives.
 
@@ -619,4 +620,4 @@ Memory is measured as **Peak Resident Set Size (RSS)** during tool execution:
 
 ---
 
-_Last updated: 2025-12-12 (131 total ground truth items, 11 tools benchmarked)_
+_Last updated: 2025-12-20 (132 total ground truth items, 11 tools benchmarked)_

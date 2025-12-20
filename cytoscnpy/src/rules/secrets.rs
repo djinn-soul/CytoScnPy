@@ -384,8 +384,6 @@ pub fn scan_secrets(
             // Skip this line if it's a docstring and skip_docstrings is enabled
             let is_docstring_line = config.skip_docstrings
                 && docstring_lines.is_some_and(|lines| lines.contains(&(line_idx + 1)));
-                && docstring_lines
-                    .is_some_and(|lines| lines.contains(&(line_idx + 1)));
 
             if !is_docstring_line {
                 for literal in extract_string_literals(line) {

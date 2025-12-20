@@ -634,6 +634,8 @@ pub struct CloneOptions {
     pub exclude: Vec<String>,
     /// Verbose output
     pub verbose: bool,
+    /// Use CST for precise fixing (comment preservation)
+    pub with_cst: bool,
 }
 
 /// Executes clone detection analysis.
@@ -643,7 +645,9 @@ pub struct CloneOptions {
 /// Returns an error if file I/O fails or analysis fails.
 #[allow(clippy::too_many_lines)]
 pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer: W) -> Result<()> {
-    use crate::clones::{CloneConfig, CloneDetector, CloneFinding};
+    use crate::clones::{CloneConfig, CloneDetector, CloneFinding, ConfidenceScorer, FixContext};
+    #[cfg(feature = "cst")]
+    use crate::cst::{AstCstMapper, CstParser};
     use crate::fix::{ByteRangeRewriter, Edit};
 
     // Collect all Python files
@@ -709,19 +713,44 @@ pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer
     }
 
     // Convert to findings for output
+    let scorer = ConfidenceScorer::default();
+
     let findings: Vec<CloneFinding> = result
         .pairs
         .iter()
         .flat_map(|pair| {
-            // Set confidence based on clone type
-            let base_confidence = match pair.clone_type {
-                crate::clones::CloneType::Type1 => 95, // Exact copy - safe to auto-fix
-                crate::clones::CloneType::Type2 => 85, // Renamed - review recommended
-                crate::clones::CloneType::Type3 => 70, // Similar - manual review needed
+            // Helper to calc confidence for an instance removal
+            let calc_conf = |inst: &crate::clones::CloneInstance| -> u8 {
+                let mut ctx = FixContext::default();
+                ctx.same_file = pair.is_same_file();
+
+                #[cfg(feature = "cst")]
+                if options.with_cst {
+                    if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &inst.file) {
+                        if let Ok(mut parser) = CstParser::new() {
+                            if let Ok(tree) = parser.parse(content) {
+                                let mapper = AstCstMapper::new(tree);
+                                ctx.has_interleaved_comments =
+                                    mapper.has_interleaved_comments(inst.start_byte, inst.end_byte);
+                                ctx.deeply_nested =
+                                    mapper.is_deeply_nested(inst.start_byte, inst.end_byte);
+                            }
+                        }
+                    }
+                }
+
+                scorer.score(pair, &ctx).score
             };
+
+            // Calculate confidence for removing instance A and instance B respectively
+            let conf_a = calc_conf(&pair.instance_a);
+            let conf_b = calc_conf(&pair.instance_b);
+
+            // from_pair(..., false, ...) creates finding for instance A
+            // from_pair(..., true, ...) creates finding for instance B
             vec![
-                CloneFinding::from_pair(pair, false, base_confidence), // canonical
-                CloneFinding::from_pair(pair, true, base_confidence),  // duplicate
+                CloneFinding::from_pair(pair, false, conf_a),
+                CloneFinding::from_pair(pair, true, conf_b),
             ]
         })
         .collect();
@@ -795,9 +824,23 @@ pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer
 
         for finding in &findings {
             if finding.is_duplicate && finding.fix_confidence >= 90 {
-                // Use AST-derived byte ranges directly (no manual calculation needed)
-                let start_byte = finding.start_byte;
-                let end_byte = finding.end_byte;
+                // Use AST-derived byte ranges, optionally refined by CST
+                let mut start_byte = finding.start_byte;
+                let mut end_byte = finding.end_byte;
+
+                #[cfg(feature = "cst")]
+                if options.with_cst {
+                    if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &finding.file) {
+                        if let Ok(mut parser) = CstParser::new() {
+                            if let Ok(tree) = parser.parse(content) {
+                                let mapper = AstCstMapper::new(tree);
+                                let (s, e) = mapper.precise_range_for_def(start_byte, end_byte);
+                                start_byte = s;
+                                end_byte = e;
+                            }
+                        }
+                    }
+                }
 
                 // Skip if we've already seen this range (avoid duplicate edits)
                 let range_key = (finding.file.clone(), start_byte, end_byte);
@@ -871,6 +914,8 @@ pub struct DeadCodeFixOptions {
     pub fix_imports: bool,
     /// Verbose output
     pub verbose: bool,
+    /// Use CST for precise fixing
+    pub with_cst: bool,
 }
 
 /// Result of dead code fix operation
@@ -895,6 +940,8 @@ pub fn run_fix_deadcode<W: Write>(
     options: DeadCodeFixOptions,
     mut writer: W,
 ) -> Result<Vec<FixResult>> {
+    #[cfg(feature = "cst")]
+    use crate::cst::{AstCstMapper, CstParser};
     use crate::fix::{ByteRangeRewriter, Edit};
     use std::collections::HashMap;
 
@@ -1043,8 +1090,28 @@ pub fn run_fix_deadcode<W: Write>(
         let mut edits = Vec::new();
         let mut removed_names = Vec::new();
 
+        #[cfg(feature = "cst")]
+        let cst_mapper = if options.with_cst {
+            CstParser::new()
+                .ok()
+                .and_then(|mut p| p.parse(&content).ok())
+                .map(AstCstMapper::new)
+        } else {
+            None
+        };
+
         for (item_type, def) in &items {
             if let Some((start, end)) = find_def_range(&module.body, &def.simple_name, item_type) {
+                let mut start_byte = start;
+                let mut end_byte = end;
+
+                #[cfg(feature = "cst")]
+                if let Some(mapper) = &cst_mapper {
+                    let (s, e) = mapper.precise_range_for_def(start, end);
+                    start_byte = s;
+                    end_byte = e;
+                }
+
                 if options.dry_run {
                     writeln!(
                         writer,
@@ -1055,7 +1122,7 @@ pub fn run_fix_deadcode<W: Write>(
                         def.line
                     )?;
                 } else {
-                    edits.push(Edit::delete(start, end));
+                    edits.push(Edit::delete(start_byte, end_byte));
                     removed_names.push(def.simple_name.clone());
                 }
             }

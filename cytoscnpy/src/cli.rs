@@ -164,14 +164,20 @@ pub struct Cli {
     #[arg(long, default_value = "0.8")]
     pub clone_similarity: f64,
 
-    /// Auto-fix detected issues (removes dead code, consolidates clones).
+    /// Auto-fix detected dead code (removes unused functions, classes, imports).
     /// Use with caution: always review changes first with --dry-run.
+    /// Note: Clone detection is report-only; clones are never auto-removed.
     #[arg(long)]
     pub fix: bool,
 
     /// Dry-run mode for --fix: show what would be changed without modifying files.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Enable CST-based precise fixing (requires tree-sitter feature).
+    /// Provides better comment preservation and exact byte ranges.
+    #[arg(long)]
+    pub with_cst: bool,
 }
 
 #[derive(Subcommand, Debug)]

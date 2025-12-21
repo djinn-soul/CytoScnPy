@@ -225,6 +225,103 @@ my_data.extractall()
     assert!(!linter.findings.iter().any(|f| f.rule_id == "CSP-D503"));
 }
 
+// --- XML PARSING TESTS (CSP-D104) ---
+
+#[test]
+fn test_xml_etree_parse_unsafe() {
+    let source = r#"
+import xml.etree.ElementTree as ET
+ET.parse("file.xml")
+"#;
+    scan_danger!(source, linter);
+    let finding = linter.findings.iter().find(|f| f.rule_id == "CSP-D104");
+    assert!(finding.is_some());
+    assert_eq!(finding.unwrap().severity, "MEDIUM");
+}
+
+#[test]
+fn test_xml_etree_fromstring_unsafe() {
+    let source = r#"
+import xml.etree.ElementTree as ET
+ET.fromstring("<root>...</root>")
+"#;
+    scan_danger!(source, linter);
+    assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-D104"));
+}
+
+#[test]
+fn test_xml_dom_minidom_parse_unsafe() {
+    let source = r#"
+import xml.dom.minidom
+xml.dom.minidom.parse("file.xml")
+"#;
+    scan_danger!(source, linter);
+    let finding = linter.findings.iter().find(|f| f.rule_id == "CSP-D104");
+    assert!(finding.is_some());
+    assert!(finding.unwrap().message.contains("minidom"));
+}
+
+#[test]
+fn test_xml_sax_parse_unsafe() {
+    let source = r#"
+import xml.sax
+xml.sax.parse("file.xml", None)
+"#;
+    scan_danger!(source, linter);
+    let finding = linter.findings.iter().find(|f| f.rule_id == "CSP-D104");
+    assert!(finding.is_some());
+    assert!(finding.unwrap().message.contains("XXE"));
+}
+
+#[test]
+fn test_xml_sax_make_parser_unsafe() {
+    let source = r#"
+import xml.sax
+xml.sax.make_parser()
+"#;
+    scan_danger!(source, linter);
+    assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-D104"));
+}
+
+#[test]
+fn test_lxml_etree_parse_high_severity() {
+    let source = r#"
+import lxml.etree
+lxml.etree.parse("file.xml")
+"#;
+    scan_danger!(source, linter);
+    let finding = linter.findings.iter().find(|f| f.rule_id == "CSP-D104");
+    assert!(finding.is_some());
+    assert_eq!(finding.unwrap().severity, "HIGH");
+}
+
+#[test]
+fn test_lxml_etree_fromstring_high_severity() {
+    let source = r#"
+import lxml.etree
+lxml.etree.fromstring("<root>...</root>")
+"#;
+    scan_danger!(source, linter);
+    let finding = linter.findings.iter().find(|f| f.rule_id == "CSP-D104");
+    assert!(finding.is_some());
+    assert_eq!(finding.unwrap().severity, "HIGH");
+    assert!(finding.unwrap().message.contains("XXE"));
+}
+
+#[test]
+fn test_defusedxml_is_safe() {
+    // defusedxml with a different alias should NOT trigger findings
+    // Note: ET.parse is flagged because we can't track import aliases statically
+    // Using a different alias name demonstrates safe xml parsing
+    let source = r#"
+import defusedxml.ElementTree as SafeET
+SafeET.parse("file.xml")
+SafeET.fromstring("<root>...</root>")
+"#;
+    scan_danger!(source, linter);
+    assert!(!linter.findings.iter().any(|f| f.rule_id == "CSP-D104"));
+}
+
 #[test]
 fn test_subprocess_without_shell_true_is_ok() {
     let source = "import subprocess\nsubprocess.run(['echo','hi'])\n";
@@ -326,6 +423,28 @@ def f(cur, name):
 }
 
 // --- SECRETS TESTS ---
+
+#[test]
+fn test_sql_execute_format_unsafe() {
+    let source = r#"
+def f(cur, name):
+    # .format() -> should flag CSP-D101
+    cur.execute("SELECT * FROM users WHERE name = '{}'".format(name))
+"#;
+    scan_danger!(source, linter);
+    assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-D101"));
+}
+
+#[test]
+fn test_sql_execute_percent_unsafe() {
+    let source = r#"
+def f(cur, name):
+    # % formatting -> should flag CSP-D101
+    cur.execute("SELECT * FROM users WHERE name = '%s'" % name)
+"#;
+    scan_danger!(source, linter);
+    assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-D101"));
+}
 
 #[test]
 fn test_aws_key_detection() {

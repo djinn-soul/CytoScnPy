@@ -9,10 +9,6 @@ description = "MCP server exposing CytoScnPy static analysis tools for LLM integ
 name = "cytoscnpy_mcp"
 path = "src/lib.rs"
 
-[[bin]]
-name = "cytoscnpy-mcp"
-path = "src/main.rs"
-
 [dependencies]
 cytoscnpy = { path = "../cytoscnpy" }
 rmcp = { version = "0.11.0", features = ["server", "transport-io"] }

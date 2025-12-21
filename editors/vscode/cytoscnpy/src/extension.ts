@@ -213,6 +213,52 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(issuesTreeView);
 
+    // Register MCP server definition provider for GitHub Copilot integration
+    // This allows Copilot to use CytoScnPy's MCP server in agent mode
+    // Note: This API requires VS Code 1.96+ and GitHub Copilot extension
+    if (
+      vscode.lm &&
+      typeof vscode.lm.registerMcpServerDefinitionProvider === "function"
+    ) {
+      try {
+        const mcpDidChangeEmitter = new vscode.EventEmitter<void>();
+        context.subscriptions.push(
+          vscode.lm.registerMcpServerDefinitionProvider("cytoscnpy-mcp", {
+            onDidChangeMcpServerDefinitions: mcpDidChangeEmitter.event,
+            provideMcpServerDefinitions: async () => {
+              const executablePath = getExecutablePath(context);
+              const workspaceFolders = vscode.workspace.workspaceFolders;
+              const cwd = workspaceFolders?.[0]?.uri.fsPath ?? null;
+
+              const extension =
+                vscode.extensions.getExtension("djinn09.cytoscnpy");
+              const version = extension?.packageJSON?.version || "0.1.0";
+
+              return [
+                new vscode.McpStdioServerDefinition(
+                  "CytoScnPy",
+                  executablePath,
+                  ["mcp-server"],
+                  {
+                    cwd: cwd,
+                    version: version,
+                  }
+                ),
+              ];
+            },
+            resolveMcpServerDefinition: async (server) => server,
+          })
+        );
+        console.log("CytoScnPy MCP server provider registered successfully");
+      } catch (mcpError) {
+        console.warn("Failed to register MCP server provider:", mcpError);
+      }
+    } else {
+      console.log(
+        "MCP server registration not available (requires VS Code 1.96+ with Copilot)"
+      );
+    }
+
     // Initialize gutter decoration types
     errorDecorationType = vscode.window.createTextEditorDecorationType({
       gutterIconPath: vscode.Uri.parse(
@@ -298,12 +344,7 @@ export function activate(context: vscode.ExtensionContext) {
         // Use cached diagnostics
         cytoscnpyDiagnostics.set(document.uri, cached.diagnostics);
         issuesTreeDataProvider.update(cached.diagnostics);
-        issuesTreeView.badge = {
-          value: cached.diagnostics.length,
-          tooltip: `CytoScnPy: ${cached.diagnostics.length} issue${
-            cached.diagnostics.length !== 1 ? "s" : ""
-          }`,
-        };
+
         const editor = vscode.window.activeTextEditor;
         if (
           editor &&
@@ -421,12 +462,6 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Update sidebar tree view with issue count and badge
         issuesTreeDataProvider.update(diagnostics);
-        issuesTreeView.badge = {
-          value: diagnostics.length,
-          tooltip: `CytoScnPy: ${diagnostics.length} issue${
-            diagnostics.length !== 1 ? "s" : ""
-          }`,
-        };
 
         // Apply gutter decorations to active editor
         const editor = vscode.window.activeTextEditor;

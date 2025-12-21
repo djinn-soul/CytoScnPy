@@ -67,6 +67,28 @@ Access these commands from the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | **CytoScnPy: Calculate Halstead Metrics**      | Show Halstead metrics (volume, difficulty).    |
 | **CytoScnPy: Calculate Maintainability Index** | Show maintainability index per function.       |
 
+## GitHub Copilot Integration
+
+This extension automatically registers CytoScnPy as an MCP (Model Context Protocol) server with GitHub Copilot. No manual configuration required!
+
+### Usage
+
+Simply ask Copilot to use CytoScnPy:
+
+- "Run a quick security scan on this file using CytoScnPy"
+- "Analyze this code for unused functions with CytoScnPy"
+- "Check the cyclomatic complexity of this file"
+
+### Available MCP Tools
+
+| Tool                    | Description                                       |
+| :---------------------- | :------------------------------------------------ |
+| `analyze_path`          | Full analysis on files/directories                |
+| `analyze_code`          | Analyze code snippet directly                     |
+| `quick_scan`            | Fast security scan (secrets & dangerous patterns) |
+| `cyclomatic_complexity` | Calculate complexity metrics                      |
+| `maintainability_index` | Calculate MI scores (0-100)                       |
+
 ## Known Issues
 
 - Jupyter notebook support (`.ipynb`) requires the `includeIpynb` setting to be enabled.

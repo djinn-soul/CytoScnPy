@@ -1,3 +1,4 @@
+use crate::constants::MAX_RECURSION_DEPTH;
 use crate::utils::LineIndex;
 use compact_str::CompactString;
 use ruff_python_ast::{self as ast, Expr, Stmt};
@@ -208,6 +209,10 @@ pub struct CytoScnPyVisitor<'a> {
     /// Cached scope prefix for faster qualified name building.
     /// Updated on scope push/pop to avoid rebuilding on every `resolve_name` call.
     cached_scope_prefix: String,
+    /// Current recursion depth for visit_stmt/visit_expr to prevent stack overflow.
+    depth: usize,
+    /// Whether the recursion limit was hit during traversal.
+    pub recursion_limit_hit: bool,
 }
 
 impl<'a> CytoScnPyVisitor<'a> {
@@ -235,6 +240,8 @@ impl<'a> CytoScnPyVisitor<'a> {
             metaclass_classes: FxHashSet::default(),
             self_referential_methods: FxHashSet::default(),
             cached_scope_prefix: cached_prefix,
+            depth: 0,
+            recursion_limit_hit: false,
         }
     }
 
@@ -527,6 +534,13 @@ impl<'a> CytoScnPyVisitor<'a> {
 
     /// Visits a statement node in the AST.
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
+        // Recursion depth guard to prevent stack overflow on deeply nested code
+        if self.depth >= MAX_RECURSION_DEPTH {
+            self.recursion_limit_hit = true;
+            return;
+        }
+        self.depth += 1;
+
         match stmt {
             // Handle function definitions (both sync and async - ruff uses is_async flag)
             Stmt::FunctionDef(node) => {
@@ -937,6 +951,8 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             _ => {}
         }
+
+        self.depth -= 1;
     }
 
     // Helper function to handle shared logic between FunctionDef and AsyncFunctionDef
@@ -1056,6 +1072,13 @@ impl<'a> CytoScnPyVisitor<'a> {
 
     /// Visits an expression node in the AST.
     pub fn visit_expr(&mut self, expr: &Expr) {
+        // Recursion depth guard to prevent stack overflow on deeply nested code
+        if self.depth >= MAX_RECURSION_DEPTH {
+            self.recursion_limit_hit = true;
+            return;
+        }
+        self.depth += 1;
+
         match expr {
             // Name usage (variable access)
             Expr::Name(node) => {
@@ -1367,10 +1390,19 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             _ => {}
         }
+
+        self.depth -= 1;
     }
 
     /// Helper to recursively visit match patterns
     fn visit_match_pattern(&mut self, pattern: &ast::Pattern) {
+        // Recursion depth guard to prevent stack overflow on deeply nested code
+        if self.depth >= MAX_RECURSION_DEPTH {
+            self.recursion_limit_hit = true;
+            return;
+        }
+        self.depth += 1;
+
         match pattern {
             ast::Pattern::MatchValue(node) => {
                 self.visit_expr(&node.value);
@@ -1432,5 +1464,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
             }
         }
+
+        self.depth -= 1;
     }
 }

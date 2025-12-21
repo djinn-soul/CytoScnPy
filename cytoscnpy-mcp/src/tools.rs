@@ -99,7 +99,12 @@ impl CytoScnPyServer {
     ///
     /// Returns an error if the path does not exist or if analysis fails.
     #[tool(
-        description = "Analyze Python code at a path for unused code, secrets, dangerous patterns, and quality issues. Returns JSON with findings."
+        description = "Comprehensive Python static analysis for a file or directory. Finds: \n\
+        • Unused functions, classes, imports, variables\n\
+        • Hardcoded secrets (API keys, passwords)\n\
+        • Dangerous patterns (eval, exec, pickle, shell injection)\n\
+        • Code quality issues (complexity, mutable defaults)\n\
+        Returns detailed JSON with severity levels (CRITICAL/HIGH/MEDIUM/LOW)."
     )]
     pub fn analyze_path(
         &self,
@@ -133,7 +138,9 @@ impl CytoScnPyServer {
     ///
     /// Returns an error if serialization of the results fails.
     #[tool(
-        description = "Analyze a Python code snippet directly for unused code, secrets, and issues. Useful for code not saved to disk."
+        description = "Analyze a Python code snippet directly without needing a file. \n\
+        Perfect for: reviewing code from chat, analyzing pasted snippets, quick security checks.\n\
+        Detects unused code, security issues, and quality problems. Returns JSON results."
     )]
     pub fn analyze_code(
         &self,
@@ -152,9 +159,66 @@ impl CytoScnPyServer {
         Ok(CallToolResult::success(vec![Content::text(json)]))
     }
 
+    /// Quick security scan - focuses only on secrets and dangerous patterns.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path does not exist or analysis fails.
+    #[tool(description = "Fast security-focused scan. Only checks for:\\n\
+        • Hardcoded secrets (API keys, passwords, tokens)\\n\
+        • Dangerous patterns (eval, exec, pickle, shell injection, SSRF)\\n\
+        Skips unused code detection for faster results. Perfect for CI/CD pipelines.")]
+    pub fn quick_scan(
+        &self,
+        params: Parameters<MetricsRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let req = params.0;
+        let path_buf = PathBuf::from(&req.path);
+
+        if !path_buf.exists() {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Path does not exist: {}",
+                req.path
+            ))]));
+        }
+
+        // Security-only scan - no unused code detection
+        let mut analyzer = CytoScnPy::default()
+            .with_secrets(true)
+            .with_danger(true)
+            .with_quality(false)
+            .with_taint(false);
+
+        let result = analyzer.analyze(path_buf.as_path());
+
+        // Return only security-relevant findings
+        let security_summary = serde_json::json!({
+            "scan_type": "quick_security_scan",
+            "path": req.path,
+            "summary": {
+                "secrets_found": result.secrets.len(),
+                "dangerous_patterns": result.danger.len(),
+                "total_issues": result.secrets.len() + result.danger.len(),
+            },
+            "secrets": result.secrets,
+            "danger": result.danger,
+            "recommendation": if result.secrets.is_empty() && result.danger.is_empty() {
+                "✅ No security issues found"
+            } else {
+                "⚠️ Security issues detected - review and fix immediately"
+            }
+        });
+
+        let json = serde_json::to_string_pretty(&security_summary)
+            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
     /// Calculate cyclomatic complexity for Python code.
     #[tool(
-        description = "Calculate cyclomatic complexity for Python code. Returns complexity scores with A-F ranking for each function."
+        description = "Calculate McCabe cyclomatic complexity for Python functions.\n\
+        Rankings: A (1-5 simple), B (6-10 moderate), C (11-20 complex), D (21-30 very complex), E/F (30+ unmaintainable).\n\
+        High complexity indicates code that is hard to test and maintain. Aim for ≤10 per function."
     )]
     fn cyclomatic_complexity(
         &self,
@@ -193,7 +257,9 @@ impl CytoScnPyServer {
 
     /// Calculate Maintainability Index for Python code.
     #[tool(
-        description = "Calculate Maintainability Index (0-100) for Python code. Higher scores indicate better maintainability."
+        description = "Calculate Maintainability Index (MI) for Python files.\n\
+        Scale: 0-100 where higher is better. Rankings: A (≥20 good), B (10-19 moderate), C (<10 poor).\n\
+        MI combines Halstead volume, cyclomatic complexity, and lines of code. Aim for MI ≥ 40."
     )]
     fn maintainability_index(
         &self,
@@ -237,9 +303,20 @@ impl ServerHandler for CytoScnPyServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "CytoScnPy is a high-performance Python static analyzer. \
-                 Use it to find unused code, detect secrets, identify dangerous patterns, \
-                 and measure code quality metrics like cyclomatic complexity and maintainability index."
+                "CytoScnPy is a high-performance Python static analyzer built in Rust. \n\n\
+                 🔍 TOOLS AVAILABLE:\n\
+                 • analyze_path - Full analysis of files/directories\n\
+                 • analyze_code - Analyze code snippets directly\n\
+                 • quick_scan - Fast security-only check (secrets + dangerous patterns)\n\
+                 • cyclomatic_complexity - Measure code complexity\n\
+                 • maintainability_index - Measure maintainability\n\n\
+                 📋 COMMON TASKS:\n\
+                 • 'Quick security check' → quick_scan\n\
+                 • 'Full analysis' → analyze_path with all flags\n\
+                 • 'Find unused code' → analyze_path, check unused_functions/imports\n\
+                 • 'Is this function too complex?' → cyclomatic_complexity\n\
+                 • 'Rate code quality' → maintainability_index\n\n\
+                 ⚠️ SEVERITY LEVELS: CRITICAL > HIGH > MEDIUM > LOW"
                     .into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),

@@ -1,5 +1,3 @@
-//! Test to verify the fix for the Order class false negative bug.
-//!
 //! This test ensures that user-defined BaseModel classes don't incorrectly
 //! trigger framework detection and cause subclasses to be marked as used.
 
@@ -38,7 +36,7 @@ user = User("John")
 "#;
 
     let analyzer = CytoScnPy::default();
-    let result = analyzer.analyze_code(code, PathBuf::from("test_models.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("test_models.py"));
 
     // Get class names from unused_classes
     let unused_class_names: Vec<&str> = result
@@ -96,7 +94,7 @@ class ProductSchema(BaseModel):
 "#;
 
     let analyzer = CytoScnPy::default();
-    let result = analyzer.analyze_code(code, PathBuf::from("test_pydantic.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("test_pydantic.py"));
 
     // Get class names from unused_classes
     let unused_class_names: Vec<&str> = result
@@ -130,7 +128,7 @@ class Product(models.Model):
 "#;
 
     let analyzer = CytoScnPy::default();
-    let result = analyzer.analyze_code(code, PathBuf::from("test_django.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("test_django.py"));
 
     // Get class names from unused_classes
     let unused_class_names: Vec<&str> = result

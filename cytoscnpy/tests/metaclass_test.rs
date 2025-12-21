@@ -5,7 +5,7 @@
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -15,8 +15,8 @@ macro_rules! visit_code {
         let line_index = LineIndex::new($code);
         let mut $visitor =
             CytoScnPyVisitor::new(PathBuf::from("test.py"), "test".to_string(), &line_index);
-        let ast = parse($code, Mode::Module, "test.py").unwrap();
-        if let rustpython_ast::Mod::Module(module) = ast {
+        let ast = parse($code, Mode::Module.into()).unwrap();
+        if let ruff_python_ast::Mod::Module(module) = ast.into_syntax() {
             for stmt in module.body {
                 $visitor.visit_stmt(&stmt);
             }
@@ -29,8 +29,8 @@ fn is_class_referenced(code: &str, class_name: &str) -> bool {
     let line_index = LineIndex::new(code);
     let mut visitor =
         CytoScnPyVisitor::new(PathBuf::from("test.py"), "test".to_string(), &line_index);
-    let ast = parse(code, Mode::Module, "test.py").unwrap();
-    if let rustpython_ast::Mod::Module(module) = ast {
+    let ast = parse(code, Mode::Module.into()).unwrap();
+    if let ruff_python_ast::Mod::Module(module) = ast.into_syntax() {
         for stmt in module.body {
             visitor.visit_stmt(&stmt);
         }
@@ -48,8 +48,8 @@ fn get_references(code: &str) -> HashSet<String> {
     let line_index = LineIndex::new(code);
     let mut visitor =
         CytoScnPyVisitor::new(PathBuf::from("test.py"), "test".to_string(), &line_index);
-    let ast = parse(code, Mode::Module, "test.py").unwrap();
-    if let rustpython_ast::Mod::Module(module) = ast {
+    let ast = parse(code, Mode::Module.into()).unwrap();
+    if let ruff_python_ast::Mod::Module(module) = ast.into_syntax() {
         for stmt in module.body {
             visitor.visit_stmt(&stmt);
         }
@@ -275,3 +275,5 @@ class Child(Parent, metaclass=ParentMeta):
         "ParentMeta should be in references"
     );
 }
+
+

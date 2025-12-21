@@ -4,6 +4,7 @@ use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::rules::Finding;
 use cytoscnpy::visitor::Definition;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[test]
 fn test_print_report_formatting() {
@@ -15,15 +16,17 @@ fn test_print_report_formatting() {
             full_name: "module.unused_func".to_owned(),
             simple_name: "unused_func".to_owned(),
             def_type: "function".to_owned(),
-            file: PathBuf::from("test.py"),
+            file: Arc::new(PathBuf::from("test.py")),
             line: 10,
             confidence: 100,
             references: 0,
             is_exported: false,
             in_init: false,
-            base_classes: vec![],
+            base_classes: smallvec::smallvec![],
             is_type_checking: false,
             cell_number: None,
+            is_self_referential: false,
+            message: Some("'unused_func' is defined but never used".to_owned()),
         }],
         unused_methods: vec![],
         unused_imports: vec![],

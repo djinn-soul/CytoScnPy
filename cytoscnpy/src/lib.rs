@@ -3,6 +3,14 @@
 //! This library provides the core functionality for analyzing Python code,
 //! including AST parsing, visitor traversal, and rule execution.
 
+// Allow common complexity warnings - these are intentional design choices
+#![allow(
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::ptr_arg,
+    clippy::similar_names
+)]
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;
@@ -62,15 +70,18 @@ pub mod taint;
 
 /// Python bindings module (PyO3 integration).
 /// Contains the implementation of Python-callable functions.
+#[cfg(feature = "python-bindings")]
 mod python_bindings;
 
 // Re-export the Python module at the crate root (required by PyO3)
+#[cfg(feature = "python-bindings")]
 use pyo3::prelude::*;
 
 /// Python module definition for `cytoscnpy`.
 ///
 /// This is the entry point for Python imports. The actual implementation
 /// is in the `python_bindings` module for better organization.
+#[cfg(feature = "python-bindings")]
 #[pymodule]
 fn cytoscnpy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     python_bindings::register_functions(m)

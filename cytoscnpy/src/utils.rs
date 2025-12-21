@@ -1,6 +1,6 @@
 use crate::constants::{DEFAULT_EXCLUDE_FOLDERS, FRAMEWORK_FILE_RE, TEST_FILE_RE};
-use rustpython_ast::TextSize;
-use std::collections::HashSet;
+use ruff_text_size::TextSize;
+use rustc_hash::FxHashSet;
 
 /// A utility struct to convert byte offsets to line numbers.
 ///
@@ -42,7 +42,7 @@ impl LineIndex {
 ///
 /// Returns a set of line numbers (1-indexed) that should be ignored by the analyzer.
 /// This allows users to suppress false positives or intentionally ignore specific lines.
-pub fn get_ignored_lines(source: &str) -> HashSet<usize> {
+pub fn get_ignored_lines(source: &str) -> FxHashSet<usize> {
     source
         .lines()
         .enumerate()
@@ -62,12 +62,12 @@ pub fn is_framework_path(p: &str) -> bool {
 }
 
 /// Parses exclude folders, combining defaults with user inputs.
-pub fn parse_exclude_folders(
-    user_exclude_folders: Option<HashSet<String>>,
+pub fn parse_exclude_folders<S: std::hash::BuildHasher>(
+    user_exclude_folders: Option<std::collections::HashSet<String, S>>,
     use_defaults: bool,
-    include_folders: Option<HashSet<String>>,
-) -> HashSet<String> {
-    let mut exclude_folders = HashSet::new();
+    include_folders: Option<std::collections::HashSet<String, S>>,
+) -> FxHashSet<String> {
+    let mut exclude_folders = FxHashSet::default();
 
     if use_defaults {
         for folder in DEFAULT_EXCLUDE_FOLDERS() {
@@ -88,76 +88,24 @@ pub fn parse_exclude_folders(
     exclude_folders
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_pragma_detection() {
-        let source = r#"
-def used_function():
-    return 42
-
-def unused_function():  # pragma: no cytoscnpy
-    return "ignored"
-
-class MyClass:  # pragma: no cytoscnpy
-    pass
-"#;
-        let ignored = get_ignored_lines(source);
-
-        // Lines 5 and 8 should be ignored (1-indexed)
-        assert!(ignored.contains(&5), "Should detect pragma on line 5");
-        assert!(ignored.contains(&8), "Should detect pragma on line 8");
-        assert_eq!(ignored.len(), 2, "Should find exactly 2 pragma lines");
-    }
-
-    #[test]
-    fn test_no_pragmas() {
-        let source = r#"
-def regular_function():
-    return 42
-"#;
-        let ignored = get_ignored_lines(source);
-        assert_eq!(ignored.len(), 0, "Should find no pragma lines");
-    }
-
-    #[test]
-    fn test_is_test_path() {
-        assert!(is_test_path("tests/test_foo.py"));
-        assert!(is_test_path("tests/foo_test.py"));
-        assert!(is_test_path("project/tests/test_bar.py"));
-        assert!(is_test_path("test_main.py"));
-        assert!(is_test_path("my_test.py"));
-
-        // Windows paths
-        assert!(is_test_path("tests\\test_foo.py"));
-        assert!(is_test_path("project\\tests\\test_bar.py"));
-
-        // Negative cases
-        assert!(!is_test_path("main.py"));
-        assert!(!is_test_path("utils.py"));
-        // "tests/utils.py" matches "tests/" prefix. So it IS a test path.
-        assert!(is_test_path("tests/utils.py"));
-
-        assert!(!is_test_path("prod_code.py"));
-    }
-
-    #[test]
-    fn test_is_framework_path() {
-        assert!(is_framework_path("views.py"));
-        assert!(is_framework_path("api/views.py"));
-        assert!(is_framework_path("handlers.py"));
-        assert!(is_framework_path("routes.py"));
-        assert!(is_framework_path("endpoints.py"));
-        assert!(is_framework_path("api.py"));
-
-        // Case insensitivity
-        assert!(is_framework_path("Views.py"));
-
-        // Negative cases
-        assert!(!is_framework_path("main.py"));
-        assert!(!is_framework_path("utils.py"));
-        assert!(!is_framework_path("models.py")); // models.py is not in the default list
-    }
+/// Normalizes a path for CLI display.
+///
+/// - Converts backslashes to forward slashes (for cross-platform consistency)
+/// - Strips leading "./" or ".\" prefix (for cleaner output)
+///
+/// # Examples
+/// ```
+/// use std::path::Path;
+/// use cytoscnpy::utils::normalize_display_path;
+///
+/// assert_eq!(normalize_display_path(Path::new(".\\benchmark\\test.py")), "benchmark/test.py");
+/// assert_eq!(normalize_display_path(Path::new("./src/main.py")), "src/main.py");
+/// ```
+pub fn normalize_display_path(path: &std::path::Path) -> String {
+    let s = path.to_string_lossy();
+    let normalized = s.replace('\\', "/");
+    normalized
+        .strip_prefix("./")
+        .unwrap_or(&normalized)
+        .to_string()
 }

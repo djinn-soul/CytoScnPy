@@ -14,7 +14,7 @@ fn test_cli_raw() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         Vec::new(),
@@ -40,20 +40,14 @@ fn test_cli_cc() {
 
     let mut buffer = Vec::new();
     run_cc(
-        dir.path().to_path_buf(),
-        false,
-        vec![],
-        Vec::new(),
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        false, // no_assert
-        false, // xml
-        None,  // fail_threshold
-        None,  // output_file
+        dir.path(),
+        cytoscnpy::commands::CcOptions {
+            json: false,
+            exclude: vec![],
+            ignore: Vec::new(),
+            output_file: None,
+            ..Default::default()
+        },
         &mut buffer,
     )
     .unwrap();
@@ -74,7 +68,7 @@ fn test_cli_hal() {
 
     let mut buffer = Vec::new();
     run_hal(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         vec![],
         Vec::new(),
@@ -100,6 +94,14 @@ fn test_cli_mi() {
 
     let mut buffer = Vec::new();
     run_mi(
+        dir.path(),
+        cytoscnpy::commands::MiOptions {
+            json: false,
+            exclude: vec![],
+            ignore: Vec::new(),
+            output_file: None,
+            ..Default::default()
+        },
         dir.path().to_path_buf(),
         false,
         vec![],
@@ -130,7 +132,7 @@ fn test_cli_json_output() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path().to_path_buf(),
+        dir.path(),
         true,
         vec![],
         Vec::new(),

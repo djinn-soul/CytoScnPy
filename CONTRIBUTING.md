@@ -174,9 +174,9 @@ The project includes several CI/CD workflows in `.github/workflows/`:
 
 | Workflow      | File            | Trigger         | Purpose                                     |
 | ------------- | --------------- | --------------- | ------------------------------------------- |
-| **Rust CI**   | `rust-ci.yml`   | Push/PR to main | Build, test, and lint Rust code             |
-| **Benchmark** | `benchmark.yml` | Push/PR to main | Run accuracy benchmarks, detect regressions |
-| **Coverage**  | `coverage.yml`  | Push/PR to main | Generate and upload code coverage reports   |
+| **Rust CI**   | `rust-ci.yml`   | PR to main      | Build, test, and lint Rust code             |
+| **Benchmark** | `benchmark.yml` | PR to main      | Run accuracy benchmarks, detect regressions |
+| **Coverage**  | `coverage.yml`  | Push to main    | Generate and upload code coverage reports   |
 | **Publish**   | `publish.yml`   | Git tags (`v*`) | Build wheels and publish to PyPI/TestPyPI   |
 
 ### Running Workflows Locally
@@ -390,7 +390,8 @@ cargo install cargo-tarpaulin cargo-mutants cargo-semver-checks
 
 ### Clippy (Linting)
 
-Configured via `Cargo.toml` workspace lints and `clippy.toml`. Pedantic lints are enabled.
+
+Clippy is a Rust linting tool that provides additional checks beyond the standard Rust compiler. It is configured via `Cargo.toml` workspace lints and `clippy.toml`. Pedantic lints are enabled.
 
 ```bash
 # Run clippy on all targets
@@ -576,187 +577,66 @@ pytest python/tests/test_integration.py -v
 pytest python/tests/test_json_output.py -v
 ```
 
-### Python Edge Case Test Suite
+### Rust Edge Case Test Suite
 
-The Rust implementation is validated against a comprehensive Python test suite (`test/test_rust_edge_cases.py`) that covers ~100+ edge cases and real-world scenarios. This test suite is **critical for ensuring parity** between the Python and Rust implementations.
+The Rust implementation includes a comprehensive test suite in `cytoscnpy/tests/` with **73 test files** covering 100+ edge cases and real-world scenarios.
 
 #### **Test Suite Overview:**
 
-- **72 tests** across 10+ categories
-- **56 project fixtures** (isolated temporary projects)
+- **73 test files** covering all analyzer functionality
+- **Isolated fixtures** using `tempfile` crate
 - **Covers advanced Python patterns** (decorators, async/await, metaclasses, etc.)
-- **Tests all CLI flags** (--danger, --quality, --secrets, --taint, --confidence)
-- **Parametrized tests** for different confidence thresholds
+- **Tests all CLI flags** (--danger, --quality, --secrets, --fail-threshold)
+- **Framework detection tests** for Flask, FastAPI, Django
 
-#### **Running Python Tests:**
 
-**Windows:**
+#### **Running Rust Tests:**
 
 ```bash
-# From workspace root (e:\Github\cytoscnpy)
-cd ..  # Go to cytoscnpy root
-
-# Activate Python environment
-.venv\Scripts\activate.bat
-
-# Collect all tests
-python -m pytest test/test_rust_edge_cases.py --collect-only -q
-
 # Run all tests
-python -m pytest test/test_rust_edge_cases.py -v
+cargo test
 
-# Run specific test category (e.g., decorators)
-python -m pytest test/test_rust_edge_cases.py -k "decorator" -v
+# Run specific test file
+cargo test --test edge_cases_test
+
+# Run specific test
+cargo test --test edge_cases_test test_nested_functions
 
 # Run with output
-python -m pytest test/test_rust_edge_cases.py -v -s
+cargo test -- --nocapture
 
-# Run tests in parallel (requires pytest-xdist)
-python -m pytest test/test_rust_edge_cases.py -n auto -v
+# Run in release mode (faster)
+cargo test --release
 
-# Run with coverage
-python -m pytest test/test_rust_edge_cases.py --cov=cytoscnpy_rs --cov-report=html -v
+# Run with logging
+RUST_LOG=debug cargo test
 ```
 
-**Linux/macOS:**
+#### **Key Test Files:**
 
-```bash
-# From workspace root
-cd ..  # Go to cytoscnpy root
+| Test File             | Coverage                                      |
+| --------------------- | --------------------------------------------- |
+| `edge_cases_test.rs`  | Comprehensive edge cases (~44 test functions) |
+| `framework_test.rs`   | Flask, Django, FastAPI detection              |
+| `security_test.rs`    | Secrets and dangerous code detection          |
+| `quality_test.rs`     | Code quality checks                           |
+| `taint_*_test.rs`     | Taint analysis (8 test files)                 |
+| `visitor_test.rs`     | AST visitor unit tests                        |
+| `integration_test.rs` | End-to-end binary tests                       |
+| `cli_*_test.rs`       | CLI flag and output tests                     |
 
-# Activate Python environment
-source .venv/bin/activate
+#### **Test Categories Covered:**
 
-# Collect all tests
-python -m pytest test/test_rust_edge_cases.py --collect-only -q
+- **Nested Structures**: Deeply nested functions/classes, factory patterns
+- **Decorators**: Custom, framework (@route), properties, static/class methods
+- **Imports**: Aliasing, circular, relative, conditional, TYPE_CHECKING
+- **OOP**: Inheritance, mixins, metaclasses, dataclasses, iterators
+- **Advanced Python**: Async/await, generators, walrus operator, match statements
+- **Code Quality**: Complexity, nesting, argument count, line count
+- **Security**: SQL injection, command injection, pickle, taint analysis
+- **Edge Cases**: Empty files, unicode identifiers, long names
 
-# Run all tests
-python -m pytest test/test_rust_edge_cases.py -v
-
-# Run specific test category (e.g., decorators)
-python -m pytest test/test_rust_edge_cases.py -k "decorator" -v
-
-# Run with output
-python -m pytest test/test_rust_edge_cases.py -v -s
-
-# Run tests in parallel (requires pytest-xdist)
-python -m pytest test/test_rust_edge_cases.py -n auto -v
-
-# Run with coverage
-python -m pytest test/test_rust_edge_cases.py --cov=cytoscnpy_rs --cov-report=html -v
-```
-
-#### **Test Categories:**
-
-| Category          | Tests | Features                                          |
-| ----------------- | ----- | ------------------------------------------------- |
-| Nested Structures | 1     | Deeply nested functions/classes                   |
-| Decorators        | 7     | Custom, framework (@route), properties            |
-| Imports           | 7     | Aliasing, circular, relative, conditional         |
-| OOP               | 11    | Inheritance, mixins, metaclasses, dataclasses     |
-| Advanced Python   | 15    | Async/await, generators, walrus operator, match   |
-| Code Quality      | 5     | Complexity, nesting, arguments, line count        |
-| Security          | 3     | SQL injection, command injection, pickle          |
-| Performance       | 2     | Large files (100+ functions), multi-file packages |
-| Configuration     | 7     | Confidence thresholds, CLI flags                  |
-| Edge Cases        | 8     | Empty files, unicode identifiers, long names      |
-
-#### **Key Test Features:**
-
-- **RustAnalyzerRunner**: Executes Rust CLI with JSON output parsing
-- **Isolated Fixtures**: Each test creates temporary project directory
-- **No Side Effects**: Auto-cleanup after each test
-- **Parametrized**: Tests confidence levels `[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]`
-- **Framework-Aware**: Tests Flask, FastAPI, Django patterns
-- **Flag Combinations**: Tests individual and combined CLI flags
-
-#### **When to Run Python Tests:**
-
-1. **After Major Changes**: Test against comprehensive edge cases
-2. **Before Pull Request**: Ensure Rust implementation handles real-world code
-3. **After Adding Features**: Validate new analyzer logic
-4. **For Parity Checking**: Compare Rust vs Python behavior on same code
-
-#### **Example: Testing a New Decorator Pattern**
-
-If you add support for a new decorator pattern in Rust:
-
-1. Look for existing test in `test_rust_edge_cases.py` for that pattern
-2. Run: `python -m pytest test/test_rust_edge_cases.py::test_rust_decorator_patterns -v`
-3. If test fails, debug your Rust implementation
-4. Ensure all decorator tests pass before committing
-
-**Windows Example:**
-
-```bash
-.venv\Scripts\activate.bat
-python -m pytest test/test_rust_edge_cases.py::test_rust_decorator_patterns -v
-```
-
-**Linux/macOS Example:**
-
-```bash
-source .venv/bin/activate
-python -m pytest test/test_rust_edge_cases.py::test_rust_decorator_patterns -v
-```
-
-#### **Example: Testing Framework Support**
-
-To verify Flask/FastAPI route detection works in Rust:
-
-**Windows:**
-
-```bash
-.venv\Scripts\activate.bat
-python -m pytest test/test_rust_edge_cases.py::test_rust_framework_decorators -v
-```
-
-**Linux/macOS:**
-
-```bash
-source .venv/bin/activate
-python -m pytest test/test_rust_edge_cases.py::test_rust_framework_decorators -v
-```
-
-This will test your Rust analyzer against:
-
-- Flask `@app.route()` decorators
-- FastAPI `@api.get()` / `@api.post()` decorators
-- Django ORM models
-- Before/after request handlers
-- Error handlers
-
-#### **Debugging Test Failures:**
-
-**Windows:**
-
-```bash
-.venv\Scripts\activate.bat
-
-# Show full error output
-python -m pytest test/test_rust_edge_cases.py::test_name -vv
-
-# Show print statements and logs
-python -m pytest test/test_rust_edge_cases.py::test_name -v -s
-
-# Run with pytest debugger
-python -m pytest test/test_rust_edge_cases.py::test_name --pdb
-```
-
-**Linux/macOS:**
-
-```bash
-source .venv/bin/activate
-
-# Show full error output
-python -m pytest test/test_rust_edge_cases.py::test_name -vv
-
-# Show print statements and logs
-python -m pytest test/test_rust_edge_cases.py::test_name -v -s
-
-# Run with pytest debugger
-python -m pytest test/test_rust_edge_cases.py::test_name --pdb
-```
+See [`cytoscnpy/tests/README.md`](cytoscnpy/tests/README.md) for detailed test documentation.
 
 ## 🪝 Pre-Commit Hooks
 
@@ -838,7 +718,7 @@ If you have questions, feel free to open an issue with the `question` label or s
 
 ### Testing-Specific Questions
 
-- **How do I add a new test?** See `test/test_rust_edge_cases.py` for patterns and fixtures.
-- **Why are tests skipped?** Tests skip if Rust binary (`cytoscnpy`) is not in PATH.
-- **Can I test without the Rust binary?** Yes—tests skip gracefully, but you can still run Rust's `cargo test`.
-- **How do I validate parity?** Run both `cargo test` and `python -m pytest test/test_rust_edge_cases.py` and compare results.
+- **How do I add a new test?** See `cytoscnpy/tests/edge_cases_test.rs` for patterns and fixtures, or `cytoscnpy/tests/README.md` for full documentation.
+- **Why are tests skipped?** Some tests require the compiled binary. Run `cargo build` first.
+- **Can I test without the Rust binary?** Yes—use `cargo test` to run the Rust test suite directly.
+- **How do I validate parity?** Run `cargo test` for Rust tests and `pytest python/tests/` for Python CLI wrapper tests.

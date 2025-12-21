@@ -22,7 +22,7 @@ class MyClass:
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_methods: Vec<String> = result
         .unused_methods
@@ -55,7 +55,7 @@ class Outer:
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_methods: Vec<String> = result
         .unused_methods
@@ -87,7 +87,7 @@ class Child(Parent):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_methods: Vec<String> = result
         .unused_methods
@@ -123,7 +123,7 @@ class MyClass:
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_methods: Vec<String> = result
         .unused_methods

@@ -6,3 +6,4 @@ pylint==4.0.4
 ruff==0.14.7
 dead==2.1.0
 skylos==2.5.3
+deadcode==2.4.1

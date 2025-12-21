@@ -18,6 +18,7 @@ use crate::config::Config;
 
 /// The main analyzer struct.
 /// Configuration options for the analysis are stored here.
+#[allow(clippy::struct_excessive_bools)]
 pub struct CytoScnPy {
     /// Confidence threshold (0-100). Findings below this are ignored.
     pub confidence_threshold: u8,
@@ -69,6 +70,7 @@ impl Default for CytoScnPy {
 
 impl CytoScnPy {
     /// Creates a new `CytoScnPy` analyzer instance with the given configuration.
+    #[must_use]
     #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
     pub fn new(
         confidence_threshold: u8,
@@ -175,5 +177,48 @@ impl CytoScnPy {
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = config;
         self
+    }
+
+    /// Counts the total number of Python files that would be analyzed.
+    /// Useful for setting up a progress bar before analysis.
+    #[must_use]
+    pub fn count_files(&self, paths: &[std::path::PathBuf]) -> usize {
+        use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
+        use walkdir::WalkDir;
+
+        let mut count = 0;
+        for path in paths {
+            if path.is_file() {
+                if path
+                    .extension()
+                    .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
+                {
+                    count += 1;
+                }
+            } else if path.is_dir() {
+                let mut it = WalkDir::new(path).into_iter();
+                while let Some(res) = it.next() {
+                    if let Ok(entry) = res {
+                        let name = entry.file_name().to_string_lossy();
+                        let is_force_included = entry.file_type().is_dir()
+                            && self.include_folders.iter().any(|f| f == &name);
+                        let should_exclude = entry.file_type().is_dir()
+                            && !is_force_included
+                            && (DEFAULT_EXCLUDE_FOLDERS().iter().any(|&f| f == name)
+                                || self.exclude_folders.iter().any(|f| f == &name));
+                        if should_exclude {
+                            it.skip_current_dir();
+                            continue;
+                        }
+                        if entry.path().extension().is_some_and(|ext| {
+                            ext == "py" || (self.include_ipynb && ext == "ipynb")
+                        }) {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        count
     }
 }

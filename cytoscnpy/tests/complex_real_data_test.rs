@@ -12,7 +12,7 @@ fn test_complex_real_data() {
 
     // Enable include_tests=true to ensure we scan everything (though these are not technically test files)
     let mut cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(true);
-    let result = cytoscnpy.analyze(&root_path).unwrap();
+    let result = cytoscnpy.analyze(&root_path);
 
     let unused_funcs: Vec<String> = result
         .unused_functions

@@ -64,13 +64,17 @@ pub struct SecretsConfig {
     /// Secrets in comments are often accidentally committed credentials.
     #[serde(default = "default_scan_comments")]
     pub scan_comments: bool,
+    /// Whether to skip docstrings in entropy scanning (default: true).
+    /// Uses AST-based detection to identify actual docstrings.
+    #[serde(default = "default_skip_docstrings")]
+    pub skip_docstrings: bool,
     /// Custom secret patterns defined by user.
     #[serde(default)]
     pub patterns: Vec<CustomSecretPattern>,
 }
 
 fn default_entropy_threshold() -> f64 {
-    4.0
+    4.5 // Increased from 4.0 to reduce false positives on docstrings
 }
 
 fn default_min_length() -> usize {
@@ -85,6 +89,10 @@ fn default_scan_comments() -> bool {
     true
 }
 
+fn default_skip_docstrings() -> bool {
+    false
+}
+
 impl Default for SecretsConfig {
     fn default() -> Self {
         Self {
@@ -92,6 +100,7 @@ impl Default for SecretsConfig {
             min_length: default_min_length(),
             entropy_enabled: default_entropy_enabled(),
             scan_comments: default_scan_comments(),
+            skip_docstrings: default_skip_docstrings(),
             patterns: Vec::new(),
         }
     }
@@ -127,11 +136,13 @@ struct ToolConfig {
 
 impl Config {
     /// Loads configuration from default locations (.cytoscnpy.toml or pyproject.toml in current dir).
+    #[must_use]
     pub fn load() -> Self {
         Self::load_from_path(Path::new("."))
     }
 
     /// Loads configuration starting from a specific path and traversing up.
+    #[must_use]
     pub fn load_from_path(path: &Path) -> Self {
         let mut current = path.to_path_buf();
         if current.is_file() {

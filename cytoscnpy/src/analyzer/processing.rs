@@ -14,15 +14,22 @@ use crate::rules::Finding;
 use crate::test_utils::TestAwareVisitor;
 use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
-use anyhow::Result;
+
+use ruff_python_ast::{Expr, Stmt};
+
 use rayon::prelude::*;
+use ruff_python_parser::parse_module;
 use rustc_hash::FxHashMap;
-use rustpython_parser::{parse, Mode};
 use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
+
+/// Number of files to process per chunk in parallel processing.
+/// Prevents OOM on very large projects (5000+ files) by limiting concurrent memory usage.
+/// Set to 500 to balance memory safety with minimal overhead (~1-2% slower).
+const CHUNK_SIZE: usize = 500;
 
 impl CytoScnPy {
     /// Runs the analysis on multiple paths (files or directories).
@@ -34,7 +41,7 @@ impl CytoScnPy {
     ///
     /// This is the preferred entry point when accepting CLI input that may
     /// include multiple file paths (e.g., from pre-commit hooks).
-    pub fn analyze_paths(&mut self, paths: &[std::path::PathBuf]) -> Result<AnalysisResult> {
+    pub fn analyze_paths(&mut self, paths: &[std::path::PathBuf]) -> AnalysisResult {
         // If no paths provided, analyze current directory
         if paths.is_empty() {
             return self.analyze(Path::new("."));
@@ -76,7 +83,6 @@ impl CytoScnPy {
         while let Some(res) = it.next() {
             if let Ok(entry) = res {
                 let name = entry.file_name().to_string_lossy();
-                // println!("Visiting: {:?} (is_dir: {})", entry.path(), entry.file_type().is_dir());
 
                 // Check if this folder is explicitly included
                 let is_force_included =
@@ -89,7 +95,6 @@ impl CytoScnPy {
                         || self.exclude_folders.iter().any(|f| f == &name));
 
                 if should_exclude {
-                    // println!("Skipping excluded folder: {}", name);
                     it.skip_current_dir();
                     continue;
                 }
@@ -99,7 +104,6 @@ impl CytoScnPy {
                     .extension()
                     .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
                 {
-                    // println!("Found python file: {:?}", entry.path());
                     files.push(entry.path().to_path_buf());
                 }
             }
@@ -115,34 +119,41 @@ impl CytoScnPy {
         &mut self,
         files: &[std::path::PathBuf],
         root_hint: Option<&Path>,
-    ) -> Result<AnalysisResult> {
+    ) -> AnalysisResult {
         let total_files = files.len();
         self.total_files_analyzed = total_files;
 
         // Determine root path for relative path calculation
         let root_path = root_hint.unwrap_or(Path::new("."));
 
-        // Process files in parallel
-        let results: Vec<(
-            Vec<Definition>,
-            FxHashMap<String, usize>,
-            Vec<SecretFinding>,
-            Vec<Finding>,
-            Vec<Finding>,
-            Vec<ParseError>,
-            usize,
-            f64,
-            f64,
-        )> = files
-            .par_iter()
-            .map(|file_path| self.process_single_file(file_path, root_path))
-            .collect();
+        // Process files in chunks to prevent OOM on large projects.
+        // Each chunk is processed in parallel, then results are merged.
+        let mut all_results = Vec::with_capacity(total_files);
+        for chunk in files.chunks(CHUNK_SIZE) {
+            let chunk_results: Vec<(
+                Vec<Definition>,
+                FxHashMap<String, usize>,
+                Vec<SecretFinding>,
+                Vec<Finding>,
+                Vec<Finding>,
+                Vec<ParseError>,
+                usize,
+                f64,
+                f64,
+            )> = chunk
+                .par_iter()
+                .map(|file_path| self.process_single_file(file_path, root_path))
+                .collect();
+            all_results.extend(chunk_results);
+            // Memory from previous chunk is released here before next iteration
+        }
 
         // Aggregate and return results (same as analyze method)
-        self.aggregate_results(results, files, total_files)
+        self.aggregate_results(all_results, files, total_files)
     }
 
     /// Processes a single file and returns its analysis results.
+    #[allow(clippy::too_many_lines)]
     fn process_single_file(
         &self,
         file_path: &Path,
@@ -224,76 +235,93 @@ impl CytoScnPy {
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
 
-        if self.enable_secrets {
-            secrets = scan_secrets(
-                &source,
-                &file_path.to_path_buf(),
-                &self.config.cytoscnpy.secrets_config,
-            );
-        }
+        match parse_module(&source) {
+            Ok(parsed) => {
+                let module = parsed.into_syntax();
 
-        match parse(&source, Mode::Module, file_path.to_str().unwrap_or("")) {
-            Ok(ast) => {
-                if let rustpython_ast::Mod::Module(module) = &ast {
-                    let entry_point_calls =
-                        crate::entry_point::detect_entry_point_calls(&module.body);
+                // Advanced Secrets Scanning:
+                // If skip_docstrings is enabled, we need to identify lines that are part of docstrings.
+                let mut docstring_lines = rustc_hash::FxHashSet::default();
+                if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
+                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines);
+                }
 
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        Some(&docstring_lines),
+                    );
+                }
+
+                let entry_point_calls = crate::entry_point::detect_entry_point_calls(&module.body);
+
+                for stmt in &module.body {
+                    framework_visitor.visit_stmt(stmt);
+                    test_visitor.visit_stmt(stmt);
+                    visitor.visit_stmt(stmt);
+                }
+
+                for call_name in &entry_point_calls {
+                    visitor.add_ref(call_name.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{call_name}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                if visitor.is_dynamic {
+                    for def in &mut visitor.definitions {
+                        def.references += 1;
+                    }
+                }
+
+                for fw_ref in &framework_visitor.framework_references {
+                    visitor.add_ref(fw_ref.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{fw_ref}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                // Mark names in __all__ as used (explicitly exported)
+                let exports = visitor.exports.clone();
+                for export_name in &exports {
+                    visitor.add_ref(export_name.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{export_name}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                let mut rules = Vec::new();
+                if self.enable_danger {
+                    rules.extend(crate::rules::danger::get_danger_rules());
+                }
+                if self.enable_quality {
+                    rules.extend(crate::rules::quality::get_quality_rules(&self.config));
+                }
+
+                if !rules.is_empty() {
+                    let mut linter = crate::linter::LinterVisitor::new(
+                        rules,
+                        file_path.to_path_buf(),
+                        line_index.clone(),
+                        self.config.clone(),
+                    );
                     for stmt in &module.body {
-                        framework_visitor.visit_stmt(stmt);
-                        test_visitor.visit_stmt(stmt);
-                        visitor.visit_stmt(stmt);
+                        linter.visit_stmt(stmt);
                     }
 
-                    for call_name in &entry_point_calls {
-                        visitor.add_ref(call_name.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{call_name}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    if visitor.is_dynamic {
-                        for def in &mut visitor.definitions {
-                            def.references += 1;
-                        }
-                    }
-
-                    for fw_ref in &framework_visitor.framework_references {
-                        visitor.add_ref(fw_ref.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{fw_ref}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    let mut rules = Vec::new();
-                    if self.enable_danger {
-                        rules.extend(crate::rules::danger::get_danger_rules());
-                    }
-                    if self.enable_quality {
-                        rules.extend(crate::rules::quality::get_quality_rules(&self.config));
-                    }
-
-                    if !rules.is_empty() {
-                        let mut linter = crate::linter::LinterVisitor::new(
-                            rules,
-                            file_path.to_path_buf(),
-                            line_index.clone(),
-                            self.config.clone(),
-                        );
-                        for stmt in &module.body {
-                            linter.visit_stmt(stmt);
-                        }
-
-                        for finding in linter.findings {
-                            if finding.rule_id.starts_with("CSP-D") {
-                                danger.push(finding);
-                            } else if finding.rule_id.starts_with("CSP-Q")
-                                || finding.rule_id.starts_with("CSP-L")
-                                || finding.rule_id.starts_with("CSP-C")
-                            {
-                                quality.push(finding);
-                            }
+                    for finding in linter.findings {
+                        if finding.rule_id.starts_with("CSP-D") {
+                            danger.push(finding);
+                        } else if finding.rule_id.starts_with("CSP-Q")
+                            || finding.rule_id.starts_with("CSP-L")
+                            || finding.rule_id.starts_with("CSP-C")
+                        {
+                            quality.push(finding);
                         }
                     }
                 }
@@ -301,12 +329,8 @@ impl CytoScnPy {
                 // Calculate metrics if quality is enabled
                 if self.enable_quality {
                     let raw = analyze_raw(&source);
-                    let mut volume = 0.0;
-                    // AST already available if we are here (inside Ok(ast))
-                    if let rustpython_ast::Mod::Module(m) = &ast {
-                        let h_metrics = analyze_halstead(&rustpython_ast::Mod::Module(m.clone()));
-                        volume = h_metrics.volume;
-                    }
+                    let h_metrics = analyze_halstead(&ruff_python_ast::Mod::Module(module.clone()));
+                    let volume = h_metrics.volume;
                     let complexity =
                         crate::complexity::calculate_module_complexity(&source).unwrap_or(1);
 
@@ -333,6 +357,17 @@ impl CytoScnPy {
                 }
             }
             Err(e) => {
+                // If we have a parse error but secrets scanning is enabled,
+                // we should still try to scan for secrets (without docstring skipping).
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        None,
+                    );
+                }
+
                 parse_errors.push(ParseError {
                     file: file_path.to_path_buf(),
                     error: format!("{e}"),
@@ -348,6 +383,12 @@ impl CytoScnPy {
                 &ignored_lines,
                 self.include_tests,
             );
+
+            // Mark self-referential methods (recursive methods)
+            if def.def_type == "method" && visitor.self_referential_methods.contains(&def.full_name)
+            {
+                def.is_self_referential = true;
+            }
         }
 
         (
@@ -364,6 +405,7 @@ impl CytoScnPy {
     }
 
     /// Aggregates results from multiple file analyses.
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn aggregate_results(
         &mut self,
         results: Vec<(
@@ -379,9 +421,10 @@ impl CytoScnPy {
         )>,
         files: &[std::path::PathBuf],
         total_files: usize,
-    ) -> Result<AnalysisResult> {
+    ) -> AnalysisResult {
         let mut all_defs = Vec::new();
-        let mut ref_counts: FxHashMap<String, usize> = FxHashMap::default();
+        let mut ref_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut all_secrets = Vec::new();
         let mut all_danger = Vec::new();
         let mut all_quality = Vec::new();
@@ -394,6 +437,7 @@ impl CytoScnPy {
         for (defs, refs, secrets, danger, quality, parse_errors, lines, complexity, mi) in results {
             all_defs.extend(defs);
             // Merge reference counts from each file
+
             for (name, count) in refs {
                 *ref_counts.entry(name).or_insert(0) += count;
             }
@@ -418,6 +462,7 @@ impl CytoScnPy {
         let mut unused_parameters = Vec::new();
 
         let total_definitions = all_defs.len();
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
@@ -432,6 +477,11 @@ impl CytoScnPy {
                 continue;
             }
 
+            // Collect methods with references for class-method linking
+            if def.def_type == "method" && def.references > 0 {
+                methods_with_refs.push(def.clone());
+            }
+
             if def.references == 0 {
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
@@ -441,6 +491,29 @@ impl CytoScnPy {
                     "variable" => unused_variables.push(def),
                     "parameter" => unused_parameters.push(def),
                     _ => {}
+                }
+            }
+        }
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    if unused_class_names.contains(parent_class) {
+                        unused_methods.push(def.clone());
+                    }
                 }
             }
         }
@@ -473,7 +546,7 @@ impl CytoScnPy {
 
         let taint_count = taint_findings.len();
 
-        Ok(AnalysisResult {
+        AnalysisResult {
             unused_functions,
             unused_methods,
             unused_imports,
@@ -505,7 +578,7 @@ impl CytoScnPy {
                     0.0
                 },
             },
-        })
+        }
     }
 
     /// Runs the analysis on the specified path.
@@ -518,7 +591,8 @@ impl CytoScnPy {
     /// 5. Aggregates results from all files.
     /// 6. Calculates cross-file usage to identify unused code.
     /// 7. Returns the final `AnalysisResult`.
-    pub fn analyze(&mut self, root_path: &Path) -> Result<AnalysisResult> {
+    #[allow(clippy::too_many_lines)]
+    pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
         // Find all Python files in the given path.
         // We use WalkDir to recursively traverse directories.
         let mut files: Vec<walkdir::DirEntry> = Vec::new();
@@ -558,26 +632,12 @@ impl CytoScnPy {
         let total_files = files.len();
         self.total_files_analyzed = total_files;
 
-        // Process files in parallel to speed up analysis.
-        // rayon::par_iter() automatically distributes work across threads.
-        let results: Vec<(
-            Vec<Definition>,
-            FxHashMap<String, usize>,
-            Vec<SecretFinding>,
-            Vec<Finding>,
-            Vec<Finding>,
-            Vec<ParseError>,
-            usize, // Line count
-            f64,   // complexity
-            f64,   // mi
-        )> = files
-            .par_iter()
-            .map(|entry| self.process_single_file(entry.path(), root_path))
-            .collect();
-
-        // Aggregate results from all files.
+        // Process files in chunks on large projects (1000+ files).
+        // Each chunk is processed in parallel, results are merged before next chunk.
+        // This limits peak memory usage to approximately CHUNK_SIZE * avg_file_size.
         let mut all_defs = Vec::new();
-        let mut ref_counts: FxHashMap<String, usize> = FxHashMap::default();
+        let mut ref_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut all_secrets = Vec::new();
         let mut all_danger = Vec::new();
         let mut all_quality = Vec::new();
@@ -587,23 +647,43 @@ impl CytoScnPy {
         let mut total_mi = 0.0;
         let mut files_with_quality_metrics = 0;
 
-        for (defs, refs, secrets, danger, quality, parse_errors, lines, complexity, mi) in results {
-            all_defs.extend(defs);
-            // Merge reference counts from each file
-            for (name, count) in refs {
-                *ref_counts.entry(name).or_insert(0) += count;
-            }
-            all_secrets.extend(secrets);
-            all_danger.extend(danger);
-            all_quality.extend(quality);
-            all_parse_errors.extend(parse_errors);
-            self.total_lines_analyzed += lines;
+        for chunk in files.chunks(CHUNK_SIZE) {
+            let chunk_results: Vec<(
+                Vec<Definition>,
+                FxHashMap<String, usize>,
+                Vec<SecretFinding>,
+                Vec<Finding>,
+                Vec<Finding>,
+                Vec<ParseError>,
+                usize, // Line count
+                f64,   // complexity
+                f64,   // mi
+            )> = chunk
+                .par_iter()
+                .map(|entry| self.process_single_file(entry.path(), root_path))
+                .collect();
 
-            if complexity > 0.0 || mi > 0.0 {
-                total_complexity += complexity;
-                total_mi += mi;
-                files_with_quality_metrics += 1;
+            // Aggregate chunk results immediately to release chunk memory
+            for (defs, refs, secrets, danger, quality, parse_errors, lines, complexity, mi) in
+                chunk_results
+            {
+                all_defs.extend(defs);
+                for (name, count) in refs {
+                    *ref_counts.entry(name).or_insert(0) += count;
+                }
+                all_secrets.extend(secrets);
+                all_danger.extend(danger);
+                all_quality.extend(quality);
+                all_parse_errors.extend(parse_errors);
+                self.total_lines_analyzed += lines;
+
+                if complexity > 0.0 || mi > 0.0 {
+                    total_complexity += complexity;
+                    total_mi += mi;
+                    files_with_quality_metrics += 1;
+                }
             }
+            // Memory from chunk_results is released here before next chunk
         }
 
         // Categorize unused definitions.
@@ -615,6 +695,7 @@ impl CytoScnPy {
         let mut unused_parameters = Vec::new();
 
         let total_definitions = all_defs.len();
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             // Update the reference count for the definition.
@@ -644,6 +725,32 @@ impl CytoScnPy {
                     "variable" => unused_variables.push(def),
                     "parameter" => unused_parameters.push(def),
                     _ => {}
+                }
+            } else if def.def_type == "method" {
+                // Collect methods with references for possible class-method linking (recursion check)
+                methods_with_refs.push(def.clone());
+            }
+        }
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    if unused_class_names.contains(parent_class) {
+                        unused_methods.push(def.clone());
+                    }
                 }
             }
         }
@@ -680,7 +787,8 @@ impl CytoScnPy {
         let taint_count = taint_findings.len();
 
         // Construct and return the final result.
-        Ok(AnalysisResult {
+
+        AnalysisResult {
             unused_functions,
             unused_methods,
             unused_imports,
@@ -712,11 +820,13 @@ impl CytoScnPy {
                     0.0
                 },
             },
-        })
+        }
     }
 
     /// Analyzes a single string of code (mostly for testing).
-    pub fn analyze_code(&self, code: &str, file_path: std::path::PathBuf) -> AnalysisResult {
+    #[allow(clippy::too_many_lines)]
+    #[must_use]
+    pub fn analyze_code(&self, code: &str, file_path: &Path) -> AnalysisResult {
         let source = code.to_owned();
         let line_index = LineIndex::new(&source);
         let ignored_lines = crate::utils::get_ignored_lines(&source);
@@ -729,76 +839,111 @@ impl CytoScnPy {
             .to_string();
 
         let mut visitor =
-            CytoScnPyVisitor::new(file_path.clone(), module_name.clone(), &line_index);
+            CytoScnPyVisitor::new(file_path.to_path_buf(), module_name.clone(), &line_index);
         let mut framework_visitor = FrameworkAwareVisitor::new(&line_index);
-        let mut test_visitor = TestAwareVisitor::new(file_path.as_path(), &line_index);
+        let mut test_visitor = TestAwareVisitor::new(file_path, &line_index);
 
-        let secrets = Vec::new();
+        let mut secrets = Vec::new();
         let mut danger = Vec::new();
+
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
 
-        match parse(&source, Mode::Module, file_path.to_str().unwrap()) {
-            Ok(ast) => {
-                if let rustpython_ast::Mod::Module(module) = &ast {
+        // Parse using ruff
+        match ruff_python_parser::parse_module(&source) {
+            Ok(parsed) => {
+                let module = parsed.into_syntax();
+
+                // Docstring extraction
+                let mut docstring_lines = rustc_hash::FxHashSet::default();
+                if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
+                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines);
+                }
+
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        Some(&docstring_lines),
+                    );
+                }
+
+                for stmt in &module.body {
+                    framework_visitor.visit_stmt(stmt);
+                    test_visitor.visit_stmt(stmt);
+                    visitor.visit_stmt(stmt);
+                }
+
+                if visitor.is_dynamic {
+                    for def in &mut visitor.definitions {
+                        def.references += 1;
+                    }
+                }
+
+                // Add framework-referenced functions/classes as used.
+                for fw_ref in &framework_visitor.framework_references {
+                    visitor.add_ref(fw_ref.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{fw_ref}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                // Mark names in __all__ as used (explicitly exported)
+                let exports = visitor.exports.clone();
+                for export_name in &exports {
+                    visitor.add_ref(export_name.clone());
+                    if !module_name.is_empty() {
+                        let qualified = format!("{module_name}.{export_name}");
+                        visitor.add_ref(qualified);
+                    }
+                }
+
+                // Run LinterVisitor with enabled rules.
+                let mut rules = Vec::new();
+                if self.enable_danger {
+                    rules.extend(crate::rules::danger::get_danger_rules());
+                }
+                if self.enable_quality {
+                    rules.extend(crate::rules::quality::get_quality_rules(&self.config));
+                }
+
+                if !rules.is_empty() {
+                    let mut linter = crate::linter::LinterVisitor::new(
+                        rules,
+                        file_path.to_path_buf(),
+                        line_index.clone(),
+                        self.config.clone(),
+                    );
                     for stmt in &module.body {
-                        framework_visitor.visit_stmt(stmt);
-                        test_visitor.visit_stmt(stmt);
-                        visitor.visit_stmt(stmt);
+                        linter.visit_stmt(stmt);
                     }
 
-                    if visitor.is_dynamic {
-                        for def in &mut visitor.definitions {
-                            def.references += 1;
-                        }
-                    }
-
-                    // Add framework-referenced functions/classes as used.
-                    for fw_ref in &framework_visitor.framework_references {
-                        visitor.add_ref(fw_ref.clone());
-                        if !module_name.is_empty() {
-                            let qualified = format!("{module_name}.{fw_ref}");
-                            visitor.add_ref(qualified);
-                        }
-                    }
-
-                    // Run LinterVisitor with enabled rules.
-                    let mut rules = Vec::new();
-                    if self.enable_danger {
-                        rules.extend(crate::rules::danger::get_danger_rules());
-                    }
-                    if self.enable_quality {
-                        rules.extend(crate::rules::quality::get_quality_rules(&self.config));
-                    }
-
-                    if !rules.is_empty() {
-                        let mut linter = crate::linter::LinterVisitor::new(
-                            rules,
-                            file_path.clone(),
-                            line_index.clone(),
-                            self.config.clone(),
-                        );
-                        for stmt in &module.body {
-                            linter.visit_stmt(stmt);
-                        }
-
-                        // Separate findings
-                        for finding in linter.findings {
-                            if finding.rule_id.starts_with("CSP-D") {
-                                danger.push(finding);
-                            } else if finding.rule_id.starts_with("CSP-Q")
-                                || finding.rule_id.starts_with("CSP-L")
-                                || finding.rule_id.starts_with("CSP-C")
-                            {
-                                quality.push(finding);
-                            }
+                    // Separate findings
+                    for finding in linter.findings {
+                        if finding.rule_id.starts_with("CSP-D") {
+                            danger.push(finding);
+                        } else if finding.rule_id.starts_with("CSP-Q")
+                            || finding.rule_id.starts_with("CSP-L")
+                            || finding.rule_id.starts_with("CSP-C")
+                        {
+                            quality.push(finding);
                         }
                     }
                 }
             }
             Err(e) => {
+                if self.enable_secrets {
+                    secrets = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        None,
+                    );
+                }
                 parse_errors.push(ParseError {
-                    file: file_path.clone(),
+                    file: file_path.to_path_buf(),
                     error: format!("{e}"),
                 });
             }
@@ -826,6 +971,7 @@ impl CytoScnPy {
         let mut unused_imports = Vec::new();
         let mut unused_variables = Vec::new();
         let mut unused_parameters = Vec::new();
+        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
@@ -840,6 +986,11 @@ impl CytoScnPy {
                 continue;
             }
 
+            // Collect methods with references for class-method linking
+            if def.def_type == "method" && def.references > 0 {
+                methods_with_refs.push(def.clone());
+            }
+
             if def.references == 0 {
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
@@ -849,6 +1000,29 @@ impl CytoScnPy {
                     "variable" => unused_variables.push(def),
                     "parameter" => unused_parameters.push(def),
                     _ => {}
+                }
+            }
+        }
+
+        // Class-method linking: Methods of unused classes should also be flagged
+        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        let unused_class_names: std::collections::HashSet<_> =
+            unused_classes.iter().map(|c| c.full_name.clone()).collect();
+
+        for def in &methods_with_refs {
+            if def.confidence >= self.confidence_threshold {
+                // Only process if the method is marked as self-referential
+                // This means the only reference comes from itself (recursion)
+                if !def.is_self_referential {
+                    continue;
+                }
+
+                if let Some(last_dot) = def.full_name.rfind('.') {
+                    let parent_class = &def.full_name[..last_dot];
+                    let is_unused = unused_class_names.contains(parent_class);
+                    if is_unused {
+                        unused_methods.push(def.clone());
+                    }
                 }
             }
         }
@@ -877,6 +1051,31 @@ impl CytoScnPy {
                 average_complexity: 0.0,
                 average_mi: 0.0,
             },
+        }
+    }
+}
+
+/// Collects line numbers that belong to docstrings by traversing the AST.
+fn collect_docstring_lines(
+    body: &[Stmt],
+    line_index: &LineIndex,
+    docstrings: &mut rustc_hash::FxHashSet<usize>,
+) {
+    if let Some(Stmt::Expr(expr_stmt)) = body.first() {
+        if let Expr::StringLiteral(string_lit) = &*expr_stmt.value {
+            let start_line = line_index.line_index(string_lit.range.start());
+            let end_line = line_index.line_index(string_lit.range.end());
+            for i in start_line..=end_line {
+                docstrings.insert(i);
+            }
+        }
+    }
+
+    for stmt in body {
+        match stmt {
+            Stmt::FunctionDef(f) => collect_docstring_lines(&f.body, line_index, docstrings),
+            Stmt::ClassDef(c) => collect_docstring_lines(&c.body, line_index, docstrings),
+            _ => {}
         }
     }
 }

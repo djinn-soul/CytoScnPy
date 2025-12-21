@@ -7,7 +7,7 @@ use std::path::PathBuf;
 fn test_scope_shadowing() {
     let dir_path = PathBuf::from("tests/python_files/scope");
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(true);
-    let result = cytoscnpy.analyze(&dir_path).unwrap();
+    let result = cytoscnpy.analyze(&dir_path);
 
     let unused_vars: Vec<String> = result
         .unused_variables
@@ -41,7 +41,7 @@ fn test_scope_shadowing() {
 fn test_scope_closures() {
     let dir_path = PathBuf::from("tests/python_files/scope");
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(true);
-    let result = cytoscnpy.analyze(&dir_path).unwrap();
+    let result = cytoscnpy.analyze(&dir_path);
 
     let unused_vars: Vec<String> = result
         .unused_variables
@@ -62,7 +62,7 @@ fn test_scope_closures() {
 fn test_scope_classes() {
     let dir_path = PathBuf::from("tests/python_files/scope");
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(true);
-    let result = cytoscnpy.analyze(&dir_path).unwrap();
+    let result = cytoscnpy.analyze(&dir_path);
 
     let unused_vars: Vec<String> = result
         .unused_variables

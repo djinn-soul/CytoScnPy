@@ -1,4 +1,5 @@
 //! Tests for unused parameter detection.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
@@ -18,7 +19,7 @@ def function_with_unused(a, b, c):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -45,7 +46,7 @@ def all_used(a, b, c):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     assert!(
         result.unused_parameters.is_empty(),
@@ -67,7 +68,7 @@ class MyClass:
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -100,7 +101,7 @@ class MyClass:
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -127,7 +128,7 @@ def func_with_varargs(a, *args, **kwargs):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -156,7 +157,7 @@ def func_with_kwonly(a, *, kwonly_param):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -183,7 +184,7 @@ def func_with_defaults(a, b=10, c=20):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -216,7 +217,7 @@ def outer(x, y):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -244,7 +245,7 @@ def typed_func(a: int, b: str, c: float) -> int:
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     let unused_params: Vec<String> = result
         .unused_parameters
@@ -275,7 +276,7 @@ def with_comprehension(items, multiplier):
     write!(file, "{content}").unwrap();
 
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = cytoscnpy.analyze(dir.path()).unwrap();
+    let result = cytoscnpy.analyze(dir.path());
 
     // Both params should be detected as used
     assert!(
@@ -298,7 +299,7 @@ def func(unused_param):
 
     // Test with confidence threshold 60 (should detect)
     let mut cytoscnpy_60 = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result_60 = cytoscnpy_60.analyze(dir.path()).unwrap();
+    let result_60 = cytoscnpy_60.analyze(dir.path());
     assert!(
         !result_60.unused_parameters.is_empty(),
         "Should detect with threshold 60"
@@ -306,7 +307,7 @@ def func(unused_param):
 
     // Test with confidence threshold 80 (should still detect since params have confidence 100)
     let mut cytoscnpy_80 = CytoScnPy::default().with_confidence(80).with_tests(false);
-    let result_80 = cytoscnpy_80.analyze(dir.path()).unwrap();
+    let result_80 = cytoscnpy_80.analyze(dir.path());
     assert!(
         !result_80.unused_parameters.is_empty(),
         "Should still detect with threshold 80 (params have confidence 100)"

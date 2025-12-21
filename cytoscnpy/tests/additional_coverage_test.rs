@@ -4,7 +4,7 @@ use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::config::Config;
 use cytoscnpy::test_utils::TestAwareVisitor;
 use cytoscnpy::utils::LineIndex;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -37,7 +37,7 @@ fn test_json_output_structure() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
     let json_str = serde_json::to_string_pretty(&result).unwrap();
 
     // Verify JSON structure
@@ -70,7 +70,7 @@ fn test_exit_code_on_findings() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Would use this for exit code
     let has_unused = !result.unused_functions.is_empty();
@@ -100,7 +100,7 @@ fn test_error_on_invalid_path() {
     let result = analyzer.analyze(std::path::Path::new("/nonexistent/path/xyz"));
     // Should handle gracefully (empty result or error)
     // The implementation returns empty result for non-existent paths
-    assert!(result.is_ok() || result.is_err());
+    assert_eq!(result.analysis_summary.total_files, 0);
 }
 
 // =============================================================================
@@ -121,11 +121,11 @@ def session_fixture():
     return []
 ";
 
-    let tree = parse(source, Mode::Module, "conftest.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let mut visitor = TestAwareVisitor::new(&PathBuf::from("conftest.py"), &line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -154,11 +154,11 @@ class TestCase(unittest.TestCase):
         self.assertTrue(True)
 ";
 
-    let tree = parse(source, Mode::Module, "test_unit.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let mut visitor = TestAwareVisitor::new(&PathBuf::from("test_unit.py"), &line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -183,11 +183,11 @@ from unittest import mock
 from unittest.mock import patch, MagicMock
 ";
 
-    let tree = parse(source, Mode::Module, "test_imports.py").expect("Failed to parse");
+    let tree = parse(source, Mode::Module.into()).expect("Failed to parse");
     let line_index = LineIndex::new(source);
     let mut visitor = TestAwareVisitor::new(&PathBuf::from("test_imports.py"), &line_index);
 
-    if let rustpython_ast::Mod::Module(module) = tree {
+    if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
         for stmt in &module.body {
             visitor.visit_stmt(stmt);
         }
@@ -232,7 +232,7 @@ fn test_multi_file_project_analysis() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // helper() is used in module_b, so should NOT be in unused
     let unused_names: Vec<_> = result
@@ -316,7 +316,7 @@ fn test_exclude_folder_logic() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should find my_src_func from src, but NOT ignored_func from node_modules
     let all_names: Vec<_> = result
@@ -364,7 +364,7 @@ fn test_include_folder_overrides_exclude() {
         config,
     );
 
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     // Should find venv_func because venv is force-included
     let all_names: Vec<_> = result

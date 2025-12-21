@@ -26,6 +26,7 @@ pub use parser::AstParser;
 pub use similarity::TreeSimilarity;
 pub use types::{
     CloneFinding, CloneGroup, CloneInstance, ClonePair, CloneRelation, CloneSummary, CloneType,
+    NodeKind,
 };
 
 // Re-export from shared fix module for convenience

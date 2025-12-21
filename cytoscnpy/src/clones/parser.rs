@@ -64,12 +64,22 @@ impl Subtree {
     /// Convert to a `CloneInstance`
     #[must_use]
     pub fn to_instance(&self) -> CloneInstance {
+        use crate::clones::types::NodeKind;
         use std::hash::{Hash, Hasher};
+
         let mut hasher = rustc_hash::FxHasher::default();
         // Hash normalized children structure
         for child in &self.children {
             child.kind.hash(&mut hasher);
         }
+
+        // Convert SubtreeType to NodeKind
+        let node_kind = match self.node_type {
+            SubtreeType::Function => NodeKind::Function,
+            SubtreeType::AsyncFunction => NodeKind::AsyncFunction,
+            SubtreeType::Class => NodeKind::Class,
+            SubtreeType::Method => NodeKind::Method,
+        };
 
         CloneInstance {
             file: self.file.clone(),
@@ -79,6 +89,7 @@ impl Subtree {
             end_byte: self.end_byte,
             normalized_hash: hasher.finish(),
             name: self.name.clone(),
+            node_kind,
         }
     }
 }

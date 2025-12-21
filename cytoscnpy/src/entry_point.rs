@@ -477,6 +477,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             eprintln!();
         }
 
+        // Print JSON or report (but defer the summary and time for combined output later)
         if cli_var.output.json {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
@@ -486,10 +487,10 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             } else {
                 crate::output::print_report(&mut stdout, &result)?;
             }
-            // Show processing time
-            let elapsed = start_time.elapsed();
-            println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
         }
+
+        // Track clone count for combined summary
+        let mut clone_pairs_found = 0usize;
 
         // Handle --clones flag
         if cli_var.clones {
@@ -517,7 +518,32 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 verbose: cli_var.output.verbose,
                 with_cst: cli_var.with_cst,
             };
-            crate::commands::run_clones(&cli_var.paths, clone_options, &mut stdout)?;
+            clone_pairs_found =
+                crate::commands::run_clones(&cli_var.paths, clone_options, &mut stdout)?;
+        }
+
+        // Print summary and time (only for non-JSON output)
+        if !cli_var.output.json {
+            let total = result.unused_functions.len()
+                + result.unused_methods.len()
+                + result.unused_imports.len()
+                + result.unused_parameters.len()
+                + result.unused_classes.len()
+                + result.unused_variables.len();
+            let security = result.danger.len() + result.secrets.len() + result.quality.len();
+
+            if clone_pairs_found > 0 {
+                println!(
+                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {clone_pairs_found} clone pairs"
+                );
+            } else {
+                println!(
+                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
+                );
+            }
+
+            let elapsed = start_time.elapsed();
+            println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
         }
 
         // Handle --fix flag for dead code removal

@@ -5,7 +5,7 @@ use crate::raw_metrics::analyze_raw;
 
 use anyhow::Result;
 use colored::Colorize;
-use comfy_table::Table;
+use comfy_table::{Cell, Color, Table};
 use rayon::prelude::*;
 
 use serde::{Deserialize, Serialize};
@@ -638,13 +638,88 @@ pub struct CloneOptions {
     pub with_cst: bool,
 }
 
+/// Generates context-aware refactoring suggestions for clone findings.
+///
+/// Provides actionable recommendations based on:
+/// - Clone type (Exact, Renamed, Similar)
+/// - Code element kind (function, class, method) from AST
+/// - Similarity percentage
+fn generate_clone_suggestion(
+    clone_type: &crate::clones::CloneType,
+    node_kind: &crate::clones::NodeKind,
+    name: &str,
+    similarity: f64,
+) -> String {
+    use crate::clones::{CloneType, NodeKind};
+
+    // Use actual AST node type for context-aware suggestions
+    let is_init = name == "__init__";
+    let is_dunder = name.starts_with("__") && name.ends_with("__");
+
+    match clone_type {
+        CloneType::Type1 => {
+            // Exact copy - most severe, should eliminate
+            match node_kind {
+                NodeKind::Class => "Remove duplicate class, import from original".to_owned(),
+                NodeKind::Method if is_init => "Extract shared __init__ to base class".to_owned(),
+                NodeKind::Method => "Move to base class or mixin".to_owned(),
+                NodeKind::Function | NodeKind::AsyncFunction => {
+                    "Remove duplicate, import from original module".to_owned()
+                }
+            }
+        }
+        CloneType::Type2 => {
+            // Renamed copy - logic identical, names differ
+            match node_kind {
+                NodeKind::Class => "Consider inheritance or factory pattern".to_owned(),
+                NodeKind::Method if is_init || is_dunder => {
+                    "Extract to mixin or base class".to_owned()
+                }
+                NodeKind::Method => "Parameterize and move to base class".to_owned(),
+                NodeKind::Function | NodeKind::AsyncFunction => {
+                    "Parameterize into single configurable function".to_owned()
+                }
+            }
+        }
+        CloneType::Type3 => {
+            // Similar code - structural similarity
+            if similarity >= 0.9 {
+                match node_kind {
+                    NodeKind::Class => "High similarity: use inheritance".to_owned(),
+                    NodeKind::Method if is_init => "Extract common init to base class".to_owned(),
+                    NodeKind::Method => "Consider template method pattern".to_owned(),
+                    NodeKind::Function | NodeKind::AsyncFunction => {
+                        "Consider higher-order function or decorator".to_owned()
+                    }
+                }
+            } else if similarity >= 0.8 {
+                match node_kind {
+                    NodeKind::Class => "Review for composition pattern".to_owned(),
+                    NodeKind::Method => "Consider template method pattern".to_owned(),
+                    NodeKind::Function | NodeKind::AsyncFunction => {
+                        "Review for potential abstraction".to_owned()
+                    }
+                }
+            } else {
+                "Review for potential consolidation".to_owned()
+            }
+        }
+    }
+}
+
 /// Executes clone detection analysis.
 ///
 /// # Errors
 ///
 /// Returns an error if file I/O fails or analysis fails.
+///
+/// Returns the number of clone pairs found.
 #[allow(clippy::too_many_lines)]
-pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer: W) -> Result<()> {
+pub fn run_clones<W: Write>(
+    paths: &[PathBuf],
+    options: CloneOptions,
+    mut writer: W,
+) -> Result<usize> {
     use crate::clones::{CloneConfig, CloneDetector, CloneFinding, ConfidenceScorer, FixContext};
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
@@ -663,15 +738,17 @@ pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer
 
     if all_files.is_empty() {
         writeln!(writer, "No Python files found.")?;
-        return Ok(());
+        return Ok(0);
     }
 
     // Configure detector
     let config = CloneConfig::default().with_min_similarity(options.similarity);
     let detector = CloneDetector::with_config(config);
 
-    // Run detection
+    // Run detection (with timing)
+    let start = std::time::Instant::now();
     let result = detector.detect(&all_files)?;
+    let elapsed = start.elapsed();
 
     // Verbose: show detection statistics
     if options.verbose && !options.json {
@@ -709,13 +786,13 @@ pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer
         } else {
             writeln!(writer, "{}", "No clones detected.".green())?;
         }
-        return Ok(());
+        return Ok(0);
     }
 
     // Convert to findings for output
     let scorer = ConfidenceScorer::default();
 
-    let findings: Vec<CloneFinding> = result
+    let mut findings: Vec<CloneFinding> = result
         .pairs
         .iter()
         .flat_map(|pair| {
@@ -755,6 +832,17 @@ pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer
         })
         .collect();
 
+    // Populate suggestions for each finding (context-aware refactoring hints)
+    for finding in &mut findings {
+        let name = finding.name.as_deref().unwrap_or("<anonymous>");
+        finding.suggestion = Some(generate_clone_suggestion(
+            &finding.clone_type,
+            &finding.node_kind,
+            name,
+            finding.similarity,
+        ));
+    }
+
     // Output results
     if options.json {
         let output = serde_json::to_string_pretty(&findings)?;
@@ -764,44 +852,58 @@ pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer
         writeln!(writer, "{}\n", "=".repeat(40))?;
 
         let mut table = Table::new();
-        table.set_header(vec![
-            "Type",
-            "File",
-            "Name",
-            "Lines",
-            "Similarity",
-            "Related To",
-        ]);
+        table
+            .load_preset(comfy_table::presets::UTF8_FULL)
+            .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+            .set_header(vec![
+                "Type",
+                "Name",
+                "Related To",
+                "Location",
+                "Similarity",
+                "Suggestion",
+            ]);
 
         for finding in &findings {
             if finding.is_duplicate {
                 let type_str = finding.clone_type.display_name();
+                let name = finding
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| "<anonymous>".to_owned());
+                // Use file:line format like other tables
+                let location = format!(
+                    "{}:{}",
+                    crate::utils::normalize_display_path(&finding.file),
+                    finding.line
+                );
+                let similarity = format!("{:.0}%", finding.similarity * 100.0);
+                let related = format!(
+                    "{}:{}",
+                    crate::utils::normalize_display_path(&finding.related_clone.file),
+                    finding.related_clone.line
+                );
+
+                // Generate context-aware suggestion based on clone type and AST node
+                let suggestion = generate_clone_suggestion(
+                    &finding.clone_type,
+                    &finding.node_kind,
+                    &name,
+                    finding.similarity,
+                );
 
                 table.add_row(vec![
-                    type_str.yellow().to_string(),
-                    finding.file.to_string_lossy().to_string(),
-                    finding
-                        .name
-                        .clone()
-                        .unwrap_or_else(|| "<anonymous>".to_owned()),
-                    format!("{}-{}", finding.line, finding.end_line),
-                    format!("{:.0}%", finding.similarity * 100.0),
-                    finding
-                        .related_clone
-                        .name
-                        .clone()
-                        .unwrap_or_else(|| "canonical".to_owned()),
+                    Cell::new(type_str).fg(Color::Yellow),
+                    Cell::new(name),
+                    Cell::new(related),
+                    Cell::new(location),
+                    Cell::new(similarity),
+                    Cell::new(suggestion).fg(Color::Cyan),
                 ]);
             }
         }
 
         writeln!(writer, "{table}")?;
-        writeln!(
-            writer,
-            "\n{}: {} clone pairs found",
-            "Summary".bold(),
-            result.pairs.len()
-        )?;
     }
 
     // Handle --fix mode
@@ -895,7 +997,7 @@ pub fn run_clones<W: Write>(paths: &[PathBuf], options: CloneOptions, mut writer
         }
     }
 
-    Ok(())
+    Ok(result.pairs.len())
 }
 
 /// Options for dead code fix

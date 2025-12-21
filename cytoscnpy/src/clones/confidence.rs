@@ -246,6 +246,8 @@ mod tests {
     use std::path::PathBuf;
 
     fn make_pair(similarity: f64, clone_type: CloneType, edit_distance: usize) -> ClonePair {
+        use crate::clones::types::NodeKind;
+
         ClonePair {
             instance_a: CloneInstance {
                 file: PathBuf::from("a.py"),
@@ -255,6 +257,7 @@ mod tests {
                 end_byte: 100,
                 normalized_hash: 0,
                 name: None,
+                node_kind: NodeKind::Function,
             },
             instance_b: CloneInstance {
                 file: PathBuf::from("b.py"),
@@ -264,6 +267,7 @@ mod tests {
                 end_byte: 100,
                 normalized_hash: 0,
                 name: None,
+                node_kind: NodeKind::Function,
             },
             similarity,
             clone_type,

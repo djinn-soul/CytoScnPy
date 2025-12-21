@@ -86,8 +86,16 @@ pub struct IncludeOptions {
 /// Command line interface configuration using `clap`.
 /// This struct defines the arguments and flags accepted by the program.
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None, after_help = CONFIG_HELP)]
+#[command(
+    author, 
+    version, 
+    about = "CytoScnPy - Fast, accurate Python static analysis for dead code, secrets, and quality issues",
+    long_about = None, 
+    after_help = CONFIG_HELP
+)]
+#[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
 pub struct Cli {
+    
     #[command(subcommand)]
     /// The subcommand to execute (e.g., raw, cc, hal).
     pub command: Option<Commands>,

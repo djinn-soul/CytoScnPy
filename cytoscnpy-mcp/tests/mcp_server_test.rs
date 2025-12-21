@@ -157,11 +157,11 @@ def main():
 #[allow(clippy::expect_used)]
 fn test_analyze_code_dangerous_patterns() {
     let server = CytoScnPyServer::new();
-    let code = r#"
+    let code = r"
 def dangerous_function(user_input):
     eval(user_input)  # dangerous!
     exec(user_input)  # also dangerous!
-"#;
+";
     let params = Parameters(AnalyzeCodeRequest {
         code: code.to_owned(),
         filename: "dangerous.py".to_owned(),

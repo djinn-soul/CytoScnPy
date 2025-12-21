@@ -209,7 +209,7 @@ pub struct CytoScnPyVisitor<'a> {
     /// Cached scope prefix for faster qualified name building.
     /// Updated on scope push/pop to avoid rebuilding on every `resolve_name` call.
     cached_scope_prefix: String,
-    /// Current recursion depth for visit_stmt/visit_expr to prevent stack overflow.
+    /// Current recursion depth for `visit_stmt/visit_expr` to prevent stack overflow.
     depth: usize,
     /// Whether the recursion limit was hit during traversal.
     pub recursion_limit_hit: bool,

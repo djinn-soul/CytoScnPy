@@ -17,7 +17,7 @@ pub enum CloneType {
 impl CloneType {
     /// Get user-friendly display name
     #[must_use]
-    pub const fn display_name(&self) -> &'static str {
+    pub const fn display_name(self) -> &'static str {
         match self {
             Self::Type1 => "Exact Copy",
             Self::Type2 => "Renamed Copy",
@@ -27,7 +27,7 @@ impl CloneType {
 
     /// Get short display name for tables
     #[must_use]
-    pub const fn short_name(&self) -> &'static str {
+    pub const fn short_name(self) -> &'static str {
         match self {
             Self::Type1 => "Exact",
             Self::Type2 => "Renamed",
@@ -37,7 +37,7 @@ impl CloneType {
 
     /// Get confidence bonus for this clone type
     #[must_use]
-    pub const fn confidence_bonus(&self) -> i8 {
+    pub const fn confidence_bonus(self) -> i8 {
         match self {
             Self::Type1 => 25,
             Self::Type2 => 15,
@@ -104,7 +104,7 @@ impl ClonePair {
 
     /// Get the smaller instance (canonical choice)
     #[must_use]
-    pub fn canonical(&self) -> &CloneInstance {
+    pub const fn canonical(&self) -> &CloneInstance {
         if self.instance_a.start_byte <= self.instance_b.start_byte {
             &self.instance_a
         } else {

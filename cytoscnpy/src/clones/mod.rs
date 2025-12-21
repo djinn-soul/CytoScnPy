@@ -52,7 +52,7 @@ impl CloneDetector {
 
     /// Create with custom configuration
     #[must_use]
-    pub fn with_config(config: CloneConfig) -> Self {
+    pub const fn with_config(config: CloneConfig) -> Self {
         Self {
             confidence_scorer: ConfidenceScorer::new(
                 config.auto_fix_threshold,
@@ -152,7 +152,7 @@ impl CloneDetector {
 
     /// Group related clone pairs into clone groups
     #[allow(clippy::unused_self)]
-    fn group_clones(&self, _pairs: &[ClonePair]) -> Vec<CloneGroup> {
+    const fn group_clones(&self, _pairs: &[ClonePair]) -> Vec<CloneGroup> {
         // TODO: implement union-find grouping
         Vec::new()
     }

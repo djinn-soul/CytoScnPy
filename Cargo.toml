@@ -31,7 +31,6 @@ clone_on_ref_ptr = "warn"
 redundant_clone = "warn"
 inefficient_to_string = "warn"
 str_to_string = "warn"
-# string_to_string is removed in newer clippy, covered by implicit_clone
 
 # Error handling
 result_large_err = "warn"

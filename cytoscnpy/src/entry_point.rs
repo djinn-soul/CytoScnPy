@@ -171,14 +171,37 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
     program_args.extend(args);
     let cli_var = Cli::parse_from(program_args);
 
+    let mut stdout = std::io::stdout();
+
+    // Load config from the first path or current directory
+    let config_path = cli_var
+        .paths
+        .first()
+        .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
+    let config = crate::config::Config::load_from_path(config_path);
+
+    let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
+    exclude_folders.extend(cli_var.exclude_folders.clone());
+
+    if cli_var.output.verbose && !cli_var.output.json {
+        eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
+        eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
+        if let Some(ref command) = cli_var.command {
+            eprintln!("[VERBOSE] Executing subcommand: {:?}", command);
+        }
+        eprintln!("[VERBOSE] Global Excludes: {:?}", exclude_folders);
+        eprintln!();
+    }
+
     if let Some(command) = cli_var.command {
-        let mut stdout = std::io::stdout();
         match command {
             Commands::Raw {
                 path,
                 json,
-                exclude,
-                ..
+                mut exclude,
+                ignore,
+                summary,
+                output_file,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -187,21 +210,33 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders);
                 crate::commands::run_raw(
                     &path,
                     json,
                     exclude,
-                    Vec::new(),
-                    false,
-                    None,
+                    ignore,
+                    summary,
+                    output_file,
                     &mut stdout,
                 )?;
             }
             Commands::Cc {
                 path,
                 json,
-                exclude,
-                ..
+                mut exclude,
+                ignore,
+                min_rank,
+                max_rank,
+                average,
+                total_average,
+                show_complexity,
+                order,
+                no_assert,
+                xml,
+                fail_threshold,
+                output_file,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -210,22 +245,24 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders.clone());
                 crate::commands::run_cc(
                     &path,
                     crate::commands::CcOptions {
                         json,
                         exclude,
-                        ignore: Vec::new(),
-                        min_rank: None,
-                        max_rank: None,
-                        average: false,
-                        total_average: false,
-                        show_complexity: false,
-                        order: None,
-                        no_assert: false,
-                        xml: false,
-                        fail_threshold: None,
-                        output_file: None,
+                        ignore,
+                        min_rank,
+                        max_rank,
+                        average,
+                        total_average,
+                        show_complexity,
+                        order,
+                        no_assert,
+                        xml,
+                        fail_threshold,
+                        output_file,
                     },
                     &mut stdout,
                 )?;
@@ -233,8 +270,10 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             Commands::Hal {
                 path,
                 json,
-                exclude,
-                ..
+                mut exclude,
+                ignore,
+                functions,
+                output_file,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -243,20 +282,22 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders.clone());
                 crate::commands::run_hal(
                     &path,
                     json,
                     exclude,
-                    Vec::new(),
-                    false,
-                    None,
+                    ignore,
+                    functions,
+                    output_file,
                     &mut stdout,
                 )?;
             }
             Commands::Mi {
                 path,
                 json,
-                exclude,
+                mut exclude,
                 ignore,
                 min_rank,
                 max_rank,
@@ -273,6 +314,8 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders);
                 crate::commands::run_mi(
                     &path,
                     crate::commands::MiOptions {
@@ -305,7 +348,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 quality,
                 json,
                 output,
-                exclude,
+                mut exclude,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -314,22 +357,24 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders.clone());
                 crate::commands::run_stats(
-                    path,
+                    &path,
                     all,
                     secrets,
                     danger,
                     quality,
                     json,
                     output,
-                    exclude,
+                    &exclude,
                     &mut stdout,
-                )?
+                )?;
             }
             Commands::Files {
                 path,
                 json,
-                exclude,
+                mut exclude,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -338,7 +383,9 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
-                crate::commands::run_files(path, json, exclude, &mut stdout)?
+                // Merge global excludes
+                exclude.extend(exclude_folders);
+                crate::commands::run_files(&path, json, &exclude, &mut stdout)?;
             }
         }
         Ok(0)
@@ -352,11 +399,6 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 return Ok(1);
             }
         }
-        let config_path = cli_var
-            .paths
-            .first()
-            .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
-        let config = crate::config::Config::load_from_path(config_path);
         let confidence = cli_var
             .confidence
             .or(config.cytoscnpy.confidence)
@@ -382,7 +424,6 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         include_folders.extend(cli_var.include_folders);
 
         if !cli_var.output.json {
-            let mut stdout = std::io::stdout();
             crate::output::print_exclusion_list(&mut stdout, &exclude_folders).ok();
         }
 

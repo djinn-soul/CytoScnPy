@@ -382,7 +382,7 @@ fn stmt_to_node(stmt: &Stmt) -> SubtreeNode {
             let labels: Vec<String> = i
                 .names
                 .iter()
-                .map(|n| n.name.as_str().to_string())
+                .map(|n| n.name.as_str().to_owned())
                 .collect();
             SubtreeNode {
                 kind: "import".into(),
@@ -394,13 +394,11 @@ fn stmt_to_node(stmt: &Stmt) -> SubtreeNode {
             let module = i
                 .module
                 .as_ref()
-                .map(|id| id.as_str())
-                .unwrap_or("")
-                .to_string();
+                .map_or("", ruff_python_ast::Identifier::as_str).to_owned();
             let labels: Vec<String> = i
                 .names
                 .iter()
-                .map(|n| n.name.as_str().to_string())
+                .map(|n| n.name.as_str().to_owned())
                 .collect();
             SubtreeNode {
                 kind: "import_from".into(),
@@ -413,7 +411,7 @@ fn stmt_to_node(stmt: &Stmt) -> SubtreeNode {
             label: Some(
                 g.names
                     .iter()
-                    .map(|n| n.as_str())
+                    .map(ruff_python_ast::Identifier::as_str)
                     .collect::<Vec<_>>()
                     .join(","),
             ),
@@ -424,7 +422,7 @@ fn stmt_to_node(stmt: &Stmt) -> SubtreeNode {
             label: Some(
                 n.names
                     .iter()
-                    .map(|n| n.as_str())
+                    .map(ruff_python_ast::Identifier::as_str)
                     .collect::<Vec<_>>()
                     .join(","),
             ),
@@ -523,12 +521,12 @@ fn extract_expr_nodes(expr: &ast::Expr) -> Vec<SubtreeNode> {
         }],
         ast::Expr::NoneLiteral(_) => vec![SubtreeNode {
             kind: "none".into(),
-            label: Some("None".to_string()),
+            label: Some("None".to_owned()),
             children: vec![],
         }],
         ast::Expr::BytesLiteral(_) => vec![SubtreeNode {
             kind: "bytes".into(),
-            label: Some("BYTES".to_string()),
+            label: Some("BYTES".to_owned()),
             children: vec![],
         }],
         ast::Expr::List(l) => {

@@ -42,7 +42,7 @@ pub struct CloneConfig {
     pub type1_threshold: f64,
 
     /// Threshold for Type-2 (Renamed): raw similarity must be < this (0.0-1.0)
-    /// If normalized >= type1_threshold but raw < type2_raw_max, it's Type-2
+    /// If normalized >= `type1_threshold` but raw < `type2_raw_max`, it's Type-2
     pub type2_raw_max: f64,
 
     /// Enable CFG-based behavioral validation for clone pairs.

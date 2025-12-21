@@ -107,5 +107,5 @@ pub fn normalize_display_path(path: &std::path::Path) -> String {
     normalized
         .strip_prefix("./")
         .unwrap_or(&normalized)
-        .to_string()
+        .to_owned()
 }

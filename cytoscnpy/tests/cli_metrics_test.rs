@@ -102,17 +102,6 @@ fn test_cli_mi() {
             output_file: None,
             ..Default::default()
         },
-        dir.path().to_path_buf(),
-        false,
-        vec![],
-        Vec::new(),
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
         &mut buffer,
     )
     .unwrap();
@@ -164,14 +153,14 @@ fn test_cli_stats_markdown_output() {
     let output_path = dir.path().join("report.md");
     let mut buffer = Vec::new();
     run_stats(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         false,
         false,
         false,
         false,
         Some(output_path.to_string_lossy().to_string()),
-        vec![],
+        &[],
         &mut buffer,
     )
     .unwrap();
@@ -193,14 +182,14 @@ fn test_cli_stats_json_output() {
 
     let mut buffer = Vec::new();
     run_stats(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         false,
         false,
         false,
         true,
         None,
-        vec![],
+        &[],
         &mut buffer,
     )
     .unwrap();
@@ -225,14 +214,14 @@ fn test_cli_stats_all_flag() {
     let output_path = dir.path().join("full_report.md");
     let mut buffer = Vec::new();
     run_stats(
-        dir.path().to_path_buf(),
+        dir.path(),
         true,
         false,
         false,
         false,
         false,
         Some(output_path.to_string_lossy().to_string()),
-        vec![],
+        &[],
         &mut buffer,
     )
     .unwrap();
@@ -256,14 +245,14 @@ fn test_cli_stats_multiple_files() {
 
     let mut buffer = Vec::new();
     run_stats(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         false,
         false,
         false,
         true,
         None,
-        vec![],
+        &[],
         &mut buffer,
     )
     .unwrap();
@@ -287,14 +276,14 @@ fn test_cli_stats_with_classes() {
 
     let mut buffer = Vec::new();
     run_stats(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         false,
         false,
         false,
         true,
         None,
-        vec![],
+        &[],
         &mut buffer,
     )
     .unwrap();
@@ -315,7 +304,7 @@ fn test_cli_files_table_output() {
     writeln!(file, "x = 1\n# comment\n\ny = 2").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path().to_path_buf(), false, vec![], &mut buffer).unwrap();
+    run_files(dir.path(), false, &[], &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains("test.py"));
@@ -334,7 +323,7 @@ fn test_cli_files_json_output() {
     writeln!(file, "# Application\ndef run():\n    print('hello')").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path().to_path_buf(), true, vec![], &mut buffer).unwrap();
+    run_files(dir.path(), true, &[], &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -367,7 +356,7 @@ fn test_cli_files_multiple_files() {
     .unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path().to_path_buf(), true, vec![], &mut buffer).unwrap();
+    run_files(dir.path(), true, &[], &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -390,13 +379,7 @@ fn test_cli_files_exclude_folder() {
     writeln!(ef, "y = 2").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(
-        dir.path().to_path_buf(),
-        true,
-        vec!["node_modules".to_string()],
-        &mut buffer,
-    )
-    .unwrap();
+    run_files(dir.path(), true, &["node_modules".to_string()], &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -416,7 +399,7 @@ fn test_cli_files_empty_directory() {
     let dir = tempdir().unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path().to_path_buf(), true, vec![], &mut buffer).unwrap();
+    run_files(dir.path(), true, &[], &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -429,14 +412,14 @@ fn test_cli_stats_empty_directory() {
 
     let mut buffer = Vec::new();
     run_stats(
-        dir.path().to_path_buf(),
+        dir.path(),
         false,
         false,
         false,
         false,
         true,
         None,
-        vec![],
+        &[],
         &mut buffer,
     )
     .unwrap();

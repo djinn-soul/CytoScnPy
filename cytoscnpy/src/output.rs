@@ -74,7 +74,7 @@ pub fn print_header(writer: &mut impl Write) -> std::io::Result<()> {
     writeln!(
         writer,
         "{}",
-        "║  Python Static Analysis Results       ║".cyan().bold()
+        "║  Python Static Analysis Results        ║".cyan().bold()
     )?;
     writeln!(
         writer,

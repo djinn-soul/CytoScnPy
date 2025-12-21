@@ -124,7 +124,7 @@ impl CytoScnPy {
         self.total_files_analyzed = total_files;
 
         // Determine root path for relative path calculation
-        let root_path = root_hint.unwrap_or(Path::new("."));
+        let root_path = root_hint.unwrap_or_else(|| Path::new("."));
 
         // Process files in chunks to prevent OOM on large projects.
         // Each chunk is processed in parallel, then results are merged.

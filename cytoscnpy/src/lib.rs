@@ -8,9 +8,22 @@
     clippy::type_complexity,
     clippy::too_many_arguments,
     clippy::ptr_arg,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::format_push_string,
+    clippy::map_unwrap_or,
+    clippy::uninlined_format_args,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::struct_excessive_bools,
+    clippy::implicit_hasher,
+    clippy::items_after_statements
 )]
-#![cfg_attr(test, allow(clippy::unwrap_used))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;

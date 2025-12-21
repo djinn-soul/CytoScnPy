@@ -667,23 +667,20 @@ struct StatsReport {
     quality: Option<Vec<String>>,
 }
 
-fn count_functions_and_classes(code: &str, file_path: &Path) -> (usize, usize) {
-    use rustpython_ast::Stmt;
-    if let Ok(rustpython_ast::Mod::Module(m)) = parse(
-        code,
-        Mode::Module,
-        file_path.to_str().unwrap_or("<unknown>"),
-    ) {
+fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) {
+    use ruff_python_ast::Stmt;
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let m = parsed.into_syntax();
         let mut functions = 0;
         let mut classes = 0;
         for stmt in &m.body {
             match stmt {
-                Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) => functions += 1,
+                Stmt::FunctionDef(_) => functions += 1,
                 Stmt::ClassDef(c) => {
                     classes += 1;
                     // Count methods inside classes
                     for item in &c.body {
-                        if matches!(item, Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_)) {
+                        if matches!(item, Stmt::FunctionDef(_)) {
                             functions += 1;
                         }
                     }
@@ -698,19 +695,20 @@ fn count_functions_and_classes(code: &str, file_path: &Path) -> (usize, usize) {
 }
 
 /// Executes the stats command - generates comprehensive project report.
+#[allow(clippy::fn_params_excessive_bools, clippy::too_many_lines)]
 pub fn run_stats<W: Write>(
-    path: PathBuf,
+    path: &Path,
     all: bool,
     secrets: bool,
     danger: bool,
     quality: bool,
     json: bool,
     output: Option<String>,
-    exclude: Vec<String>,
+    exclude: &[String],
     mut writer: W,
 ) -> Result<()> {
-    let files = find_python_files(&path, &exclude);
-    let num_directories = count_directories(&path, &exclude);
+    let files = find_python_files(path, exclude);
+    let num_directories = count_directories(path, exclude);
 
     // Collect metrics in parallel
     let file_metrics: Vec<FileMetrics> = files
@@ -761,9 +759,9 @@ pub fn run_stats<W: Write>(
             .with_secrets(include_secrets)
             .with_danger(include_danger)
             .with_quality(include_quality)
-            .with_excludes(exclude.clone())
+            .with_excludes(exclude.to_vec())
             .with_config(Config::default());
-        Some(analyzer.analyze_paths(&[path.clone()])?)
+        Some(analyzer.analyze_paths(&[path.to_path_buf()]))
     } else {
         None
     };
@@ -945,12 +943,12 @@ pub fn run_stats<W: Write>(
 
 /// Executes the files command - shows per-file metrics table.
 pub fn run_files<W: Write>(
-    path: PathBuf,
+    path: &Path,
     json: bool,
-    exclude: Vec<String>,
+    exclude: &[String],
     mut writer: W,
 ) -> Result<()> {
-    let files = find_python_files(&path, &exclude);
+    let files = find_python_files(path, exclude);
 
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()

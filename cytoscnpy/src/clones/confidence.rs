@@ -72,6 +72,11 @@ pub struct FixContext {
     pub decorators_differ: bool,
     /// Is the definition deeply nested (>2 levels)?
     pub deeply_nested: bool,
+    // ── CFG-derived context (populated when cfg_validation enabled) ──
+    /// Has CFG behavioral validation passed?
+    /// When true, the clone pair has been verified to have similar
+    /// control flow structure (loops, branches, etc.)
+    pub cfg_validated: bool,
 }
 
 /// Confidence scorer with configurable thresholds
@@ -217,6 +222,19 @@ impl ConfidenceScorer {
                 "deeply_nested",
                 -10,
                 "definition nested >2 levels",
+            ));
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // CFG-DERIVED FACTORS (when cfg_validation enabled)
+        // ══════════════════════════════════════════════════════════════
+
+        if context.cfg_validated {
+            score += 15;
+            factors.push(ConfidenceFactor::new(
+                "cfg_validated",
+                15,
+                "CFG behavioral match verified",
             ));
         }
 

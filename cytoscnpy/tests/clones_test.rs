@@ -404,3 +404,75 @@ fn test_clone_instance_serialization() {
     assert_eq!(parsed.start_line, 10);
     assert_eq!(parsed.name, Some("my_function".to_owned()));
 }
+
+#[test]
+fn test_clone_config_with_cfg_validation() {
+    let config = CloneConfig::default().with_cfg_validation(true);
+    assert!(config.cfg_validation);
+
+    let config_disabled = CloneConfig::default().with_cfg_validation(false);
+    assert!(!config_disabled.cfg_validation);
+
+    // Default should be false
+    let default_config = CloneConfig::default();
+    assert!(!default_config.cfg_validation);
+}
+
+#[test]
+fn test_fix_context_cfg_validated() {
+    use cytoscnpy::clones::{ConfidenceScorer, FixContext};
+
+    let scorer = ConfidenceScorer::default();
+
+    // Create a pair for testing with moderate similarity
+    // (not too high, so CFG boost doesn't hit the 100 cap)
+    let instance_a = CloneInstance {
+        file: PathBuf::from("test.py"),
+        start_line: 10,
+        end_line: 20,
+        start_byte: 100,
+        end_byte: 300,
+        normalized_hash: 123,
+        name: Some("func_a".to_owned()),
+        node_kind: NodeKind::Function,
+    };
+
+    let instance_b = CloneInstance {
+        file: PathBuf::from("other.py"), // Different file = no same_file bonus
+        start_line: 30,
+        end_line: 40,
+        start_byte: 400,
+        end_byte: 600,
+        normalized_hash: 456,
+        name: Some("func_b".to_owned()),
+        node_kind: NodeKind::Function,
+    };
+
+    let pair = cytoscnpy::clones::ClonePair {
+        instance_a,
+        instance_b,
+        similarity: 0.82,             // Moderate similarity (+10 boost, not +30)
+        clone_type: CloneType::Type3, // Type3 gives -10
+        edit_distance: 5,             // No edit distance bonus
+    };
+
+    // Without CFG validation
+    let context_no_cfg = FixContext {
+        cfg_validated: false,
+        ..Default::default()
+    };
+    let score_no_cfg = scorer.score(&pair, &context_no_cfg);
+
+    // With CFG validation (+15 boost)
+    let context_with_cfg = FixContext {
+        cfg_validated: true,
+        ..Default::default()
+    };
+    let score_with_cfg = scorer.score(&pair, &context_with_cfg);
+
+    // CFG validation should boost confidence by 15
+    // Base: 50, similarity: +10, type3: -10, edit_distance: 0 = 50 without CFG
+    // With CFG: 50 + 15 = 65
+    assert!(score_with_cfg.score > score_no_cfg.score);
+    assert_eq!(score_with_cfg.score - score_no_cfg.score, 15);
+}

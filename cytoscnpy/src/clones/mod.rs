@@ -130,6 +130,15 @@ impl CloneDetector {
             }
         }
 
+        // Phase 4.5: CFG-based behavioral validation (optional)
+        // When enabled, filters out clone pairs where the control flow differs significantly
+        #[cfg(feature = "cfg")]
+        let pairs = if self.config.cfg_validation {
+            self.validate_with_cfg(pairs, &all_subtrees)
+        } else {
+            pairs
+        };
+
         // Phase 5: Group clones
         let groups = self.group_clones(&pairs);
         let summary = CloneSummary::from_groups(&groups);
@@ -146,6 +155,75 @@ impl CloneDetector {
     fn group_clones(&self, _pairs: &[ClonePair]) -> Vec<CloneGroup> {
         // TODO: implement union-find grouping
         Vec::new()
+    }
+
+    /// Validate clone pairs using CFG behavioral analysis
+    ///
+    /// Filters out pairs where the control flow structure differs significantly.
+    /// Only applies to function-level clones (functions have meaningful CFG).
+    #[cfg(feature = "cfg")]
+    fn validate_with_cfg(
+        &self,
+        pairs: Vec<ClonePair>,
+        subtrees: &[parser::Subtree],
+    ) -> Vec<ClonePair> {
+        use crate::cfg::CFG;
+        use parser::SubtreeType;
+
+        // Build a map from (file, start_byte) to subtree index for lookup
+        let subtree_map: std::collections::HashMap<(PathBuf, usize), usize> = subtrees
+            .iter()
+            .enumerate()
+            .map(|(i, s)| ((s.file.clone(), s.start_byte), i))
+            .collect();
+
+        pairs
+            .into_iter()
+            .filter(|pair| {
+                // Find the subtrees for both instances
+                let key_a = (pair.instance_a.file.clone(), pair.instance_a.start_byte);
+                let key_b = (pair.instance_b.file.clone(), pair.instance_b.start_byte);
+
+                let (Some(&idx_a), Some(&idx_b)) =
+                    (subtree_map.get(&key_a), subtree_map.get(&key_b))
+                else {
+                    return true; // Keep pair if subtrees not found
+                };
+
+                let subtree_a = &subtrees[idx_a];
+                let subtree_b = &subtrees[idx_b];
+
+                // Only validate function-level clones (classes don't have meaningful single CFG)
+                let is_function_a = matches!(
+                    subtree_a.node_type,
+                    SubtreeType::Function | SubtreeType::AsyncFunction | SubtreeType::Method
+                );
+                let is_function_b = matches!(
+                    subtree_b.node_type,
+                    SubtreeType::Function | SubtreeType::AsyncFunction | SubtreeType::Method
+                );
+
+                if !is_function_a || !is_function_b {
+                    return true; // Keep non-function clones (class clones)
+                }
+
+                // Build CFGs from source
+                let name_a = subtree_a.name.as_deref().unwrap_or("func");
+                let name_b = subtree_b.name.as_deref().unwrap_or("func");
+
+                let cfg_a = CFG::from_source(&subtree_a.source_slice, name_a);
+                let cfg_b = CFG::from_source(&subtree_b.source_slice, name_b);
+
+                match (cfg_a, cfg_b) {
+                    (Some(a), Some(b)) => {
+                        // Use similarity score with threshold
+                        let similarity = a.similarity_score(&b);
+                        similarity >= 0.7 // Keep if CFG similarity >= 70%
+                    }
+                    _ => true, // Keep pair if CFG construction fails
+                }
+            })
+            .collect()
     }
 }
 

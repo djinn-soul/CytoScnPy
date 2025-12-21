@@ -79,6 +79,15 @@ CytoScnPy/
 │       │   ├── crossfile.rs      # Cross-module analysis
 │       │   ├── call_graph.rs     # Function call graph
 │       │   └── summaries.rs      # Function summaries
+│       ├── clones/               # Clone detection (Type-1/2/3)
+│       │   ├── mod.rs            # CloneDetector orchestrator
+│       │   ├── config.rs         # CloneConfig settings
+│       │   ├── parser.rs         # Subtree extraction
+│       │   ├── similarity.rs     # Tree similarity & edit distance
+│       │   ├── hasher.rs         # LSH candidate pruning
+│       │   └── confidence.rs     # Fix confidence scoring
+│       ├── cfg/                  # Control Flow Graph (feature: cfg)
+│       │   └── mod.rs            # CFG construction & fingerprinting
 │       ├── complexity.rs         # Cyclomatic complexity
 │       ├── halstead.rs           # Halstead metrics
 │       ├── raw_metrics.rs        # LOC/SLOC counting
@@ -126,6 +135,24 @@ This will produce:
 - The Rust library in `target/release/libcytoscnpy.rlib`.
 - The binary executable at `target/release/cytoscnpy-bin`.
 
+### Feature Flags
+
+The crate supports optional features that can be enabled at compile time:
+
+| Feature | Description                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------- |
+| `cfg`   | Enables Control Flow Graph (CFG) construction and behavioral validation for clone detection |
+
+To build with a feature enabled:
+
+```bash
+# Build with CFG support
+cargo build --features cfg
+
+# Build release with CFG support
+cargo build --release --features cfg
+```
+
 ## Testing
 
 Run the tests for this specific crate using Cargo.
@@ -133,4 +160,7 @@ Run the tests for this specific crate using Cargo.
 ```bash
 # Run all tests for the cytoscnpy crate
 cargo test
+
+# Run tests with CFG feature enabled
+cargo test --features cfg
 ```

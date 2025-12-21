@@ -44,6 +44,12 @@ pub struct CloneConfig {
     /// Threshold for Type-2 (Renamed): raw similarity must be < this (0.0-1.0)
     /// If normalized >= type1_threshold but raw < type2_raw_max, it's Type-2
     pub type2_raw_max: f64,
+
+    /// Enable CFG-based behavioral validation for clone pairs.
+    /// When enabled, uses control flow graph fingerprinting as a secondary
+    /// filter to verify clone pairs have similar behavioral structure.
+    /// Only available with the `cfg` feature.
+    pub cfg_validation: bool,
 }
 
 impl Default for CloneConfig {
@@ -62,6 +68,7 @@ impl Default for CloneConfig {
             detect_type3: true,
             type1_threshold: 0.95, // Both raw and normalized >= 95% for exact
             type2_raw_max: 0.90,   // Raw < 90% indicates renamed identifiers
+            cfg_validation: false, // Disabled by default (requires `cfg` feature)
         }
     }
 }
@@ -101,6 +108,16 @@ impl CloneConfig {
         self.detect_type1 = type1;
         self.detect_type2 = type2;
         self.detect_type3 = type3;
+        self
+    }
+
+    /// Builder: enable CFG-based behavioral validation
+    ///
+    /// When enabled, uses control flow graph fingerprinting to verify
+    /// clone pairs have similar behavioral structure. Requires the `cfg` feature.
+    #[must_use]
+    pub const fn with_cfg_validation(mut self, enable: bool) -> Self {
+        self.cfg_validation = enable;
         self
     }
 }

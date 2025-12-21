@@ -63,6 +63,39 @@ These features are tested but not yet implemented. Remove `#[ignore]` from tests
 
 ---
 
+## <a id="phase-8"></a>Phase 8: CFG Integration ✅ DONE
+
+### 8.1 Control Flow Graph Construction ✅
+
+Implemented CFG construction from Python AST for behavioral analysis:
+
+- **CFG Builder**: Constructs basic blocks from `StmtFunctionDef`
+- **Control Flow**: Handles `if`, `for`, `while`, `try`, `match`, `break`, `continue`, `return`, `raise`
+- **Loop Depth**: Tracks nesting depth for each basic block
+- **Fingerprinting**: Behavioral signature for clone comparison
+
+### 8.2 Clone Detection Integration ✅
+
+CFG validation as secondary filter for clone detection:
+
+| Feature                  | Description                                    |
+| ------------------------ | ---------------------------------------------- |
+| `cfg_validation` config  | Enable/disable CFG validation in `CloneConfig` |
+| `validate_with_cfg()`    | Phase 4.5 filter in `CloneDetector::detect()`  |
+| `cfg_validated` context  | +15 confidence boost in `ConfidenceScorer`     |
+| 70% similarity threshold | CFG pairs below this are filtered out          |
+
+### 8.3 Feature Flag
+
+Enabled via `--features cfg` at compile time:
+
+```bash
+cargo build --features cfg
+cargo test --features cfg
+```
+
+---
+
 ## <a id="phase-6"></a>Phase 6: Editor Integration ✅ DONE
 
 ### 6.1 VS Code Extension ✅

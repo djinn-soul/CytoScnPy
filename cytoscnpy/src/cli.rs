@@ -324,22 +324,22 @@ pub enum Commands {
         path: PathBuf,
 
         /// Enable all analysis: secrets, danger, quality, and per-file metrics
-        #[arg(long)]
+        #[arg(long, short = 'a')]
         all: bool,
 
         /// Scan for API keys/secrets
-        #[arg(long)]
+        #[arg(long, short = 's')]
         secrets: bool,
 
         /// Scan for dangerous code patterns
-        #[arg(long)]
+        #[arg(long, short = 'd')]
         danger: bool,
 
         /// Scan for code quality issues
-        #[arg(long)]
+        #[arg(long, short = 'q')]
         quality: bool,
 
-        /// Output JSON instead of markdown
+        /// Output JSON
         #[arg(long)]
         json: bool,
 

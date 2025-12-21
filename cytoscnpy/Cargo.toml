@@ -45,8 +45,8 @@ smallvec = "1.15"
 # Optional heap profiler
 dhat = { version = "0.3", optional = true }
 # Tree-sitter for CST parsing (optional, for --fix support)
-tree-sitter = { version = "0.24", optional = true }
-tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter = { version = "0.26", optional = true }
+tree-sitter-python = { version = "0.25", optional = true }
 
 [features]
 default = []

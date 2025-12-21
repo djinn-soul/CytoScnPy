@@ -44,8 +44,9 @@ pub struct CstNode {
 impl CstNode {
     /// Create a `CstNode` from a tree-sitter `Node`
     fn from_ts_node(node: Node<'_>) -> Self {
+        #[allow(clippy::cast_possible_truncation)] // tree-sitter child count always fits in u32
         let children = (0..node.child_count())
-            .filter_map(|i| node.child(i))
+            .filter_map(|i| node.child(i as u32))
             .map(Self::from_ts_node)
             .collect();
 

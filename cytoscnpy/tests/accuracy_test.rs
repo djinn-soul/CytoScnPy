@@ -1,4 +1,9 @@
 //! TDD tests for F1 score and accuracy improvements.
+#![allow(
+    clippy::unwrap_used,
+    clippy::uninlined_format_args,
+    clippy::needless_raw_string_hashes
+)]
 //!
 //! These tests define expected behavior for:
 //! 1. Class-method linking (methods in unused classes should be flagged)

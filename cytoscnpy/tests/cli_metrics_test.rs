@@ -1,4 +1,5 @@
 //! Tests for CLI metrics output.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::commands::{run_cc, run_hal, run_mi, run_raw};
 use std::fs::File;

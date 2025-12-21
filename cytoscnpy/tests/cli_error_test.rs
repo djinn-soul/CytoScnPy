@@ -2,6 +2,11 @@
 //!
 //! These tests verify that the CLI gracefully handles error conditions
 //! and produces useful error messages.
+#![allow(
+    clippy::unwrap_used,
+    clippy::uninlined_format_args,
+    clippy::needless_raw_string_hashes
+)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::config::Config;

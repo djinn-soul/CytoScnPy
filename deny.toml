@@ -48,19 +48,8 @@ skip = []
 # =============================================================================
 [advisories]
 # List of advisory IDs to ignore (with rationale)
-ignore = [
-    # =====================================================================
-    # NOTE: These unic-* advisories were from the old rustpython-parser.
-    # After migration to ruff_python_parser, these may no longer be needed.
-    # Run `cargo deny check` to verify if these can be removed.
-    # =====================================================================
-    "RUSTSEC-2025-0075", # unic-char-range
-    "RUSTSEC-2025-0080", # unic-common  
-    "RUSTSEC-2025-0081", # unic-char-property (corrected ID)
-    "RUSTSEC-2025-0090", # unic-emoji-char
-    "RUSTSEC-2025-0100", # unic-ucd-ident
-    "RUSTSEC-2025-0098", # unic-ucd-version
-]
+# NOTE: After migration to ruff_python_parser, no advisories need to be ignored.
+ignore = []
 
 # =============================================================================
 # SOURCES - Define trusted sources for crates

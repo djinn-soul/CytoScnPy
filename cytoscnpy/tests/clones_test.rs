@@ -23,6 +23,7 @@ fn test_clone_instance_creation() {
         end_byte: 300,
         normalized_hash: 12345,
         name: Some("my_function".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     assert_eq!(instance.file, PathBuf::from("test.py"));
@@ -41,6 +42,7 @@ fn test_clone_pair_same_file() {
         end_byte: 300,
         normalized_hash: 123,
         name: Some("func_a".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let instance_b = CloneInstance {
@@ -51,6 +53,7 @@ fn test_clone_pair_same_file() {
         end_byte: 600,
         normalized_hash: 456,
         name: Some("func_b".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let pair = ClonePair {
@@ -75,6 +78,7 @@ fn test_clone_pair_different_files() {
         end_byte: 300,
         normalized_hash: 123,
         name: Some("func_a".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let instance_b = CloneInstance {
@@ -85,6 +89,7 @@ fn test_clone_pair_different_files() {
         end_byte: 600,
         normalized_hash: 456,
         name: Some("func_b".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let pair = ClonePair {
@@ -156,6 +161,7 @@ fn test_clone_group_creation() {
             end_byte: 600,
             normalized_hash: 456,
             name: Some("func_2".to_owned()),
+            node_kind: NodeKind::Function,
         },
     ];
 
@@ -206,6 +212,7 @@ fn test_clone_summary_with_groups() {
             end_byte: 300,
             normalized_hash: 2,
             name: None,
+            node_kind: NodeKind::Function,
         },
     ];
 
@@ -217,6 +224,7 @@ fn test_clone_summary_with_groups() {
         end_byte: 150,
         normalized_hash: 3,
         name: None,
+        node_kind: NodeKind::Function,
     }];
 
     let groups = vec![
@@ -385,6 +393,7 @@ fn test_clone_instance_serialization() {
         end_byte: 300,
         normalized_hash: 12345,
         name: Some("my_function".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let json = serde_json::to_string(&instance).unwrap();

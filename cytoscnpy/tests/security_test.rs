@@ -1,5 +1,10 @@
 //! Unit tests for security rules
 //! Tests secrets and dangerous code detection
+#![allow(
+    clippy::unwrap_used,
+    clippy::needless_raw_string_hashes,
+    clippy::field_reassign_with_default
+)]
 
 use cytoscnpy::config::Config;
 use cytoscnpy::linter::LinterVisitor;

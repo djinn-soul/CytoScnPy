@@ -1,6 +1,12 @@
 //! Tests for secret scanning rules.
 //!
 //! Verifies entropy calculation, pattern matching (AWS, generic secrets), and configuration handling.
+#![allow(
+    clippy::float_cmp,
+    clippy::uninlined_format_args,
+    clippy::str_to_string,
+    clippy::field_reassign_with_default
+)]
 use cytoscnpy::config::{CustomSecretPattern, SecretsConfig};
 use cytoscnpy::rules::secrets::{
     calculate_entropy, is_high_entropy, scan_secrets, scan_secrets_compat,

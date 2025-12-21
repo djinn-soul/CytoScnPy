@@ -5,12 +5,14 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```
 //! use cytoscnpy::fix::{ByteRangeRewriter, Edit};
 //!
-//! let mut rewriter = ByteRangeRewriter::new(source_code);
-//! rewriter.add_edit(Edit::delete(start, end));
-//! let fixed = rewriter.apply()?;
+//! let source = "hello world";
+//! let mut rewriter = ByteRangeRewriter::new(source);
+//! rewriter.add_edit(Edit::new(0, 5, "hi"));
+//! let fixed = rewriter.apply().expect("should apply");
+//! assert_eq!(fixed, "hi world");
 //! ```
 
 use std::fmt;

@@ -1,4 +1,10 @@
 //! Tests for framework detection (Flask, Django, etc.).
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::str_to_string,
+    clippy::needless_raw_string_hashes
+)]
 
 use cytoscnpy::framework::FrameworkAwareVisitor;
 use cytoscnpy::utils::LineIndex;
@@ -668,5 +674,3 @@ fn test_framework_imports_set() {
     assert!(imports.contains("fastapi"), "Should contain 'fastapi'");
     assert!(imports.contains("pydantic"), "Should contain 'pydantic'");
 }
-
-

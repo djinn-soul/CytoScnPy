@@ -2,7 +2,7 @@
 
 use cytoscnpy::clones::{
     CloneConfig, CloneFinding, CloneGroup, CloneInstance, ClonePair, CloneRelation, CloneSummary,
-    CloneType,
+    CloneType, NodeKind,
 };
 use std::path::PathBuf;
 
@@ -108,6 +108,7 @@ fn test_clone_pair_canonical() {
         end_byte: 700,
         normalized_hash: 123,
         name: Some("later_func".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let instance_b = CloneInstance {
@@ -118,6 +119,7 @@ fn test_clone_pair_canonical() {
         end_byte: 300,
         normalized_hash: 456,
         name: Some("earlier_func".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let pair = ClonePair {
@@ -144,6 +146,7 @@ fn test_clone_group_creation() {
             end_byte: 300,
             normalized_hash: 123,
             name: Some("func_1".to_owned()),
+            node_kind: NodeKind::Function,
         },
         CloneInstance {
             file: PathBuf::from("test.py"),
@@ -193,6 +196,7 @@ fn test_clone_summary_with_groups() {
             end_byte: 100,
             normalized_hash: 1,
             name: None,
+            node_kind: NodeKind::Function,
         },
         CloneInstance {
             file: PathBuf::from("a.py"),
@@ -268,6 +272,7 @@ fn test_clone_finding_from_pair_canonical() {
         end_byte: 300,
         normalized_hash: 123,
         name: Some("canonical_func".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let instance_b = CloneInstance {
@@ -278,6 +283,7 @@ fn test_clone_finding_from_pair_canonical() {
         end_byte: 600,
         normalized_hash: 456,
         name: Some("duplicate_func".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let pair = ClonePair {
@@ -305,6 +311,7 @@ fn test_clone_finding_from_pair_duplicate() {
         end_byte: 300,
         normalized_hash: 123,
         name: Some("canonical_func".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let instance_b = CloneInstance {
@@ -315,6 +322,7 @@ fn test_clone_finding_from_pair_duplicate() {
         end_byte: 600,
         normalized_hash: 456,
         name: Some("duplicate_func".to_owned()),
+        node_kind: NodeKind::Function,
     };
 
     let pair = ClonePair {

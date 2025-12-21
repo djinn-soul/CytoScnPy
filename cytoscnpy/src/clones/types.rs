@@ -63,6 +63,21 @@ pub struct CloneInstance {
     pub normalized_hash: u64,
     /// Optional function/class name
     pub name: Option<String>,
+    /// Type of code element (function, class, method)
+    pub node_kind: NodeKind,
+}
+
+/// Kind of code element for context-aware suggestions
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NodeKind {
+    /// Regular function
+    Function,
+    /// Async function
+    AsyncFunction,
+    /// Class definition
+    Class,
+    /// Method inside a class
+    Method,
 }
 
 /// A pair of similar code fragments
@@ -225,6 +240,11 @@ pub struct CloneFinding {
     pub fix_confidence: u8,
     /// Whether this is the canonical (kept) or duplicate (removable)
     pub is_duplicate: bool,
+    /// Refactoring suggestion for this clone
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+    /// Kind of code element (function, class, method) for context
+    pub node_kind: NodeKind,
 }
 
 /// Relation to another clone (for highlighting in JSON)
@@ -303,6 +323,8 @@ impl CloneFinding {
             },
             fix_confidence,
             is_duplicate,
+            suggestion: None,
+            node_kind: this.node_kind,
         }
     }
 }

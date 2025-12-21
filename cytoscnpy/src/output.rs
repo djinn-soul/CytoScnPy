@@ -367,18 +367,7 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
     print_findings(writer, "Quality Issues", &result.quality)?;
     print_parse_errors(writer, &result.parse_errors)?;
 
-    // Summary recap at end
-    let total = result.unused_functions.len()
-        + result.unused_methods.len()
-        + result.unused_imports.len()
-        + result.unused_parameters.len()
-        + result.unused_classes.len()
-        + result.unused_variables.len();
-    let security = result.danger.len() + result.secrets.len() + result.quality.len();
-    writeln!(
-        writer,
-        "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
-    )?;
+    // Note: Summary is printed by entry_point to support combined clone summary
 
     Ok(())
 }

@@ -1,0 +1,142 @@
+name: CI Test Suite
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "cytoscnpy/**"
+      - "cytoscnpy-mcp/**"
+      - "cytoscnpy-cli/**"
+      - "editors/vscode/**"
+      - ".github/workflows/test-ci.yml"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  PYO3_PYTHON: python3
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            cytoscnpy -> target
+            cytoscnpy-mcp -> target
+            cytoscnpy-cli -> target
+          cache-on-failure: true
+
+      - name: Build cytoscnpy
+        run: cargo build --verbose --features python-bindings
+        working-directory: ./cytoscnpy
+
+      - name: Run cytoscnpy tests
+        run: cargo test --verbose --features python-bindings
+        working-directory: ./cytoscnpy
+
+      - name: Build cytoscnpy-mcp
+        run: cargo build --verbose
+        working-directory: ./cytoscnpy-mcp
+
+      - name: Run cytoscnpy-mcp tests
+        run: cargo test --verbose
+        working-directory: ./cytoscnpy-mcp
+
+      - name: Build cytoscnpy-cli
+        run: cargo build --verbose
+        working-directory: ./cytoscnpy-cli
+
+      - name: Run cytoscnpy-cli tests
+        run: cargo test --verbose
+        working-directory: ./cytoscnpy-cli
+
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run Python CLI tests
+        run: pytest python/tests/ -v
+
+  vscode-test:
+    name: VS Code Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary_name: cytoscnpy-cli-linux-x64
+            executable: cytoscnpy-cli
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_name: cytoscnpy-cli-win32.exe
+            executable: cytoscnpy-cli.exe
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary_name: cytoscnpy-cli-darwin
+            executable: cytoscnpy-cli
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "vscode-cli-${{ matrix.os }}"
+
+      - name: Build CLI for Extension
+        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+
+      - name: Prepare Extension Binaries
+        shell: bash
+        run: |
+          mkdir -p editors/vscode/cytoscnpy/bin
+          # Windows output is at target/target-name/release/exe
+          # Others at target/target-name/release/bin
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/${{ matrix.executable }} editors/vscode/cytoscnpy/bin/${{ matrix.binary_name }}
+          else
+            cp target/${{ matrix.target }}/release/${{ matrix.executable }} editors/vscode/cytoscnpy/bin/${{ matrix.binary_name }}
+          fi
+          chmod +x editors/vscode/cytoscnpy/bin/*
+
+      - name: Install Extension Dependencies
+        working-directory: editors/vscode/cytoscnpy
+        run: npm ci
+
+      - name: Run Extension Tests (Linux Headless)
+        if: runner.os == 'Linux'
+        working-directory: editors/vscode/cytoscnpy
+        run: |
+          /usr/bin/Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          export DISPLAY=':99.0'
+          npm test
+
+      - name: Run Extension Tests (Windows/macOS)
+        if: runner.os != 'Linux'
+        working-directory: editors/vscode/cytoscnpy
+        run: npm test

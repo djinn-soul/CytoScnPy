@@ -188,17 +188,26 @@ exclude_folders = ["path/with/slashes", "path\\with\\backslashes", "has spaces"]
 
 /// Test that colored output can be disabled (important for testing).
 #[test]
-fn test_colored_upgrade_disable_colors() {
-    // Disable colored output
+fn test_colored_upgrade_overrides() {
+    // 1. Test disabling colors
     colored::control::set_override(false);
 
     use colored::Colorize;
-    let text = "test".red().to_string();
+    let text_no_color = "test".red().to_string();
 
     // When colors are disabled, no ANSI codes should be present
-    assert!(!text.contains("\x1b["));
-    assert_eq!(text, "test");
+    assert!(!text_no_color.contains("\x1b["));
+    assert_eq!(text_no_color, "test");
 
+    // 2. Test enabling colors
+    colored::control::set_override(true);
+
+    let text_with_color = "test".red().to_string();
+
+    // Text should contain the word "test"
+    assert!(text_with_color.contains("test"));
+
+    // Cleanup
     colored::control::unset_override();
 }
 
@@ -285,26 +294,6 @@ fn test_colored_upgrade_background() {
     assert!(bg_red.contains("bg"));
     assert!(bg_green.contains("bg"));
     assert!(bg_blue.contains("bg"));
-}
-
-/// Test that colors work when explicitly enabled.
-#[test]
-fn test_colored_upgrade_explicit_enable() {
-    use colored::Colorize;
-
-    // Force enable colors
-    colored::control::set_override(true);
-
-    let text = "test".red().to_string();
-
-    // Text should contain the word "test"
-    assert!(text.contains("test"));
-
-    // On terminals that support it, we'd have ANSI codes
-    // But we can't guarantee this on all Windows terminals
-    // So we just verify the API works without panicking
-
-    colored::control::unset_override();
 }
 
 // ============================================================================

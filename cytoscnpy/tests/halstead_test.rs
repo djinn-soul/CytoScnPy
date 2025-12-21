@@ -1,14 +1,14 @@
 //! Tests for Halstead metrics calculation.
 
 use cytoscnpy::halstead::analyze_halstead;
-use rustpython_parser::{parse, Mode};
+use ruff_python_parser::{parse, Mode};
 
 #[test]
 fn test_halstead_simple() {
     let code = "x = 1";
-    let ast = parse(code, Mode::Module, "<test>").unwrap();
-    if let rustpython_ast::Mod::Module(m) = ast {
-        let metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+    let ast = parse(code, Mode::Module.into()).unwrap();
+    if let ruff_python_ast::Mod::Module(m) = ast.into_syntax() {
+        let metrics = analyze_halstead(&ruff_python_ast::Mod::Module(m));
         // Operators: = (1)
         // Operands: x, 1 (2)
         // n1 = 1, n2 = 2
@@ -23,9 +23,9 @@ fn test_halstead_simple() {
 #[test]
 fn test_halstead_function() {
     let code = "def foo(x):\n    return x + 1";
-    let ast = parse(code, Mode::Module, "<test>").unwrap();
-    if let rustpython_ast::Mod::Module(m) = ast {
-        let metrics = analyze_halstead(&rustpython_ast::Mod::Module(m));
+    let ast = parse(code, Mode::Module.into()).unwrap();
+    if let ruff_python_ast::Mod::Module(m) = ast.into_syntax() {
+        let metrics = analyze_halstead(&ruff_python_ast::Mod::Module(m));
         // Operators: def, return, + (3 distinct)
         // Operands: foo, x, 1 (3 distinct)
         // N1: def(1), return(1), +(1) = 3?
@@ -43,3 +43,5 @@ fn test_halstead_function() {
         assert_eq!(metrics.n2, 3);
     }
 }
+
+

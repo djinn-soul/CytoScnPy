@@ -1,6 +1,11 @@
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use rustc_hash::FxHashSet;
+use std::collections::HashMap;
 use std::sync::OnceLock;
+
+/// Maximum recursion depth for AST visitor to prevent stack overflow on deeply nested code.
+/// A depth of 50 is sufficient for any reasonable Python code while providing a safety margin.
+pub const MAX_RECURSION_DEPTH: usize = 50;
 
 /// Confidence adjustment penalties for various code patterns.
 pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
@@ -14,13 +19,19 @@ pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
         m.insert("dynamic_module", 40);
         m.insert("test_related", 100);
         m.insert("framework_magic", 40);
+        m.insert("type_checking_import", 100); // TYPE_CHECKING imports are type-only
         m
     })
 }
 
 /// Regex for identifying test files.
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
 pub fn get_test_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(
             r"(?:^|[/\\])tests?[/\\]|(?:^|[/\\])test_[^/\\]+\.py$|[^/\\]+_test\.py$|conftest\.py$",
@@ -30,8 +41,13 @@ pub fn get_test_file_re() -> &'static Regex {
 }
 
 /// Regex for identifying imports of testing frameworks.
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
 pub fn get_test_import_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(r"^(pytest|unittest|nose|mock|responses)(\.|$)")
             .expect("Invalid test import regex pattern")
@@ -39,8 +55,13 @@ pub fn get_test_import_re() -> &'static Regex {
 }
 
 /// Regex for identifying test-related decorators.
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
 pub fn get_test_decor_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(
             r"(?x)^(
@@ -55,10 +76,10 @@ pub fn get_test_decor_re() -> &'static Regex {
 }
 
 /// Set of method names that are automatically called by Python (magic methods).
-pub fn get_auto_called() -> &'static HashSet<&'static str> {
-    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+pub fn get_auto_called() -> &'static FxHashSet<&'static str> {
+    static SET: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
-        let mut s = HashSet::new();
+        let mut s = FxHashSet::default();
         s.insert("__init__");
         s.insert("__enter__");
         s.insert("__exit__");
@@ -67,16 +88,21 @@ pub fn get_auto_called() -> &'static HashSet<&'static str> {
 }
 
 /// Regex for identifying test methods.
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
 pub fn get_test_method_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| Regex::new(r"^test_\w+$").expect("Invalid test method regex pattern"))
 }
 
 /// Set of unittest lifecycle methods.
-pub fn get_unittest_lifecycle_methods() -> &'static HashSet<&'static str> {
-    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+pub fn get_unittest_lifecycle_methods() -> &'static FxHashSet<&'static str> {
+    static SET: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
-        let mut s = HashSet::new();
+        let mut s = FxHashSet::default();
         s.insert("setUp");
         s.insert("tearDown");
         s.insert("setUpClass");
@@ -88,8 +114,13 @@ pub fn get_unittest_lifecycle_methods() -> &'static HashSet<&'static str> {
 }
 
 /// Regex for identifying framework-specific files (e.g. Django, Flask patterns).
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
 pub fn get_framework_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
         Regex::new(r"(?i)(?:views|handlers|endpoints|routes|api|urls)\.py$")
             .expect("Invalid framework file regex pattern")
@@ -97,10 +128,10 @@ pub fn get_framework_file_re() -> &'static Regex {
 }
 
 /// Set of folders to exclude by default.
-pub fn get_default_exclude_folders() -> &'static HashSet<&'static str> {
-    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+pub fn get_default_exclude_folders() -> &'static FxHashSet<&'static str> {
+    static SET: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
-        let mut s = HashSet::new();
+        let mut s = FxHashSet::default();
         s.insert("__pycache__");
         s.insert(".git");
         s.insert(".pytest_cache");

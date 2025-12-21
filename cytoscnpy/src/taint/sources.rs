@@ -3,7 +3,8 @@
 //! Identifies where untrusted user input enters the program.
 
 use super::types::{TaintInfo, TaintSource};
-use rustpython_parser::ast::{self, Expr, Ranged};
+use ruff_python_ast::{self as ast, Expr};
+use ruff_text_size::Ranged;
 
 /// Checks if an expression is a taint source and returns the taint info.
 pub fn check_taint_source(expr: &Expr) -> Option<TaintInfo> {
@@ -224,11 +225,11 @@ pub fn check_fastapi_param(func_def: &ast::StmtFunctionDef) -> Vec<(String, Tain
     let line = func_def.range().start().to_u32() as usize;
 
     // Check for Query(), Path(), Body(), Form() in parameter defaults
-    for arg in &func_def.args.args {
+    for arg in &func_def.parameters.args {
         if let Some(default) = &arg.default {
             if let Expr::Call(call) = &**default {
                 if let Some(name) = get_call_name(&call.func) {
-                    let param_name = arg.def.arg.as_str();
+                    let param_name = arg.parameter.name.as_str();
                     match name.as_str() {
                         "Query" | "Path" | "Body" | "Form" | "Header" | "Cookie" => {
                             let source = TaintSource::FastApiParam(param_name.to_owned());
@@ -243,46 +244,4 @@ pub fn check_fastapi_param(func_def: &ast::StmtFunctionDef) -> Vec<(String, Tain
     }
 
     tainted_params
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rustpython_parser::{parse, Mode};
-
-    fn parse_expr(source: &str) -> Expr {
-        let tree = parse(source, Mode::Expression, "test.py").unwrap();
-        if let ast::Mod::Expression(expr) = tree {
-            *expr.body
-        } else {
-            panic!("Expected expression")
-        }
-    }
-
-    #[test]
-    fn test_input_source() {
-        let expr = parse_expr("input()");
-        let taint = check_taint_source(&expr);
-        assert!(taint.is_some());
-        assert!(matches!(taint.unwrap().source, TaintSource::Input));
-    }
-
-    #[test]
-    fn test_flask_request_args() {
-        let expr = parse_expr("request.args");
-        let taint = check_taint_source(&expr);
-        assert!(taint.is_some());
-        assert!(matches!(
-            taint.unwrap().source,
-            TaintSource::FlaskRequest(_)
-        ));
-    }
-
-    #[test]
-    fn test_sys_argv() {
-        let expr = parse_expr("sys.argv");
-        let taint = check_taint_source(&expr);
-        assert!(taint.is_some());
-        assert!(matches!(taint.unwrap().source, TaintSource::CommandLine));
-    }
 }

@@ -1,5 +1,7 @@
 //! Extended Radon complexity tests for modern Python features.
 
+#![allow(clippy::expect_used)] // Tests use expect for clarity
+
 use cytoscnpy::complexity::analyze_complexity;
 use std::fs;
 use std::path::PathBuf;
@@ -8,7 +10,7 @@ use std::path::PathBuf;
 fn test_modern_python_features() {
     let path = PathBuf::from("../benchmark/examples/complex/radon_complex/modern_python.py");
     let code = fs::read_to_string(&path).expect("Failed to read modern_python.py");
-    let findings = analyze_complexity(&code, &path);
+    let findings = analyze_complexity(&code, &path, false);
 
     // async_func
     let async_func = findings

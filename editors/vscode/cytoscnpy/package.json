@@ -2,32 +2,52 @@
   "name": "cytoscnpy",
   "publisher": "djinn09",
   "displayName": "CytoScnPy",
-  "description": "Integrates CytoScnPy to provide real-time static analysis, dead    ",
-  "version": "0.0.1",
+  "description": "Python static analyzer with MCP server for GitHub Copilot. Real-time dead code detection, security scanning, and code quality metrics.",
+  "version": "0.1.1",
+  "icon": "assets/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/djinn09/CytoScnPy"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/djinn09/CytoScnPy/issues"
   },
   "homepage": "https://github.com/djinn09/CytoScnPy#readme",
   "engines": {
-    "vscode": "^1.106.1"
+    "vscode": "^1.96.0"
   },
   "categories": [
     "Programming Languages",
     "Linters",
+    "AI",
+    "Chat",
     "Other"
   ],
-  "activationEvents": ["onLanguage:python"],
+  "keywords": [
+    "python",
+    "mcp",
+    "copilot",
+    "agent",
+    "static-analysis",
+    "dead-code",
+    "security",
+    "linter",
+    "code-quality"
+  ],
+  "activationEvents": [
+    "onLanguage:python"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "cytoscnpy.analyzeCurrentFile",
         "title": "CytoScnPy: Analyze Current File"
+      },
+      {
+        "command": "cytoscnpy.analyzeWorkspace",
+        "title": "CytoScnPy: Analyze Workspace"
       },
       {
         "command": "cytoscnpy.complexity",
@@ -40,15 +60,35 @@
       {
         "command": "cytoscnpy.maintainability",
         "title": "CytoScnPy: Calculate Maintainability Index (mi)"
+      },
+      {
+        "command": "cytoscnpy.rawMetrics",
+        "title": "CytoScnPy: Calculate Raw Metrics (raw)"
       }
     ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "cytoscnpy-mcp",
+        "label": "CytoScnPy Static Analyzer"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "cytoscnpy-issues",
+          "name": "CytoScnPy",
+          "visibility": "visible",
+          "contextualTitle": "CytoScnPy Issues"
+        }
+      ]
+    },
     "configuration": {
       "title": "CytoScnPy Configuration",
       "properties": {
         "cytoscnpy.path": {
           "type": "string",
-          "default": "cytoscnpy",
-          "description": "Path to the CytoScnPy executable. Use the full path if not in your system's PATH."
+          "default": "",
+          "description": "Path to the CytoScnPy executable. Leave empty to use bundled binary or pip-installed version."
         },
         "cytoscnpy.enableSecretsScan": {
           "type": "boolean",
@@ -66,10 +106,68 @@
           "description": "Enable scanning for code quality issues."
         },
         "cytoscnpy.confidenceThreshold": {
-          "type": "string",
-          "enum": ["low", "medium", "high", "all"],
-          "default": "all",
-          "description": "Minimum confidence level of findings to report."
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Minimum confidence level (0-100) of findings to report. Set to 0 to show all findings."
+        },
+        "cytoscnpy.excludeFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Folders to exclude from analysis (e.g., ['build', 'dist', '.venv'])."
+        },
+        "cytoscnpy.includeFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Folders to force-include in analysis (overrides default exclusions)."
+        },
+        "cytoscnpy.includeTests": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include test files in analysis."
+        },
+        "cytoscnpy.includeIpynb": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include Jupyter Notebooks (.ipynb files) in analysis."
+        },
+        "cytoscnpy.maxComplexity": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "description": "Maximum allowed Cyclomatic Complexity before flagging."
+        },
+        "cytoscnpy.minMaintainabilityIndex": {
+          "type": "number",
+          "default": 40,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Minimum Maintainability Index before flagging."
+        },
+        "cytoscnpy.maxNesting": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "description": "Maximum allowed nesting depth before flagging."
+        },
+        "cytoscnpy.maxArguments": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Maximum allowed function arguments before flagging."
+        },
+        "cytoscnpy.maxLines": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "description": "Maximum allowed function lines before flagging."
         }
       }
     }
@@ -89,7 +187,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.106.1",
+    "@types/vscode": "^1.96.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "typescript-eslint": "^8.46.3",

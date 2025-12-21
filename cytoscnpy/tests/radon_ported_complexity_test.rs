@@ -51,7 +51,7 @@ def f(a):
     ];
 
     for (code, name, expected_cc) in cases {
-        let findings = analyze_complexity(code, &PathBuf::from("test.py"));
+        let findings = analyze_complexity(code, &PathBuf::from("test.py"), false);
         let func = findings
             .iter()
             .find(|f| f.name == name)
@@ -89,7 +89,7 @@ class A(object):
     ];
 
     for (code, name, expected_cc) in cases {
-        let findings = analyze_complexity(code, &PathBuf::from("test.py"));
+        let findings = analyze_complexity(code, &PathBuf::from("test.py"), false);
         let func = findings
             .iter()
             .find(|f| f.name == name)
@@ -97,3 +97,5 @@ class A(object):
         assert_eq!(func.complexity, expected_cc, "Failed for code:\n{code}");
     }
 }
+
+

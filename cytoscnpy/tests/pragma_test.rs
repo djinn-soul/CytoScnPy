@@ -29,7 +29,7 @@ used()
     .unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let result = analyzer.analyze(dir.path()).unwrap();
+    let result = analyzer.analyze(dir.path());
 
     let unreachable: Vec<String> = result
         .unused_functions

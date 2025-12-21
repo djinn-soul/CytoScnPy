@@ -1,8 +1,9 @@
 [package]
 name = "cytoscnpy"
-version = "1.0.1"
-edition = "2021"
-license = "Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+default-run = "cytoscnpy-bin"
 
 [lib]
 name = "cytoscnpy"
@@ -20,8 +21,10 @@ tempfile = "3.10"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
-rustpython-parser = "0.4.0"
-rustpython-ast = { version = "0.4.0", features = ["visitor"] }
+# ruff v0.14.9 (2025-12-11) - latest stable release
+ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", rev = "3f63ea4b504d50eaf3c479de68e4017d2434a160" }
+ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", rev = "3f63ea4b504d50eaf3c479de68e4017d2434a160" }
+ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "3f63ea4b504d50eaf3c479de68e4017d2434a160" }
 walkdir = "2.5"
 rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }
@@ -31,16 +34,25 @@ nbformat = "0.15"
 regex = "1.10"
 anyhow = "1.0"
 colored = "3.0"
-lazy_static = "1.4"
 indicatif = "0.18.3"
 comfy-table = "7.1"
-pyo3 = { version = "0.27.2", features = ["extension-module"] }
+pyo3 = { version = "0.27.2", features = ["extension-module"], optional = true }
 rustc-hash = "2.1.1"
+# String optimization: stack-allocated small strings (up to 24 bytes)
+compact_str = "0.9"
+# Stack-allocated small vectors to avoid heap for small collections
+smallvec = "1.15"
+# Optional heap profiler
+dhat = { version = "0.3", optional = true }
 
 [features]
 default = []
+# Enable Python bindings (required for building the cdylib)
+python-bindings = ["pyo3"]
 # Enable this feature to run Python binding tests (requires Python DLL in PATH)
-python-tests = ["pyo3/auto-initialize"]
+python-tests = ["pyo3/auto-initialize", "python-bindings"]
+# Enable heap profiling with dhat
+heap-profile = ["dhat"]
 
 # Inherit lints from workspace
 [lints]

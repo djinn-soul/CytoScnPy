@@ -1,5 +1,6 @@
 use crate::rules::{Context, Finding, Rule};
-use rustpython_parser::ast::{self, Expr, Ranged, Stmt};
+use ruff_python_ast::{Expr, Stmt};
+use ruff_text_size::Ranged;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -47,30 +48,28 @@ impl MethodMisuseRule {
         }
     }
 
-    fn infer_type(&self, expr: &Expr) -> Option<String> {
+    fn infer_type(expr: &Expr) -> Option<String> {
         match expr {
-            Expr::Constant(c) => match &c.value {
-                ast::Constant::Str(_) => Some("str".to_owned()),
-                ast::Constant::Int(_) => Some("int".to_owned()),
-                ast::Constant::Float(_) => Some("float".to_owned()),
-                ast::Constant::Bool(_) => Some("bool".to_owned()),
-                ast::Constant::Bytes(_) => Some("bytes".to_owned()),
-                ast::Constant::None => Some("None".to_owned()),
-                _ => None,
-            },
-            Expr::List(_) => Some("list".to_owned()),
+            Expr::StringLiteral(_) | Expr::FString(_) => Some("str".to_owned()),
+            Expr::BytesLiteral(_) => Some("bytes".to_owned()),
+            Expr::NumberLiteral(n) => {
+                if n.value.is_int() {
+                    Some("int".to_owned())
+                } else {
+                    Some("float".to_owned())
+                }
+            }
+            Expr::BooleanLiteral(_) => Some("bool".to_owned()),
+            Expr::NoneLiteral(_) => Some("None".to_owned()),
+            Expr::List(_) | Expr::ListComp(_) => Some("list".to_owned()),
             Expr::Tuple(_) => Some("tuple".to_owned()),
-            Expr::Set(_) => Some("set".to_owned()),
-            Expr::Dict(_) => Some("dict".to_owned()),
-            Expr::JoinedStr(_) => Some("str".to_owned()), // f-string
-            Expr::ListComp(_) => Some("list".to_owned()),
-            Expr::SetComp(_) => Some("set".to_owned()),
-            Expr::DictComp(_) => Some("dict".to_owned()),
+            Expr::Set(_) | Expr::SetComp(_) => Some("set".to_owned()),
+            Expr::Dict(_) | Expr::DictComp(_) => Some("dict".to_owned()),
             _ => None,
         }
     }
 
-    fn is_valid_method(&self, type_name: &str, method_name: &str) -> bool {
+    fn is_valid_method(type_name: &str, method_name: &str) -> bool {
         match type_name {
             "str" => matches!(
                 method_name,
@@ -188,24 +187,44 @@ impl Rule for MethodMisuseRule {
 
     fn enter_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
         match stmt {
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => {
-                self.scope_stack.push(Scope::new());
-            }
-            Stmt::Assign(node) => {
-                // Infer type from value
-                if let Some(inferred_type) = self.infer_type(&node.value) {
-                    for target in &node.targets {
-                        if let Expr::Name(name_node) = target {
-                            self.add_variable(name_node.id.to_string(), inferred_type.clone());
-                        }
+            Stmt::FunctionDef(node) => {
+                self.scope_stack.push(Scope::new()); // Ensure we push scope!
+                                                     // Track function definitions to handle return types
+                                                     // We'll reset current_function when exiting (via stack or similar if full traversal)
+                                                     // For now, simpler approach:
+                if let Some(returns) = &node.returns {
+                    if let Expr::Name(name) = &**returns {
+                        // e.g. def foo() -> str:
+                        // Map "foo" to "str"
+                        self.add_variable(node.name.to_string(), name.id.to_string());
                     }
                 }
             }
             Stmt::AnnAssign(node) => {
                 if let Some(value) = &node.value {
-                    if let Some(inferred_type) = self.infer_type(value) {
+                    if let Some(inferred_type) = Self::infer_type(value) {
                         if let Expr::Name(name_node) = &*node.target {
-                            self.add_variable(name_node.id.to_string(), inferred_type);
+                            if let Some(scope) = self.scope_stack.last_mut() {
+                                scope
+                                    .variables
+                                    .insert(name_node.id.to_string(), inferred_type);
+                            }
+                        }
+                    }
+                }
+            }
+            // Handle regular assignments like `s = "hello"`
+            Stmt::Assign(node) => {
+                if let Some(value) = Some(&node.value) {
+                    if let Some(inferred_type) = Self::infer_type(value) {
+                        for target in &node.targets {
+                            if let Expr::Name(name_node) = target {
+                                if let Some(scope) = self.scope_stack.last_mut() {
+                                    scope
+                                        .variables
+                                        .insert(name_node.id.to_string(), inferred_type.clone());
+                                }
+                            }
                         }
                     }
                 }
@@ -217,7 +236,7 @@ impl Rule for MethodMisuseRule {
 
     fn leave_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
         match stmt {
-            Stmt::FunctionDef(_) | Stmt::AsyncFunctionDef(_) | Stmt::ClassDef(_) => {
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {
                 self.scope_stack.pop();
             }
             _ => {}
@@ -233,7 +252,7 @@ impl Rule for MethodMisuseRule {
                     let method_name = &attr.attr;
 
                     if let Some(type_name) = self.get_variable_type(var_name) {
-                        if !self.is_valid_method(type_name, method_name) {
+                        if !Self::is_valid_method(type_name, method_name) {
                             return Some(vec![Finding {
                                 rule_id: self.code().to_owned(),
                                 severity: "HIGH".to_owned(), // Method misuse is usually a runtime error

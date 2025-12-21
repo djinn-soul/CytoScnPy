@@ -1,7 +1,7 @@
 name: Code Coverage
 
 on:
-  pull_request:
+  push:
     branches: [main]
 
 jobs:
@@ -28,29 +28,39 @@ jobs:
         with:
           components: llvm-tools-preview
 
-      - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov
-
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            cytoscnpy/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          workspaces: "cytoscnpy -> target"
+          cache-on-failure: true
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Generate coverage
         working-directory: cytoscnpy
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path ../lcov.info --ignore-filename-regex 'quality_gate_test'
+        run: |
+          cargo llvm-cov --all-features --workspace --lcov --output-path ../lcov.info --ignore-filename-regex 'quality_gate_test'
+          cargo llvm-cov report --summary-only --ignore-filename-regex 'quality_gate_test'
         env:
           PYO3_PYTHON: python3
+          CARGO_PROFILE_DEV_DEBUG: 0
+          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
 
-      - name: Generate coverage summary
-        working-directory: cytoscnpy
-        run: cargo llvm-cov --all-features --workspace --summary-only --ignore-filename-regex 'quality_gate_test'
+      - name: Upload coverage to Codecov
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+          verbose: true
         env:
-          PYO3_PYTHON: python3
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload coverage report as artifact
         uses: actions/upload-artifact@v4

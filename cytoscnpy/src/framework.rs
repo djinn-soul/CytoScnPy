@@ -1,6 +1,6 @@
 use crate::utils::LineIndex;
-use rustpython_ast::{Expr, Stmt};
-use std::collections::HashSet;
+use ruff_python_ast::{Expr, Stmt};
+use rustc_hash::FxHashSet;
 use std::sync::OnceLock;
 
 /// Framework-specific decorator patterns that indicate implicit usage.
@@ -60,10 +60,10 @@ pub static FRAMEWORK_FUNCTIONS: &[&str] = &[
 ];
 
 /// Returns the set of framework import names used for detection.
-pub fn get_framework_imports() -> &'static HashSet<&'static str> {
-    static IMPORTS: OnceLock<HashSet<&'static str>> = OnceLock::new();
+pub fn get_framework_imports() -> &'static FxHashSet<&'static str> {
+    static IMPORTS: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     IMPORTS.get_or_init(|| {
-        let mut s = HashSet::new();
+        let mut s = FxHashSet::default();
         s.insert("flask");
         s.insert("fastapi");
         s.insert("django");
@@ -85,10 +85,10 @@ pub struct FrameworkAwareVisitor<'a> {
     /// Indicates if the current file uses a known framework.
     pub is_framework_file: bool,
     /// Set of detected frameworks in the file.
-    pub detected_frameworks: HashSet<String>,
+    pub detected_frameworks: FxHashSet<String>,
     /// Lines where framework-specific decorators are applied.
     /// Definitions on these lines receive a confidence penalty (are less likely to be reported as unused).
-    pub framework_decorated_lines: HashSet<usize>,
+    pub framework_decorated_lines: FxHashSet<usize>,
     /// Helper for mapping byte offsets to line numbers.
     pub line_index: &'a LineIndex,
     /// Names of functions/classes referenced by framework patterns.
@@ -99,11 +99,12 @@ pub struct FrameworkAwareVisitor<'a> {
 
 impl<'a> FrameworkAwareVisitor<'a> {
     /// Creates a new `FrameworkAwareVisitor`.
+    #[must_use]
     pub fn new(line_index: &'a LineIndex) -> Self {
         Self {
             is_framework_file: false,
-            detected_frameworks: HashSet::new(),
-            framework_decorated_lines: HashSet::new(),
+            detected_frameworks: FxHashSet::default(),
+            framework_decorated_lines: FxHashSet::default(),
             line_index,
             framework_references: Vec::new(),
         }
@@ -141,18 +142,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 let line = self.line_index.line_index(node.range.start());
                 self.check_decorators(&node.decorator_list, line);
                 // Check for FastAPI Depends() in parameters
-                self.extract_fastapi_depends(&node.args);
-                // Recursively visit the body of the function.
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-            }
-            // Check async function definitions for decorators.
-            Stmt::AsyncFunctionDef(node) => {
-                let line = self.line_index.line_index(node.range.start());
-                self.check_decorators(&node.decorator_list, line);
-                // Check for FastAPI Depends() in parameters
-                self.extract_fastapi_depends(&node.args);
+                self.extract_fastapi_depends(&node.parameters);
                 // Recursively visit the body of the function.
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
@@ -164,7 +154,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 let mut is_pydantic_model = false;
                 // Check base classes (inheritance) for framework patterns.
                 // e.g., inheriting from `Model`, `View`, `Schema`, `BaseModel`.
-                for base in &node.bases {
+                for base in node.bases() {
                     let id = match base {
                         Expr::Name(name_node) => Some(name_node.id.to_string()),
                         Expr::Attribute(attr_node) => Some(attr_node.attr.to_string()),
@@ -207,16 +197,9 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 for stmt in &node.body {
                     // If it's a framework class, mark its methods.
                     if is_framework_class {
-                        match stmt {
-                            Stmt::FunctionDef(f) => {
-                                let line = self.line_index.line_index(f.range.start());
-                                self.framework_decorated_lines.insert(line);
-                            }
-                            Stmt::AsyncFunctionDef(f) => {
-                                let line = self.line_index.line_index(f.range.start());
-                                self.framework_decorated_lines.insert(line);
-                            }
-                            _ => {}
+                        if let Stmt::FunctionDef(f) = stmt {
+                            let line = self.line_index.line_index(f.range.start());
+                            self.framework_decorated_lines.insert(line);
                         }
                     }
                     // If it's a Pydantic model, mark annotated fields as used
@@ -254,7 +237,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
 
     /// Extracts dependency functions from `FastAPI` `Depends()` in function parameters.
     /// Example: `def get_items(db: Session = Depends(get_db))` -> marks `get_db` as used
-    fn extract_fastapi_depends(&mut self, args: &rustpython_ast::Arguments) {
+    fn extract_fastapi_depends(&mut self, args: &ruff_python_ast::Parameters) {
         // Check all argument types for Depends() default values
         for arg in &args.args {
             if let Some(default) = &arg.default {
@@ -276,7 +259,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 self.is_framework_file = true;
                 self.detected_frameworks.insert("fastapi".to_owned());
                 // First argument is the dependency function
-                if let Some(first_arg) = call.args.first() {
+                if let Some(first_arg) = call.arguments.args.first() {
                     match first_arg {
                         Expr::Name(name) => {
                             self.framework_references.push(name.id.to_string());
@@ -318,8 +301,8 @@ impl<'a> FrameworkAwareVisitor<'a> {
             // Check for path(), re_path(), url() - Django URL routing functions
             if func_name == "path" || func_name == "re_path" || func_name == "url" {
                 // Second argument is typically the view function
-                if call.args.len() >= 2 {
-                    self.extract_view_reference(&call.args[1]);
+                if call.arguments.args.len() >= 2 {
+                    self.extract_view_reference(&call.arguments.args[1]);
                 }
             }
             // Check for include() - it references other URL modules, not view functions
@@ -359,7 +342,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                     self.is_framework_file = true;
                     self.detected_frameworks.insert("django".to_owned());
                     // First argument is the Model class
-                    if let Some(Expr::Name(name)) = call.args.first() {
+                    if let Some(Expr::Name(name)) = call.arguments.args.first() {
                         self.framework_references.push(name.id.to_string());
                     }
                 }
@@ -369,7 +352,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 self.is_framework_file = true;
                 self.detected_frameworks.insert("django".to_owned());
                 // First argument is the receiver function
-                if let Some(Expr::Name(name)) = call.args.first() {
+                if let Some(Expr::Name(name)) = call.arguments.args.first() {
                     self.framework_references.push(name.id.to_string());
                 }
             }
@@ -429,10 +412,10 @@ impl<'a> FrameworkAwareVisitor<'a> {
     }
 
     /// Checks if any of the decorators are framework-related.
-    fn check_decorators(&mut self, decorators: &[Expr], line: usize) {
+    fn check_decorators(&mut self, decorators: &[ruff_python_ast::Decorator], line: usize) {
         for decorator in decorators {
-            let name = self.get_decorator_name(decorator);
-            if self.is_framework_decorator(&name) {
+            let name = self.get_decorator_name(&decorator.expression);
+            if Self::is_framework_decorator(&name) {
                 // If a framework decorator is found, mark the line and the file.
                 self.framework_decorated_lines.insert(line);
                 self.is_framework_file = true;
@@ -441,6 +424,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     }
 
     /// Extracts the name of a decorator.
+    #[allow(clippy::only_used_in_recursion)]
     fn get_decorator_name(&self, decorator: &Expr) -> String {
         match decorator {
             Expr::Name(node) => node.id.to_string(),
@@ -457,7 +441,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     }
 
     /// Determines if a decorator name is likely framework-related.
-    fn is_framework_decorator(&self, name: &str) -> bool {
+    fn is_framework_decorator(name: &str) -> bool {
         let name = name.to_lowercase();
         // Common patterns in Flask, FastAPI, Celery, etc.
         name.contains("route")
@@ -479,13 +463,14 @@ impl<'a> FrameworkAwareVisitor<'a> {
 ///
 /// # Arguments
 /// * `line` - The line number where the definition starts
-/// * `simple_name` - The simple name of the definition (e.g., "get_users")
+/// * `simple_name` - The simple name of the definition (e.g., "`get_users`")
 /// * `def_type` - The type of definition ("function", "method", "class", "variable")
-/// * `visitor` - Optional reference to the FrameworkAwareVisitor for the file
+/// * `visitor` - Optional reference to the `FrameworkAwareVisitor` for the file
 ///
 /// # Returns
 /// * `Some(100)` - If the definition is a decorated framework endpoint (confidence = 1.0)
 /// * `None` - If the definition is not a framework endpoint or should be ignored
+#[must_use]
 pub fn detect_framework_usage(
     line: usize,
     simple_name: &str,

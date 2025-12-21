@@ -4,6 +4,10 @@ use std::fs;
 use std::path::Path;
 
 /// Extract Python code from all code cells in a notebook
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read or if parsing the notebook JSON fails.
 pub fn extract_notebook_code(path: &Path) -> Result<String> {
     let notebook_json = fs::read_to_string(path)?;
     let notebook = parse_notebook(&notebook_json)?;
@@ -31,6 +35,10 @@ pub fn extract_notebook_code(path: &Path) -> Result<String> {
 }
 
 /// Extract code cells with their indices for cell-level reporting
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read or if parsing the notebook JSON fails.
 pub fn extract_notebook_cells(path: &Path) -> Result<Vec<(usize, String)>> {
     let notebook_json = fs::read_to_string(path)?;
     let notebook = parse_notebook(&notebook_json)?;

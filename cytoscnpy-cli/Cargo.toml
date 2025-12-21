@@ -1,12 +1,16 @@
 [package]
 name = "cytoscnpy-cli"
-version = "1.0.1"
-edition = "2021"
-license = "Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-cytoscnpy = { path = "../cytoscnpy" } # use library crate
+cytoscnpy = { path = "../cytoscnpy" }                                # use library crate
+cytoscnpy-mcp = { path = "../cytoscnpy-mcp" }                        # MCP server integration
 anyhow = "1.0"
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4.5", features = ["derive"] }
+rmcp = { version = "0.11.0", features = ["server", "transport-io"] }
 
 # Inherit lints from workspace
 [lints]

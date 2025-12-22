@@ -1,4 +1,5 @@
-//! Tests for dynamic pattern detection (eval, exec, globals).
+//! Tests for dynamic Python patterns.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

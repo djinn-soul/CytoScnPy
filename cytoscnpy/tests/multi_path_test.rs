@@ -1,5 +1,8 @@
 //! Test suite for the multi-path analyzer functionality.
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::redundant_clone)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::needless_raw_string_hashes)]
 //!
 //! These tests verify that the `analyze_paths` method correctly handles:
 //! - Single directory paths (delegating to standard analyze)

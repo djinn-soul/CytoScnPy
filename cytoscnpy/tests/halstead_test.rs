@@ -1,4 +1,5 @@
 //! Tests for Halstead metrics calculation.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::halstead::analyze_halstead;
 use ruff_python_parser::{parse, Mode};
@@ -43,5 +44,3 @@ fn test_halstead_function() {
         assert_eq!(metrics.n2, 3);
     }
 }
-
-

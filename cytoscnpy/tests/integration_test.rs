@@ -1,5 +1,8 @@
 //! Integration tests for cytoscnpy
 //! These tests run the binary on sample code and verify output matches expectations
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::uninlined_format_args)]
 
 use serde_json::Value;
 use std::process::Command;
@@ -307,5 +310,3 @@ fn test_issue_11_dict_usage() {
     // Should find 0 unused imports (both used in dict)
     assert_eq!(unused_imports.len(), 0, "Should find 0 unused imports");
 }
-
-

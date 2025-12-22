@@ -1,4 +1,7 @@
-//! Tests for accuracy improvements (return tracking, __all__ exports, TYPE_CHECKING imports).
+//! Tests for accuracy improvements (return tracking, `__all__` exports, `TYPE_CHECKING` imports).
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::doc_markdown)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

@@ -1,7 +1,12 @@
 //! Tests for metaclass keyword argument detection.
 //!
-//! Bug #5: The ClassDef handler was not visiting node.keywords,
+//! Bug #5: The `ClassDef` handler was not visiting `node.keywords`,
 //! so classes used as metaclasses were incorrectly flagged as unused.
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::str_to_string)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::needless_raw_string_hashes)]
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
@@ -275,5 +280,3 @@ class Child(Parent, metaclass=ParentMeta):
         "ParentMeta should be in references"
     );
 }
-
-

@@ -187,9 +187,9 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
         eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
         if let Some(ref command) = cli_var.command {
-            eprintln!("[VERBOSE] Executing subcommand: {:?}", command);
+            eprintln!("[VERBOSE] Executing subcommand: {command:?}");
         }
-        eprintln!("[VERBOSE] Global Excludes: {:?}", exclude_folders);
+        eprintln!("[VERBOSE] Global Excludes: {exclude_folders:?}");
         eprintln!();
     }
 

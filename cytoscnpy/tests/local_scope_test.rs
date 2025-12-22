@@ -1,4 +1,5 @@
-//! Tests for local scope analysis and nested definitions.
+//! Tests for local scope analysis.
+#![allow(clippy::case_sensitive_file_extension_comparisons)]
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
@@ -270,4 +271,3 @@ class OuterClass:
         "Expected 4 x definitions at different levels, got: {x_defs:?}"
     );
 }
-

@@ -1,5 +1,7 @@
 //! Taint Analysis Feature Tests
 //!
+//! Feature tests for taint analysis
+#![allow(clippy::needless_raw_string_hashes)]
 //! Tests for taint flow detection from sources to sinks.
 
 use cytoscnpy::taint::analyzer::{TaintAnalyzer, TaintConfig};
@@ -226,5 +228,3 @@ eval(result)
         "Should detect taint through loop iteration"
     );
 }
-
-

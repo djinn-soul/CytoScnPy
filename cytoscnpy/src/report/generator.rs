@@ -8,6 +8,10 @@ use askama::Template;
 use std::fs;
 use std::path::Path;
 
+/// Generates a comprehensive HTML report based on the analysis results.
+///
+/// This function creates a report directory, copies static assets (CSS, JS),
+/// and generates the main dashboard, issues view, and individual file views.
 pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()> {
     if !output_dir.exists() {
         fs::create_dir_all(output_dir)?;
@@ -118,19 +122,19 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
         average_mi_color: average_mi_color.clone(),
         summary: result.analysis_summary.clone(),
         halstead_view: crate::report::templates::FormattedHalsteadMetrics {
-            volume: format!("{:.2}", avg_vol),
+            volume: format!("{avg_vol:.2}"),
             volume_level: vol_level.to_string(),
             volume_color: vol_color.to_string(),
             volume_icon: vol_icon.to_string(),
-            difficulty: format!("{:.2}", avg_diff),
+            difficulty: format!("{avg_diff:.2}"),
             difficulty_level: diff_level.to_string(),
             difficulty_color: diff_color.to_string(),
             difficulty_icon: diff_icon.to_string(),
-            effort: format!("{:.2}", avg_effort),
+            effort: format!("{avg_effort:.2}"),
             effort_level: eff_level.to_string(),
             effort_color: eff_color.to_string(),
             effort_icon: eff_icon.to_string(),
-            bugs: format!("{:.2}", total_bugs),
+            bugs: format!("{total_bugs:.2}"),
             bugs_level: bugs_level.to_string(),
             bugs_color: bugs_color.to_string(),
             bugs_icon: bugs_icon.to_string(),
@@ -175,9 +179,15 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
     Ok(())
 }
 
+/// Calculates the overall and category-specific scores for the analysis.
+///
+/// The total score is a weighted average of:
+/// - Complexity (35%)
+/// - Maintainability (25%)
+/// - Security (15%)
+/// - Reliability (15%)
+/// - Style (10%)
 fn calculate_score(result: &AnalysisResult) -> OverallScore {
-    let mut score = 100.0;
-
     // --- 1. Complexity (30-40% weight) ---
     // Signals: High Cyclomatic Complexity, Deep Nesting, Long Functions
     let mut complexity_penalty: f64 = 0.0;
@@ -224,7 +234,6 @@ fn calculate_score(result: &AnalysisResult) -> OverallScore {
     }
     // Cap complexity penalty at 25 (not 40) to leave room for other categories
     complexity_penalty = complexity_penalty.min(25.0);
-    score -= complexity_penalty;
 
     // --- 2. Maintainability (25-30% weight) ---
     // Signals: Unused code, duplication (not yet), file size
@@ -242,7 +251,6 @@ fn calculate_score(result: &AnalysisResult) -> OverallScore {
 
     // Cap maintainability penalty at 20 (not 30)
     maintainability_penalty = maintainability_penalty.min(20.0);
-    score -= maintainability_penalty;
 
     // --- 3. Reliability / Correctness (15-20% weight) ---
     // Signals: Error handling, Exceptions
@@ -261,7 +269,6 @@ fn calculate_score(result: &AnalysisResult) -> OverallScore {
     }
     // Cap reliability at 15 (not 20)
     reliability_penalty = reliability_penalty.min(15.0);
-    score -= reliability_penalty;
 
     // --- 4. Security (10-15% weight) ---
     // Signals: Secrets, Danger, Taint
@@ -285,8 +292,6 @@ fn calculate_score(result: &AnalysisResult) -> OverallScore {
     // However, for the *Category* score, we might want to cap it.
     // For main score, we subtract.
 
-    score -= security_penalty;
-
     // --- 5. Readability & Style (5-10% weight) ---
     // Signals: Other quality issues
     let mut style_penalty: f64 = 0.0;
@@ -308,12 +313,6 @@ fn calculate_score(result: &AnalysisResult) -> OverallScore {
     }
     // Cap style at 5 (not 10)
     style_penalty = style_penalty.min(5.0);
-    score -= style_penalty;
-
-    // Final Clamp
-    if score < 0.0 {
-        score = 0.0;
-    }
 
     // Calculate category scores (used for display AND weighted average)
     let complexity_score = (100.0 - complexity_penalty).max(0.0);

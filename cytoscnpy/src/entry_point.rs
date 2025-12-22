@@ -406,13 +406,15 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         let secrets = cli_var.scan.secrets || config.cytoscnpy.secrets.unwrap_or(false);
         let danger = cli_var.scan.danger || config.cytoscnpy.danger.unwrap_or(false);
 
-        // Auto-enable quality mode when --min-mi or --max-complexity is set
+        // Auto-enable quality mode when --min-mi or --max-complexity is set,
+        // or when html_report feature is enabled (for dashboard metrics)
         let quality = cli_var.scan.quality
             || config.cytoscnpy.quality.unwrap_or(false)
             || cli_var.min_mi.is_some()
             || cli_var.max_complexity.is_some()
             || config.cytoscnpy.min_mi.is_some()
-            || config.cytoscnpy.complexity.is_some();
+            || config.cytoscnpy.complexity.is_some()
+            || cfg!(feature = "html_report");
 
         let include_tests =
             cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
@@ -564,15 +566,38 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         if cli_var.output.json {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
-            let mut stdout = std::io::stdout();
-            if cli_var.output.quiet {
-                crate::output::print_report_quiet(&mut stdout, &result)?;
-            } else {
-                crate::output::print_report(&mut stdout, &result)?;
+            // Determine if we should show standard CLI output
+            #[cfg(feature = "html_report")]
+            let show_cli = !cli_var.output.html;
+            #[cfg(not(feature = "html_report"))]
+            let show_cli = true;
+
+            if show_cli {
+                let mut stdout = std::io::stdout();
+                if cli_var.output.quiet {
+                    crate::output::print_report_quiet(&mut stdout, &result)?;
+                } else {
+                    crate::output::print_report(&mut stdout, &result)?;
+                }
+                // Show processing time
+                let elapsed = start_time.elapsed();
+                println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
             }
-            // Show processing time
-            let elapsed = start_time.elapsed();
-            println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
+        }
+
+        #[cfg(feature = "html_report")]
+        if cli_var.output.html {
+            println!("Generating HTML report...");
+            let report_dir = std::path::Path::new(".cytoscnpy/report");
+            if let Err(e) = crate::report::generator::generate_report(&result, report_dir) {
+                eprintln!("Failed to generate HTML report: {e}");
+            } else {
+                println!("HTML report generated at: {}", report_dir.display());
+                // Try to open in browser
+                if let Err(e) = open::that(report_dir.join("index.html")) {
+                    eprintln!("Failed to open report in browser: {e}");
+                }
+            }
         }
 
         // Check for fail threshold (CLI > config > env var > default)
@@ -585,6 +610,8 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     .and_then(|v| v.parse::<f64>().ok())
             })
             .unwrap_or(100.0); // Default to 100% (never fail unless explicitly set)
+
+        let mut exit_code = 0;
 
         // Calculate unused percentage and show gate status
         if result.analysis_summary.total_definitions > 0 {
@@ -608,7 +635,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                         "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - FAILED"
                     );
                 }
-                return Ok(1);
+                exit_code = 1;
             } else if show_gate && !cli_var.output.json {
                 println!(
                     "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - PASSED"
@@ -640,7 +667,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                             "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - FAILED"
                         );
                     }
-                    return Ok(1);
+                    exit_code = 1;
                 } else if !cli_var.output.json {
                     println!(
                         "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - PASSED"
@@ -663,7 +690,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                             "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - FAILED"
                         );
                     }
-                    return Ok(1);
+                    exit_code = 1;
                 } else if !cli_var.output.json {
                     println!(
                         "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - PASSED"
@@ -672,6 +699,6 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             }
         }
 
-        Ok(0)
+        Ok(exit_code)
     }
 }

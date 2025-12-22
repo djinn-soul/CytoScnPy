@@ -65,6 +65,11 @@ pub struct OutputOptions {
     /// Exit with code 1 if any quality issues are found.
     #[arg(long)]
     pub fail_on_quality: bool,
+
+    /// Generate HTML report.
+    #[arg(long)]
+    #[cfg(feature = "html_report")]
+    pub html: bool,
 }
 
 /// Options for including additional files in analysis.

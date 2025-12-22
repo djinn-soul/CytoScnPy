@@ -11,22 +11,15 @@
     clippy::similar_names,
     clippy::format_push_string,
     clippy::map_unwrap_or,
-    clippy::uninlined_format_args,
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::module_name_repetitions,
-    clippy::must_use_candidate,
-    clippy::struct_excessive_bools,
-    clippy::implicit_hasher,
     clippy::items_after_statements
 )]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;
+#[cfg(feature = "html_report")]
+pub mod report;
 
 /// Module containing the AST visitor implementation.
 /// This is responsible for traversing the Python AST and collecting data.
@@ -99,3 +92,4 @@ use pyo3::prelude::*;
 fn cytoscnpy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     python_bindings::register_functions(m)
 }
+// Force rebuild

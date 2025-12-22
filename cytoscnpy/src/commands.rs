@@ -1,6 +1,7 @@
 use crate::analyzer::CytoScnPy;
 use crate::complexity::analyze_complexity;
 use crate::config::Config;
+use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
 use crate::halstead::{analyze_halstead, analyze_halstead_functions};
 use crate::metrics::{mi_compute, mi_rank};
 use crate::raw_metrics::analyze_raw;
@@ -604,34 +605,63 @@ pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Resul
 }
 
 fn find_python_files(root: &Path, exclude: &[String]) -> Vec<PathBuf> {
+    // Merge user excludes with default excludes (.venv, __pycache__, etc.)
+    let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
+        .iter()
+        .map(|&s| s.to_string())
+        .collect();
+    let all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
+
     WalkDir::new(root)
         .into_iter()
+        .filter_entry(|e| {
+            // Prune excluded directories (prevents descent)
+            let path = e.path();
+            if path.is_dir() {
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy())
+                    .unwrap_or_default();
+                return !all_excludes.iter().any(|ex| name.contains(ex));
+            }
+            true
+        })
         .filter_map(std::result::Result::ok)
         .filter(|e| {
             let path = e.path();
-            // Skip excluded directories
-            if path.is_dir() {
-                return !exclude.iter().any(|ex| path.to_string_lossy().contains(ex));
-            }
             // Only include .py files
-            path.extension().is_some_and(|ext| ext == "py")
+            path.is_file() && path.extension().is_some_and(|ext| ext == "py")
         })
-        .filter(|e| e.path().is_file()) // Exclude directories from results
         .map(|e| e.path().to_path_buf())
         .collect()
 }
 
 fn count_directories(root: &Path, exclude: &[String]) -> usize {
+    // Merge user excludes with default excludes
+    let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
+        .iter()
+        .map(|&s| s.to_string())
+        .collect();
+    let all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
+
     WalkDir::new(root)
         .into_iter()
+        .filter_entry(|e| {
+            // Prune excluded directories
+            let path = e.path();
+            if path.is_dir() {
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy())
+                    .unwrap_or_default();
+                return !all_excludes.iter().any(|ex| name.contains(ex));
+            }
+            true
+        })
         .filter_map(std::result::Result::ok)
         .filter(|e| {
             let path = e.path();
-            if path.is_dir() && path != root {
-                !exclude.iter().any(|ex| path.to_string_lossy().contains(ex))
-            } else {
-                false
-            }
+            path.is_dir() && path != root
         })
         .count()
 }
@@ -822,21 +852,36 @@ pub fn run_stats<W: Write>(
             writeln!(writer, "{json_output}")?;
         }
     } else {
-        // Generate markdown report
+        // Generate markdown report with better alignment
         let mut md = String::new();
         md.push_str("# CytoScnPy Project Statistics Report\n\n");
         md.push_str("## Overview\n\n");
-        md.push_str("| Metric | Value |\n");
-        md.push_str("|--------|-------|\n");
-        md.push_str(&format!("| Total Files | {} |\n", total_files));
-        md.push_str(&format!("| Total Directories | {} |\n", num_directories));
-        md.push_str(&format!("| Total Size | {:.2} KB |\n", total_size_kb));
-        md.push_str(&format!("| Total Lines | {} |\n", total_lines));
-        md.push_str(&format!("| Code Lines | {} |\n", code_lines));
-        md.push_str(&format!("| Comment Lines | {} |\n", comment_lines));
-        md.push_str(&format!("| Empty Lines | {} |\n", empty_lines));
-        md.push_str(&format!("| Functions | {} |\n", total_functions));
-        md.push_str(&format!("| Classes | {} |\n", total_classes));
+        md.push_str("| Metric              |        Value |\n");
+        md.push_str("|---------------------|-------------:|\n");
+        md.push_str(&format!("| Total Files         | {:>12} |\n", total_files));
+        md.push_str(&format!(
+            "| Total Directories   | {:>12} |\n",
+            num_directories
+        ));
+        md.push_str(&format!(
+            "| Total Size          | {:>9.2} KB |\n",
+            total_size_kb
+        ));
+        md.push_str(&format!("| Total Lines         | {:>12} |\n", total_lines));
+        md.push_str(&format!("| Code Lines          | {:>12} |\n", code_lines));
+        md.push_str(&format!(
+            "| Comment Lines       | {:>12} |\n",
+            comment_lines
+        ));
+        md.push_str(&format!("| Empty Lines         | {:>12} |\n", empty_lines));
+        md.push_str(&format!(
+            "| Functions           | {:>12} |\n",
+            total_functions
+        ));
+        md.push_str(&format!(
+            "| Classes             | {:>12} |\n",
+            total_classes
+        ));
 
         if include_files {
             md.push_str("\n## Per-File Metrics\n\n");

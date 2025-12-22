@@ -472,7 +472,7 @@ impl CytoScnPy {
     }
 
     /// Aggregates results from multiple file analyses.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     pub(crate) fn aggregate_results(
         &mut self,
         results: Vec<(
@@ -747,7 +747,7 @@ impl CytoScnPy {
     }
 
     /// Analyzes a single string of code (mostly for testing).
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     #[must_use]
     pub fn analyze_code(&self, code: &str, file_path: &Path) -> AnalysisResult {
         let source = code.to_owned();

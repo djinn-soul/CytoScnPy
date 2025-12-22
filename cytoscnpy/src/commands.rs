@@ -725,7 +725,15 @@ fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) 
 }
 
 /// Executes the stats command - generates comprehensive project report.
-#[allow(clippy::fn_params_excessive_bools, clippy::too_many_lines)]
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or JSON serialization fails.
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_lines,
+    clippy::cast_precision_loss
+)]
 pub fn run_stats<W: Write>(
     path: &Path,
     all: bool,
@@ -859,13 +867,19 @@ pub fn run_stats<W: Write>(
         md.push_str("| Metric              |        Value |\n");
         md.push_str("|---------------------|-------------:|\n");
         md.push_str(&format!("| Total Files         | {total_files:>12} |\n"));
-        md.push_str(&format!("| Total Directories   | {num_directories:>12} |\n"));
-        md.push_str(&format!("| Total Size          | {total_size_kb:>9.2} KB |\n"));
+        md.push_str(&format!(
+            "| Total Directories   | {num_directories:>12} |\n"
+        ));
+        md.push_str(&format!(
+            "| Total Size          | {total_size_kb:>9.2} KB |\n"
+        ));
         md.push_str(&format!("| Total Lines         | {total_lines:>12} |\n"));
         md.push_str(&format!("| Code Lines          | {code_lines:>12} |\n"));
         md.push_str(&format!("| Comment Lines       | {comment_lines:>12} |\n"));
         md.push_str(&format!("| Empty Lines         | {empty_lines:>12} |\n"));
-        md.push_str(&format!("| Functions           | {total_functions:>12} |\n"));
+        md.push_str(&format!(
+            "| Functions           | {total_functions:>12} |\n"
+        ));
         md.push_str(&format!("| Classes             | {total_classes:>12} |\n"));
 
         if include_files {
@@ -972,6 +986,11 @@ pub fn run_stats<W: Write>(
 }
 
 /// Executes the files command - shows per-file metrics table.
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or JSON serialization fails.
+#[allow(clippy::cast_precision_loss)]
 pub fn run_files<W: Write>(
     path: &Path,
     json: bool,

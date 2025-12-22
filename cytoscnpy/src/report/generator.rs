@@ -1,3 +1,9 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+
 use crate::analyzer::AnalysisResult;
 use crate::report::templates::{
     CategoryScore, DashboardTemplate, FileViewTemplate, FilesTemplate, IssueItem, IssuesTemplate,
@@ -12,6 +18,11 @@ use std::path::Path;
 ///
 /// This function creates a report directory, copies static assets (CSS, JS),
 /// and generates the main dashboard, issues view, and individual file views.
+///
+/// # Errors
+///
+/// Returns an error if directory creation, file I/O, or template rendering fails.
+#[allow(clippy::too_many_lines)]
 pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()> {
     if !output_dir.exists() {
         fs::create_dir_all(output_dir)?;
@@ -22,7 +33,7 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
 
     // 2. Prepare Data
     let generated_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let version = env!("CARGO_PKG_VERSION").to_string();
+    let version = env!("CARGO_PKG_VERSION").to_owned();
 
     let issue_items = flatten_issues(result);
 
@@ -45,21 +56,21 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
         .collect();
 
     let score_color = if score.total_score >= 80 {
-        "#4ade80".to_string()
+        "#4ade80".to_owned()
     } else {
-        "#f87171".to_string()
+        "#f87171".to_owned()
     };
 
     let average_mi_color = if result.analysis_summary.average_mi >= 65.0 {
-        "#4ade80".to_string()
+        "#4ade80".to_owned()
     } else {
-        "#f87171".to_string()
+        "#f87171".to_owned()
     };
 
-    let total_issues_color = if issue_items.len() > 0 {
-        "var(--severity-high)".to_string()
+    let total_issues_color = if issue_items.is_empty() {
+        "var(--text-main)".to_owned()
     } else {
-        "var(--text-main)".to_string()
+        "var(--severity-high)".to_owned()
     };
 
     // 4. Generate Dashboard
@@ -123,27 +134,27 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
         summary: result.analysis_summary.clone(),
         halstead_view: crate::report::templates::FormattedHalsteadMetrics {
             volume: format!("{avg_vol:.2}"),
-            volume_level: vol_level.to_string(),
-            volume_color: vol_color.to_string(),
-            volume_icon: vol_icon.to_string(),
+            volume_level: vol_level.to_owned(),
+            volume_color: vol_color.to_owned(),
+            volume_icon: vol_icon.to_owned(),
             difficulty: format!("{avg_diff:.2}"),
-            difficulty_level: diff_level.to_string(),
-            difficulty_color: diff_color.to_string(),
-            difficulty_icon: diff_icon.to_string(),
+            difficulty_level: diff_level.to_owned(),
+            difficulty_color: diff_color.to_owned(),
+            difficulty_icon: diff_icon.to_owned(),
             effort: format!("{avg_effort:.2}"),
-            effort_level: eff_level.to_string(),
-            effort_color: eff_color.to_string(),
-            effort_icon: eff_icon.to_string(),
+            effort_level: eff_level.to_owned(),
+            effort_color: eff_color.to_owned(),
+            effort_icon: eff_icon.to_owned(),
             bugs: format!("{total_bugs:.2}"),
-            bugs_level: bugs_level.to_string(),
-            bugs_color: bugs_color.to_string(),
-            bugs_icon: bugs_icon.to_string(),
+            bugs_level: bugs_level.to_owned(),
+            bugs_color: bugs_color.to_owned(),
+            bugs_icon: bugs_icon.to_owned(),
             time: format!("{:.2}", h_metrics.time / file_count),
             calculated_length: format!("{:.2}", h_metrics.calculated_length / file_count),
         },
         generated_at: generated_at.clone(),
         version: version.clone(),
-        root_path: ".".to_string(),
+        root_path: ".".to_owned(),
     };
     fs::write(output_dir.join("index.html"), dashboard.render()?)?;
 
@@ -155,7 +166,7 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
         quality,
         generated_at: generated_at.clone(),
         version: version.clone(),
-        root_path: ".".to_string(),
+        root_path: ".".to_owned(),
     };
     fs::write(output_dir.join("issues.html"), issues_page.render()?)?;
 
@@ -163,10 +174,10 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
     let files_page = FilesTemplate {
         file_metrics: file_metrics_view,
         average_mi: format!("{:.1}", result.analysis_summary.average_mi),
-        average_mi_color: average_mi_color.to_string(),
+        average_mi_color,
         version: version.clone(),
         generated_at: generated_at.clone(),
-        root_path: ".".to_string(),
+        root_path: ".".to_owned(),
     };
     fs::write(output_dir.join("files.html"), files_page.render()?)?;
 
@@ -187,6 +198,7 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
 /// - Security (15%)
 /// - Reliability (15%)
 /// - Style (10%)
+#[allow(clippy::too_many_lines)]
 fn calculate_score(result: &AnalysisResult) -> OverallScore {
     // --- 1. Complexity (30-40% weight) ---
     // Signals: High Cyclomatic Complexity, Deep Nesting, Long Functions
@@ -338,15 +350,15 @@ fn calculate_score(result: &AnalysisResult) -> OverallScore {
         40..=59 => "D",
         _ => "F",
     }
-    .to_string();
+    .to_owned();
 
     let grade_color = |grade: &str| -> String {
         match grade {
-            "A" => "#4ade80".to_string(), // Green-400
-            "B" => "#a3e635".to_string(), // Lime-400
-            "C" => "#facc15".to_string(), // Yellow-400
-            "D" => "#fb923c".to_string(), // Orange-400
-            _ => "#f87171".to_string(),   // Red-400
+            "A" => "#4ade80".to_owned(), // Green-400
+            "B" => "#a3e635".to_owned(), // Lime-400
+            "C" => "#facc15".to_owned(), // Yellow-400
+            "D" => "#fb923c".to_owned(), // Orange-400
+            _ => "#f87171".to_owned(),   // Red-400
         }
     };
 
@@ -436,11 +448,11 @@ fn flatten_issues(result: &AnalysisResult) -> Vec<IssueItem> {
     // Helper closure
     let mut add = |category: &str, severity: &str, msg: String, file: String, line: usize| {
         let safe_name = file.replace(['/', '\\', ':'], "_") + ".html";
-        let link = format!("files/{}#L{}", safe_name, line);
+        let link = format!("files/{safe_name}#L{line}");
 
         items.push(IssueItem {
-            category: category.to_string(),
-            severity: severity.to_string(),
+            category: category.to_owned(),
+            severity: severity.to_owned(),
             message: msg,
             file,
             line,
@@ -574,7 +586,7 @@ fn generate_file_views(
             let safe_name = relative_path.replace(['/', '\\', ':'], "_") + ".html";
 
             let view = FileViewTemplate {
-                version: version.to_string(),
+                version: version.to_owned(),
                 relative_path: relative_path.clone(),
                 code,
                 // Filter issues for this file

@@ -608,7 +608,7 @@ fn find_python_files(root: &Path, exclude: &[String]) -> Vec<PathBuf> {
     // Merge user excludes with default excludes (.venv, __pycache__, etc.)
     let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
         .iter()
-        .map(|&s| s.to_string())
+        .map(|&s| s.to_owned())
         .collect();
     let all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
 
@@ -640,7 +640,7 @@ fn count_directories(root: &Path, exclude: &[String]) -> usize {
     // Merge user excludes with default excludes
     let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
         .iter()
-        .map(|&s| s.to_string())
+        .map(|&s| s.to_owned())
         .collect();
     let all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
 
@@ -858,30 +858,15 @@ pub fn run_stats<W: Write>(
         md.push_str("## Overview\n\n");
         md.push_str("| Metric              |        Value |\n");
         md.push_str("|---------------------|-------------:|\n");
-        md.push_str(&format!("| Total Files         | {:>12} |\n", total_files));
-        md.push_str(&format!(
-            "| Total Directories   | {:>12} |\n",
-            num_directories
-        ));
-        md.push_str(&format!(
-            "| Total Size          | {:>9.2} KB |\n",
-            total_size_kb
-        ));
-        md.push_str(&format!("| Total Lines         | {:>12} |\n", total_lines));
-        md.push_str(&format!("| Code Lines          | {:>12} |\n", code_lines));
-        md.push_str(&format!(
-            "| Comment Lines       | {:>12} |\n",
-            comment_lines
-        ));
-        md.push_str(&format!("| Empty Lines         | {:>12} |\n", empty_lines));
-        md.push_str(&format!(
-            "| Functions           | {:>12} |\n",
-            total_functions
-        ));
-        md.push_str(&format!(
-            "| Classes             | {:>12} |\n",
-            total_classes
-        ));
+        md.push_str(&format!("| Total Files         | {total_files:>12} |\n"));
+        md.push_str(&format!("| Total Directories   | {num_directories:>12} |\n"));
+        md.push_str(&format!("| Total Size          | {total_size_kb:>9.2} KB |\n"));
+        md.push_str(&format!("| Total Lines         | {total_lines:>12} |\n"));
+        md.push_str(&format!("| Code Lines          | {code_lines:>12} |\n"));
+        md.push_str(&format!("| Comment Lines       | {comment_lines:>12} |\n"));
+        md.push_str(&format!("| Empty Lines         | {empty_lines:>12} |\n"));
+        md.push_str(&format!("| Functions           | {total_functions:>12} |\n"));
+        md.push_str(&format!("| Classes             | {total_classes:>12} |\n"));
 
         if include_files {
             md.push_str("\n## Per-File Metrics\n\n");

@@ -8,6 +8,7 @@
 
 mod heuristics;
 mod processing;
+/// Result types and analysis summaries.
 pub mod types;
 
 // Re-export types for public API

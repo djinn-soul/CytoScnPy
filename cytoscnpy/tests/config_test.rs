@@ -1,4 +1,5 @@
 //! Tests for configuration loading and management.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::config::Config;
 use std::fs;
@@ -130,5 +131,3 @@ fn test_missing_config_files() {
 
     fs::remove_dir_all(test_dir).unwrap();
 }
-
-

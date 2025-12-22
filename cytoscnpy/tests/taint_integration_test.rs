@@ -2,6 +2,7 @@
 //!
 //! End-to-end tests verifying the taint analysis pipeline works correctly.
 //! These tests verify the pipeline doesn't crash on basic code patterns.
+#![allow(clippy::needless_raw_string_hashes)]
 
 use cytoscnpy::taint::analyzer::{TaintAnalyzer, TaintConfig};
 use std::path::PathBuf;
@@ -127,5 +128,3 @@ conn.execute("SELECT 1")
 "#,
     );
 }
-
-

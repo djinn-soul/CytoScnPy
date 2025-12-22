@@ -1,4 +1,6 @@
-//! Tests for CLI output formatting and reporting.
+//! Tests for output formatting and serialization.
+#![allow(clippy::default_trait_access)]
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::rules::Finding;
@@ -45,6 +47,7 @@ fn test_print_report_formatting() {
         quality: vec![],
         taint_findings: vec![],
         parse_errors: vec![],
+        file_metrics: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 5,
             secrets_count: 0,
@@ -56,6 +59,12 @@ fn test_print_report_formatting() {
             total_definitions: 0,
             average_complexity: 0.0,
             average_mi: 0.0,
+            total_directories: 0,
+            total_size: 0.0,
+            functions_count: 0,
+            classes_count: 0,
+            raw_metrics: Default::default(),
+            halstead_metrics: Default::default(),
         },
     };
 

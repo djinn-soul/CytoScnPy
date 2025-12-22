@@ -1,4 +1,6 @@
 //! Test suite for the analyzer module.
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::panic)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::{self, File};

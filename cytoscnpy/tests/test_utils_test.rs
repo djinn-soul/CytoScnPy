@@ -1,5 +1,6 @@
 //! Unit tests for test awareness
 //! Tests detection of test files and test functions
+#![allow(clippy::expect_used)]
 
 use cytoscnpy::test_utils::TestAwareVisitor;
 use cytoscnpy::utils::LineIndex;
@@ -68,4 +69,3 @@ fn test_non_test_file_detection() {
         "Should not detect regular file as test file"
     );
 }
-

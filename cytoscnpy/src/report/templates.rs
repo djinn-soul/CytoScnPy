@@ -32,23 +32,35 @@ pub struct OverallScore {
 pub struct FormattedHalsteadMetrics {
     /// Program vocabulary size.
     pub volume: String,
+    /// Qualitative level for volume.
     pub volume_level: String,
+    /// Color hex for volume level.
     pub volume_color: String,
+    /// Icon for volume level.
     pub volume_icon: String,
     /// Difficulty level to read/maintain.
     pub difficulty: String,
+    /// Qualitative level for difficulty.
     pub difficulty_level: String,
+    /// Color hex for difficulty level.
     pub difficulty_color: String,
+    /// Icon for difficulty level.
     pub difficulty_icon: String,
     /// Estimated effort to implement.
     pub effort: String,
+    /// Qualitative level for effort.
     pub effort_level: String,
+    /// Color hex for effort level.
     pub effort_color: String,
+    /// Icon for effort level.
     pub effort_icon: String,
     /// Estimated number of delivered bugs.
     pub bugs: String,
+    /// Qualitative level for bugs.
     pub bugs_level: String,
+    /// Color hex for bugs level.
     pub bugs_color: String,
+    /// Icon for bugs level.
     pub bugs_icon: String,
     /// Estimated time to implement.
     pub time: String,

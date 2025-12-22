@@ -1,4 +1,5 @@
-//! Tests for pragma comments (e.g., # pragma: no cytoscnpy).
+//! Tests for pragma/inline-ignore functionality.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

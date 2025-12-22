@@ -1,5 +1,6 @@
 //! Unit tests for quality rules
 //! Tests code quality checks like nesting depth
+#![allow(clippy::expect_used)]
 
 use cytoscnpy::config::Config;
 use cytoscnpy::linter::LinterVisitor;
@@ -596,5 +597,3 @@ def outer():
         "Should count outer function including nested"
     );
 }
-
-

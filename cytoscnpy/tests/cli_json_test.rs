@@ -2,6 +2,9 @@
 //!
 //! These tests verify that JSON output from all subcommands is correctly structured
 //! and can be deserialized by external tools.
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::uninlined_format_args)]
 
 use cytoscnpy::commands::{run_cc, run_hal, run_mi, run_raw};
 use serde_json::Value;

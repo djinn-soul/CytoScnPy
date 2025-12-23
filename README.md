@@ -2,17 +2,17 @@
 
 [![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/djinn09/CytoScnPy)
+[![Version](https://img.shields.io/badge/version-1.1.2-green.svg)](https://github.com/djinn09/CytoScnPy)
 
 A fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
 
 ## Why CytoScnPy?
 
-- **🔥 Blazing Fast**: Faster in dead code detection.
-- **💾 Memory Efficient**: Uses less memory.
-- **🔍 Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
-- **🎯 Framework Aware**: Understands Flask, Django, FastAPI patterns
-- **📊 Benchmarked**: Continuous benchmarking with 126-item ground truth suite
+- **Blazing Fast**: Faster in dead code detection.
+- **Memory Efficient**: Uses less memory.
+- **Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
+- **🎯 Framework Aware**: Flask, Django, FastAPI, Celery, Starlette, Pydantic, Azure Functions v2
+- **Benchmarked**: Continuous benchmarking with 126-item ground truth suite
 
 ## Installation
 
@@ -74,6 +74,9 @@ cytoscnpy . --include-tests
 
 # Jupyter notebooks
 cytoscnpy . --include-ipynb --ipynb-cells
+
+# Generate HTML report
+cytoscnpy . --html --secrets --danger --quality
 ```
 
 **Options:**
@@ -84,6 +87,7 @@ cytoscnpy . --include-ipynb --ipynb-cells
 | `--secrets`              | Scan for API keys, tokens, credentials   |
 | `--danger`               | Scan for dangerous code + taint analysis |
 | `--quality`              | Scan for code quality issues             |
+| `--html`                 | Generate interactive HTML report         |
 | `--json`                 | Output results as JSON                   |
 | `-v, --verbose`          | Enable verbose output for debugging      |
 | `-q, --quiet`            | Quiet mode: summary only, no tables      |
@@ -101,6 +105,7 @@ cytoscnpy . --include-ipynb --ipynb-cells
 | `--max-complexity <N>` | Exit code 1 if any function complexity > N |
 | `--min-mi <N>`         | Exit code 1 if maintainability index < N   |
 | `--fail-on-quality`    | Exit code 1 if any quality issues found    |
+| `--max-nesting <N>`    | Exit code 1 if any block nesting > N       |
 
 > **Full CLI Reference:** See [docs/CLI.md](docs/CLI.md) for complete command documentation.
 
@@ -116,7 +121,7 @@ cytoscnpy stats . --all -o report.md  # Save report to file
 cytoscnpy files .                  # Per-file metrics table
 ```
 
-> **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories.
+> **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories globally, or `--ignore <PATTERN>` for subcommand-specific glob filtering.
 
 ## ⚙️ Configuration
 
@@ -128,7 +133,7 @@ Create `.cytoscnpy.toml` or add to `pyproject.toml`:
 confidence = 60  # Minimum confidence threshold (0-100)
 exclude_folders = ["venv", ".tox", "build", "node_modules", ".git"]
 include_folders = ["src", "tests"]  # Optional: whitelist folders
-include_tests = false
+include_tests = false  # Note: include_ipynb is CLI-only (use --include-ipynb flag)
 
 # Analysis Features
 secrets = true
@@ -153,7 +158,7 @@ fail_threshold = 5.0  # Exit with code 1 if unused code % exceeds this
 # Advanced Secret Scanning
 [tool.cytoscnpy.secrets_config]
 entropy_enabled = true
-entropy_threshold = 4.0  # Higher = more random (API keys usually > 4.0)
+entropy_threshold = 4.0  # Higher = more random (API keys usually >4.0)
 min_length = 16          # Min length to check for entropy
 scan_comments = true     # Scan comments for secrets
 

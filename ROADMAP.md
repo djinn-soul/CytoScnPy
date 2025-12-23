@@ -250,9 +250,7 @@ def func():
 
 ---
 
-## Future Roadmap
-
-### <a id="phase-8"></a>Phase 8: Advanced Framework Support
+### <a id="phase-8"></a>Phase 8: Advanced Framework Support ✅ DONE
 
 Django, FastAPI, Pydantic is done ✅.
 
@@ -283,6 +281,13 @@ _Tools to improve the workflow around CytoScnPy._
   - Implement a real-time LSP server for VS Code, Neovim, and Zed.
   - Provide instant diagnostics without saving or running CLI.
 
+- [ ] **Config File Support for Notebook Options**
+
+  - Allow `include_ipynb` and `ipynb_cells` in `.cytoscnpy.toml` and `pyproject.toml`
+  - Currently these are CLI-only flags (`--include-ipynb`, `--ipynb-cells`)
+  - **Rationale:** Enable persistent configuration without passing flags on every run
+  - **Implementation:** Add fields to `CytoScnPyConfig` struct in `src/config.rs`
+
 - [ ] **Git Integration**
 
   - **Blame Analysis:** Identify who introduced unused code.
@@ -300,8 +305,8 @@ _Tools to improve the workflow around CytoScnPy._
     - Code snippets showing context around each finding (Basic impl done, see Phase 9.5 for improvements)
   - **CLI:**
     ```bash
-    cytoscnpy analyze ./project --html report.html
-    cytoscnpy analyze ./project --html-dir ./reports  # Multi-file for very large projects
+    cytoscnpy ./project --html
+    # Multi-file support planned for large projects
     ```
   - **Implementation:**
     - Use `tera` or `askama` for templating
@@ -319,8 +324,6 @@ _Tools to improve the workflow around CytoScnPy._
   - **CLI:**
     ```bash
     cytoscnpy serve ./project --port 8080
-    # Opens browser to http://localhost:8080
-    # Watches for file changes and re-analyzes
     ```
   - **Technical Approach:**
     - Use `axum` or `warp` for lightweight HTTP server

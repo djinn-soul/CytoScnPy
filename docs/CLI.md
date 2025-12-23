@@ -27,6 +27,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 
 | Flag        | Short | Description                                  |
 | ----------- | ----- | -------------------------------------------- |
+| `--html`    |       | Generate interactive HTML report             |
 | `--json`    |       | Output results as JSON                       |
 | `--verbose` | `-v`  | Enable verbose output (debug mode)           |
 | `--quiet`   | `-q`  | Quiet mode: summary only, no detailed tables |
@@ -49,6 +50,9 @@ cytoscnpy [PATHS]... [OPTIONS]
 | `--max-complexity <N>` | Exit code 1 if any function complexity > N |
 | `--min-mi <N>`         | Exit code 1 if maintainability index < N   |
 | `--fail-on-quality`    | Exit code 1 if any quality issues found    |
+| `--max-nesting <N>`    | Exit code 1 if any block nesting > N       |
+| `--max-args <N>`       | Exit code 1 if any function has > N args   |
+| `--max-lines <N>`      | Exit code 1 if any function has > N lines  |
 
 **Priority:** CLI flag > config file > environment variable > default
 
@@ -63,6 +67,25 @@ cytoscnpy mcp-server
 ```
 
 This enables AI assistants (Claude, GitHub Copilot, Cursor) to use CytoScnPy's analysis tools. See [../cytoscnpy-mcp/README.md](../cytoscnpy-mcp/README.md) for configuration.
+
+### HTML Report
+
+Generate an interactive HTML report with visualizations:
+
+```bash
+cytoscnpy . --html
+```
+
+**Features:**
+
+- Issue dashboard with severity breakdown
+- File-level metrics and visualizations
+- Interactive code highlighting
+- Taint analysis flow diagrams (with `--danger`)
+
+**Report location:** `.cytoscnpy/report/index.html` (automatically opens in browser)
+
+> **Note:** Requires `html_report` feature (enabled by default).
 
 ---
 
@@ -184,6 +207,41 @@ cytoscnpy mi [PATH] [OPTIONS]
 
 ---
 
+### `stats` - Project Statistics
+
+Generate a comprehensive project statistics report.
+
+```bash
+cytoscnpy stats [PATH] [OPTIONS]
+```
+
+| Flag               | Short | Description                                    |
+| ------------------ | ----- | ---------------------------------------------- |
+| `--all`            | `-a`  | Enable all analysis (secrets, danger, quality) |
+| `--secrets`        | `-s`  | Scan for API keys/secrets                      |
+| `--danger`         | `-d`  | Scan for dangerous code patterns               |
+| `--quality`        | `-q`  | Scan for code quality issues                   |
+| `--json`           |       | Output JSON                                    |
+| `--output`         | `-o`  | Output file path                               |
+| `--exclude-folder` |       | Exclude specific folders                       |
+
+---
+
+### `files` - Per-file Metrics
+
+Show a per-file metrics table.
+
+```bash
+cytoscnpy files [PATH] [OPTIONS]
+```
+
+| Flag               | Short | Description              |
+| ------------------ | ----- | ------------------------ |
+| `--json`           |       | Output JSON              |
+| `--exclude-folder` |       | Exclude specific folders |
+
+---
+
 ## Configuration File
 
 Create `.cytoscnpy.toml` in your project root:
@@ -217,6 +275,8 @@ entropy_enabled = true
 entropy_threshold = 4.0
 min_length = 16
 scan_comments = true
+
+# Note: include_ipynb and ipynb_cells are CLI-only flags (use --include-ipynb)
 ```
 
 ---

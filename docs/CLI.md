@@ -272,9 +272,10 @@ fail_threshold = 5.0
 # Advanced secret scanning
 [cytoscnpy.secrets_config]
 entropy_enabled = true
-entropy_threshold = 4.0
+entropy_threshold = 4.5
 min_length = 16
 scan_comments = true
+skip_docstrings = false
 
 # Note: include_ipynb and ipynb_cells are CLI-only flags (use --include-ipynb)
 ```

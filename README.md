@@ -42,7 +42,7 @@ For Claude Desktop, Cursor, or GitHub Copilot configuration, see the **[MCP Serv
 - **Dead Code Detection**: Unused functions, classes, imports, and variables with cross-module tracking.
 - **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys), and dangerous code patterns (`eval`, `exec`).
 - **Code Quality Metrics**: Cyclomatic complexity, Halstead metrics, Maintainability Index, and raw metrics (LOC, SLOC).
-- **Framework Support**: Native understanding of Flask, Django, and FastAPI patterns.
+- **Framework Support**: Native understanding of Flask, Django, FastAPI, Celery, Starlette, Pydantic, and Azure Functions v2 patterns.
 - **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
 - **Cross-File Detection**: Tracks symbol usage across the entire codebase, including nested packages and complex import chains, to ensure code used in other modules is never incorrectly flagged.
 
@@ -125,10 +125,12 @@ cytoscnpy files .                  # Per-file metrics table
 
 ## ⚙️ Configuration
 
-Create `.cytoscnpy.toml` or add to `pyproject.toml`:
+Create `.cytoscnpy.toml` (uses `[cytoscnpy]`) or add to `pyproject.toml` (uses `[tool.cytoscnpy]`):
+
+**`.cytoscnpy.toml` example:**
 
 ```toml
-[tool.cytoscnpy]
+[cytoscnpy]
 # General Settings
 confidence = 60  # Minimum confidence threshold (0-100)
 exclude_folders = ["venv", ".tox", "build", "node_modules", ".git"]
@@ -152,18 +154,16 @@ nesting = 4           # Max indentation depth
 min_mi = 65.0         # Minimum Maintainability Index
 ignore = ["R001"]     # Ignore specific rule IDs
 
-# CI/CD Integration
-fail_threshold = 5.0  # Exit with code 1 if unused code % exceeds this
-
 # Advanced Secret Scanning
-[tool.cytoscnpy.secrets_config]
+[cytoscnpy.secrets_config]
 entropy_enabled = true
-entropy_threshold = 4.0  # Higher = more random (API keys usually >4.0)
+entropy_threshold = 4.5  # Higher = more random (API keys usually >4.0)
 min_length = 16          # Min length to check for entropy
 scan_comments = true     # Scan comments for secrets
+skip_docstrings = false  # Skip docstrings in entropy scanning
 
 # Custom Secret Patterns
-[[tool.cytoscnpy.secrets_config.patterns]]
+[[cytoscnpy.secrets_config.patterns]]
 name = "Slack Token"
 regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"

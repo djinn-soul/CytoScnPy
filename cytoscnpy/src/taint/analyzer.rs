@@ -94,6 +94,7 @@ pub struct PluginRegistry {
 
 impl PluginRegistry {
     /// Creates a new empty registry.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -268,6 +269,7 @@ pub struct CustomSinkConfig {
 
 impl TaintConfig {
     /// Creates a default config with all analysis levels enabled.
+    #[must_use]
     pub fn all_levels() -> Self {
         Self {
             intraprocedural: true,
@@ -279,6 +281,7 @@ impl TaintConfig {
     }
 
     /// Creates a config with only intraprocedural analysis.
+    #[must_use]
     pub fn intraprocedural_only() -> Self {
         Self {
             intraprocedural: true,
@@ -302,6 +305,7 @@ pub struct TaintAnalyzer {
 
 impl TaintAnalyzer {
     /// Creates a new taint analyzer with default plugins.
+    #[must_use]
     pub fn new(config: TaintConfig) -> Self {
         let mut plugins = PluginRegistry::new();
 
@@ -324,6 +328,7 @@ impl TaintAnalyzer {
     }
 
     /// Creates an analyzer with no built-in plugins (for custom setups).
+    #[must_use]
     pub fn empty(config: TaintConfig) -> Self {
         Self {
             plugins: PluginRegistry::new(),
@@ -343,6 +348,7 @@ impl TaintAnalyzer {
     }
 
     /// Analyzes a single file.
+    #[must_use]
     pub fn analyze_file(&self, source: &str, file_path: &PathBuf) -> Vec<TaintFinding> {
         let mut findings = Vec::new();
 

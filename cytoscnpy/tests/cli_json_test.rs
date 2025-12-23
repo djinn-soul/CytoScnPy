@@ -7,6 +7,9 @@
     clippy::expect_used,
     clippy::uninlined_format_args
 )]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::uninlined_format_args)]
 
 use cytoscnpy::commands::{run_cc, run_hal, run_mi, run_raw};
 use serde_json::Value;

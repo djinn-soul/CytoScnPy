@@ -1,4 +1,8 @@
-//! Tests for the commands module (run_mi multi flag functionality)
+//! Tests for the commands module (`run_mi` multi flag functionality)
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::doc_markdown)]
 
 use cytoscnpy::commands::run_mi;
 use serde::Deserialize;

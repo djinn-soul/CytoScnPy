@@ -5,6 +5,10 @@
     clippy::doc_markdown,
     clippy::uninlined_format_args
 )]
+#![allow(clippy::expect_used)]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::doc_markdown)]
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;

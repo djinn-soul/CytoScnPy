@@ -1,0 +1,936 @@
+{% extends "base.html" %} {% block head %}
+<title>CytoScnPy - Identified Issues</title>
+<style>
+  /* Tabs Navigation */
+  .tabs-nav {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #374151;
+    padding-bottom: 0px;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover {
+    color: var(--text-light);
+  }
+  .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  /* File Grouping */
+  .file-group-header {
+    background: rgba(55, 65, 81, 0.3);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    color: var(--text-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #374151;
+  }
+  .file-group {
+    margin-bottom: 2rem;
+  }
+
+  /* Keyboard Focus */
+  .issue-card.focused {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    transform: translateX(4px);
+  }
+
+  /* Issue Cards */
+  .issue-card {
+    background: var(--card-bg);
+    border: 1px solid #374151;
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .issue-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  .issue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 0.75rem;
+  }
+  .issue-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--text-light);
+    flex: 1;
+    margin-right: 1rem;
+  }
+  .issue-location {
+    color: #9ca3af;
+    font-size: 0.9rem;
+    font-family: monospace;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .issue-location a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+  .issue-location a:hover {
+    text-decoration: underline;
+  }
+
+  /* Pagination Controls */
+  .pagination-controls {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+  }
+  .pagination-btn {
+    background: var(--card-bg);
+    border: 1px solid #374151;
+    color: var(--text-light);
+    padding: 0.4rem 1rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .pagination-btn:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+
+  /* Tab Content - Hidden by default */
+  .tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  .tab-content.active {
+    display: block;
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+{% endblock %} {% block content %}
+<h1 style="margin-bottom: 0.5rem">Identified Issues</h1>
+<p style="color: #9ca3af; margin-bottom: 1rem">
+  Overview of all detected issues categorized by type.
+</p>
+
+<!-- Tab Navigation -->
+<div class="tabs-nav">
+  <button class="tab-btn active" onclick="openTab('security')">
+    Security
+    <span
+      class="badge"
+      style="
+        background: rgba(248, 113, 113, 0.2);
+        color: #f87171;
+        font-size: 0.75rem;
+        margin-left: 0.5rem;
+      "
+      >{{ securityable.len() }}</span
+    >
+  </button>
+  <button class="tab-btn" onclick="openTab('quality')">
+    Code Quality
+    <span
+      class="badge"
+      style="
+        background: rgba(251, 191, 36, 0.2);
+        color: #fbbf24;
+        font-size: 0.75rem;
+        margin-left: 0.5rem;
+      "
+      >{{ quality.len() }}</span
+    >
+  </button>
+  <button class="tab-btn" onclick="openTab('unused')">
+    Unused Code
+    <span
+      class="badge"
+      style="
+        background: rgba(96, 165, 250, 0.2);
+        color: #60a5fa;
+        font-size: 0.75rem;
+        margin-left: 0.5rem;
+      "
+      >{{ unused_code.len() }}</span
+    >
+  </button>
+</div>
+
+<!-- Controls Bar -->
+<div
+  class="controls-bar"
+  style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap"
+>
+  <input
+    type="text"
+    id="searchInput"
+    placeholder="Search issues..."
+    style="
+      background: var(--card-bg);
+      border: 1px solid #374151;
+      color: var(--text-light);
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      flex: 1;
+      min-width: 200px;
+    "
+  />
+
+  <select
+    id="severityFilter"
+    style="
+      background: var(--card-bg);
+      border: 1px solid #374151;
+      color: var(--text-light);
+      padding: 0.5rem 2rem 0.5rem 1rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+    "
+  >
+    <option value="ALL">All Severities</option>
+    <option value="HIGH">High Severity</option>
+    <option value="MEDIUM">Medium Severity</option>
+    <option value="LOW">Low Severity</option>
+  </select>
+
+  <select
+    id="sortOrder"
+    style="
+      background: var(--card-bg);
+      border: 1px solid #374151;
+      color: var(--text-light);
+      padding: 0.5rem 2rem 0.5rem 1rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+    "
+  >
+    <option value="severity_desc">Severity (High &rarr; Low)</option>
+    <option value="severity_asc">Severity (Low &rarr; High)</option>
+    <option value="file_asc">File Name (A &rarr; Z)</option>
+  </select>
+
+  <label
+    class="group-toggle-btn"
+    style="
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-light);
+      cursor: pointer;
+      user-select: none;
+      padding: 0.5rem 1rem;
+      border: 1px solid #374151;
+      border-radius: 0.375rem;
+      transition: all 0.2s;
+      background: var(--card-bg);
+    "
+  >
+    <input
+      type="checkbox"
+      id="groupByFile"
+      style="accent-color: var(--primary)"
+    />
+    <span class="label-text">Group by File</span>
+  </label>
+  <style>
+    .group-toggle-btn:hover {
+      border-color: #9ca3af;
+    }
+    .group-toggle-btn:has(input:checked) {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: rgba(99, 102, 241, 0.1);
+    }
+    .group-toggle-btn input:checked + .label-text {
+      font-weight: 600;
+    }
+  </style>
+</div>
+
+<!-- Security Tab -->
+<div id="security" class="tab-content active" data-category="security">
+  <div class="issue-list-container" data-page-size="5">
+    {% for issue in securityable %}
+    <div
+      class="issue-card"
+      data-severity="{{ issue.severity }}"
+      data-message="{{ issue.message|lower }}"
+      data-file="{{ issue.file|lower }}"
+      style="border-left: 4px solid var(--severity-{{ issue.severity.to_lowercase() }});"
+    >
+      <div class="issue-header">
+        <span class="issue-title">{{ issue.message }}</span>
+        <span class="badge badge-{{ issue.severity }}"
+          >{{ issue.severity }}</span
+        >
+      </div>
+      <div class="issue-location">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
+          ></path>
+          <polyline points="13 2 13 9 20 9"></polyline>
+        </svg>
+        <a href="{{ issue.link }}">{{ issue.file }}:{{ issue.line }}</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="pagination-controls"></div>
+  <div
+    class="empty-state"
+    style="
+      display: none;
+      text-align: center;
+      padding: 4rem;
+      color: #9ca3af;
+      background: var(--card-bg);
+      border-radius: 0.5rem;
+      border: 1px dashed #374151;
+    "
+  >
+    <p>No issues found matching your filters.</p>
+  </div>
+</div>
+
+<!-- Quality Tab -->
+<div id="quality" class="tab-content" data-category="quality">
+  <div class="issue-list-container" data-page-size="10">
+    {% for issue in quality %}
+    <div
+      class="issue-card"
+      data-severity="{{ issue.severity }}"
+      data-message="{{ issue.message|lower }}"
+      data-file="{{ issue.file|lower }}"
+      style="border-left: 4px solid var(--severity-{{ issue.severity.to_lowercase() }});"
+    >
+      <div class="issue-header">
+        <span class="issue-title">{{ issue.message }}</span>
+        <span class="badge badge-{{ issue.severity }}"
+          >{{ issue.severity }}</span
+        >
+      </div>
+      <div class="issue-location">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
+          ></path>
+          <polyline points="13 2 13 9 20 9"></polyline>
+        </svg>
+        <a href="{{ issue.link }}">{{ issue.file }}:{{ issue.line }}</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="pagination-controls"></div>
+  <div
+    class="empty-state"
+    style="
+      display: none;
+      text-align: center;
+      padding: 4rem;
+      color: #9ca3af;
+      background: var(--card-bg);
+      border-radius: 0.5rem;
+      border: 1px dashed #374151;
+    "
+  >
+    <p>No issues found matching your filters.</p>
+  </div>
+</div>
+
+<!-- Unused Tab -->
+<div id="unused" class="tab-content" data-category="unused">
+  <div class="issue-list-container" data-page-size="10">
+    {% for issue in unused_code %}
+    <div
+      class="issue-card"
+      data-severity="LOW"
+      data-message="{{ issue.message|lower }}"
+      data-file="{{ issue.file|lower }}"
+      style="border-left: 4px solid var(--severity-low)"
+    >
+      <div class="issue-header">
+        <span class="issue-title">{{ issue.message }}</span>
+        <span class="badge badge-LOW">LOW</span>
+      </div>
+      <div class="issue-location">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
+          ></path>
+          <polyline points="13 2 13 9 20 9"></polyline>
+        </svg>
+        <a href="{{ issue.link }}">{{ issue.file }}:{{ issue.line }}</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="pagination-controls"></div>
+  <div
+    class="empty-state"
+    style="
+      display: none;
+      text-align: center;
+      padding: 4rem;
+      color: #9ca3af;
+      background: var(--card-bg);
+      border-radius: 0.5rem;
+      border: 1px dashed #374151;
+    "
+  >
+    <p>No issues found matching your filters.</p>
+  </div>
+</div>
+
+<script>
+  // State
+  const state = {
+    activeTab: "security",
+    search: "",
+    filterSeverity: "ALL",
+    sortBy: "severity_desc",
+    groupByFile: false,
+    page: 1,
+    focusedIndex: -1, // For keyboard nav
+  };
+
+  // Cache for DOM elements to prevent loss during re-renders
+  const issuesCache = {};
+
+  // DOM Elements
+  const searchInput = document.getElementById("searchInput");
+  const severityFilter = document.getElementById("severityFilter");
+  const sortSelect = document.getElementById("sortOrder");
+  const groupByFileCheckbox = document.getElementById("groupByFile");
+
+  // Event Listeners
+  searchInput.addEventListener("input", (e) => {
+    state.search = e.target.value.toLowerCase();
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+  });
+
+  severityFilter.addEventListener("change", (e) => {
+    state.filterSeverity = e.target.value;
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+  });
+
+  sortSelect.addEventListener("change", (e) => {
+    state.sortBy = e.target.value;
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+  });
+
+  groupByFileCheckbox.addEventListener("change", (e) => {
+    state.groupByFile = e.target.checked;
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+  });
+
+  // Keyboard Navigation
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return; // Ignore if typing in search
+
+    if (e.key === "j" || e.key === "ArrowDown") {
+      moveFocus(1);
+    } else if (e.key === "k" || e.key === "ArrowUp") {
+      moveFocus(-1);
+    } else if (e.key === "Enter" && state.focusedIndex >= 0) {
+      openFocusedIssue();
+    }
+  });
+
+  function moveFocus(direction) {
+    const visibleCards = getVisibleCards(); // Need to recalculate or cache this
+    if (!visibleCards.length) return;
+
+    if (state.focusedIndex === -1) {
+      state.focusedIndex = direction > 0 ? 0 : visibleCards.length - 1;
+    } else {
+      state.focusedIndex += direction;
+      if (state.focusedIndex >= visibleCards.length) state.focusedIndex = 0;
+      if (state.focusedIndex < 0) state.focusedIndex = visibleCards.length - 1;
+    }
+
+    updateFocusVisuals(visibleCards);
+  }
+
+  function updateFocusVisuals(visibleCards) {
+    // Clear all
+    document
+      .querySelectorAll(".issue-card.focused")
+      .forEach((el) => el.classList.remove("focused"));
+
+    if (state.focusedIndex >= 0 && state.focusedIndex < visibleCards.length) {
+      const card = visibleCards[state.focusedIndex];
+      card.classList.add("focused");
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  function openFocusedIssue() {
+    const visibleCards = getVisibleCards();
+    if (state.focusedIndex >= 0 && state.focusedIndex < visibleCards.length) {
+      const card = visibleCards[state.focusedIndex];
+      const link = card.querySelector("a");
+      if (link) window.location.href = link.href;
+    }
+  }
+
+  // Get currently visible cards from DOM (helper for nav)
+  // NOTE: This relies on the rendered state.
+  function getVisibleCards() {
+    const container = document.getElementById(state.activeTab);
+    // If grouped, cards are nested in .file-group
+    // If not grouped, they are in .issue-list-container
+    // Selector that finds all issue cards inside the container
+    return Array.from(container.querySelectorAll(".issue-card"));
+  }
+
+  function openTab(tabName) {
+    state.activeTab = tabName;
+    state.page = 1;
+    state.focusedIndex = -1;
+
+    // UI Updates
+    document
+      .querySelectorAll(".tab-content")
+      .forEach((t) => t.classList.remove("active"));
+    document
+      .querySelectorAll(".tab-btn")
+      .forEach((b) => b.classList.remove("active"));
+
+    document.getElementById(tabName).classList.add("active");
+    // Find button
+    const btns = document.querySelectorAll(".tab-btn");
+    btns.forEach((btn) => {
+      if (btn.getAttribute("onclick").includes(tabName))
+        btn.classList.add("active");
+    });
+
+    renderActiveTab();
+  }
+
+  function getSeverityWeight(severity) {
+    switch (severity.toUpperCase()) {
+      case "HIGH":
+        return 3;
+      case "MEDIUM":
+        return 2;
+      case "LOW":
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  function renderActiveTab() {
+    const container = document.getElementById(state.activeTab);
+    if (!container) return;
+
+    const listContainer = container.querySelector(".issue-list-container");
+    const emptyState = container.querySelector(".empty-state");
+    const paginationControls = container.querySelector(".pagination-controls");
+
+    // Use cached items
+    const allCards = issuesCache[state.activeTab] || [];
+
+    // 1. Filter
+    let visibleCards = allCards.filter((card) => {
+      const message = (
+        card.querySelector(".issue-title")?.textContent || ""
+      ).toLowerCase();
+      const file = (
+        card.querySelector(".issue-location")?.textContent || ""
+      ).toLowerCase();
+      const severity = (card.dataset.severity || "LOW").toUpperCase();
+
+      const matchesSearch =
+        message.includes(state.search) || file.includes(state.search);
+      const matchesSeverity =
+        state.filterSeverity === "ALL" || severity === state.filterSeverity;
+
+      return matchesSearch && matchesSeverity;
+    });
+
+    // 2. Sort
+    visibleCards.sort((a, b) => {
+      const sevA = getSeverityWeight(a.dataset.severity || "LOW");
+      const sevB = getSeverityWeight(b.dataset.severity || "LOW");
+      const fileA = (
+        a.querySelector(".issue-location")?.textContent || ""
+      ).toLowerCase();
+      const fileB = (
+        b.querySelector(".issue-location")?.textContent || ""
+      ).toLowerCase();
+
+      if (state.sortBy === "severity_desc")
+        return sevB - sevA || fileA.localeCompare(fileB);
+      if (state.sortBy === "severity_asc")
+        return sevA - sevB || fileA.localeCompare(fileB);
+      if (state.sortBy === "file_asc") return fileA.localeCompare(fileB);
+      return 0;
+    });
+
+    // Clear Container
+    listContainer.innerHTML = "";
+
+    // 3. Grouping Logic
+    if (state.groupByFile) {
+      // Group filtered cards
+      const groups = {};
+      visibleCards.forEach((card) => {
+        const fileName = card.dataset.file || "Unknown";
+        if (!groups[fileName]) groups[fileName] = [];
+        groups[fileName].push(card);
+      });
+
+      // Sort groups by key (filename)
+      const sortedKeys = Object.keys(groups).sort();
+
+      // Paginate Groups (Keys)
+      const pageSize = parseInt(listContainer.dataset.pageSize || "10");
+      const totalPages = Math.ceil(sortedKeys.length / pageSize) || 1;
+
+      if (state.page > totalPages) state.page = 1;
+      if (state.page < 1) state.page = 1;
+
+      const start = (state.page - 1) * pageSize;
+      const end = start + pageSize;
+
+      const pageKeys = sortedKeys.slice(start, end);
+
+      pageKeys.forEach((fileName) => {
+        const groupDiv = document.createElement("div");
+        groupDiv.className = "file-group";
+
+        // Split path
+        const parts = fileName.split(/[/\\]/);
+        const basename = parts.pop();
+        const dir = parts.join("/") + "/";
+
+        const header = document.createElement("div");
+        header.className = "file-group-header";
+        // Improve styling: Card-like header with background
+        header.style.background = "rgba(255, 255, 255, 0.03)";
+        header.style.border = "1px solid rgba(255, 255, 255, 0.1)";
+        header.style.borderLeft = "4px solid var(--primary)";
+        header.style.borderRadius = "0.5rem";
+        header.style.padding = "0.75rem 1rem";
+        header.style.marginBottom = "0.75rem";
+        header.style.display = "flex";
+        header.style.alignItems = "center";
+        header.style.justifyContent = "space-between";
+
+        header.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                   <!-- File Icon -->
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 0 0 0 2 2h12a2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                   </svg>
+                   <div style="display: flex; flex-direction: column; line-height: 1.2;">
+                        <span style="color: var(--primary); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.01em;">${basename}</span>
+                        <span style="color: #6b7280; font-size: 0.85rem; font-family: monospace;">${dir}</span>
+                   </div>
+              </div>
+              <span class="badge" style="background:var(--primary); color:white; font-weight:600; padding: 0.25rem 0.75rem; border-radius: 999px;">${groups[fileName].length} Issues</span>
+          `;
+
+        groupDiv.appendChild(header);
+
+        // Container for cards to indentation
+        const cardsContainer = document.createElement("div");
+        cardsContainer.style.paddingLeft = "0.5rem";
+
+        groups[fileName].forEach((card) => {
+          card.style.display = ""; // Ensure visible
+          card.style.marginBottom = "0.5rem"; // spacing
+          cardsContainer.appendChild(card);
+        });
+
+        groupDiv.appendChild(cardsContainer);
+        listContainer.appendChild(groupDiv);
+      });
+
+      // Pagination Controls
+      if (sortedKeys.length === 0) {
+        paginationControls.style.display = "none";
+      } else {
+        paginationControls.style.display = "flex";
+        renderPagination(container, totalPages);
+      }
+    } else {
+      // Standard List with Pagination
+      const pageSize = parseInt(listContainer.dataset.pageSize || "10");
+      const totalPages = Math.ceil(visibleCards.length / pageSize) || 1;
+
+      if (state.page > totalPages) state.page = 1;
+      if (state.page < 1) state.page = 1;
+
+      const start = (state.page - 1) * pageSize;
+      const end = start + pageSize;
+
+      // Note: We don't append ALL cards and hide, which is slow.
+      // We append ONLY visible page cards.
+      visibleCards.slice(start, end).forEach((c) => {
+        c.style.display = "";
+        listContainer.appendChild(c);
+      });
+
+      // Pagination Controls
+      if (visibleCards.length === 0) {
+        paginationControls.style.display = "none";
+      } else {
+        paginationControls.style.display = "flex";
+        renderPagination(container, totalPages);
+      }
+    }
+
+    // Empty State
+    if (visibleCards.length === 0) {
+      emptyState.style.display = "block";
+    } else {
+      emptyState.style.display = "none";
+    }
+  }
+
+  // Update URL with current state
+  function updateURL(isPush = false) {
+    const params = new URLSearchParams();
+    params.set("tab", state.activeTab);
+    if (state.search) params.set("search", state.search);
+    if (state.filterSeverity !== "ALL")
+      params.set("severity", state.filterSeverity);
+    if (state.sortBy !== "severity_desc") params.set("sort", state.sortBy);
+    if (state.groupByFile) params.set("group", "true");
+    if (state.page > 1) params.set("page", state.page);
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+
+    if (isPush) {
+      history.pushState(state, "", newUrl);
+    } else {
+      history.replaceState(state, "", newUrl);
+    }
+  }
+
+  // Initialize
+  document.addEventListener("DOMContentLoaded", () => {
+    // 1. Capture Cache
+    ["security", "quality", "unused"].forEach((tab) => {
+      const container = document.getElementById(tab);
+      if (container) {
+        const list = container.querySelector(".issue-list-container");
+        issuesCache[tab] = Array.from(list.children);
+      }
+    });
+
+    // 2. Parse URL Params
+    const params = new URLSearchParams(window.location.search);
+
+    // Set initial state from URL
+    if (params.has("tab")) state.activeTab = params.get("tab");
+    if (params.has("search")) state.search = params.get("search");
+    if (params.has("severity")) state.filterSeverity = params.get("severity");
+    if (params.has("sort")) state.sortBy = params.get("sort");
+    if (params.has("group")) state.groupByFile = params.get("group") === "true";
+    if (params.has("page")) state.page = parseInt(params.get("page"));
+
+    // Sync Input Elements
+    if (searchInput) searchInput.value = state.search;
+    if (severityFilter) severityFilter.value = state.filterSeverity;
+    if (sortSelect) sortSelect.value = state.sortBy;
+    if (groupByFileCheckbox) groupByFileCheckbox.checked = state.groupByFile;
+
+    // Set active tab UI
+    openTab(state.activeTab, false); // false = don't push state again
+
+    // 3. Initial render
+    renderActiveTab();
+  });
+
+  // Update event listeners to sync URL
+  searchInput.addEventListener("input", (e) => {
+    state.search = e.target.value.toLowerCase();
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+    updateURL();
+  });
+
+  severityFilter.addEventListener("change", (e) => {
+    state.filterSeverity = e.target.value;
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+    updateURL();
+  });
+
+  sortSelect.addEventListener("change", (e) => {
+    state.sortBy = e.target.value;
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+    updateURL();
+  });
+
+  groupByFileCheckbox.addEventListener("change", (e) => {
+    state.groupByFile = e.target.checked;
+    state.page = 1;
+    state.focusedIndex = -1;
+    renderActiveTab();
+    updateURL();
+  });
+
+  // Update pagination to sync URL
+  function renderPagination(container, totalPages) {
+    // ... (rest of implementation reuse if possible, but easier to just rewrite the onclicks)
+    const controls = container.querySelector(".pagination-controls");
+    controls.innerHTML = "";
+
+    if (totalPages <= 1) return;
+
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "pagination-btn";
+    prevBtn.innerHTML = "&larr; Previous";
+    prevBtn.disabled = state.page === 1;
+    prevBtn.onclick = () => {
+      if (state.page > 1) {
+        state.page--;
+        state.focusedIndex = -1;
+        renderActiveTab();
+        updateURL();
+      }
+    };
+
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "pagination-btn";
+    nextBtn.innerHTML = "Next &rarr;";
+    nextBtn.disabled = state.page === totalPages;
+    nextBtn.onclick = () => {
+      if (state.page < totalPages) {
+        state.page++;
+        state.focusedIndex = -1;
+        renderActiveTab();
+        updateURL();
+      }
+    };
+
+    const info = document.createElement("span");
+    info.className = "pagination-info";
+    info.textContent = `Page ${state.page} of ${totalPages}`;
+
+    controls.appendChild(prevBtn);
+    controls.appendChild(info);
+    controls.appendChild(nextBtn);
+  }
+
+  function openTab(tabName, pushState = true) {
+    state.activeTab = tabName;
+    state.page = 1;
+    state.focusedIndex = -1;
+
+    // UI Updates
+    document
+      .querySelectorAll(".tab-content")
+      .forEach((t) => t.classList.remove("active"));
+    document
+      .querySelectorAll(".tab-btn")
+      .forEach((b) => b.classList.remove("active"));
+
+    const targetTab = document.getElementById(tabName);
+    if (targetTab) targetTab.classList.add("active");
+
+    // Find button
+    const btns = document.querySelectorAll(".tab-btn");
+    btns.forEach((btn) => {
+      // Exact match safer
+      if (btn.textContent.toLowerCase().includes(tabName))
+        // simple heuristic
+        btn.classList.add("active");
+      // OR fallback to onclick check
+      else if (btn.getAttribute("onclick").includes(tabName))
+        btn.classList.add("active");
+    });
+
+    renderActiveTab();
+    if (pushState) updateURL(true);
+  }
+</script>
+{% endblock %}

@@ -1,4 +1,5 @@
-//! Tests for complex dynamic analysis scenarios.
+//! Tests for complex dynamic Python patterns.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::{self, File};

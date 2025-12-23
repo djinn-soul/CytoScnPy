@@ -69,6 +69,8 @@ pub struct Scope {
 
 impl Scope {
     /// Creates a new scope of the given type.
+    /// Creates a new scope of the given type.
+    #[must_use]
     pub fn new(kind: ScopeType) -> Self {
         Self {
             kind,
@@ -81,6 +83,7 @@ impl Scope {
 /// Represents a defined entity (function, class, variable, import) in the Python code.
 /// This struct holds metadata about the definition, including its location and confidence.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Definition {
     /// The name of the defined entity (e.g., "`my_function`").
     pub name: String,
@@ -124,6 +127,7 @@ pub struct Definition {
     /// Used for class-method linking to identify truly unused recursive methods.
     #[serde(default)]
     pub is_self_referential: bool,
+    /// Human-readable message for this finding (generated based on `def_type`).
     /// Human-readable message for this finding (generated based on `def_type`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
@@ -209,7 +213,7 @@ pub struct CytoScnPyVisitor<'a> {
     /// Cached scope prefix for faster qualified name building.
     /// Updated on scope push/pop to avoid rebuilding on every `resolve_name` call.
     cached_scope_prefix: String,
-    /// Current recursion depth for `visit_stmt/visit_expr` to prevent stack overflow.
+    /// Current recursion depth for ``visit_stmt`/`visit_expr`` to prevent stack overflow.
     depth: usize,
     /// Whether the recursion limit was hit during traversal.
     pub recursion_limit_hit: bool,
@@ -217,6 +221,7 @@ pub struct CytoScnPyVisitor<'a> {
 
 impl<'a> CytoScnPyVisitor<'a> {
     /// Creates a new visitor for the given file.
+    #[must_use]
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
         let cached_prefix = module_name.clone();
         let file_path = Arc::new(file_path); // Wrap in Arc once, share everywhere
@@ -533,6 +538,7 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Visits a statement node in the AST.
+    #[allow(clippy::too_many_lines)]
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
         // Recursion depth guard to prevent stack overflow on deeply nested code
         if self.depth >= MAX_RECURSION_DEPTH {
@@ -1071,6 +1077,7 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Visits an expression node in the AST.
+    #[allow(clippy::too_many_lines)]
     pub fn visit_expr(&mut self, expr: &Expr) {
         // Recursion depth guard to prevent stack overflow on deeply nested code
         if self.depth >= MAX_RECURSION_DEPTH {

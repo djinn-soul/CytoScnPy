@@ -8,7 +8,8 @@
 
 mod heuristics;
 mod processing;
-mod types;
+/// Result types and analysis summaries.
+pub mod types;
 
 // Re-export types for public API
 pub use heuristics::{apply_heuristics, apply_penalties};

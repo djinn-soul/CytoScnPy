@@ -1,4 +1,5 @@
 //! Tests for CLI flags and options.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::commands::{run_cc, run_hal, run_mi, run_raw};
 use std::fs::File;

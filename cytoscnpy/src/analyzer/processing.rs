@@ -6,9 +6,9 @@ use super::{
     apply_heuristics, apply_penalties, AnalysisResult, AnalysisSummary, CytoScnPy, ParseError,
 };
 use crate::framework::FrameworkAwareVisitor;
-use crate::halstead::analyze_halstead;
+use crate::halstead::{analyze_halstead, HalsteadMetrics};
 use crate::metrics::mi_compute;
-use crate::raw_metrics::analyze_raw;
+use crate::raw_metrics::{analyze_raw, RawMetrics};
 use crate::rules::secrets::{scan_secrets, SecretFinding};
 use crate::rules::Finding;
 use crate::test_utils::TestAwareVisitor;
@@ -54,6 +54,7 @@ impl CytoScnPy {
 
         // For multiple paths or individual files, collect all Python files
         let mut all_files: Vec<std::path::PathBuf> = Vec::new();
+        let mut total_directories = 0;
 
         for path in paths {
             if path.is_file() {
@@ -66,18 +67,24 @@ impl CytoScnPy {
                 }
             } else if path.is_dir() {
                 // Directory - collect all Python files from it
-                let dir_files = self.collect_python_files(path);
+                let (dir_files, dir_count) = self.collect_python_files(path);
                 all_files.extend(dir_files);
+                total_directories += dir_count;
             }
         }
 
         // Analyze the collected files
-        self.analyze_file_list(&all_files, paths.first().map(std::path::PathBuf::as_path))
+        self.analyze_file_list(
+            &all_files,
+            paths.first().map(std::path::PathBuf::as_path),
+            total_directories,
+        )
     }
 
     /// Collects all Python files from a directory, respecting exclusion rules.
-    fn collect_python_files(&self, root_path: &Path) -> Vec<std::path::PathBuf> {
+    fn collect_python_files(&self, root_path: &Path) -> (Vec<std::path::PathBuf>, usize) {
         let mut files = Vec::new();
+        let mut dir_count = 0;
         let mut it = WalkDir::new(root_path).into_iter();
 
         while let Some(res) = it.next() {
@@ -99,6 +106,15 @@ impl CytoScnPy {
                     continue;
                 }
 
+                if entry.file_type().is_dir() {
+                    // Don't count the root folder itself if we want strictly subdirectories?
+                    // stats command counts "Total Directories". Usually includes root if scanned?
+                    // commands.rs count_directories filters `path != root`.
+                    if entry.path() != root_path {
+                        dir_count += 1;
+                    }
+                }
+
                 if entry
                     .path()
                     .extension()
@@ -109,7 +125,7 @@ impl CytoScnPy {
             }
         }
 
-        files
+        (files, dir_count)
     }
 
     /// Analyzes a specific list of files.
@@ -119,12 +135,13 @@ impl CytoScnPy {
         &mut self,
         files: &[std::path::PathBuf],
         root_hint: Option<&Path>,
+        total_directories: usize,
     ) -> AnalysisResult {
         let total_files = files.len();
         self.total_files_analyzed = total_files;
 
         // Determine root path for relative path calculation
-        let root_path = root_hint.unwrap_or(Path::new("."));
+        let root_path = root_hint.unwrap_or_else(|| Path::new("."));
 
         // Process files in chunks to prevent OOM on large projects.
         // Each chunk is processed in parallel, then results are merged.
@@ -138,8 +155,11 @@ impl CytoScnPy {
                 Vec<Finding>,
                 Vec<ParseError>,
                 usize,
+                RawMetrics,
+                HalsteadMetrics,
                 f64,
                 f64,
+                usize,
             )> = chunk
                 .par_iter()
                 .map(|file_path| self.process_single_file(file_path, root_path))
@@ -149,7 +169,7 @@ impl CytoScnPy {
         }
 
         // Aggregate and return results (same as analyze method)
-        self.aggregate_results(all_results, files, total_files)
+        self.aggregate_results(all_results, files, total_files, total_directories)
     }
 
     /// Processes a single file and returns its analysis results.
@@ -166,8 +186,11 @@ impl CytoScnPy {
         Vec<Finding>,
         Vec<ParseError>,
         usize,
+        RawMetrics,
+        HalsteadMetrics,
         f64,
         f64,
+        usize, // File size in bytes
     ) {
         // Check if this is a notebook file
         let is_notebook = file_path.extension().is_some_and(|e| e == "ipynb");
@@ -191,15 +214,40 @@ impl CytoScnPy {
                             error: format!("Failed to parse notebook: {e}"),
                         }],
                         0,
+                        RawMetrics::default(),
+                        HalsteadMetrics::default(),
                         0.0,
                         0.0,
+                        0,
                     );
                 }
             }
         } else {
-            fs::read_to_string(file_path).unwrap_or_default()
+            match fs::read_to_string(file_path) {
+                Ok(code) => code,
+                Err(e) => {
+                    return (
+                        Vec::new(),
+                        FxHashMap::default(),
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                        vec![ParseError {
+                            file: file_path.to_path_buf(),
+                            error: format!("Failed to read file: {e}"),
+                        }],
+                        0,
+                        RawMetrics::default(),
+                        HalsteadMetrics::default(),
+                        0.0,
+                        0.0,
+                        0,
+                    );
+                }
+            }
         };
 
+        let file_size = source.len();
         let line_index = LineIndex::new(&source);
         let ignored_lines = crate::utils::get_ignored_lines(&source);
 
@@ -391,6 +439,8 @@ impl CytoScnPy {
             }
         }
 
+        let has_parse_errors = !parse_errors.is_empty();
+
         (
             visitor.definitions,
             visitor.references,
@@ -399,13 +449,30 @@ impl CytoScnPy {
             quality,
             parse_errors,
             source.lines().count(),
+            if self.enable_quality {
+                analyze_raw(&source)
+            } else {
+                RawMetrics::default()
+            },
+            if self.enable_quality && has_parse_errors {
+                HalsteadMetrics::default() // Cannot compute halstead if parse error
+            } else if self.enable_quality {
+                if let Ok(parsed) = parse_module(&source) {
+                    analyze_halstead(&ruff_python_ast::Mod::Module(parsed.into_syntax()))
+                } else {
+                    HalsteadMetrics::default()
+                }
+            } else {
+                HalsteadMetrics::default()
+            },
             file_complexity,
             file_mi,
+            file_size,
         )
     }
 
     /// Aggregates results from multiple file analyses.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     pub(crate) fn aggregate_results(
         &mut self,
         results: Vec<(
@@ -416,11 +483,15 @@ impl CytoScnPy {
             Vec<Finding>,
             Vec<ParseError>,
             usize,
+            RawMetrics,
+            HalsteadMetrics,
             f64,
             f64,
+            usize,
         )>,
         files: &[std::path::PathBuf],
         total_files: usize,
+        total_directories: usize,
     ) -> AnalysisResult {
         let mut all_defs = Vec::new();
         let mut ref_counts: std::collections::HashMap<String, usize> =
@@ -432,9 +503,68 @@ impl CytoScnPy {
 
         let mut total_complexity = 0.0;
         let mut total_mi = 0.0;
+        let mut total_size_bytes = 0;
         let mut files_with_quality_metrics = 0;
 
-        for (defs, refs, secrets, danger, quality, parse_errors, lines, complexity, mi) in results {
+        let mut all_raw_metrics = RawMetrics::default();
+        let mut all_halstead_metrics = HalsteadMetrics::default();
+        let mut file_metrics = Vec::new();
+
+        for (
+            i,
+            (
+                defs,
+                refs,
+                secrets,
+                danger,
+                quality,
+                parse_errors,
+                lines,
+                raw,
+                halstead,
+                complexity,
+                mi,
+                size,
+            ),
+        ) in results.into_iter().enumerate()
+        {
+            let file_path: &std::path::PathBuf = &files[i];
+
+            total_size_bytes += size;
+
+            // Aggregate Raw Metrics
+            all_raw_metrics.loc += raw.loc;
+            all_raw_metrics.lloc += raw.lloc;
+            all_raw_metrics.sloc += raw.sloc;
+            all_raw_metrics.comments += raw.comments;
+            all_raw_metrics.multi += raw.multi;
+            all_raw_metrics.blank += raw.blank;
+            all_raw_metrics.single_comments += raw.single_comments;
+
+            // Aggregate Halstead Metrics (Summing for project total approximation)
+            all_halstead_metrics.h1 += halstead.h1;
+            all_halstead_metrics.h2 += halstead.h2;
+            all_halstead_metrics.n1 += halstead.n1;
+            all_halstead_metrics.n2 += halstead.n2;
+            all_halstead_metrics.vocabulary += halstead.vocabulary;
+            all_halstead_metrics.length += halstead.length;
+            all_halstead_metrics.calculated_length += halstead.calculated_length;
+            all_halstead_metrics.volume += halstead.volume;
+            all_halstead_metrics.difficulty += halstead.difficulty;
+            all_halstead_metrics.effort += halstead.effort;
+            all_halstead_metrics.time += halstead.time;
+            all_halstead_metrics.bugs += halstead.bugs;
+
+            use crate::analyzer::types::FileMetrics;
+            file_metrics.push(FileMetrics {
+                file: file_path.clone(),
+                loc: raw.loc,
+                sloc: raw.sloc,
+                complexity,
+                mi,
+                total_issues: danger.len() + quality.len() + secrets.len(),
+            });
+
             all_defs.extend(defs);
             // Merge reference counts from each file
 
@@ -462,6 +592,13 @@ impl CytoScnPy {
         let mut unused_parameters = Vec::new();
 
         let total_definitions = all_defs.len();
+
+        let functions_count = all_defs
+            .iter()
+            .filter(|d| d.def_type == "function" || d.def_type == "method")
+            .count();
+        let classes_count = all_defs.iter().filter(|d| d.def_type == "class").count();
+
         let mut methods_with_refs: Vec<Definition> = Vec::new();
 
         for mut def in all_defs {
@@ -577,7 +714,14 @@ impl CytoScnPy {
                 } else {
                     0.0
                 },
+                total_directories,
+                total_size: total_size_bytes as f64 / 1024.0,
+                functions_count,
+                classes_count,
+                raw_metrics: all_raw_metrics,
+                halstead_metrics: all_halstead_metrics,
             },
+            file_metrics,
         }
     }
 
@@ -593,238 +737,17 @@ impl CytoScnPy {
     /// 7. Returns the final `AnalysisResult`.
     #[allow(clippy::too_many_lines)]
     pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
-        // Find all Python files in the given path.
-        // We use WalkDir to recursively traverse directories.
-        let mut files: Vec<walkdir::DirEntry> = Vec::new();
+        // Collect files and count directories using shared logic
+        let (files, dir_count) = self.collect_python_files(root_path);
 
-        let mut it = WalkDir::new(root_path).into_iter();
+        self.total_files_analyzed = files.len();
 
-        while let Some(res) = it.next() {
-            if let Ok(entry) = res {
-                let name = entry.file_name().to_string_lossy();
-
-                // Check if this folder is explicitly included
-                let is_force_included =
-                    entry.file_type().is_dir() && self.include_folders.iter().any(|f| f == &name);
-
-                // Check against both default excludes and user-provided excludes
-                // BUT skip exclusion if the folder is force-included
-                let should_exclude = entry.file_type().is_dir()
-                    && !is_force_included
-                    && (DEFAULT_EXCLUDE_FOLDERS().iter().any(|&f| f == name)
-                        || self.exclude_folders.iter().any(|f| f == &name));
-
-                if should_exclude {
-                    it.skip_current_dir();
-                    continue;
-                }
-
-                if entry
-                    .path()
-                    .extension()
-                    .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
-                {
-                    files.push(entry);
-                }
-            }
-        }
-
-        let total_files = files.len();
-        self.total_files_analyzed = total_files;
-
-        // Process files in chunks on large projects (1000+ files).
-        // Each chunk is processed in parallel, results are merged before next chunk.
-        // This limits peak memory usage to approximately CHUNK_SIZE * avg_file_size.
-        let mut all_defs = Vec::new();
-        let mut ref_counts: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
-        let mut all_secrets = Vec::new();
-        let mut all_danger = Vec::new();
-        let mut all_quality = Vec::new();
-        let mut all_parse_errors = Vec::new();
-
-        let mut total_complexity = 0.0;
-        let mut total_mi = 0.0;
-        let mut files_with_quality_metrics = 0;
-
-        for chunk in files.chunks(CHUNK_SIZE) {
-            let chunk_results: Vec<(
-                Vec<Definition>,
-                FxHashMap<String, usize>,
-                Vec<SecretFinding>,
-                Vec<Finding>,
-                Vec<Finding>,
-                Vec<ParseError>,
-                usize, // Line count
-                f64,   // complexity
-                f64,   // mi
-            )> = chunk
-                .par_iter()
-                .map(|entry| self.process_single_file(entry.path(), root_path))
-                .collect();
-
-            // Aggregate chunk results immediately to release chunk memory
-            for (defs, refs, secrets, danger, quality, parse_errors, lines, complexity, mi) in
-                chunk_results
-            {
-                all_defs.extend(defs);
-                for (name, count) in refs {
-                    *ref_counts.entry(name).or_insert(0) += count;
-                }
-                all_secrets.extend(secrets);
-                all_danger.extend(danger);
-                all_quality.extend(quality);
-                all_parse_errors.extend(parse_errors);
-                self.total_lines_analyzed += lines;
-
-                if complexity > 0.0 || mi > 0.0 {
-                    total_complexity += complexity;
-                    total_mi += mi;
-                    files_with_quality_metrics += 1;
-                }
-            }
-            // Memory from chunk_results is released here before next chunk
-        }
-
-        // Categorize unused definitions.
-        let mut unused_functions = Vec::new();
-        let mut unused_methods = Vec::new();
-        let mut unused_classes = Vec::new();
-        let mut unused_imports = Vec::new();
-        let mut unused_variables = Vec::new();
-        let mut unused_parameters = Vec::new();
-
-        let total_definitions = all_defs.len();
-        let mut methods_with_refs: Vec<Definition> = Vec::new();
-
-        for mut def in all_defs {
-            // Update the reference count for the definition.
-            if let Some(count) = ref_counts.get(&def.full_name) {
-                def.references = *count;
-            }
-            // Fallback: check simple name count if full name count is missing (for local vars/imports)
-            else if let Some(count) = ref_counts.get(&def.simple_name) {
-                def.references = *count;
-            }
-
-            // Apply advanced heuristics
-            apply_heuristics(&mut def);
-
-            // Filter out low confidence items based on the threshold.
-            if def.confidence < self.confidence_threshold {
-                continue;
-            }
-
-            // If reference count is 0, it is unused.
-            if def.references == 0 {
-                match def.def_type.as_str() {
-                    "function" => unused_functions.push(def),
-                    "method" => unused_methods.push(def),
-                    "class" => unused_classes.push(def),
-                    "import" => unused_imports.push(def),
-                    "variable" => unused_variables.push(def),
-                    "parameter" => unused_parameters.push(def),
-                    _ => {}
-                }
-            } else if def.def_type == "method" {
-                // Collect methods with references for possible class-method linking (recursion check)
-                methods_with_refs.push(def.clone());
-            }
-        }
-
-        // Class-method linking: Methods of unused classes should also be flagged
-        // BUT ONLY if they are self-referential (recursive) and have no external references.
-        let unused_class_names: std::collections::HashSet<_> =
-            unused_classes.iter().map(|c| c.full_name.clone()).collect();
-
-        for def in &methods_with_refs {
-            if def.confidence >= self.confidence_threshold {
-                // Only process if the method is marked as self-referential
-                // This means the only reference comes from itself (recursion)
-                if !def.is_self_referential {
-                    continue;
-                }
-
-                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
-                if let Some(last_dot) = def.full_name.rfind('.') {
-                    let parent_class = &def.full_name[..last_dot];
-                    if unused_class_names.contains(parent_class) {
-                        unused_methods.push(def.clone());
-                    }
-                }
-            }
-        }
-
-        // Run taint analysis if enabled
-        let taint_findings = if self.enable_taint {
-            let taint_config = crate::taint::analyzer::TaintConfig::all_levels();
-            let taint_analyzer = crate::taint::analyzer::TaintAnalyzer::new(taint_config);
-
-            // Collect file sources that were successfully parsed
-            let file_sources: Vec<_> = files
-                .iter()
-                .filter_map(|entry| {
-                    let file_path = entry.path();
-                    let is_notebook = file_path.extension().is_some_and(|e| e == "ipynb");
-                    let source = if is_notebook {
-                        crate::ipynb::extract_notebook_code(file_path).ok()
-                    } else {
-                        fs::read_to_string(file_path).ok()
-                    };
-                    source.map(|s| (file_path.to_path_buf(), s))
-                })
-                .collect();
-
-            // Run taint analysis on each file
-            file_sources
-                .iter()
-                .flat_map(|(path, source)| taint_analyzer.analyze_file(source, path))
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let taint_count = taint_findings.len();
-
-        // Construct and return the final result.
-
-        AnalysisResult {
-            unused_functions,
-            unused_methods,
-            unused_imports,
-            unused_classes,
-            unused_variables,
-            unused_parameters,
-            secrets: all_secrets.clone(),
-            danger: all_danger.clone(),
-            quality: all_quality.clone(),
-            taint_findings,
-            parse_errors: all_parse_errors.clone(),
-            analysis_summary: AnalysisSummary {
-                total_files,
-                secrets_count: all_secrets.len(),
-                danger_count: all_danger.len(),
-                quality_count: all_quality.len(),
-                taint_count,
-                parse_errors_count: all_parse_errors.len(),
-                total_lines_analyzed: self.total_lines_analyzed,
-                total_definitions,
-                average_complexity: if files_with_quality_metrics > 0 {
-                    total_complexity / f64::from(files_with_quality_metrics)
-                } else {
-                    0.0
-                },
-                average_mi: if files_with_quality_metrics > 0 {
-                    total_mi / f64::from(files_with_quality_metrics)
-                } else {
-                    0.0
-                },
-            },
-        }
+        // Analyze the collected files
+        self.analyze_file_list(&files, Some(root_path), dir_count)
     }
 
     /// Analyzes a single string of code (mostly for testing).
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     #[must_use]
     pub fn analyze_code(&self, code: &str, file_path: &Path) -> AnalysisResult {
         let source = code.to_owned();
@@ -961,6 +884,18 @@ impl CytoScnPy {
 
         // Aggregate (single file)
         let total_definitions = visitor.definitions.len();
+
+        let functions_count = visitor
+            .definitions
+            .iter()
+            .filter(|d| d.def_type == "function" || d.def_type == "method")
+            .count();
+        let classes_count = visitor
+            .definitions
+            .iter()
+            .filter(|d| d.def_type == "class")
+            .count();
+
         let all_defs = visitor.definitions;
         // References are already counted by the visitor
         let ref_counts = visitor.references;
@@ -1050,7 +985,21 @@ impl CytoScnPy {
                 total_definitions,
                 average_complexity: 0.0,
                 average_mi: 0.0,
+                total_directories: 0,
+                total_size: source.len() as f64 / 1024.0,
+                functions_count,
+                classes_count,
+                raw_metrics: RawMetrics::default(),
+                halstead_metrics: HalsteadMetrics::default(),
             },
+            file_metrics: vec![crate::analyzer::types::FileMetrics {
+                file: file_path.to_path_buf(),
+                loc: source.lines().count(),
+                sloc: source.lines().count(),
+                complexity: 0.0,
+                mi: 0.0,
+                total_issues: danger.len() + quality.len() + secrets.len(),
+            }],
         }
     }
 }

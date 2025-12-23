@@ -65,6 +65,11 @@ pub struct OutputOptions {
     /// Exit with code 1 if any quality issues are found.
     #[arg(long)]
     pub fail_on_quality: bool,
+
+    /// Generate HTML report.
+    #[arg(long)]
+    #[cfg(feature = "html_report")]
+    pub html: bool,
 }
 
 /// Options for including additional files in analysis.
@@ -317,4 +322,52 @@ pub enum Commands {
     /// Start MCP server for LLM integration (Claude Desktop, VS Code Copilot, etc.)
     #[command(name = "mcp-server")]
     McpServer,
+    /// Generate comprehensive project statistics report
+    Stats {
+        /// Path to analyze
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Enable all analysis: secrets, danger, quality, and per-file metrics
+        #[arg(long, short = 'a')]
+        all: bool,
+
+        /// Scan for API keys/secrets
+        #[arg(long, short = 's')]
+        secrets: bool,
+
+        /// Scan for dangerous code patterns
+        #[arg(long, short = 'd')]
+        danger: bool,
+
+        /// Scan for code quality issues
+        #[arg(long, short = 'q')]
+        quality: bool,
+
+        /// Output JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Output file path
+        #[arg(long, short = 'o')]
+        output: Option<String>,
+
+        /// Exclude folders
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
+    },
+    /// Show per-file metrics table
+    Files {
+        /// Path to analyze
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Output JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Exclude folders
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
+    },
 }

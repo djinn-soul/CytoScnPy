@@ -1,4 +1,6 @@
-//! Tests for handling Python syntax errors.
+//! Tests for parse error handling.
+#![allow(clippy::expect_used)]
+#![allow(clippy::unwrap_used)]
 
 use serde_json::Value;
 use std::process::Command;
@@ -44,5 +46,3 @@ fn test_parse_errors() {
     assert!(error_files.iter().any(|f| f.contains("incomplete.py")));
     assert!(error_files.iter().any(|f| f.contains("invalid_token.py")));
 }
-
-

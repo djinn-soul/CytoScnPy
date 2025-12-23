@@ -250,9 +250,7 @@ def func():
 
 ---
 
-## Future Roadmap
-
-### <a id="phase-8"></a>Phase 8: Advanced Framework Support
+### <a id="phase-8"></a>Phase 8: Advanced Framework Support ✅ DONE
 
 Django, FastAPI, Pydantic is done ✅.
 
@@ -283,12 +281,19 @@ _Tools to improve the workflow around CytoScnPy._
   - Implement a real-time LSP server for VS Code, Neovim, and Zed.
   - Provide instant diagnostics without saving or running CLI.
 
+- [ ] **Config File Support for Notebook Options**
+
+  - Allow `include_ipynb` and `ipynb_cells` in `.cytoscnpy.toml` and `pyproject.toml`
+  - Currently these are CLI-only flags (`--include-ipynb`, `--ipynb-cells`)
+  - **Rationale:** Enable persistent configuration without passing flags on every run
+  - **Implementation:** Add fields to `CytoScnPyConfig` struct in `src/config.rs`
+
 - [ ] **Git Integration**
 
   - **Blame Analysis:** Identify who introduced unused code.
   - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
 
-- [ ] **HTML Report Generation**
+- [x] **HTML Report Generation** ✅
 
   - Generate self-contained HTML reports for large codebase analysis.
   - **Features:**
@@ -297,11 +302,11 @@ _Tools to improve the workflow around CytoScnPy._
     - Filtering by type (unused, security, quality), severity, file
     - Search across all findings
     - Summary dashboard with charts
-    - Code snippets showing context around each finding
+    - Code snippets showing context around each finding (Basic impl done, see Phase 9.5 for improvements)
   - **CLI:**
     ```bash
-    cytoscnpy analyze ./project --html report.html
-    cytoscnpy analyze ./project --html-dir ./reports  # Multi-file for very large projects
+    cytoscnpy ./project --html
+    # Multi-file support planned for large projects
     ```
   - **Implementation:**
     - Use `tera` or `askama` for templating
@@ -319,8 +324,6 @@ _Tools to improve the workflow around CytoScnPy._
   - **CLI:**
     ```bash
     cytoscnpy serve ./project --port 8080
-    # Opens browser to http://localhost:8080
-    # Watches for file changes and re-analyzes
     ```
   - **Technical Approach:**
     - Use `axum` or `warp` for lightweight HTTP server
@@ -330,6 +333,37 @@ _Tools to improve the workflow around CytoScnPy._
     - Team code review sessions
     - CI/CD dashboard integration
     - Local development feedback loop
+
+### <a id="phase-9-5"></a>Phase 9.5: Report Actionability Upgrade 🔄 PLANNED
+
+_Implementing findings from the Recommendation System Audit._
+
+**Goal:** Transform the report from a diagnostic tool into a remediation platform.
+
+- [ ] **Remediation Display Engine** (Priority: HIGH)
+
+  - **Problem:** Backend has remediation data (e.g., "Use parameterized queries"), but it's lost during report generation.
+  - **Solution:**
+    - Extend `IssueItem` struct with `remediation` and `vuln_type` fields.
+    - Update `flatten_issues` to preserve `SinkInfo` remediation strings.
+    - Update `issues.html` and `file_view.html` to display a collapsible "Remediation" box.
+
+- [ ] **Context-Aware Code Snippets** (Priority: MEDIUM)
+
+  - **Problem:** Issues are shown as one-liners without context.
+  - **Solution:**
+    - Extract 3-5 lines of code around the issue location.
+    - Display syntax-highlighted snippets inline in the Issues tab.
+
+- [ ] **Enriched Quality Messages** (Priority: MEDIUM)
+
+  - **Problem:** Generic messages like "Function too complex" offer no guidance.
+  - **Solution:** Map rule IDs to specific refactoring advice (e.g., "Extract reusable logic into helper functions").
+
+- [ ] **Prioritization Framework** (Priority: LOW)
+
+  - **Problem:** All high-severity issues look the same.
+  - **Solution:** Add "Exploitability" and "Fix Effort" scores to help teams prioritize.
 
 #### Benchmarking Infrastructure Ideas
 

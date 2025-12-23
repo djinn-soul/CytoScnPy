@@ -171,14 +171,37 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
     program_args.extend(args);
     let cli_var = Cli::parse_from(program_args);
 
+    let mut stdout = std::io::stdout();
+
+    // Load config from the first path or current directory
+    let config_path = cli_var
+        .paths
+        .first()
+        .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
+    let config = crate::config::Config::load_from_path(config_path);
+
+    let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
+    exclude_folders.extend(cli_var.exclude_folders.clone());
+
+    if cli_var.output.verbose && !cli_var.output.json {
+        eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
+        eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
+        if let Some(ref command) = cli_var.command {
+            eprintln!("[VERBOSE] Executing subcommand: {command:?}");
+        }
+        eprintln!("[VERBOSE] Global Excludes: {exclude_folders:?}");
+        eprintln!();
+    }
+
     if let Some(command) = cli_var.command {
-        let mut stdout = std::io::stdout();
         match command {
             Commands::Raw {
                 path,
                 json,
-                exclude,
-                ..
+                mut exclude,
+                ignore,
+                summary,
+                output_file,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -187,21 +210,33 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders);
                 crate::commands::run_raw(
                     &path,
                     json,
                     exclude,
-                    Vec::new(),
-                    false,
-                    None,
+                    ignore,
+                    summary,
+                    output_file,
                     &mut stdout,
                 )?;
             }
             Commands::Cc {
                 path,
                 json,
-                exclude,
-                ..
+                mut exclude,
+                ignore,
+                min_rank,
+                max_rank,
+                average,
+                total_average,
+                show_complexity,
+                order,
+                no_assert,
+                xml,
+                fail_threshold,
+                output_file,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -210,22 +245,24 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders.clone());
                 crate::commands::run_cc(
                     &path,
                     crate::commands::CcOptions {
                         json,
                         exclude,
-                        ignore: Vec::new(),
-                        min_rank: None,
-                        max_rank: None,
-                        average: false,
-                        total_average: false,
-                        show_complexity: false,
-                        order: None,
-                        no_assert: false,
-                        xml: false,
-                        fail_threshold: None,
-                        output_file: None,
+                        ignore,
+                        min_rank,
+                        max_rank,
+                        average,
+                        total_average,
+                        show_complexity,
+                        order,
+                        no_assert,
+                        xml,
+                        fail_threshold,
+                        output_file,
                     },
                     &mut stdout,
                 )?;
@@ -233,8 +270,10 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             Commands::Hal {
                 path,
                 json,
-                exclude,
-                ..
+                mut exclude,
+                ignore,
+                functions,
+                output_file,
             } => {
                 if !path.exists() {
                     eprintln!(
@@ -243,20 +282,22 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders.clone());
                 crate::commands::run_hal(
                     &path,
                     json,
                     exclude,
-                    Vec::new(),
-                    false,
-                    None,
+                    ignore,
+                    functions,
+                    output_file,
                     &mut stdout,
                 )?;
             }
             Commands::Mi {
                 path,
                 json,
-                exclude,
+                mut exclude,
                 ignore,
                 min_rank,
                 max_rank,
@@ -273,6 +314,8 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     );
                     return Ok(1);
                 }
+                // Merge global excludes
+                exclude.extend(exclude_folders);
                 crate::commands::run_mi(
                     &path,
                     crate::commands::MiOptions {
@@ -297,6 +340,53 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 eprintln!("If you're seeing this, please use the cytoscnpy-cli binary.");
                 return Ok(1);
             }
+            Commands::Stats {
+                path,
+                all,
+                secrets,
+                danger,
+                quality,
+                json,
+                output,
+                mut exclude,
+            } => {
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                // Merge global excludes
+                exclude.extend(exclude_folders.clone());
+                crate::commands::run_stats(
+                    &path,
+                    all,
+                    secrets,
+                    danger,
+                    quality,
+                    json,
+                    output,
+                    &exclude,
+                    &mut stdout,
+                )?;
+            }
+            Commands::Files {
+                path,
+                json,
+                mut exclude,
+            } => {
+                if !path.exists() {
+                    eprintln!(
+                        "Error: The file or directory '{}' does not exist.",
+                        path.display()
+                    );
+                    return Ok(1);
+                }
+                // Merge global excludes
+                exclude.extend(exclude_folders);
+                crate::commands::run_files(&path, json, &exclude, &mut stdout)?;
+            }
         }
         Ok(0)
     } else {
@@ -309,11 +399,6 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                 return Ok(1);
             }
         }
-        let config_path = cli_var
-            .paths
-            .first()
-            .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
-        let config = crate::config::Config::load_from_path(config_path);
         let confidence = cli_var
             .confidence
             .or(config.cytoscnpy.confidence)
@@ -321,13 +406,15 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         let secrets = cli_var.scan.secrets || config.cytoscnpy.secrets.unwrap_or(false);
         let danger = cli_var.scan.danger || config.cytoscnpy.danger.unwrap_or(false);
 
-        // Auto-enable quality mode when --min-mi or --max-complexity is set
+        // Auto-enable quality mode when --min-mi or --max-complexity is set,
+        // or when html_report feature is enabled (for dashboard metrics)
         let quality = cli_var.scan.quality
             || config.cytoscnpy.quality.unwrap_or(false)
             || cli_var.min_mi.is_some()
             || cli_var.max_complexity.is_some()
             || config.cytoscnpy.min_mi.is_some()
-            || config.cytoscnpy.complexity.is_some();
+            || config.cytoscnpy.complexity.is_some()
+            || cfg!(feature = "html_report");
 
         let include_tests =
             cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
@@ -339,7 +426,6 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         include_folders.extend(cli_var.include_folders);
 
         if !cli_var.output.json {
-            let mut stdout = std::io::stdout();
             crate::output::print_exclusion_list(&mut stdout, &exclude_folders).ok();
         }
 
@@ -480,15 +566,38 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
         if cli_var.output.json {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
-            let mut stdout = std::io::stdout();
-            if cli_var.output.quiet {
-                crate::output::print_report_quiet(&mut stdout, &result)?;
-            } else {
-                crate::output::print_report(&mut stdout, &result)?;
+            // Determine if we should show standard CLI output
+            #[cfg(feature = "html_report")]
+            let show_cli = !cli_var.output.html;
+            #[cfg(not(feature = "html_report"))]
+            let show_cli = true;
+
+            if show_cli {
+                let mut stdout = std::io::stdout();
+                if cli_var.output.quiet {
+                    crate::output::print_report_quiet(&mut stdout, &result)?;
+                } else {
+                    crate::output::print_report(&mut stdout, &result)?;
+                }
+                // Show processing time
+                let elapsed = start_time.elapsed();
+                println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
             }
-            // Show processing time
-            let elapsed = start_time.elapsed();
-            println!("\n[TIME] Completed in {:.2}s", elapsed.as_secs_f64());
+        }
+
+        #[cfg(feature = "html_report")]
+        if cli_var.output.html {
+            println!("Generating HTML report...");
+            let report_dir = std::path::Path::new(".cytoscnpy/report");
+            if let Err(e) = crate::report::generator::generate_report(&result, report_dir) {
+                eprintln!("Failed to generate HTML report: {e}");
+            } else {
+                println!("HTML report generated at: {}", report_dir.display());
+                // Try to open in browser
+                if let Err(e) = open::that(report_dir.join("index.html")) {
+                    eprintln!("Failed to open report in browser: {e}");
+                }
+            }
         }
 
         // Check for fail threshold (CLI > config > env var > default)
@@ -501,6 +610,8 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                     .and_then(|v| v.parse::<f64>().ok())
             })
             .unwrap_or(100.0); // Default to 100% (never fail unless explicitly set)
+
+        let mut exit_code = 0;
 
         // Calculate unused percentage and show gate status
         if result.analysis_summary.total_definitions > 0 {
@@ -524,7 +635,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                         "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - FAILED"
                     );
                 }
-                return Ok(1);
+                exit_code = 1;
             } else if show_gate && !cli_var.output.json {
                 println!(
                     "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - PASSED"
@@ -556,7 +667,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                             "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - FAILED"
                         );
                     }
-                    return Ok(1);
+                    exit_code = 1;
                 } else if !cli_var.output.json {
                     println!(
                         "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - PASSED"
@@ -579,7 +690,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
                             "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - FAILED"
                         );
                     }
-                    return Ok(1);
+                    exit_code = 1;
                 } else if !cli_var.output.json {
                     println!(
                         "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - PASSED"
@@ -588,6 +699,6 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
             }
         }
 
-        Ok(0)
+        Ok(exit_code)
     }
 }

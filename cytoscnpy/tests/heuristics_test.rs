@@ -1,4 +1,5 @@
 //! Tests for analyzer heuristics (e.g., config names, visitor pattern).
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

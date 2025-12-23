@@ -9,7 +9,11 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::io::Write;
 use std::time::Duration;
 
-/// Print the exclusion list in styled format
+/// Print the exclusion list in styled format.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std::io::Result<()> {
     if folders.is_empty() {
         let defaults = crate::constants::DEFAULT_EXCLUDE_FOLDERS();
@@ -33,7 +37,12 @@ pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std:
     Ok(())
 }
 
-/// Create and return a spinner for analysis (used when file count is unknown)
+/// Create and return a spinner for analysis (used when file count is unknown).
+///
+/// # Panics
+///
+/// Panics if the progress style template is invalid (should never happen with hardcoded template).
+#[must_use]
 pub fn create_spinner() -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
@@ -48,7 +57,12 @@ pub fn create_spinner() -> ProgressBar {
     spinner
 }
 
-/// Create a progress bar with file count (used when total files is known)
+/// Create a progress bar with file count (used when total files is known).
+///
+/// # Panics
+///
+/// Panics if the progress style template is invalid (should never happen with hardcoded template).
+#[must_use]
 pub fn create_progress_bar(total_files: u64) -> ProgressBar {
     let pb = ProgressBar::new(total_files);
     pb.set_style(
@@ -63,7 +77,11 @@ pub fn create_progress_bar(total_files: u64) -> ProgressBar {
     pb
 }
 
-/// Print the main header with box-drawing characters
+/// Print the main header with box-drawing characters.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_header(writer: &mut impl Write) -> std::io::Result<()> {
     writeln!(writer)?;
     writeln!(
@@ -74,7 +92,7 @@ pub fn print_header(writer: &mut impl Write) -> std::io::Result<()> {
     writeln!(
         writer,
         "{}",
-        "║  Python Static Analysis Results       ║".cyan().bold()
+        "║  Python Static Analysis Results        ║".cyan().bold()
     )?;
     writeln!(
         writer,
@@ -85,7 +103,11 @@ pub fn print_header(writer: &mut impl Write) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Print summary with colored "pills"
+/// Print summary with colored "pills".
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_summary_pills(
     writer: &mut impl Write,
     result: &AnalysisResult,
@@ -123,7 +145,11 @@ pub fn print_summary_pills(
     Ok(())
 }
 
-/// Print analysis statistics (files and lines processed)
+/// Print analysis statistics (files and lines processed).
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_analysis_stats(
     writer: &mut impl Write,
     summary: &AnalysisSummary,
@@ -184,7 +210,11 @@ fn get_severity_color(severity: &str) -> Color {
     }
 }
 
-/// Print a list of findings (Security, Quality, Secrets)
+/// Print a list of findings (Security, Quality, Secrets).
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_findings(
     writer: &mut impl Write,
     title: &str,
@@ -214,7 +244,11 @@ pub fn print_findings(
     Ok(())
 }
 
-/// Print a list of secrets (special case of findings)
+/// Print a list of secrets (special case of findings).
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_secrets(
     writer: &mut impl Write,
     title: &str,
@@ -244,7 +278,11 @@ pub fn print_secrets(
     Ok(())
 }
 
-/// Print a list of unused items (Functions, Imports, etc.)
+/// Print a list of unused items (Functions, Imports, etc.).
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_unused_items(
     writer: &mut impl Write,
     title: &str,
@@ -293,7 +331,11 @@ pub fn print_unused_items(
     Ok(())
 }
 
-/// Print a list of parse errors
+/// Print a list of parse errors.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_parse_errors(
     writer: &mut impl Write,
     errors: &[crate::analyzer::ParseError],
@@ -317,7 +359,11 @@ pub fn print_parse_errors(
     Ok(())
 }
 
-/// Print the full report
+/// Print the full report.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     print_header(writer)?;
     print_summary_pills(writer, result)?;
@@ -383,7 +429,11 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
     Ok(())
 }
 
-/// Print a quiet report (no detailed tables) for CI/CD mode
+/// Print a quiet report (no detailed tables) for CI/CD mode.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
 pub fn print_report_quiet(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     writeln!(writer)?; // Just a newline instead of header box
     print_summary_pills(writer, result)?;

@@ -1,7 +1,9 @@
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use rustc_hash::FxHashSet;
 
-#[derive(Debug, Default, Clone, PartialEq)]
+use serde::Serialize;
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize)]
 /// Metrics calculated using Halstead's Complexity Measures.
 pub struct HalsteadMetrics {
     /// N1: Total number of operators.
@@ -201,7 +203,11 @@ impl HalsteadVisitor {
         } else {
             0.0
         };
-        let volume = length * vocabulary.log2();
+        let volume = if vocabulary > 0.0 {
+            length * vocabulary.log2()
+        } else {
+            0.0
+        };
         let difficulty = if n2 > 0.0 {
             (n1 / 2.0) * (n2_total / n2)
         } else {

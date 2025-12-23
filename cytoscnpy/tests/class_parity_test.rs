@@ -1,4 +1,5 @@
-//! Tests for class parity features.
+//! Tests for class-related parity with Python.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
@@ -59,5 +60,3 @@ class ChildClass(BaseClass):
         "cls.static_helper() should resolve to ChildClass.static_helper"
     );
 }
-
-

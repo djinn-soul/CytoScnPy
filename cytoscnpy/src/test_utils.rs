@@ -22,6 +22,7 @@ impl<'a> TestAwareVisitor<'a> {
     /// Creates a new `TestAwareVisitor`.
     ///
     /// Determines if the file is a test file based on the file path.
+    #[must_use]
     pub fn new(path: &Path, line_index: &'a LineIndex) -> Self {
         let path_str = path.to_string_lossy();
         // Check if the file path matches the test file regex.

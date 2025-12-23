@@ -7,7 +7,13 @@
     clippy::str_to_string,
     clippy::field_reassign_with_default
 )]
+#![allow(clippy::float_cmp)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::str_to_string)]
+#![allow(clippy::field_reassign_with_default)]
+
 use cytoscnpy::config::{CustomSecretPattern, SecretsConfig};
+
 use cytoscnpy::rules::secrets::{
     calculate_entropy, is_high_entropy, scan_secrets, scan_secrets_compat,
 };

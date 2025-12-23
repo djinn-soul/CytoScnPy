@@ -5,7 +5,6 @@
 
 use anyhow::Result;
 
-/// Main entry point of the application.
 fn main() -> Result<()> {
     // Delegate CLI args to shared entry_point function (same as cytoscnpy-cli and Python)
     let code = cytoscnpy::entry_point::run_with_args(std::env::args().skip(1).collect())?;

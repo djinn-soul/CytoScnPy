@@ -356,7 +356,7 @@ See [`ROADMAP.md`](ROADMAP.md) for the detailed roadmap.
 **Medium Priority:**
 
 - **Type Inference:** Expanding basic type inference for method misuse detection.
-- **Framework Support:** Adding more framework patterns (Celery, SQLAlchemy, Pydantic).
+- **Framework Support:** Adding more framework patterns (SQLAlchemy, GraphQL).
 - **Performance:** Optimizing for very large codebases (1M+ lines).
 
 ## 🔧 Development Tooling
@@ -384,12 +384,11 @@ cargo install cargo-tarpaulin cargo-mutants cargo-semver-checks
 | **cargo-machete**       | Detect unused dependencies      | `cargo machete`                |
 | **cargo-nextest**       | Next-gen test runner            | `cargo nextest run`            |
 | **cargo-watch**         | Auto-rebuild on file changes    | `cargo watch-check`            |
-| **cargo-tarpaulin**     | Code coverage reports           | `cargo coverage`               |
+| **cargo-llvm-cov**      | Code coverage reports           | `cargo llvm-cov`               |
 | **cargo-mutants**       | Mutation testing (test quality) | `cargo mutants`                |
 | **cargo-semver-checks** | Semver violation detection      | `cargo semver`                 |
 
 ### Clippy (Linting)
-
 
 Clippy is a Rust linting tool that provides additional checks beyond the standard Rust compiler. It is configured via `Cargo.toml` workspace lints and `clippy.toml`. Pedantic lints are enabled.
 
@@ -588,7 +587,6 @@ The Rust implementation includes a comprehensive test suite in `cytoscnpy/tests/
 - **Covers advanced Python patterns** (decorators, async/await, metaclasses, etc.)
 - **Tests all CLI flags** (--danger, --quality, --secrets, --fail-threshold)
 - **Framework detection tests** for Flask, FastAPI, Django
-
 
 #### **Running Rust Tests:**
 

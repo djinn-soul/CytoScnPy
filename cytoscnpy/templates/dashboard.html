@@ -1,0 +1,1221 @@
+{% extends "base.html" %} {% block content %}
+<!-- Hero Section -->
+<div
+  class="grid"
+  style="grid-template-columns: 1fr 1.5fr; gap: 2rem; margin-bottom: 2rem"
+>
+  <!-- Score Hero -->
+  <div
+    class="card"
+    style="
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(
+        145deg,
+        rgba(24, 24, 27, 0.6) 0%,
+        rgba(39, 39, 42, 0.4) 100%
+      );
+    "
+  >
+    <div
+      style="
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(
+          circle,
+          rgba(99, 102, 241, 0.1) 0%,
+          transparent 70%
+        );
+        animation: pulse 10s infinite;
+      "
+    ></div>
+    <h2 style="position: relative; z-index: 1">Quality Score</h2>
+    <div
+      class="stat-value"
+      style="font-size: 6rem; margin: 1rem 0; color: {{ score_color }}; text-shadow: 0 0 30px rgba(74, 222, 128, 0.2);"
+    >
+      {{ score.total_score }}
+    </div>
+    <div
+      class="badge badge-{{ score.grade }}"
+      style="font-size: 1.2rem; padding: 0.5rem 1.5rem"
+    >
+      Grade: {{ score.grade }}
+    </div>
+  </div>
+
+  <!-- Vitals Grid -->
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem">
+    <div
+      class="card"
+      style="display: flex; flex-direction: column; justify-content: center"
+    >
+      <div
+        style="
+          color: var(--text-muted);
+          margin-bottom: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        "
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
+          />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+        Files
+      </div>
+      <div style="font-size: 2rem; font-weight: 700">{{ total_files }}</div>
+    </div>
+    <div
+      class="card"
+      style="display: flex; flex-direction: column; justify-content: center"
+    >
+      <div
+        style="
+          color: var(--text-muted);
+          margin-bottom: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        "
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="4 7 4 4 20 4 20 7" />
+          <line x1="9" y1="20" x2="15" y2="20" />
+          <line x1="12" y1="4" x2="12" y2="20" />
+        </svg>
+        Lines of Code
+      </div>
+      <div style="font-size: 2rem; font-weight: 700">{{ total_lines }}</div>
+    </div>
+    <div
+      class="card"
+      style="display: flex; flex-direction: column; justify-content: center"
+    >
+      <div
+        style="
+          color: var(--text-muted);
+          margin-bottom: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        "
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path
+            d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+          />
+        </svg>
+        Maintainability Index
+      </div>
+      <div
+        style="font-size: 2rem; font-weight: 700; color: {{ average_mi_color }};"
+      >
+        {{ average_mi_str }}
+      </div>
+    </div>
+    <div
+      class="card"
+      style="display: flex; flex-direction: column; justify-content: center"
+    >
+      <div
+        style="
+          color: var(--text-muted);
+          margin-bottom: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        "
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        Total Issues
+      </div>
+      <div
+        style="font-size: 2rem; font-weight: 700; color: {{ total_issues_color }}"
+      >
+        {{ total_issues }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Categories with Progress Bars -->
+<div
+  class="grid"
+  style="grid-template-columns: repeat(5, 1fr); gap: 1rem; margin-bottom: 2rem"
+>
+  {% for cat in score.categories %}
+  <div class="card" style="position: relative; overflow: hidden; padding: 1rem">
+    <div
+      style="
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        font-size: 4rem;
+        font-weight: 900;
+        opacity: 0.05;
+      "
+    >
+      {{ cat.grade }}
+    </div>
+    <h4
+      style="
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      "
+    >
+      {{ cat.name }}
+    </h4>
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      "
+    >
+      <div style="font-size: 1.8rem; font-weight: 700; color: {{ cat.color }};">
+        {{ cat.score }}
+      </div>
+      <div class="badge badge-{{ cat.grade }}" style="font-size: 0.8rem">
+        {{ cat.grade }}
+      </div>
+    </div>
+    <!-- Progress Bar -->
+    <div
+      style="
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+      "
+    >
+      <div
+        style="width: {{ cat.score }}%; height: 100%; background: linear-gradient(90deg, {{ cat.color }}, {{ cat.color }}88); border-radius: 3px; transition: width 0.3s ease;"
+      ></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Project Statistics -->
+<div
+  class="grid"
+  style="grid-template-columns: repeat(2, 1fr); gap: 2rem; margin-bottom: 2rem"
+>
+  <div class="card">
+    <h3>Project Overview</h3>
+    <table
+      style="width: 100%; border-collapse: separate; border-spacing: 0 0.5rem"
+    >
+      <tbody>
+        <tr>
+          <td style="color: var(--text-muted)">Total Files</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.total_files }}
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Total Directories</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.total_directories }}
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Total Size</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ "{:.2}"|format(summary.total_size) }} KB
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Total Lines</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.raw_metrics.loc }}
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Code Lines</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.raw_metrics.sloc }}
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Comment Lines</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.raw_metrics.comments }}
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Empty Lines</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.raw_metrics.blank }}
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Functions</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.functions_count }}
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted)">Classes</td>
+          <td style="text-align: right; font-weight: 600">
+            {{ summary.classes_count }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <style>
+    .tooltip-container {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+      opacity: 0.7;
+      margin-left: 4px;
+    }
+    .tooltip-container:hover {
+      opacity: 1;
+    }
+    .tooltip-text {
+      visibility: hidden;
+      width: 200px;
+      background-color: #2c2c2c;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 8px;
+      position: absolute;
+      z-index: 10;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -100px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 0.8em;
+      font-weight: normal;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      pointer-events: none;
+      border: 1px solid #444;
+    }
+    .tooltip-container:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
+  <div class="card">
+    <h3>Halstead Complexity</h3>
+    <table
+      style="width: 100%; border-collapse: separate; border-spacing: 0 0.5rem"
+    >
+      <tbody style="font-size: 0.9em">
+        <tr>
+          <td style="color: var(--text-muted); padding: 6px 0">
+            <div style="display: flex; align-items: center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="margin-right: 8px; color: var(--text-main)"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                ></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+              Avg. Volume
+              <span class="tooltip-container"
+                >ⓘ
+                <span class="tooltip-text"
+                  >Measures size and information density (Cognitive Load).</span
+                >
+              </span>
+            </div>
+          </td>
+          <td style="text-align: right; font-weight: 600">
+            {{ halstead_view.volume }}
+            <span
+              style="
+                font-size: 0.8em;
+                color: var(--text-muted);
+                font-weight: normal;
+              "
+              >bits</span
+            >
+          </td>
+          <td style="text-align: right">
+            <span
+              style="color: {{ halstead_view.volume_color }}; font-size: 0.85em; margin-left: 8px; display: inline-flex; align-items: center; gap: 4px;"
+              >{{ halstead_view.volume_icon }} {{ halstead_view.volume_level
+              }}</span
+            >
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted); padding: 6px 0">
+            <div style="display: flex; align-items: center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="margin-right: 8px; color: var(--text-main)"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <polygon
+                  points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"
+                ></polygon>
+              </svg>
+              Avg. Difficulty
+              <span class="tooltip-container"
+                >ⓘ
+                <span class="tooltip-text"
+                  >Measures how hard the code is to read and maintain.</span
+                >
+              </span>
+            </div>
+          </td>
+          <td style="text-align: right; font-weight: 600">
+            {{ halstead_view.difficulty }}
+          </td>
+          <td style="text-align: right">
+            <span
+              style="color: {{ halstead_view.difficulty_color }}; font-size: 0.85em; margin-left: 8px; display: inline-flex; align-items: center; gap: 4px;"
+              >{{ halstead_view.difficulty_icon }} {{
+              halstead_view.difficulty_level }}</span
+            >
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted); padding: 6px 0">
+            <div style="display: flex; align-items: center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="margin-right: 8px; color: var(--text-main)"
+              >
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                <line x1="12" y1="2" x2="12" y2="12"></line>
+              </svg>
+              Avg. Effort
+              <span class="tooltip-container"
+                >ⓘ
+                <span class="tooltip-text"
+                  >Estimated mental effort to develop or understand.</span
+                >
+              </span>
+            </div>
+          </td>
+          <td style="text-align: right; font-weight: 600">
+            {{ halstead_view.effort }}
+          </td>
+          <td style="text-align: right">
+            <span
+              style="color: {{ halstead_view.effort_color }}; font-size: 0.85em; margin-left: 8px; display: inline-flex; align-items: center; gap: 4px;"
+              >{{ halstead_view.effort_icon }} {{ halstead_view.effort_level
+              }}</span
+            >
+          </td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-muted); padding: 6px 0">
+            <div style="display: flex; align-items: center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="margin-right: 8px; color: var(--text-main)"
+              >
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                <line x1="1" y1="10" x2="23" y2="10"></line>
+              </svg>
+              Est. Bugs
+              <span class="tooltip-container"
+                >ⓘ
+                <span class="tooltip-text"
+                  >Statistical estimate of potential defects based on
+                  complexity.</span
+                >
+              </span>
+            </div>
+          </td>
+          <td style="text-align: right; font-weight: 600">
+            {{ halstead_view.bugs }}
+          </td>
+          <td style="text-align: right">
+            <span
+              style="color: {{ halstead_view.bugs_color }}; font-size: 0.85em; margin-left: 8px; display: inline-flex; align-items: center; gap: 4px;"
+              >{{ halstead_view.bugs_icon }} {{ halstead_view.bugs_level
+              }}</span
+            >
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Detailed Metrics & Charts -->
+<div class="grid" style="grid-template-columns: 1.5fr 1fr; gap: 2rem">
+  <!-- Unused Code Breakdown -->
+  <div class="card">
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      "
+    >
+      <h2>Code Health Breakdown</h2>
+      <div
+        class="badge"
+        style="
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        "
+      >
+        Total: {{ unused_imports + unused_functions + unused_classes +
+        unused_variables + unused_methods }}
+      </div>
+    </div>
+    <div style="margin-top: 1rem">
+      <table
+        style="
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0 0.75rem;
+        "
+      >
+        <tbody>
+          <!-- Unused Imports -->
+          <tr>
+            <td style="padding: 8px 0">
+              <div style="display: flex; align-items: center; gap: 1rem">
+                <div
+                  style="
+                    background: rgba(59, 130, 246, 0.1);
+                    color: #3b82f6;
+                    padding: 8px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  "
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                    ></path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                  </svg>
+                </div>
+                <div>
+                  <div style="font-weight: 500; margin-bottom: 4px">
+                    Unused Imports
+                  </div>
+                  <div
+                    style="
+                      width: 100px;
+                      height: 4px;
+                      background: rgba(255, 255, 255, 0.05);
+                      border-radius: 2px;
+                    "
+                  >
+                    <div
+                      style="width: min(100%, {{ unused_imports }} * 5%); height: 100%; background: #3b82f6; border-radius: 2px;"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              style="
+                text-align: right;
+                font-weight: 700;
+                font-size: 1.1em;
+                color: var(--text-light);
+              "
+            >
+              {{ unused_imports }}
+            </td>
+            <td style="text-align: right">
+              <span
+                class="badge"
+                style="
+                  background: rgba(59, 130, 246, 0.1);
+                  color: #3b82f6;
+                  border: 1px solid rgba(59, 130, 246, 0.2);
+                "
+                >Maintainability</span
+              >
+            </td>
+          </tr>
+
+          <!-- Unused Functions -->
+          <tr>
+            <td style="padding: 8px 0">
+              <div style="display: flex; align-items: center; gap: 1rem">
+                <div
+                  style="
+                    background: rgba(168, 85, 247, 0.1);
+                    color: #a855f7;
+                    padding: 8px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  "
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect
+                      x="4"
+                      y="4"
+                      width="16"
+                      height="16"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <rect x="9" y="9" width="6" height="6"></rect>
+                    <line x1="9" y1="1" x2="9" y2="4"></line>
+                    <line x1="15" y1="1" x2="15" y2="4"></line>
+                    <line x1="9" y1="20" x2="9" y2="23"></line>
+                    <line x1="15" y1="20" x2="15" y2="23"></line>
+                    <line x1="20" y1="9" x2="23" y2="9"></line>
+                    <line x1="20" y1="14" x2="23" y2="14"></line>
+                    <line x1="1" y1="9" x2="4" y2="9"></line>
+                    <line x1="1" y1="14" x2="4" y2="14"></line>
+                  </svg>
+                </div>
+                <div>
+                  <div style="font-weight: 500; margin-bottom: 4px">
+                    Unused Functions
+                  </div>
+                  <div
+                    style="
+                      width: 100px;
+                      height: 4px;
+                      background: rgba(255, 255, 255, 0.05);
+                      border-radius: 2px;
+                    "
+                  >
+                    <div
+                      style="width: min(100%, {{ unused_functions }} * 5%); height: 100%; background: #a855f7; border-radius: 2px;"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              style="
+                text-align: right;
+                font-weight: 700;
+                font-size: 1.1em;
+                color: var(--text-light);
+              "
+            >
+              {{ unused_functions }}
+            </td>
+            <td style="text-align: right">
+              <span
+                class="badge"
+                style="
+                  background: rgba(168, 85, 247, 0.1);
+                  color: #a855f7;
+                  border: 1px solid rgba(168, 85, 247, 0.2);
+                "
+                >Maintainability</span
+              >
+            </td>
+          </tr>
+
+          <!-- Unused Classes -->
+          <tr>
+            <td style="padding: 8px 0">
+              <div style="display: flex; align-items: center; gap: 1rem">
+                <div
+                  style="
+                    background: rgba(236, 72, 153, 0.1);
+                    color: #ec4899;
+                    padding: 8px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  "
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
+                    ></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </div>
+                <div>
+                  <div style="font-weight: 500; margin-bottom: 4px">
+                    Unused Classes
+                  </div>
+                  <div
+                    style="
+                      width: 100px;
+                      height: 4px;
+                      background: rgba(255, 255, 255, 0.05);
+                      border-radius: 2px;
+                    "
+                  >
+                    <div
+                      style="width: min(100%, {{ unused_classes }} * 5%); height: 100%; background: #ec4899; border-radius: 2px;"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              style="
+                text-align: right;
+                font-weight: 700;
+                font-size: 1.1em;
+                color: var(--text-light);
+              "
+            >
+              {{ unused_classes }}
+            </td>
+            <td style="text-align: right">
+              <span
+                class="badge"
+                style="
+                  background: rgba(236, 72, 153, 0.1);
+                  color: #ec4899;
+                  border: 1px solid rgba(236, 72, 153, 0.2);
+                "
+                >Maintainability</span
+              >
+            </td>
+          </tr>
+
+          <!-- Unused Variables -->
+          <tr>
+            <td style="padding: 8px 0">
+              <div style="display: flex; align-items: center; gap: 1rem">
+                <div
+                  style="
+                    background: rgba(234, 179, 8, 0.1);
+                    color: #eab308;
+                    padding: 8px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  "
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+                    ></path>
+                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                  </svg>
+                </div>
+                <div>
+                  <div style="font-weight: 500; margin-bottom: 4px">
+                    Unused Variables
+                  </div>
+                  <div
+                    style="
+                      width: 100px;
+                      height: 4px;
+                      background: rgba(255, 255, 255, 0.05);
+                      border-radius: 2px;
+                    "
+                  >
+                    <div
+                      style="width: min(100%, {{ unused_variables }} * 5%); height: 100%; background: #eab308; border-radius: 2px;"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              style="
+                text-align: right;
+                font-weight: 700;
+                font-size: 1.1em;
+                color: var(--text-light);
+              "
+            >
+              {{ unused_variables }}
+            </td>
+            <td style="text-align: right">
+              <span
+                class="badge"
+                style="
+                  background: rgba(234, 179, 8, 0.1);
+                  color: #eab308;
+                  border: 1px solid rgba(234, 179, 8, 0.2);
+                "
+                >Maintainability</span
+              >
+            </td>
+          </tr>
+
+          <!-- Unused Methods -->
+          <tr>
+            <td style="padding: 8px 0">
+              <div style="display: flex; align-items: center; gap: 1rem">
+                <div
+                  style="
+                    background: rgba(16, 185, 129, 0.1);
+                    color: #10b981;
+                    padding: 8px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  "
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                    <polyline points="2 17 12 22 22 17"></polyline>
+                    <polyline points="2 12 12 17 22 12"></polyline>
+                  </svg>
+                </div>
+                <div>
+                  <div style="font-weight: 500; margin-bottom: 4px">
+                    Unused Methods
+                  </div>
+                  <div
+                    style="
+                      width: 100px;
+                      height: 4px;
+                      background: rgba(255, 255, 255, 0.05);
+                      border-radius: 2px;
+                    "
+                  >
+                    <div
+                      style="width: min(100%, {{ unused_methods }} * 5%); height: 100%; background: #10b981; border-radius: 2px;"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              style="
+                text-align: right;
+                font-weight: 700;
+                font-size: 1.1em;
+                color: var(--text-light);
+              "
+            >
+              {{ unused_methods }}
+            </td>
+            <td style="text-align: right">
+              <span
+                class="badge"
+                style="
+                  background: rgba(16, 185, 129, 0.1);
+                  color: #10b981;
+                  border: 1px solid rgba(16, 185, 129, 0.2);
+                "
+                >Maintainability</span
+              >
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Scoring Logic -->
+  <div class="card">
+    <h2>Scoring Model</h2>
+    <p
+      style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem"
+    >
+      The final score is a weighted average of five key quality pillars.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 1rem">
+      <!-- Complexity -->
+      <div style="display: flex; gap: 1rem; align-items: flex-start">
+        <div
+          style="
+            min-width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            border: 2px solid rgba(59, 130, 246, 0.2);
+          "
+        >
+          35%
+        </div>
+        <div>
+          <div
+            style="
+              font-weight: 600;
+              font-size: 1rem;
+              color: #e5e7eb;
+              margin-bottom: 2px;
+            "
+          >
+            Complexity
+          </div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 0.85rem;
+              line-height: 1.4;
+            "
+          >
+            Penalizes high cyclomatic complexity, deep nesting (3+ levels), and
+            excessively long functions (>50 lines).
+          </div>
+        </div>
+      </div>
+
+      <!-- Maintainability -->
+      <div style="display: flex; gap: 1rem; align-items: flex-start">
+        <div
+          style="
+            min-width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(168, 85, 247, 0.1);
+            color: #a855f7;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            border: 2px solid rgba(168, 85, 247, 0.2);
+          "
+        >
+          25%
+        </div>
+        <div>
+          <div
+            style="
+              font-weight: 600;
+              font-size: 1rem;
+              color: #e5e7eb;
+              margin-bottom: 2px;
+            "
+          >
+            Maintainability
+          </div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 0.85rem;
+              line-height: 1.4;
+            "
+          >
+            Tracks unused code (dead code), large files (>500 lines), and code
+            duplication.
+          </div>
+        </div>
+      </div>
+
+      <!-- Reliability -->
+      <div style="display: flex; gap: 1rem; align-items: flex-start">
+        <div
+          style="
+            min-width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(234, 179, 8, 0.1);
+            color: #eab308;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            border: 2px solid rgba(234, 179, 8, 0.2);
+          "
+        >
+          15%
+        </div>
+        <div>
+          <div
+            style="
+              font-weight: 600;
+              font-size: 1rem;
+              color: #e5e7eb;
+              margin-bottom: 2px;
+            "
+          >
+            Reliability
+          </div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 0.85rem;
+              line-height: 1.4;
+            "
+          >
+            Evaluates error handling patterns (<code
+              style="
+                background: rgba(255, 255, 255, 0.1);
+                padding: 2px 4px;
+                border-radius: 4px;
+                font-size: 0.8em;
+              "
+              >try/except</code
+            >), usage of bare exceptions, and potential runtime crash vectors.
+          </div>
+        </div>
+      </div>
+
+      <!-- Security -->
+      <div style="display: flex; gap: 1rem; align-items: flex-start">
+        <div
+          style="
+            min-width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            border: 2px solid rgba(239, 68, 68, 0.2);
+          "
+        >
+          15%
+        </div>
+        <div>
+          <div
+            style="
+              font-weight: 600;
+              font-size: 1rem;
+              color: #e5e7eb;
+              margin-bottom: 2px;
+            "
+          >
+            Security
+          </div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 0.85rem;
+              line-height: 1.4;
+            "
+          >
+            Detects hardcoded secrets, command injection risks, and dangerous
+            function calls like
+            <code
+              style="
+                background: rgba(255, 255, 255, 0.1);
+                padding: 2px 4px;
+                border-radius: 4px;
+                font-size: 0.8em;
+              "
+              >eval()</code
+            >
+            or
+            <code
+              style="
+                background: rgba(255, 255, 255, 0.1);
+                padding: 2px 4px;
+                border-radius: 4px;
+                font-size: 0.8em;
+              "
+              >exec()</code
+            >.
+          </div>
+        </div>
+      </div>
+
+      <!-- Style -->
+      <div style="display: flex; gap: 1rem; align-items: flex-start">
+        <div
+          style="
+            min-width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            border: 2px solid rgba(16, 185, 129, 0.2);
+          "
+        >
+          10%
+        </div>
+        <div>
+          <div
+            style="
+              font-weight: 600;
+              font-size: 1rem;
+              color: #e5e7eb;
+              margin-bottom: 2px;
+            "
+          >
+            Style
+          </div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 0.85rem;
+              line-height: 1.4;
+            "
+          >
+            Checks adherence to Python (PEP 8) conventions, naming consistency,
+            and code formatting.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -15,6 +15,7 @@ pub struct TaintState {
 
 impl TaintState {
     /// Creates a new empty taint state.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -25,11 +26,13 @@ impl TaintState {
     }
 
     /// Checks if a variable is tainted.
+    #[must_use]
     pub fn is_tainted(&self, var: &str) -> bool {
         self.tainted.contains_key(var)
     }
 
     /// Gets taint info for a variable.
+    #[must_use]
     pub fn get_taint(&self, var: &str) -> Option<&TaintInfo> {
         self.tainted.get(var)
     }

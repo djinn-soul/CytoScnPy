@@ -1,4 +1,5 @@
 //! Tests for Maintainability Index (MI) metrics.
+#![allow(clippy::float_cmp)]
 
 use cytoscnpy::metrics::{mi_compute, mi_rank};
 
@@ -51,5 +52,3 @@ fn test_mi_rank() {
     assert_eq!(mi_rank(9.9), 'C');
     assert_eq!(mi_rank(0.0), 'C');
 }
-
-

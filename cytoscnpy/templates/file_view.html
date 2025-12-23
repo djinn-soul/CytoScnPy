@@ -1,0 +1,327 @@
+{% extends "base.html" %} {% block head %}
+<link
+  href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css"
+  rel="stylesheet"
+/>
+<link
+  href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css"
+  rel="stylesheet"
+/>
+<link
+  href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-highlight/prism-line-highlight.min.css"
+  rel="stylesheet"
+/>
+<style>
+  /* Override Prism styles for better integration */
+  pre[class*="language-"] {
+    background: #1e1e1e !important;
+    margin: 0 !important;
+    border-radius: 0 0 0.75rem 0.75rem;
+    border: none !important;
+    text-shadow: none !important;
+  }
+  code[class*="language-"],
+  pre[class*="language-"] {
+    font-family: "JetBrains Mono", "Fira Code", monospace !important;
+    font-size: 0.9rem !important;
+    line-height: 1.5 !important;
+  }
+  .line-numbers .line-numbers-rows {
+    border-right: 1px solid #333 !important;
+  }
+  /* Toolbar container */
+  .code-toolbar {
+    position: relative;
+    background: #252526;
+    border-radius: 0.75rem 0.75rem 0 0;
+    border: 1px solid #374151;
+    border-bottom: none;
+    padding: 0.5rem 1rem;
+    display: flex;
+    justify-content: flex-end;
+  }
+</style>
+{% endblock %} {% block content %}
+<div
+  style="
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  "
+>
+  <!-- Breadcrumbs -->
+  <div
+    style="
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #9ca3af;
+      font-size: 0.95rem;
+    "
+  >
+    <a
+      href="../index.html"
+      style="
+        color: #9ca3af;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      "
+      onmouseover="this.style.color='var(--primary)'"
+      onmouseout="this.style.color='#9ca3af'"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3" y="3" width="7" height="7"></rect>
+        <rect x="14" y="3" width="7" height="7"></rect>
+        <rect x="14" y="14" width="7" height="7"></rect>
+        <rect x="3" y="14" width="7" height="7"></rect>
+      </svg>
+      Dashboard
+    </a>
+    <span>/</span>
+    <a
+      href="../files.html"
+      style="color: #9ca3af; text-decoration: none"
+      onmouseover="this.style.color='var(--primary)'"
+      onmouseout="this.style.color='#9ca3af'"
+      >Files</a
+    >
+    <span>/</span>
+    <span
+      id="breadcrumb-path"
+      style="color: var(--text-light); font-weight: 500"
+      >{{ relative_path }}</span
+    >
+  </div>
+
+  <!-- Back Button (Restored) -->
+  <button
+    onclick="history.back()"
+    style="
+      background: var(--card-bg);
+      border: 1px solid #374151;
+      color: var(--text-light);
+      padding: 0.4rem 0.8rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    "
+    onmouseover="this.style.borderColor='var(--primary)'; this.style.color='var(--primary)'"
+    onmouseout="this.style.borderColor='#374151'; this.style.color='var(--text-light)'"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M19 12H5M12 19l-7-7 7-7" />
+    </svg>
+    Back
+  </button>
+</div>
+
+<h2 style="margin-bottom: 0.5rem; color: var(--text-main); font-weight: 300">
+  <span id="title-path" style="color: var(--primary); font-weight: 600"
+    >{{ relative_path }}</span
+  >
+</h2>
+
+<!-- File Metrics -->
+<div
+  style="
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #9ca3af;
+  "
+>
+  <div style="display: flex; gap: 0.5rem; align-items: center">
+    <span style="font-weight: 600; color: #d1d5db">SLOC:</span>
+    <span>{{ sloc }}</span>
+  </div>
+  <div style="display: flex; gap: 0.5rem; align-items: center">
+    <span style="font-weight: 600; color: #d1d5db">Complexity:</span>
+    <span
+      style="color: {% if complexity > 25.0 %}#ef4444{% elif complexity > 10.0 %}#eab308{% else %}#22c55e{% endif %};"
+      >{{ complexity }}</span
+    >
+  </div>
+  <div style="display: flex; gap: 0.5rem; align-items: center">
+    <span style="font-weight: 600; color: #d1d5db">MI:</span>
+    <span
+      style="font-weight: 600; color: {% if raw_mi >= 80.0 %}#4ade80{% elif raw_mi >= 60.0 %}#facc15{% else %}#f87171{% endif %};"
+      >{{ mi }}</span
+    >
+  </div>
+</div>
+
+<div
+  class="card"
+  style="padding: 0; overflow: hidden; border: 1px solid #374151"
+>
+  <div class="code-toolbar">
+    <button
+      onclick="copyCode()"
+      id="copyBtn"
+      style="
+        background: transparent;
+        border: 1px solid #4b5563;
+        color: #d1d5db;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        transition: all 0.2s;
+      "
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path
+          d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+        ></path>
+      </svg>
+      Copy
+    </button>
+  </div>
+  <pre
+    class="line-numbers"
+  ><code id="codeBlock" class="language-python">{{ code }}</code></pre>
+</div>
+
+<!-- Prism JS -->
+<!-- Prism JS (Local) -->
+<script src="{{ root_path }}/js/prism.js"></script>
+
+<script>
+  // Issue Highlighting Data
+  const fileIssues = [
+    {% for issue in issues %}
+    { line: {{ issue.line }}, severity: "{{ issue.severity }}", message: "{{ issue.message|e }}" },
+    {% endfor %}
+  ];
+
+  // Path Normalization & Line Highlighting
+  document.addEventListener("DOMContentLoaded", () => {
+    // 1. Path Normalization
+    const breadcrumb = document.getElementById("breadcrumb-path");
+    if (breadcrumb)
+      breadcrumb.textContent = breadcrumb.textContent.replace(/\\/g, "/");
+
+    const title = document.getElementById("title-path");
+    if (title) title.textContent = title.textContent.replace(/\\/g, "/");
+
+    // 2. Line Highlighting (Parse #L123 -> data-line="123")
+    const hash = window.location.hash;
+    if (hash && hash.startsWith("#L")) {
+      const lineNum = hash.substring(2); // Remove '#L'
+      const pre = document.querySelector("pre.line-numbers");
+      if (pre && lineNum) {
+        pre.setAttribute("data-line", lineNum);
+        if (Prism.plugins.lineHighlight) {
+          Prism.plugins.lineHighlight.highlightLines(pre);
+        }
+        setTimeout(() => {
+          const highlight = document.querySelector(".line-highlight");
+          if (highlight) {
+            highlight.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 100);
+      }
+    }
+  });
+
+  // Hook into Prism to render issue markers
+  Prism.hooks.add('complete', (env) => {
+    if (!fileIssues.length) return;
+
+    // Wait slightly for line-numbers plugin to finish DOM manipulation
+    setTimeout(() => {
+        const rows = document.querySelector('.line-numbers-rows');
+        if (!rows) return;
+
+        const lines = rows.children; // <span> for each line
+
+        fileIssues.forEach(issue => {
+            const index = issue.line - 1; // 0-indexed
+            if (index >= 0 && index < lines.length) {
+                const lineEl = lines[index];
+
+                // Styling based on severity
+                const color = issue.severity === 'HIGH' || issue.severity === 'CRITICAL' ? '#f87171' : '#facc15';
+
+                // Add marker
+                lineEl.style.position = 'relative';
+
+                const marker = document.createElement('div');
+                marker.style.position = 'absolute';
+                marker.style.left = '0';
+                marker.style.top = '0';
+                marker.style.bottom = '0';
+                marker.style.width = '4px';
+                marker.style.backgroundColor = color;
+                marker.title = issue.message; // Tooltip
+
+                lineEl.appendChild(marker);
+                lineEl.style.cursor = 'help'; // Indicate tooltip
+                lineEl.title = issue.message;
+            }
+        });
+    }, 0);
+  });
+
+  // Copy Functionality
+  function copyCode() {
+    const code = document.getElementById("codeBlock").textContent;
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.getElementById("copyBtn");
+      const originalContent = btn.innerHTML;
+
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #4ade80"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
+      btn.style.borderColor = "#4ade80";
+      btn.style.color = "#4ade80";
+
+      setTimeout(() => {
+        btn.innerHTML = originalContent;
+        btn.style.borderColor = "#4b5563";
+        btn.style.color = "#d1d5db";
+      }, 2000);
+    });
+  }
+</script>
+{% endblock %}

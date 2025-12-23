@@ -1,4 +1,5 @@
 //! Tests for method usage in various contexts (self, cls, etc.).
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

@@ -76,4 +76,5 @@ target
 #.idea/
 
 # cytoscnpy/other_library/
+/.cytoscnpy
 .a*/

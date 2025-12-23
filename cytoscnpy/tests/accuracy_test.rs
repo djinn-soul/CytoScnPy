@@ -4,6 +4,9 @@
 //! 1. Class-method linking (methods in unused classes should be flagged)
 //! 2. Nested function call tracking (nested functions called within parent scope)
 //! 3. Pattern matching variable usage
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::needless_raw_string_hashes)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

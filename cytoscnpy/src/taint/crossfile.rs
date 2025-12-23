@@ -21,6 +21,7 @@ pub struct CrossFileAnalyzer {
 
 impl CrossFileAnalyzer {
     /// Creates a new cross-file analyzer.
+    #[must_use]
     pub fn new() -> Self {
         let mut analyzer = Self::default();
 
@@ -51,6 +52,7 @@ impl CrossFileAnalyzer {
     }
 
     /// Resolves an imported name to its actual module and name.
+    #[must_use]
     pub fn resolve_import(&self, module: &str, name: &str) -> Option<(&str, &str)> {
         self.import_map
             .get(&(module.to_owned(), name.to_owned()))
@@ -134,11 +136,13 @@ impl CrossFileAnalyzer {
     }
 
     /// Gets summaries for a module.
+    #[must_use]
     pub fn get_module_summaries(&self, module: &str) -> Option<&SummaryDatabase> {
         self.module_summaries.get(module)
     }
 
     /// Checks if a function from another module taints its return.
+    #[must_use]
     pub fn external_function_taints_return(&self, module: &str, func: &str) -> bool {
         self.module_summaries
             .get(module)
@@ -147,6 +151,7 @@ impl CrossFileAnalyzer {
     }
 
     /// Merges all findings from analyzed files.
+    #[must_use]
     pub fn get_all_findings(&self) -> Vec<TaintFinding> {
         self.findings_cache
             .values()
@@ -161,6 +166,7 @@ impl CrossFileAnalyzer {
 }
 
 /// Analyzes multiple files for cross-file taint flow.
+#[must_use]
 pub fn analyze_project(files: &[(PathBuf, String)]) -> Vec<TaintFinding> {
     let mut analyzer = CrossFileAnalyzer::new();
 

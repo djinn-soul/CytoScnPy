@@ -1,4 +1,8 @@
 //! Tests for the message field generation in Definition struct.
+#![allow(clippy::expect_used)]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::doc_markdown)]
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
@@ -27,15 +31,28 @@ def unused_function():
     pass
 ";
     visit_code!(code, visitor);
-    
-    let func = visitor.definitions.iter()
+
+    let func = visitor
+        .definitions
+        .iter()
         .find(|d| d.def_type == "function")
         .expect("Should have a function definition");
-    
-    assert!(func.message.is_some(), "Function should have a message field");
+
+    assert!(
+        func.message.is_some(),
+        "Function should have a message field"
+    );
     let msg = func.message.as_ref().unwrap();
-    assert!(msg.contains("is defined but never used"), "Function message format is wrong: {}", msg);
-    assert!(msg.contains("unused_function"), "Function message should contain function name: {}", msg);
+    assert!(
+        msg.contains("is defined but never used"),
+        "Function message format is wrong: {}",
+        msg
+    );
+    assert!(
+        msg.contains("unused_function"),
+        "Function message should contain function name: {}",
+        msg
+    );
 }
 
 /// Test that message field is correctly generated for classes.
@@ -46,16 +63,30 @@ class UnusedClass:
     pass
 ";
     visit_code!(code, visitor);
-    
-    let cls = visitor.definitions.iter()
+
+    let cls = visitor
+        .definitions
+        .iter()
         .find(|d| d.def_type == "class")
         .expect("Should have a class definition");
-    
+
     assert!(cls.message.is_some(), "Class should have a message field");
     let msg = cls.message.as_ref().unwrap();
-    assert!(msg.contains("Class"), "Class message should start with 'Class': {}", msg);
-    assert!(msg.contains("is defined but never used"), "Class message format is wrong: {}", msg);
-    assert!(msg.contains("UnusedClass"), "Class message should contain class name: {}", msg);
+    assert!(
+        msg.contains("Class"),
+        "Class message should start with 'Class': {}",
+        msg
+    );
+    assert!(
+        msg.contains("is defined but never used"),
+        "Class message format is wrong: {}",
+        msg
+    );
+    assert!(
+        msg.contains("UnusedClass"),
+        "Class message should contain class name: {}",
+        msg
+    );
 }
 
 /// Test that message field is correctly generated for methods.
@@ -67,15 +98,28 @@ class MyClass:
         pass
 ";
     visit_code!(code, visitor);
-    
-    let method = visitor.definitions.iter()
+
+    let method = visitor
+        .definitions
+        .iter()
         .find(|d| d.def_type == "method")
         .expect("Should have a method definition");
-    
-    assert!(method.message.is_some(), "Method should have a message field");
+
+    assert!(
+        method.message.is_some(),
+        "Method should have a message field"
+    );
     let msg = method.message.as_ref().unwrap();
-    assert!(msg.contains("Method"), "Method message should start with 'Method': {}", msg);
-    assert!(msg.contains("is defined but never used"), "Method message format is wrong: {}", msg);
+    assert!(
+        msg.contains("Method"),
+        "Method message should start with 'Method': {}",
+        msg
+    );
+    assert!(
+        msg.contains("is defined but never used"),
+        "Method message format is wrong: {}",
+        msg
+    );
 }
 
 /// Test that message uses simple_name, not full qualified name.
@@ -87,15 +131,25 @@ class MyClass:
         pass
 ";
     visit_code!(code, visitor);
-    
-    let method = visitor.definitions.iter()
+
+    let method = visitor
+        .definitions
+        .iter()
         .find(|d| d.def_type == "method")
         .expect("Should have a method definition");
-    
+
     let msg = method.message.as_ref().unwrap();
     // Should contain 'my_method' not 'MyClass.my_method'
-    assert!(msg.contains("'my_method'"), "Message should use simple name in quotes: {}", msg);
-    assert!(!msg.contains("MyClass.my_method"), "Message should NOT contain full qualified name: {}", msg);
+    assert!(
+        msg.contains("'my_method'"),
+        "Message should use simple name in quotes: {}",
+        msg
+    );
+    assert!(
+        !msg.contains("MyClass.my_method"),
+        "Message should NOT contain full qualified name: {}",
+        msg
+    );
 }
 
 /// Test import message format.
@@ -105,14 +159,23 @@ fn test_message_field_for_import() {
 import os
 ";
     visit_code!(code, visitor);
-    
-    let import = visitor.definitions.iter()
+
+    let import = visitor
+        .definitions
+        .iter()
         .find(|d| d.def_type == "import")
         .expect("Should have an import definition");
-    
-    assert!(import.message.is_some(), "Import should have a message field");
+
+    assert!(
+        import.message.is_some(),
+        "Import should have a message field"
+    );
     let msg = import.message.as_ref().unwrap();
-    assert!(msg.contains("is imported but never used"), "Import message format is wrong: {}", msg);
+    assert!(
+        msg.contains("is imported but never used"),
+        "Import message format is wrong: {}",
+        msg
+    );
 }
 
 /// Test variable message format.
@@ -122,13 +185,26 @@ fn test_message_field_for_variable() {
 unused_variable = 42
 ";
     visit_code!(code, visitor);
-    
-    let var = visitor.definitions.iter()
+
+    let var = visitor
+        .definitions
+        .iter()
         .find(|d| d.def_type == "variable")
         .expect("Should have a variable definition");
-    
-    assert!(var.message.is_some(), "Variable should have a message field");
+
+    assert!(
+        var.message.is_some(),
+        "Variable should have a message field"
+    );
     let msg = var.message.as_ref().unwrap();
-    assert!(msg.contains("Variable"), "Variable message should start with 'Variable': {}", msg);
-    assert!(msg.contains("is assigned but never used"), "Variable message format is wrong: {}", msg);
+    assert!(
+        msg.contains("Variable"),
+        "Variable message should start with 'Variable': {}",
+        msg
+    );
+    assert!(
+        msg.contains("is assigned but never used"),
+        "Variable message format is wrong: {}",
+        msg
+    );
 }

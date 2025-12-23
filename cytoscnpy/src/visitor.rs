@@ -69,6 +69,8 @@ pub struct Scope {
 
 impl Scope {
     /// Creates a new scope of the given type.
+    /// Creates a new scope of the given type.
+    #[must_use]
     pub fn new(kind: ScopeType) -> Self {
         Self {
             kind,
@@ -81,6 +83,7 @@ impl Scope {
 /// Represents a defined entity (function, class, variable, import) in the Python code.
 /// This struct holds metadata about the definition, including its location and confidence.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Definition {
     /// The name of the defined entity (e.g., "`my_function`").
     pub name: String,
@@ -217,6 +220,7 @@ pub struct CytoScnPyVisitor<'a> {
 
 impl<'a> CytoScnPyVisitor<'a> {
     /// Creates a new visitor for the given file.
+    #[must_use]
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
         let cached_prefix = module_name.clone();
         let file_path = Arc::new(file_path); // Wrap in Arc once, share everywhere
@@ -533,6 +537,7 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Visits a statement node in the AST.
+    #[allow(clippy::too_many_lines)]
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
         // Recursion depth guard to prevent stack overflow on deeply nested code
         if self.depth >= MAX_RECURSION_DEPTH {
@@ -1071,6 +1076,7 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Visits an expression node in the AST.
+    #[allow(clippy::too_many_lines)]
     pub fn visit_expr(&mut self, expr: &Expr) {
         // Recursion depth guard to prevent stack overflow on deeply nested code
         if self.depth >= MAX_RECURSION_DEPTH {

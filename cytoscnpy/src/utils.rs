@@ -15,6 +15,7 @@ pub struct LineIndex {
 impl LineIndex {
     /// Creates a new `LineIndex` by scanning the source code for newlines.
     /// Uses byte iteration for performance since '\n' is always a single byte in UTF-8.
+    #[must_use]
     pub fn new(source: &str) -> Self {
         let mut line_starts = vec![0];
         // Use bytes() instead of char_indices() - newlines are always single bytes in UTF-8
@@ -28,6 +29,7 @@ impl LineIndex {
     }
 
     /// Converts a `TextSize` (byte offset) to a 1-indexed line number.
+    #[must_use]
     pub fn line_index(&self, offset: TextSize) -> usize {
         let offset = offset.to_usize();
         // Binary search to find which line range the offset falls into.
@@ -42,6 +44,7 @@ impl LineIndex {
 ///
 /// Returns a set of line numbers (1-indexed) that should be ignored by the analyzer.
 /// This allows users to suppress false positives or intentionally ignore specific lines.
+#[must_use]
 pub fn get_ignored_lines(source: &str) -> FxHashSet<usize> {
     source
         .lines()
@@ -52,11 +55,13 @@ pub fn get_ignored_lines(source: &str) -> FxHashSet<usize> {
 }
 
 /// Checks if a path is a test path.
+#[must_use]
 pub fn is_test_path(p: &str) -> bool {
     TEST_FILE_RE().is_match(p)
 }
 
 /// Checks if a path is a framework path.
+#[must_use]
 pub fn is_framework_path(p: &str) -> bool {
     FRAMEWORK_FILE_RE().is_match(p)
 }
@@ -101,6 +106,7 @@ pub fn parse_exclude_folders<S: std::hash::BuildHasher>(
 /// assert_eq!(normalize_display_path(Path::new(".\\benchmark\\test.py")), "benchmark/test.py");
 /// assert_eq!(normalize_display_path(Path::new("./src/main.py")), "src/main.py");
 /// ```
+#[must_use]
 pub fn normalize_display_path(path: &std::path::Path) -> String {
     let s = path.to_string_lossy();
     let normalized = s.replace('\\', "/");

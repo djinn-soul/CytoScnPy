@@ -72,6 +72,8 @@ pub enum TaintSource {
     DjangoRequest(String),
     /// `FastAPI` parameter (Query, Path, Body, Form)
     FastApiParam(String),
+    /// Azure Functions request object (params, get_json, get_body, route_params)
+    AzureFunctionsRequest(String),
     /// Python `input()` builtin
     Input,
     /// Environment variable (os.environ, os.getenv)
@@ -94,6 +96,7 @@ impl std::fmt::Display for TaintSource {
             TaintSource::FlaskRequest(attr) => write!(f, "Flask request.{attr}"),
             TaintSource::DjangoRequest(attr) => write!(f, "Django request.{attr}"),
             TaintSource::FastApiParam(name) => write!(f, "FastAPI param: {name}"),
+            TaintSource::AzureFunctionsRequest(attr) => write!(f, "Azure Functions request.{attr}"),
             TaintSource::Input => write!(f, "input()"),
             TaintSource::Environment => write!(f, "environment variable"),
             TaintSource::CommandLine => write!(f, "sys.argv"),

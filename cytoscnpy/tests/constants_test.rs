@@ -1,5 +1,7 @@
 //! Comprehensive tests for pattern matching constants
-//! Tests for test file/import/decorator patterns, framework patterns, and constants
+//! Tests for constant detection and analysis.
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::uninlined_format_args)]
 
 use cytoscnpy::constants::{
     get_auto_called, get_default_exclude_folders, get_framework_file_re, get_penalties,
@@ -339,5 +341,3 @@ fn test_conftest_detection() {
         "Should match nested conftest.py"
     );
 }
-
-

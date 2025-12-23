@@ -42,6 +42,32 @@
           "reason": "Imported but not used"
         }
       ]
+    },
+    "azure_functions_example.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "unused_helper",
+          "line_start": 71,
+          "reason": "Marked as dead in comments"
+        },
+        {
+          "type": "function",
+          "name": "another_unused_function",
+          "line_start": 76,
+          "reason": "Marked as dead in comments"
+        }
+      ]
+    },
+    "azure_functions_v1_example.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "unused_processor",
+          "line_start": 43,
+          "reason": "Marked as dead in comments"
+        }
+      ]
     }
   }
 }

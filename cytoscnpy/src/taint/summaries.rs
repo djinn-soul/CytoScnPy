@@ -18,6 +18,7 @@ pub struct SummaryDatabase {
 
 impl SummaryDatabase {
     /// Creates a new empty database.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -40,16 +41,19 @@ impl SummaryDatabase {
     }
 
     /// Gets the summary for a function by name.
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&FunctionSummary> {
         self.summaries.get(name)
     }
 
     /// Checks if a function taints its return value.
+    #[must_use]
     pub fn function_taints_return(&self, name: &str) -> bool {
         self.summaries.get(name).is_some_and(|s| s.returns_tainted)
     }
 
     /// Checks which parameters of a function propagate to return.
+    #[must_use]
     pub fn get_param_to_return(&self, name: &str) -> Vec<usize> {
         self.summaries
             .get(name)
@@ -130,6 +134,7 @@ fn contains_taint_source(expr: &ast::Expr) -> bool {
 }
 
 /// Prebuilt summaries for common library functions.
+#[must_use]
 pub fn get_builtin_summaries() -> HashMap<String, FunctionSummary> {
     let mut summaries = HashMap::new();
 

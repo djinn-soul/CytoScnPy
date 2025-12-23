@@ -1,4 +1,5 @@
 //! Integration tests for analyze_code secret detection.
+#![allow(clippy::doc_markdown)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::path::PathBuf;

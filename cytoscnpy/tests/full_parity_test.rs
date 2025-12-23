@@ -1,4 +1,5 @@
 //! Tests for full parity with Python implementation.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::config::Config;

@@ -1,7 +1,10 @@
-//! Integration tests for ruff_python_parser compatibility.
+//! Integration tests for `ruff_python_parser` compatibility.
 //!
 //! These tests verify that the AST structure and API from `ruff_python_parser`
 //! works correctly, particularly around function argument handling.
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::panic)]
+#![allow(clippy::doc_markdown)]
 
 use ruff_python_ast as ast;
 use ruff_python_parser::{parse, Mode};

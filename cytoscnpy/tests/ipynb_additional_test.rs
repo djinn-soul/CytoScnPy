@@ -1,4 +1,5 @@
 //! Additional tests for `IPython` notebook processing.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::path::Path;

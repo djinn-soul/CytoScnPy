@@ -1,5 +1,5 @@
-//! Type definitions for analysis results.
-
+use crate::halstead::HalsteadMetrics;
+use crate::raw_metrics::RawMetrics;
 use crate::rules::secrets::SecretFinding;
 use crate::rules::Finding;
 use crate::taint::types::TaintFinding;
@@ -13,6 +13,23 @@ pub struct ParseError {
     pub file: std::path::PathBuf,
     /// The error message.
     pub error: String,
+}
+
+/// Metrics for a single file.
+#[derive(Serialize, Clone)]
+pub struct FileMetrics {
+    /// The file path.
+    pub file: std::path::PathBuf,
+    /// Lines of Code.
+    pub loc: usize,
+    /// Source Lines of Code.
+    pub sloc: usize,
+    /// Cyclomatic Complexity.
+    pub complexity: f64,
+    /// Maintainability Index.
+    pub mi: f64,
+    /// Number of issues found.
+    pub total_issues: usize,
 }
 
 /// Holds the results of the analysis.
@@ -41,12 +58,14 @@ pub struct AnalysisResult {
     pub taint_findings: Vec<TaintFinding>,
     /// List of parse errors encountered.
     pub parse_errors: Vec<ParseError>,
+    /// Per-file metrics.
+    pub file_metrics: Vec<FileMetrics>,
     /// Summary statistics of the analysis.
     pub analysis_summary: AnalysisSummary,
 }
 
 /// Summary statistics for the analysis result.
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct AnalysisSummary {
     /// Total number of files scanned.
     pub total_files: usize,
@@ -68,4 +87,16 @@ pub struct AnalysisSummary {
     pub average_complexity: f64,
     /// Average Maintainability Index across all files.
     pub average_mi: f64,
+    /// Total number of directories scanned.
+    pub total_directories: usize,
+    /// Total size of analyzed code in KB.
+    pub total_size: f64,
+    /// Total number of function definitions found.
+    pub functions_count: usize,
+    /// Total number of class definitions found.
+    pub classes_count: usize,
+    /// Aggregated Raw Metrics (LOC, SLOC, Comments, etc.).
+    pub raw_metrics: RawMetrics,
+    /// Aggregated Halstead Metrics (Volume, Effort, etc.).
+    pub halstead_metrics: HalsteadMetrics,
 }

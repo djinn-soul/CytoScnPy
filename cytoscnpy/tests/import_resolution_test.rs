@@ -1,4 +1,5 @@
-//! Tests for import resolution logic.
+//! Tests for import resolution and cross-file analysis.
+#![allow(clippy::unwrap_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

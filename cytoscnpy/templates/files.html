@@ -1,0 +1,470 @@
+{% extends "base.html" %} {% block head %}
+<title>CytoScnPy - File Statistics</title>
+<style>
+  .search-bar {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 1rem;
+  }
+  .search-bar input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    background: var(--card-bg);
+    border: 1px solid #374151;
+    border-radius: 0.5rem;
+    color: var(--text-light);
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+  }
+  .search-bar input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th,
+  td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #374151;
+  }
+  th {
+    font-weight: 600;
+    color: #9ca3af;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  th:hover {
+    color: white;
+  }
+  th.sorted-asc::after {
+    content: " ▲";
+  }
+  th.sorted-desc::after {
+    content: " ▼";
+  }
+  tr:last-child td {
+    border-bottom: none;
+  }
+  .file-path {
+    color: var(--primary);
+    font-family: monospace;
+    font-size: 0.9rem;
+  }
+  .num {
+    text-align: right;
+    font-family: monospace;
+  }
+  .mi-grade {
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+  .mi-a {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  .mi-b {
+    background: rgba(234, 179, 8, 0.2);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.3);
+  }
+  .mi-c {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .issues-badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .issues-0 {
+    background: rgba(34, 197, 94, 0.1);
+    color: #4ade80;
+  }
+  .issues-low {
+    background: rgba(234, 179, 8, 0.1);
+    color: #facc15;
+  }
+  .issues-high {
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+  }
+
+  .stat-summary {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    color: #9ca3af;
+  }
+  .stat-summary span {
+    font-weight: 700;
+    color: white;
+    margin-left: 0.5rem;
+  }
+  .btn-export {
+    background: var(--card-bg);
+    border: 1px solid #374151;
+    color: var(--text-light);
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-export:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+</style>
+{% endblock %} {% block content %}
+<div
+  style="
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  "
+>
+  <h1>File Statistics</h1>
+  <div style="display: flex; gap: 1rem; align-items: center">
+    <button onclick="exportCSV()" class="btn-export">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Export CSV
+    </button>
+    <div class="stat-summary" style="margin-bottom: 0">
+      <div>
+        Total Files: <span id="file-count">{{ file_metrics.len() }}</span>
+      </div>
+      <div>
+        Avg MI:
+        <span style="color: {{ average_mi_color }}">{{ average_mi }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="search-bar">
+  <input
+    type="text"
+    id="search"
+    placeholder="Filter files by name..."
+    oninput="filterTable()"
+  />
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden">
+  <table id="files-table">
+    <thead style="background: rgba(255, 255, 255, 0.02)">
+      <tr>
+        <th onclick="sortTable(0)">File</th>
+        <th onclick="sortTable(1)" class="num">SLOC</th>
+        <th onclick="sortTable(2)" class="num">Complexity</th>
+        <th onclick="sortTable(3)" class="num">MI</th>
+        <th onclick="sortTable(4)" class="num">Issues</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in file_metrics %}
+      <tr
+        style="transition: background 0.2s"
+        onmouseover="this.style.background='rgba(255,255,255,0.03)'"
+        onmouseout="this.style.background='transparent'"
+      >
+        <td class="file-path">
+          <a
+            href="{{ f.link }}"
+            style="
+              color: var(--primary);
+              text-decoration: none;
+              display: block;
+              width: 100%;
+            "
+            >{{ f.file }}</a
+          >
+        </td>
+        <td class="num" style="color: #d1d5db">{{ f.sloc }}</td>
+        <td class="num" style="color: #d1d5db; width: 150px">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: flex-end;
+              gap: 8px;
+            "
+          >
+            <span>{{ f.complexity }}</span>
+            <div
+              style="
+                width: 60px;
+                height: 4px;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 2px;
+                overflow: hidden;
+              "
+            >
+              <!-- Visual cap based on 25 being 'high' -->
+              <div
+                style="width: min({{ f.complexity / 25.0 * 100.0 }}%, 100%); height: 100%; background: {% if f.complexity > 25.0 %}#ef4444{% elif f.complexity > 10.0 %}#eab308{% else %}#22c55e{% endif %}; border-radius: 2px;"
+              ></div>
+            </div>
+          </div>
+        </td>
+        <td class="num">
+          <span
+            class="mi-grade {% if f.raw_mi >= 80.0 %}mi-a{% elif f.raw_mi >= 60.0 %}mi-b{% else %}mi-c{% endif %}"
+          >
+            {{ f.mi }}
+          </span>
+        </td>
+        <td class="num">
+          {% if f.total_issues > 0 %}
+          <span
+            class="issues-badge {% if f.total_issues <= 5 %}issues-low{% else %}issues-high{% endif %}"
+          >
+            {{ f.total_issues }} Issues
+          </span>
+          {% else %}
+          <span style="color: #4ade80; font-size: 0.85em; opacity: 0.5">-</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div
+  class="pagination"
+  id="pagination"
+  style="
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+  "
+>
+  <button
+    id="prev-btn"
+    onclick="prevPage()"
+    style="
+      padding: 0.5rem 1rem;
+      background: var(--card-bg);
+      border: 1px solid #374151;
+      border-radius: 0.5rem;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    "
+  >
+    &larr; Previous
+  </button>
+  <span id="page-info" style="color: #9ca3af; font-size: 0.9rem"
+    >Page 1 of 1</span
+  >
+  <button
+    id="next-btn"
+    onclick="nextPage()"
+    style="
+      padding: 0.5rem 1rem;
+      background: var(--card-bg);
+      border: 1px solid #374151;
+      border-radius: 0.5rem;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    "
+  >
+    Next &rarr;
+  </button>
+</div>
+
+<script>
+  let sortDirection = {};
+  let currentPage = 1;
+  const rowsPerPage = 20;
+
+  function getAllRows() {
+    return Array.from(document.querySelectorAll("#files-table tbody tr"));
+  }
+
+  function getVisibleRows() {
+    return getAllRows().filter((row) => row.dataset.filtered !== "true");
+  }
+
+  function updatePagination() {
+    const visibleRows = getVisibleRows();
+    const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
+
+    if (currentPage > totalPages) currentPage = Math.max(1, totalPages);
+
+    visibleRows.forEach((row, idx) => {
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      row.style.display = idx >= start && idx < end ? "" : "none";
+    });
+
+    document.getElementById(
+      "page-info"
+    ).textContent = `Page ${currentPage} of ${totalPages || 1}`;
+
+    const prevBtn = document.getElementById("prev-btn");
+    const nextBtn = document.getElementById("next-btn");
+
+    prevBtn.disabled = currentPage <= 1;
+    prevBtn.style.opacity = prevBtn.disabled ? "0.5" : "1";
+    prevBtn.style.cursor = prevBtn.disabled ? "not-allowed" : "pointer";
+
+    nextBtn.disabled = currentPage >= totalPages;
+    nextBtn.style.opacity = nextBtn.disabled ? "0.5" : "1";
+    nextBtn.style.cursor = nextBtn.disabled ? "not-allowed" : "pointer";
+
+    document.getElementById("file-count").textContent = visibleRows.length;
+  }
+
+  function prevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      updatePagination();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function nextPage() {
+    const totalPages = Math.ceil(getVisibleRows().length / rowsPerPage);
+    if (currentPage < totalPages) {
+      currentPage++;
+      updatePagination();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function sortTable(colIndex) {
+    const table = document.getElementById("files-table");
+    const tbody = table.querySelector("tbody");
+    const rows = getAllRows();
+    const headers = table.querySelectorAll("th");
+
+    sortDirection[colIndex] =
+      sortDirection[colIndex] === "asc" ? "desc" : "asc";
+    const dir = sortDirection[colIndex];
+
+    headers.forEach((h, i) => {
+      h.classList.remove("sorted-asc", "sorted-desc");
+      if (h.textContent.includes("▲"))
+        h.textContent = h.textContent.replace(" ▲", "");
+      if (h.textContent.includes("▼"))
+        h.textContent = h.textContent.replace(" ▼", "");
+
+      if (i === colIndex) {
+        h.classList.add(dir === "asc" ? "sorted-asc" : "sorted-desc");
+      }
+    });
+
+    rows.sort((a, b) => {
+      let aVal = a.cells[colIndex].textContent.trim();
+      let bVal = b.cells[colIndex].textContent.trim();
+
+      // Remove visual suffixes if needed for numeric sort
+      if (colIndex === 4) aVal = parseInt(aVal) || 0; // Issues count
+      if (colIndex > 0 && colIndex !== 4) aVal = parseFloat(aVal) || 0;
+
+      if (colIndex === 4) bVal = parseInt(bVal) || 0;
+      if (colIndex > 0 && colIndex !== 4) bVal = parseFloat(bVal) || 0;
+
+      if (colIndex > 0) return dir === "asc" ? aVal - bVal : bVal - aVal;
+      return dir === "asc"
+        ? aVal.localeCompare(bVal)
+        : bVal.localeCompare(aVal);
+    });
+
+    rows.forEach((row) => tbody.appendChild(row));
+    currentPage = 1;
+    updatePagination();
+  }
+
+  function filterTable() {
+    const filter = document.getElementById("search").value.toLowerCase();
+    const rows = getAllRows();
+
+    rows.forEach((row) => {
+      // Look for the file path text specifically
+      const text = row.querySelector(".file-path a").textContent.toLowerCase();
+      const visible = text.includes(filter);
+      row.dataset.filtered = visible ? "false" : "true";
+    });
+
+    currentPage = 1;
+    updatePagination();
+  }
+
+  function exportCSV() {
+    const rows = getAllRows();
+    let csvContent = "data:text/csv;charset=utf-8,";
+
+    // Header
+    const headers = ["File", "SLOC", "Complexity", "MI", "Issues"];
+    csvContent += headers.join(",") + "\n";
+
+    rows.forEach((row) => {
+      const cols = [];
+      // 0: File Path
+      cols.push(
+        '"' + row.querySelector(".file-path a").textContent.trim() + '"'
+      );
+      // 1: SLOC
+      cols.push(row.cells[1].textContent.trim());
+      // 2: Complexity (extracted from span)
+      cols.push(row.cells[2].querySelector("span").textContent.trim());
+      // 3: MI
+      cols.push(row.cells[3].textContent.trim());
+      // 4: Issues (clean up badge text)
+      let issues = row.cells[4].textContent.trim();
+      if (issues === "-") issues = "0";
+      else issues = issues.replace(" Issues", "");
+      cols.push(issues);
+
+      csvContent += cols.join(",") + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "cytoscnpy_files_report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  document.addEventListener("DOMContentLoaded", updatePagination);
+</script>
+{% endblock %}

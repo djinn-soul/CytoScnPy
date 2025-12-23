@@ -1,4 +1,5 @@
 //! Comprehensive Edge Case Tests for Rust `CytoScnPy` Implementation
+#![allow(clippy::expect_used)]
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -1235,5 +1236,3 @@ result = list(counter)
 
     assert!(project.path().exists());
 }
-
-

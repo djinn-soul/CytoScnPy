@@ -4,6 +4,7 @@ use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 
 /// Returns a list of all quality rules based on configuration.
+#[must_use]
 pub fn get_quality_rules(config: &Config) -> Vec<Box<dyn Rule>> {
     vec![
         Box::new(MutableDefaultArgumentRule),

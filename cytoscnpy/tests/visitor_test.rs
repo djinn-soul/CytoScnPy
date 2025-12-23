@@ -1,4 +1,6 @@
-//! Tests for the AST visitor implementation.
+//! Tests for the AST visitor module.
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::iter_kv_map)]
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
@@ -444,5 +446,3 @@ result = path_join('a', 'b')
         "Using qualified alias should also add simple name 'join'"
     );
 }
-
-

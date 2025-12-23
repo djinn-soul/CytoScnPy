@@ -122,7 +122,7 @@ pub fn get_framework_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
-        Regex::new(r"(?i)(?:views|handlers|endpoints|routes|api|urls)\.py$")
+        Regex::new(r"(?i)(?:views|handlers|endpoints|routes|api|urls|function_app)\.py$")
             .expect("Invalid framework file regex pattern")
     })
 }

@@ -27,6 +27,23 @@ pub static FRAMEWORK_DECORATORS: &[&str] = &[
     "@root_validator",
     "@field_validator",
     "@model_validator",
+    // Azure Functions v2 decorators
+    "@*.function_name",
+    "@*.blob_trigger",
+    "@*.queue_trigger",
+    "@*.timer_trigger",
+    "@*.cosmos_db_trigger",
+    "@*.event_hub_trigger",
+    "@*.event_grid_trigger",
+    "@*.service_bus_queue_trigger",
+    "@*.service_bus_topic_trigger",
+    "@*.blob_input",
+    "@*.blob_output",
+    "@*.queue_output",
+    "@*.cosmos_db_input",
+    "@*.cosmos_db_output",
+    "@*.table_input",
+    "@*.table_output",
 ];
 
 /// Framework-specific function names that indicate implicit usage.
@@ -72,6 +89,9 @@ pub fn get_framework_imports() -> &'static FxHashSet<&'static str> {
         s.insert("celery");
         s.insert("starlette");
         s.insert("uvicorn");
+        // Azure Functions
+        s.insert("azure.functions");
+        s.insert("azure_functions");
         s
     })
 }
@@ -453,6 +473,11 @@ impl<'a> FrameworkAwareVisitor<'a> {
             || name.contains("task") // celery
             || name.contains("login_required") // django
             || name.contains("permission_required") // django
+            // Azure Functions v2 patterns
+            || name.contains("trigger") // blob_trigger, queue_trigger, timer_trigger, etc.
+            || name.contains("function_name") // @app.function_name
+            || name.ends_with("_input") // blob_input, cosmos_db_input, etc.
+            || name.ends_with("_output") // blob_output, queue_output, etc.
     }
 }
 

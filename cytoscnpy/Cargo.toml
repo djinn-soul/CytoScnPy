@@ -44,9 +44,13 @@ compact_str = "0.9"
 smallvec = "1.15"
 # Optional heap profiler
 dhat = { version = "0.3", optional = true }
+askama = { version = "0.14.0", optional = true }
+chrono = { version = "0.4.42", optional = true }
+open = { version = "5.3.3", optional = true }
 
 [features]
-default = []
+default = ["html_report"]
+html_report = ["dep:askama", "dep:chrono", "dep:open"]
 # Enable Python bindings (required for building the cdylib)
 python-bindings = ["pyo3"]
 # Enable this feature to run Python binding tests (requires Python DLL in PATH)

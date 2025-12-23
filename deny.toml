@@ -22,10 +22,8 @@ allow = [
     "BSD-3-Clause",
     "Unicode-DFS-2016",
     "Unlicense",
-    "CC0-1.0",
     "MPL-2.0",
     "Unicode-3.0",
-    "LGPL-3.0-only",                  # malachite crates (transitive)
 ]
 
 # =============================================================================
@@ -49,17 +47,7 @@ skip = []
 [advisories]
 # List of advisory IDs to ignore (with rationale)
 ignore = [
-    # =====================================================================
-    # NOTE: These unic-* advisories were from the old rustpython-parser.
-    # After migration to ruff_python_parser, these may no longer be needed.
-    # Run `cargo deny check` to verify if these can be removed.
-    # =====================================================================
-    "RUSTSEC-2025-0075", # unic-char-range
-    "RUSTSEC-2025-0080", # unic-common  
-    "RUSTSEC-2025-0081", # unic-char-property (corrected ID)
-    "RUSTSEC-2025-0090", # unic-emoji-char
-    "RUSTSEC-2025-0100", # unic-ucd-ident
-    "RUSTSEC-2025-0098", # unic-ucd-version
+    # No advisories to ignore after migrating to ruff_python_parser
 ]
 
 # =============================================================================
@@ -76,4 +64,4 @@ unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 # List of allowed git sources
-allow-git = []
+allow-git = ["https://github.com/astral-sh/ruff.git"]

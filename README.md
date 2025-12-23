@@ -106,6 +106,8 @@ cytoscnpy . --html --secrets --danger --quality
 | `--min-mi <N>`         | Exit code 1 if maintainability index < N   |
 | `--fail-on-quality`    | Exit code 1 if any quality issues found    |
 | `--max-nesting <N>`    | Exit code 1 if any block nesting > N       |
+| `--max-args <N>`       | Exit code 1 if any function has > N args   |
+| `--max-lines <N>`      | Exit code 1 if any function has > N lines  |
 
 > **Full CLI Reference:** See [docs/CLI.md](docs/CLI.md) for complete command documentation.
 

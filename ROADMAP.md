@@ -288,7 +288,7 @@ _Tools to improve the workflow around CytoScnPy._
   - **Blame Analysis:** Identify who introduced unused code.
   - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
 
-- [ ] **HTML Report Generation**
+- [x] **HTML Report Generation** ✅
 
   - Generate self-contained HTML reports for large codebase analysis.
   - **Features:**
@@ -297,7 +297,7 @@ _Tools to improve the workflow around CytoScnPy._
     - Filtering by type (unused, security, quality), severity, file
     - Search across all findings
     - Summary dashboard with charts
-    - Code snippets showing context around each finding
+    - Code snippets showing context around each finding (Basic impl done, see Phase 9.5 for improvements)
   - **CLI:**
     ```bash
     cytoscnpy analyze ./project --html report.html
@@ -330,6 +330,37 @@ _Tools to improve the workflow around CytoScnPy._
     - Team code review sessions
     - CI/CD dashboard integration
     - Local development feedback loop
+
+### <a id="phase-9-5"></a>Phase 9.5: Report Actionability Upgrade 🔄 PLANNED
+
+_Implementing findings from the Recommendation System Audit._
+
+**Goal:** Transform the report from a diagnostic tool into a remediation platform.
+
+- [ ] **Remediation Display Engine** (Priority: HIGH)
+
+  - **Problem:** Backend has remediation data (e.g., "Use parameterized queries"), but it's lost during report generation.
+  - **Solution:**
+    - Extend `IssueItem` struct with `remediation` and `vuln_type` fields.
+    - Update `flatten_issues` to preserve `SinkInfo` remediation strings.
+    - Update `issues.html` and `file_view.html` to display a collapsible "Remediation" box.
+
+- [ ] **Context-Aware Code Snippets** (Priority: MEDIUM)
+
+  - **Problem:** Issues are shown as one-liners without context.
+  - **Solution:**
+    - Extract 3-5 lines of code around the issue location.
+    - Display syntax-highlighted snippets inline in the Issues tab.
+
+- [ ] **Enriched Quality Messages** (Priority: MEDIUM)
+
+  - **Problem:** Generic messages like "Function too complex" offer no guidance.
+  - **Solution:** Map rule IDs to specific refactoring advice (e.g., "Extract reusable logic into helper functions").
+
+- [ ] **Prioritization Framework** (Priority: LOW)
+
+  - **Problem:** All high-severity issues look the same.
+  - **Solution:** Add "Exploitability" and "Fix Effort" scores to help teams prioritize.
 
 #### Benchmarking Infrastructure Ideas
 

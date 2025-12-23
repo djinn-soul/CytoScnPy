@@ -69,6 +69,29 @@ fn check_call_source(call: &ast::ExprCall) -> Option<TaintInfo> {
             return Some(TaintInfo::new(TaintSource::FileRead, line));
         }
 
+        // Azure Functions request methods: req.params.get(), req.get_json(), req.get_body()
+        // Azure Functions uses 'req' as the conventional parameter name
+        if name.starts_with("req.params.")
+            || name.starts_with("req.route_params.")
+            || name.starts_with("req.headers.")
+            || name.starts_with("req.form.")
+        {
+            let attr = name.split('.').nth(1).unwrap_or("params");
+            return Some(TaintInfo::new(
+                TaintSource::AzureFunctionsRequest(attr.to_owned()),
+                line,
+            ));
+        }
+
+        // Azure Functions direct methods on HttpRequest
+        if name == "req.get_json" || name == "req.get_body" {
+            let method = name.split('.').nth(1).unwrap_or("get_json");
+            return Some(TaintInfo::new(
+                TaintSource::AzureFunctionsRequest(method.to_owned()),
+                line,
+            ));
+        }
+
         // JSON/YAML load
         if name == "json.load"
             || name == "json.loads"
@@ -102,6 +125,19 @@ fn check_attribute_source(attr: &ast::ExprAttribute) -> Option<TaintInfo> {
                 "GET" | "POST" | "body" | "COOKIES" => {
                     return Some(TaintInfo::new(
                         TaintSource::DjangoRequest(attr_name.to_owned()),
+                        line,
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        // Azure Functions 'req' object (conventional parameter name)
+        if name.id.as_str() == "req" {
+            match attr_name {
+                "params" | "route_params" | "headers" | "form" => {
+                    return Some(TaintInfo::new(
+                        TaintSource::AzureFunctionsRequest(attr_name.to_owned()),
                         line,
                     ));
                 }

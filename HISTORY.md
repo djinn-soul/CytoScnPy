@@ -283,3 +283,4 @@ Additional: SmallVec, Arc<PathBuf>, cached scope prefix, chunk-based Rayon.
 | Publish to PyPI         | ✅ `pip install cytoscnpy` |
 | MCP Server (Stdio)      | ✅ `cytoscnpy-mcp`         |
 | GitHub Actions Workflow | ✅ Cross-platform builds   |
+| Version 1.1.2           | ✅ Latest Maintenance      |

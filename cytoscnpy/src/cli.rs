@@ -44,6 +44,10 @@ pub struct ScanOptions {
     /// Scan for code quality issues.
     #[arg(short = 'q', long)]
     pub quality: bool,
+
+    /// Skip dead code detection (only run security/quality scans).
+    #[arg(short = 'n', long = "no-dead")]
+    pub no_dead: bool,
 }
 
 /// Options for output formatting and verbosity.
@@ -178,14 +182,16 @@ pub struct Cli {
     pub clone_similarity: f64,
 
     /// Auto-fix detected dead code (removes unused functions, classes, imports).
-    /// Use with caution: always review changes first with --dry-run.
+    /// By default, shows a preview of what would be changed (dry-run).
+    /// Use --apply to actually modify files.
     /// Note: Clone detection is report-only; clones are never auto-removed.
     #[arg(long)]
     pub fix: bool,
 
-    /// Dry-run mode for --fix: show what would be changed without modifying files.
-    #[arg(long)]
-    pub dry_run: bool,
+    /// Apply the fixes to files (use with --fix).
+    /// Without this flag, --fix only shows a preview of what would be changed.
+    #[arg(short = 'a', long)]
+    pub apply: bool,
 }
 
 #[derive(Subcommand, Debug)]

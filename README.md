@@ -42,7 +42,7 @@ For Claude Desktop, Cursor, or GitHub Copilot configuration, see the **[MCP Serv
 - **Dead Code Detection**: Unused functions, classes, imports, and variables with cross-module tracking.
 - **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys), and dangerous code patterns (`eval`, `exec`).
 - **Code Quality Metrics**: Cyclomatic complexity, Halstead metrics, Maintainability Index, and raw metrics (LOC, SLOC).
-- **Framework Support**: Native understanding of Flask, Django, FastAPI, Celery, Starlette, Pydantic, and Azure Functions v2 patterns.
+- **Framework Support**: Native understanding of Flask, Django, FastAPI, Pydantic, and Azure Functions v2 patterns.
 - **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
 - **Cross-File Detection**: Tracks symbol usage across the entire codebase, including nested packages and complex import chains, to ensure code used in other modules is never incorrectly flagged.
 

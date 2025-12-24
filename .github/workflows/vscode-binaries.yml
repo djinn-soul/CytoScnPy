@@ -56,8 +56,30 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Build Binary
-        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+      - name: Build Binary with PGO
+        shell: bash
+        run: |
+          # Determine OS-specific profile folder
+          case "${{ runner.os }}" in
+            Windows) PGO_OS="windows" ;;
+            Linux)   PGO_OS="linux" ;;
+            macOS)   PGO_OS="macos" ;;
+          esac
+
+          # Use OS-specific profile or fallback to windows (most comprehensive)
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/${PGO_OS}/merged.profdata"
+          if [ ! -f "$PGO_PROFILE" ]; then
+            PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          fi
+
+          # Convert Windows path to Unix-style for LLVM
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            PGO_PROFILE=$(echo "$PGO_PROFILE" | sed 's|\\|/|g')
+          fi
+
+          export RUSTFLAGS="-Cprofile-use=${PGO_PROFILE} -Ccodegen-units=1"
+          echo "Building with PGO: RUSTFLAGS=$RUSTFLAGS"
+          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
 
       - name: Rename Binary
         shell: bash

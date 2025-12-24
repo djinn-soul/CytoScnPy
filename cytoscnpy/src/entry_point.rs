@@ -424,15 +424,23 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         let secrets = cli_var.scan.secrets || config.cytoscnpy.secrets.unwrap_or(false);
         let danger = cli_var.scan.danger || config.cytoscnpy.danger.unwrap_or(false);
 
-        // Auto-enable quality mode when --min-mi or --max-complexity is set,
-        // or when html_report feature is enabled (for dashboard metrics)
+        // Auto-enable quality mode when:
+        // - --quality flag is passed
+        // - quality is enabled in config
+        // - --min-mi or --max-complexity thresholds are set
+        // - --html flag is passed (for dashboard metrics)
+        #[cfg(feature = "html_report")]
+        let html_enabled = cli_var.output.html;
+        #[cfg(not(feature = "html_report"))]
+        let html_enabled = false;
+
         let quality = cli_var.scan.quality
             || config.cytoscnpy.quality.unwrap_or(false)
             || cli_var.min_mi.is_some()
             || cli_var.max_complexity.is_some()
             || config.cytoscnpy.min_mi.is_some()
             || config.cytoscnpy.complexity.is_some()
-            || cfg!(feature = "html_report");
+            || html_enabled;
 
         let include_tests =
             cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
@@ -632,6 +640,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             }
 
             // Print summary and time (only for non-JSON output)
+            // Note: In quiet mode, print_report_quiet already prints the summary,
+            // so we only print here if clone pairs were found (to add the clone count)
             if !cli_var.output.json {
                 let total = result.unused_functions.len()
                     + result.unused_methods.len()
@@ -641,11 +651,14 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     + result.unused_variables.len();
                 let security = result.danger.len() + result.secrets.len() + result.quality.len();
 
+                // Only print summary if either:
+                // 1. Not in quiet mode (print_report doesn't include summary)
+                // 2. Clone pairs were found (need to add clone count to summary)
                 if clone_pairs_found > 0 {
                     writeln!(writer,
                     "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {clone_pairs_found} clone pairs"
                 )?;
-                } else {
+                } else if !cli_var.output.quiet {
                     writeln!(writer,
                     "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
                 )?;

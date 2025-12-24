@@ -188,6 +188,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
                     // Let clap print help/version as intended, but captured by redirect
                     write!(writer, "{e}")?;
+                    writer.flush()?; // Flush to ensure output is visible (required for pytest)
                     return Ok(0);
                 }
                 _ => {

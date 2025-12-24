@@ -514,7 +514,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             }
         }
 
-        let result = analyzer.analyze_paths(&cli_var.paths);
+        let mut result = analyzer.analyze_paths(&cli_var.paths);
+
+        // If --no-dead flag is set, clear dead code detection results
+        // (only show security/quality scans)
+        if cli_var.scan.no_dead {
+            result.unused_functions.clear();
+            result.unused_methods.clear();
+            result.unused_classes.clear();
+            result.unused_imports.clear();
+            result.unused_variables.clear();
+            result.unused_parameters.clear();
+        }
 
         if let Some(p) = progress {
             p.finish_and_clear();
@@ -621,7 +632,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     if cli_var.fix {
                         eprintln!(
                             "   Fix mode: {} (confidence >= 90%)",
-                            if cli_var.dry_run { "dry-run" } else { "apply" }
+                            if cli_var.apply {
+                                "apply"
+                            } else {
+                                "dry-run (preview)"
+                            }
                         );
                     }
                     eprintln!();
@@ -630,7 +645,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     similarity: cli_var.clone_similarity,
                     json: cli_var.output.json,
                     fix: false, // Clones are report-only, never auto-fixed
-                    dry_run: cli_var.dry_run,
+                    dry_run: !cli_var.apply,
                     exclude: vec![], // Use empty - files already filtered by analyzer
                     verbose: cli_var.output.verbose,
                     with_cst: true, // CST is always enabled by default
@@ -695,10 +710,10 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 eprintln!("[VERBOSE] Dead code fix mode enabled");
                 eprintln!(
                     "   Mode: {}",
-                    if cli_var.dry_run {
-                        "dry-run (preview)"
-                    } else {
+                    if cli_var.apply {
                         "apply changes"
+                    } else {
+                        "dry-run (preview)"
                     }
                 );
                 eprintln!("   Min confidence: 90%");
@@ -708,7 +723,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             }
             let fix_options = crate::commands::DeadCodeFixOptions {
                 min_confidence: 90, // Only fix high-confidence items
-                dry_run: cli_var.dry_run,
+                dry_run: !cli_var.apply,
                 fix_functions: true,
                 fix_classes: true,
                 fix_imports: true,

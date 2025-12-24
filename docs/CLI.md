@@ -19,9 +19,9 @@ cytoscnpy [PATHS]... [OPTIONS]
 | Flag               | Short | Description                              |
 | ------------------ | ----- | ---------------------------------------- |
 | `--confidence <N>` | `-c`  | Confidence threshold 0-100 (default: 60) |
-| `--secrets`        |       | Scan for API keys, tokens, credentials   |
-| `--danger`         |       | Scan for dangerous code + taint analysis |
-| `--quality`        |       | Scan for code quality issues             |
+| `--secrets`        | `-s`  | Scan for API keys, tokens, credentials   |
+| `--danger`         | `-d`  | Scan for dangerous code + taint analysis |
+| `--quality`        | `-q`  | Scan for code quality issues             |
 
 ### Output Options
 
@@ -44,13 +44,13 @@ cytoscnpy [PATHS]... [OPTIONS]
 
 ### Auto-Fix Options
 
-| Flag        | Description                                         |
-| ----------- | --------------------------------------------------- |
-| `--fix`     | Auto-remove dead code (functions, classes, imports) |
-| `--dry-run` | Preview changes without applying (use with `--fix`) |
+| Flag      | Short | Description                                    |
+| --------- | ----- | ---------------------------------------------- |
+| `--fix`   |       | Preview dead code removal (dry-run by default) |
+| `--apply` | `-a`  | Apply changes to files (use with `--fix`)      |
 
 > **Note:** CST mode (tree-sitter) is enabled by default for precise comment preservation.
-> Only high-confidence items (≥90%) are auto-fixed. Always use `--dry-run` first!
+> Only high-confidence items (≥90%) are auto-fixed. `--fix` shows a preview by default!
 
 ### Clone Detection Options
 
@@ -111,11 +111,12 @@ cytoscnpy . --html
 Automatically remove unused code from your codebase:
 
 ```bash
-# Preview changes first (recommended)
-cytoscnpy . --fix --dry-run
-
-# Apply changes
+# Preview changes first (default behavior)
 cytoscnpy . --fix
+
+# Apply changes to files
+cytoscnpy . --fix --apply
+cytoscnpy . --fix -a         # Short flag
 ```
 
 **What gets fixed:**
@@ -127,7 +128,8 @@ cytoscnpy . --fix
 **Safety features:**
 
 - Only items with confidence ≥90% are auto-fixed
-- `--dry-run` shows exactly what would be removed
+- `--fix` shows preview by default (dry-run)
+- Use `--apply` to actually modify files
 - CST mode preserves comments and formatting
 
 ---

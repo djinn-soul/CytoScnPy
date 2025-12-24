@@ -44,13 +44,32 @@ jobs:
       - name: Install maturin
         run: pip install maturin
 
-      - name: Build wheel (Windows - skip 3.14)
+      - name: Build wheel with PGO (Windows)
         if: runner.os == 'Windows'
-        run: maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
+        shell: pwsh
+        run: |
+          $PGO_PROFILE = "${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          if (-Not (Test-Path $PGO_PROFILE)) {
+            $PGO_PROFILE = "${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          }
+          $env:RUSTFLAGS = "-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
 
-      - name: Build wheel (Linux/macOS)
-        if: runner.os != 'Windows' # only run for Linux and macOS
-        run: maturin build --release --out dist --find-interpreter
+      - name: Build wheel with PGO (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/linux/merged.profdata"
+          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          maturin build --release --out dist --find-interpreter
+
+      - name: Build wheel with PGO (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/macos/merged.profdata"
+          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          maturin build --release --out dist --find-interpreter
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

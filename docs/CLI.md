@@ -42,6 +42,23 @@ cytoscnpy [PATHS]... [OPTIONS]
 | `--exclude-folder <DIR>` | Exclude specific folders                   |
 | `--include-folder <DIR>` | Force include folders (overrides defaults) |
 
+### Auto-Fix Options
+
+| Flag        | Description                                         |
+| ----------- | --------------------------------------------------- |
+| `--fix`     | Auto-remove dead code (functions, classes, imports) |
+| `--dry-run` | Preview changes without applying (use with `--fix`) |
+
+> **Note:** CST mode (tree-sitter) is enabled by default for precise comment preservation.
+> Only high-confidence items (≥90%) are auto-fixed. Always use `--dry-run` first!
+
+### Clone Detection Options
+
+| Flag                     | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `--clones`               | Enable code clone detection                 |
+| `--clone-similarity <N>` | Similarity threshold 0.0-1.0 (default: 0.8) |
+
 ### CI/CD Gate Options
 
 | Flag                   | Description                                |
@@ -86,6 +103,51 @@ cytoscnpy . --html
 **Report location:** `.cytoscnpy/report/index.html` (automatically opens in browser)
 
 > **Note:** Requires `html_report` feature (enabled by default).
+
+---
+
+### Dead Code Auto-Fix
+
+Automatically remove unused code from your codebase:
+
+```bash
+# Preview changes first (recommended)
+cytoscnpy . --fix --dry-run
+
+# Apply changes
+cytoscnpy . --fix
+```
+
+**What gets fixed:**
+
+- Unused functions
+- Unused classes (and their methods via cascading detection)
+- Unused imports
+
+**Safety features:**
+
+- Only items with confidence ≥90% are auto-fixed
+- `--dry-run` shows exactly what would be removed
+- CST mode preserves comments and formatting
+
+---
+
+### Clone Detection
+
+Find duplicate or near-duplicate code fragments:
+
+```bash
+# Basic clone detection
+cytoscnpy . --clones
+
+# Adjust similarity threshold (default: 0.8 = 80%)
+cytoscnpy . --clones --clone-similarity 0.7
+
+# Combine with other analysis
+cytoscnpy . --clones --secrets --quality
+```
+
+> **Note:** Clones are report-only; they are never auto-removed by `--fix`.
 
 ---
 
@@ -276,6 +338,8 @@ entropy_threshold = 4.5
 min_length = 16
 scan_comments = true
 skip_docstrings = false
+min_score = 50
+suspicious_names = ["db_config", "oauth_token"]
 
 # Note: include_ipynb and ipynb_cells are CLI-only flags (use --include-ipynb)
 ```

@@ -79,7 +79,7 @@ CytoScnPy/
 │       │   ├── crossfile.rs      # Cross-module analysis
 │       │   ├── call_graph.rs     # Function call graph
 │       │   └── summaries.rs      # Function summaries
-│       ├── clones/               # Clone detection (Type-1/2/3)
+│       ├── clones/               # Clone detection
 │       │   ├── mod.rs            # CloneDetector orchestrator
 │       │   ├── config.rs         # CloneConfig settings
 │       │   ├── parser.rs         # Subtree extraction

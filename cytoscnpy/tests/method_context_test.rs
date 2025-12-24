@@ -12,6 +12,7 @@ fn test_method_context() {
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
+    // The class MUST be used externally for internal method calls to matter
     let content = r#"
 class MyClass:
     def helper(self):
@@ -19,6 +20,10 @@ class MyClass:
 
     def main(self):
         self.helper()
+
+# Class is instantiated and used - so internal method calls matter
+obj = MyClass()
+obj.main()
 "#;
     write!(file, "{content}").unwrap();
 
@@ -32,6 +37,7 @@ class MyClass:
         .collect();
 
     // 'helper' should be used because 'self.helper()' is called inside 'main'
+    // AND the class is used externally
     assert!(
         !unused_methods.contains(&"helper".to_owned()),
         "MyClass.helper should be used via self.helper()"
@@ -44,6 +50,7 @@ fn test_nested_class_method_call() {
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
+    // The nested class MUST be used externally for internal method calls to matter
     let content = r"
 class Outer:
     class Inner:
@@ -52,6 +59,10 @@ class Outer:
         
         def inner_main(self):
             self.inner_helper()
+
+# Nested class is used - so internal method calls matter
+obj = Outer.Inner()
+obj.inner_main()
 ";
     write!(file, "{content}").unwrap();
 
@@ -66,7 +77,7 @@ class Outer:
 
     assert!(
         !unused_methods.contains(&"inner_helper".to_owned()),
-        "Inner.inner_helper should be used"
+        "Inner.inner_helper should be used via self.inner_helper() since the class is used"
     );
 }
 
@@ -108,6 +119,7 @@ fn test_static_and_class_methods() {
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
+    // The class MUST be used externally for internal method calls to matter
     let content = r"
 class MyClass:
     @staticmethod
@@ -120,6 +132,10 @@ class MyClass:
 
     def instance_func(self):
         self.class_func()
+
+# Class is instantiated and used - so internal method calls matter
+obj = MyClass()
+obj.instance_func()
 ";
     write!(file, "{content}").unwrap();
 
@@ -134,10 +150,10 @@ class MyClass:
 
     assert!(
         !unused_methods.contains(&"static_func".to_owned()),
-        "static_func should be used via cls.static_func"
+        "static_func should be used via cls.static_func since class is used"
     );
     assert!(
         !unused_methods.contains(&"class_func".to_owned()),
-        "class_func should be used via self.class_func"
+        "class_func should be used via self.class_func since class is used"
     );
 }

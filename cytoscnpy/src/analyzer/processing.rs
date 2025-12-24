@@ -632,16 +632,19 @@ impl CytoScnPy {
             }
         }
 
-        // Class-method linking: Methods of unused classes should also be flagged
-        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        // Class-method linking: ALL methods of unused classes should be flagged as unused.
+        // This implements "cascading deadness" - if a class is unreachable, all its methods are too.
+        // EXCEPTION: Skip methods protected by heuristics (visitor pattern, etc.)
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
 
         for def in &methods_with_refs {
             if def.confidence >= self.confidence_threshold {
-                // Only process if the method is marked as self-referential
-                // This means the only reference comes from itself (recursion)
-                if !def.is_self_referential {
+                // Skip visitor pattern methods - they have heuristic protection
+                if def.simple_name.starts_with("visit_")
+                    || def.simple_name.starts_with("leave_")
+                    || def.simple_name.starts_with("transform_")
+                {
                     continue;
                 }
 
@@ -939,23 +942,25 @@ impl CytoScnPy {
             }
         }
 
-        // Class-method linking: Methods of unused classes should also be flagged
-        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        // Class-method linking: ALL methods of unused classes should be flagged as unused.
+        // This implements "cascading deadness" - if a class is unreachable, all its methods are too.
+        // EXCEPTION: Skip methods protected by heuristics (visitor pattern, etc.)
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
 
         for def in &methods_with_refs {
             if def.confidence >= self.confidence_threshold {
-                // Only process if the method is marked as self-referential
-                // This means the only reference comes from itself (recursion)
-                if !def.is_self_referential {
+                // Skip visitor pattern methods - they have heuristic protection
+                if def.simple_name.starts_with("visit_")
+                    || def.simple_name.starts_with("leave_")
+                    || def.simple_name.starts_with("transform_")
+                {
                     continue;
                 }
 
                 if let Some(last_dot) = def.full_name.rfind('.') {
                     let parent_class = &def.full_name[..last_dot];
-                    let is_unused = unused_class_names.contains(parent_class);
-                    if is_unused {
+                    if unused_class_names.contains(parent_class) {
                         unused_methods.push(def.clone());
                     }
                 }

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.1.2-green.svg)](https://github.com/djinn09/CytoScnPy)
+[![Version](https://img.shields.io/badge/version-1.1.3-green.svg)](https://github.com/djinn09/CytoScnPy)
 
 A fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
 
@@ -40,7 +40,10 @@ For Claude Desktop, Cursor, or GitHub Copilot configuration, see the **[MCP Serv
 ## Features
 
 - **Dead Code Detection**: Unused functions, classes, imports, and variables with cross-module tracking.
-- **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys), and dangerous code patterns (`eval`, `exec`).
+  - **Cascading Detection**: Methods inside unused classes are automatically flagged as unused.
+  - **Auto-Fix**: Remove dead code automatically with `--fix` (supports `--dry-run` preview).
+- **Clone Detection**: Find duplicate code with `--clones`.
+- **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys, suspicious variables), and dangerous code patterns (`eval`, `exec`).
 - **Code Quality Metrics**: Cyclomatic complexity, Halstead metrics, Maintainability Index, and raw metrics (LOC, SLOC).
 - **Framework Support**: Native understanding of Flask, Django, FastAPI, Pydantic, and Azure Functions v2 patterns.
 - **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
@@ -75,27 +78,38 @@ cytoscnpy . --include-tests
 # Jupyter notebooks
 cytoscnpy . --include-ipynb --ipynb-cells
 
+# Clone detection (find duplicate code)
+cytoscnpy . --clones --clone-similarity 0.8
+
+# Auto-fix dead code (preview first, then apply)
+cytoscnpy . --fix --dry-run          # Preview changes
+cytoscnpy . --fix                    # Apply changes
+
 # Generate HTML report
 cytoscnpy . --html --secrets --danger --quality
 ```
 
 **Options:**
 
-| Flag                     | Description                              |
-| ------------------------ | ---------------------------------------- |
-| `-c, --confidence <N>`   | Set confidence threshold (0-100)         |
-| `--secrets`              | Scan for API keys, tokens, credentials   |
-| `--danger`               | Scan for dangerous code + taint analysis |
-| `--quality`              | Scan for code quality issues             |
-| `--html`                 | Generate interactive HTML report         |
-| `--json`                 | Output results as JSON                   |
-| `-v, --verbose`          | Enable verbose output for debugging      |
-| `-q, --quiet`            | Quiet mode: summary only, no tables      |
-| `--include-tests`        | Include test files in analysis           |
-| `--exclude-folder <DIR>` | Exclude specific folders                 |
-| `--include-folder <DIR>` | Force include folders                    |
-| `--include-ipynb`        | Include Jupyter notebooks                |
-| `--ipynb-cells`          | Report findings per notebook cell        |
+| Flag                     | Description                                         |
+| ------------------------ | --------------------------------------------------- |
+| `-c, --confidence <N>`   | Set confidence threshold (0-100)                    |
+| `--secrets`              | Scan for API keys, tokens, credentials              |
+| `--danger`               | Scan for dangerous code + taint analysis            |
+| `--quality`              | Scan for code quality issues                        |
+| `--html`                 | Generate interactive HTML report                    |
+| `--json`                 | Output results as JSON                              |
+| `-v, --verbose`          | Enable verbose output for debugging                 |
+| `-q, --quiet`            | Quiet mode: summary only, no tables                 |
+| `--include-tests`        | Include test files in analysis                      |
+| `--exclude-folder <DIR>` | Exclude specific folders                            |
+| `--include-folder <DIR>` | Force include folders                               |
+| `--include-ipynb`        | Include Jupyter notebooks                           |
+| `--ipynb-cells`          | Report findings per notebook cell                   |
+| `--clones`               | Detect duplicate code                               |
+| `--clone-similarity <N>` | Clone similarity threshold (0.0-1.0)                |
+| `--fix`                  | Auto-remove dead code (functions, classes, imports) |
+| `--dry-run`              | Preview --fix changes without applying              |
 
 **CI/CD Gate Options:**
 
@@ -163,6 +177,8 @@ entropy_threshold = 4.5  # Higher = more random (API keys usually >4.0)
 min_length = 16          # Min length to check for entropy
 scan_comments = true     # Scan comments for secrets
 skip_docstrings = false  # Skip docstrings in entropy scanning
+min_score = 50           # Minimum confidence score (0-100)
+suspicious_names = ["db_config", "oauth_token"] # Add custom suspicious variable names
 
 # Custom Secret Patterns
 [[cytoscnpy.secrets_config.patterns]]

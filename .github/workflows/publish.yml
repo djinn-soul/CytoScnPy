@@ -98,8 +98,30 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Build Binary
-        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+      - name: Build Binary with PGO
+        shell: bash
+        run: |
+          # Determine OS-specific profile folder
+          case "${{ runner.os }}" in
+            Windows) PGO_OS="windows" ;;
+            Linux)   PGO_OS="linux" ;;
+            macOS)   PGO_OS="macos" ;;
+          esac
+
+          # Use OS-specific profile or fallback to windows (most comprehensive)
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/${PGO_OS}/merged.profdata"
+          if [ ! -f "$PGO_PROFILE" ]; then
+            PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          fi
+
+          # Convert Windows path to Unix-style for LLVM
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            PGO_PROFILE=$(echo "$PGO_PROFILE" | sed 's|\\|/|g')
+          fi
+
+          export RUSTFLAGS="-Cprofile-use=${PGO_PROFILE} -Ccodegen-units=1"
+          echo "Building with PGO: RUSTFLAGS=$RUSTFLAGS"
+          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
 
       - name: Rename Binary
         shell: bash
@@ -298,11 +320,18 @@ jobs:
         with:
           shared-key: "vscode-cli"
 
-      - name: Build CLI for Linux x64
-        run: cargo build --release --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
+      - name: Build CLI for Linux x64 with PGO
+        run: |
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/linux/merged.profdata"
+          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          cargo build --release --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
 
-      - name: Build CLI for Windows x64
-        run: cargo build --release --target x86_64-pc-windows-gnu -p cytoscnpy-cli
+      - name: Build CLI for Windows x64 with PGO
+        run: |
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          cargo build --release --target x86_64-pc-windows-gnu -p cytoscnpy-cli
 
       - name: Create bin directory
         run: mkdir -p editors/vscode/cytoscnpy/bin
@@ -349,11 +378,19 @@ jobs:
         with:
           shared-key: "vscode-cli-macos"
 
-      - name: Build CLI for macOS x64
-        run: cargo build --release --target x86_64-apple-darwin -p cytoscnpy-cli
+      - name: Build CLI for macOS x64 with PGO
+        run: |
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/macos/merged.profdata"
+          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          cargo build --release --target x86_64-apple-darwin -p cytoscnpy-cli
 
-      - name: Build CLI for macOS ARM64
-        run: cargo build --release --target aarch64-apple-darwin -p cytoscnpy-cli
+      - name: Build CLI for macOS ARM64 with PGO
+        run: |
+          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/macos/merged.profdata"
+          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
+          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          cargo build --release --target aarch64-apple-darwin -p cytoscnpy-cli
 
       - name: Upload macOS x64 binary
         uses: actions/upload-artifact@v4

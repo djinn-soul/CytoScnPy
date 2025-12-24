@@ -547,7 +547,7 @@ app = func.FunctionApp()
     let result = analyze_code(code);
 
     // Should not crash, just have no unused functions
-    assert!(result.unused_functions.is_empty() || result.unused_functions.len() >= 0);
+    assert!(result.unused_functions.is_empty());
 }
 
 #[test]

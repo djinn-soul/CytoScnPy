@@ -5,11 +5,7 @@ use cytoscnpy::taint::analyzer::{
     BuiltinSourcePlugin, DjangoSourcePlugin, FlaskSourcePlugin, PluginRegistry, SanitizerPlugin,
     SinkMatch, TaintAnalyzer, TaintConfig, TaintSinkPlugin, TaintSourcePlugin,
 };
-use cytoscnpy::taint::types::{Severity, TaintInfo, TaintSource, VulnType};
-use ruff_python_ast::Expr;
-use ruff_python_parser::parse_expression;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 // ============================================================================
 // TaintConfig Tests
@@ -210,7 +206,7 @@ def vulnerable():
 "#;
     let findings = analyzer.analyze_file(source, &PathBuf::from("test.py"));
     // Should find input -> eval vulnerability in function
-    assert!(findings.len() >= 0); // Analysis runs without crash
+    drop(findings); // Analysis runs without crash
 }
 
 #[test]
@@ -222,7 +218,7 @@ async def vulnerable():
     eval(user)
 "#;
     let findings = analyzer.analyze_file(source, &PathBuf::from("test.py"));
-    assert!(findings.len() >= 0); // Analysis runs without crash
+    drop(findings); // Analysis runs without crash
 }
 
 #[test]
@@ -245,7 +241,7 @@ fn test_taint_analyzer_analyze_project_crossfile() {
     ];
     let findings = analyzer.analyze_project(&files);
     // Cross-file analysis should run without crash
-    assert!(findings.len() >= 0);
+    drop(findings);
 }
 
 #[test]

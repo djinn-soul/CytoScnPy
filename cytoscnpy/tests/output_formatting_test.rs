@@ -292,7 +292,7 @@ fn test_print_report_full() {
     assert!(res.is_ok());
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains("Python Static Analysis"));
-    assert!(output.contains("SUMMARY"));
+    assert!(output.contains("Unreachable"));
 }
 
 #[test]

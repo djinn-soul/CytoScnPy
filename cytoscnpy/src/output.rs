@@ -41,11 +41,6 @@ pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std:
 ///
 /// # Panics
 ///
-/// Panics if the progress style template is invalid.
-#[must_use].
-///
-/// # Panics
-///
 /// Panics if the progress style template is invalid (should never happen with hardcoded template).
 #[must_use]
 pub fn create_spinner() -> ProgressBar {
@@ -66,11 +61,6 @@ pub fn create_spinner() -> ProgressBar {
 ///
 /// # Panics
 ///
-/// Panics if the progress style template is invalid.
-#[must_use].
-///
-/// # Panics
-///
 /// Panics if the progress style template is invalid (should never happen with hardcoded template).
 #[must_use]
 pub fn create_progress_bar(total_files: u64) -> ProgressBar {
@@ -88,10 +78,6 @@ pub fn create_progress_bar(total_files: u64) -> ProgressBar {
 }
 
 /// Print the main header with box-drawing characters.
-///
-/// # Errors
-///
-/// Returns an error if writing to the writer fails..
 ///
 /// # Errors
 ///
@@ -118,10 +104,6 @@ pub fn print_header(writer: &mut impl Write) -> std::io::Result<()> {
 }
 
 /// Print summary with colored "pills".
-///
-/// # Errors
-///
-/// Returns an error if writing to the writer fails..
 ///
 /// # Errors
 ///
@@ -164,10 +146,6 @@ pub fn print_summary_pills(
 }
 
 /// Print analysis statistics (files and lines processed).
-///
-/// # Errors
-///
-/// Returns an error if writing to the writer fails..
 ///
 /// # Errors
 ///
@@ -233,10 +211,6 @@ fn get_severity_color(severity: &str) -> Color {
 }
 
 /// Print a list of findings (Security, Quality, Secrets).
-///
-/// # Errors
-///
-/// Returns an error if writing to the writer fails..
 ///
 /// # Errors
 ///
@@ -358,10 +332,6 @@ pub fn print_unused_items(
 }
 
 /// Print a list of parse errors.
-///
-/// # Errors
-///
-/// Returns an error if writing to the writer fails..
 ///
 /// # Errors
 ///

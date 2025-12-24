@@ -1,9 +1,15 @@
 //! Tests for entry_point.rs CLI argument handling and run_with_args function.
 #![allow(clippy::unwrap_used)]
 
-use cytoscnpy::entry_point::run_with_args;
+use cytoscnpy::entry_point::{run_with_args, run_with_args_to};
 use std::fs;
 use tempfile::tempdir;
+
+/// Helper function to run CLI with output captured to suppress test noise.
+fn run_with_captured_output(args: Vec<String>) -> anyhow::Result<i32> {
+    let mut buffer = Vec::new();
+    run_with_args_to(args, &mut buffer)
+}
 
 /// Test that --version flag works correctly.
 #[test]
@@ -28,7 +34,7 @@ fn test_analyze_single_file() {
     let file_path = dir.path().join("test_file.py");
     fs::write(&file_path, "def unused_func():\n    pass\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--json".to_owned(),
         file_path.to_string_lossy().to_string(),
     ]);
@@ -42,7 +48,7 @@ fn test_secrets_flag() {
     let file_path = dir.path().join("secrets_test.py");
     fs::write(&file_path, "API_KEY = 'sk-1234567890abcdef'\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--json".to_owned(),
         "--secrets".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -57,7 +63,7 @@ fn test_danger_flag() {
     let file_path = dir.path().join("danger_test.py");
     fs::write(&file_path, "import os\nos.system('ls')\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--json".to_owned(),
         "--danger".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -76,7 +82,7 @@ fn test_quality_flag() {
     )
     .unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--json".to_owned(),
         "--quality".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -87,7 +93,7 @@ fn test_quality_flag() {
 /// Test error handling for non-existent path.
 #[test]
 fn test_nonexistent_path() {
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--json".to_owned(),
         "/nonexistent/path/to/file.py".to_owned(),
     ]);
@@ -102,7 +108,7 @@ fn test_raw_subcommand() {
     let file_path = dir.path().join("raw_test.py");
     fs::write(&file_path, "x = 1\ny = 2\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "raw".to_owned(),
         "--json".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -118,7 +124,7 @@ fn test_cc_subcommand() {
     let file_path = dir.path().join("cc_test.py");
     fs::write(&file_path, "def foo():\n    if True:\n        pass\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "cc".to_owned(),
         "--json".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -134,7 +140,7 @@ fn test_hal_subcommand() {
     let file_path = dir.path().join("hal_test.py");
     fs::write(&file_path, "x = 1 + 2 * 3\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "hal".to_owned(),
         "--json".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -150,7 +156,7 @@ fn test_mi_subcommand() {
     let file_path = dir.path().join("mi_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "mi".to_owned(),
         "--json".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -166,7 +172,7 @@ fn test_stats_subcommand() {
     let file_path = dir.path().join("stats_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "stats".to_owned(),
         "--json".to_owned(),
         file_path.to_string_lossy().to_string(),
@@ -182,7 +188,7 @@ fn test_files_subcommand() {
     let file_path = dir.path().join("files_test.py");
     fs::write(&file_path, "x = 1\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "files".to_owned(),
         "--json".to_owned(),
         dir.path().to_string_lossy().to_string(),
@@ -198,7 +204,7 @@ fn test_verbose_flag() {
     let file_path = dir.path().join("verbose_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--verbose".to_owned(),
         file_path.to_string_lossy().to_string(),
     ]);
@@ -212,7 +218,7 @@ fn test_confidence_flag() {
     let file_path = dir.path().join("confidence_test.py");
     fs::write(&file_path, "def maybe_used():\n    pass\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--json".to_owned(),
         "--confidence".to_owned(),
         "80".to_owned(),
@@ -228,7 +234,7 @@ fn test_exclude_folders_flag() {
     let file_path = dir.path().join("exclude_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
-    let result = run_with_args(vec![
+    let result = run_with_captured_output(vec![
         "--json".to_owned(),
         "--exclude-folders".to_owned(),
         "tests".to_owned(),

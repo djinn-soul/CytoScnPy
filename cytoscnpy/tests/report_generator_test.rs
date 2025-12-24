@@ -144,7 +144,6 @@ fn test_calculate_score_logic() {
             halstead_metrics: Default::default(),
         },
     };
-    
 
     // 1. Perfect score
     generate_report(&result, output_dir).unwrap();
@@ -158,7 +157,7 @@ fn test_calculate_score_logic() {
             full_name: format!("f{i}"),
             simple_name: format!("f{i}"),
             def_type: "function".to_owned(),
-            
+
             file: Arc::new(PathBuf::from("test.py")),
             line: i,
             confidence: 100,
@@ -173,6 +172,6 @@ fn test_calculate_score_logic() {
         });
     }
     generate_report(&result, output_dir).unwrap();
-    let html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
+    let _html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
     // Score should be lower now
 }

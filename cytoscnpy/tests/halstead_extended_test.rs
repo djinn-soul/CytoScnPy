@@ -131,7 +131,7 @@ from typing import List, Dict
 ";
     let metrics = analyze_source(source);
     // imports contribute to metrics
-    assert!(metrics.n2 >= 0);
+    drop(metrics); // Metrics are computed without crash
 }
 
 #[test]

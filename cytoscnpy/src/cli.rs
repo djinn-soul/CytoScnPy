@@ -34,15 +34,15 @@ CONFIGURATION FILE (.cytoscnpy.toml):
 #[derive(Args, Debug, Default, Clone)]
 pub struct ScanOptions {
     /// Scan for API keys/secrets.
-    #[arg(long)]
+    #[arg(short = 's', long)]
     pub secrets: bool,
 
     /// Scan for dangerous code (includes taint analysis).
-    #[arg(long)]
+    #[arg(short = 'd', long)]
     pub danger: bool,
 
     /// Scan for code quality issues.
-    #[arg(long)]
+    #[arg(short = 'q', long)]
     pub quality: bool,
 }
 

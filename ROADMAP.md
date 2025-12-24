@@ -237,17 +237,19 @@ _Genuinely unused items we fail to detect._
 | **Methods**   | 10    | Methods inside unused classes not linked        | High     | Medium            |
 | **Classes**   | 1     | Complex inheritance patterns                    | Low      | Hard              |
 
-##### Priority 1: Class-Method Linking
+##### Priority 1: Class-Method Linking ✅ DONE
 
 **Problem:** Methods inside unused classes are not detected.
 
 ```python
 class UnusedClass:  # Detected as unused ✅
-    def method(self):  # NOT detected (should be linked to class)
+    def method(self):  # NOW detected via cascading detection ✅
         pass
 ```
 
-**Solution:** When a class is unused, automatically mark all its methods as unused.
+**Solution:** When a class is unused, automatically mark all its methods as unused (cascading deadness).
+
+**Implementation:** Modified `aggregate_results()` and `analyze_code()` in `processing.rs` to flag all methods within unused classes. Respects heuristic protections (visitor pattern methods are excluded).
 
 ##### Priority 2: Variable Scope Improvements
 
@@ -555,10 +557,15 @@ _Pushing the boundaries of static analysis._
 
 ---
 
-### <a id="phase-11"></a>Phase 11: Auto-Remediation
+### <a id="phase-11"></a>Phase 11: Auto-Remediation ✅ DONE
 
 _Safe, automated code fixes._
 
-- [ ] **Safe Code Removal (`--fix`)**
-  - **Challenge:** Standard AST parsers discard whitespace/comments.
-  - **Strategy:** Use `RustPython` AST byte ranges or `tree-sitter` to identify ranges, then perform precise string manipulation to preserve formatting.
+- [x] **Safe Code Removal (`--fix`)**
+  - **Implementation:** Use AST byte ranges from `ruff_python_parser` for precise removal.
+  - **Features:**
+    - `--fix` flag removes unused functions, classes, and imports
+    - `--dry-run` previews changes without applying
+    - CST mode (tree-sitter) is now enabled by default for better comment preservation
+    - Only high-confidence items (≥90%) are auto-fixed
+    - Cascading detection: methods inside unused classes are auto-removed with their parent class

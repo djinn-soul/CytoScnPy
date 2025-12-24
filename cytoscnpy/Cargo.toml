@@ -52,7 +52,7 @@ chrono = { version = "0.4.42", optional = true }
 open = { version = "5.3.3", optional = true }
 
 [features]
-default = ["html_report"]
+default = ["html_report", "cst"]
 html_report = ["dep:askama", "dep:chrono", "dep:open"]
 # Enable Python bindings (required for building the cdylib)
 python-bindings = ["pyo3"]

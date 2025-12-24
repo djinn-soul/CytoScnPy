@@ -186,11 +186,6 @@ pub struct Cli {
     /// Dry-run mode for --fix: show what would be changed without modifying files.
     #[arg(long)]
     pub dry_run: bool,
-
-    /// Enable CST-based precise fixing (requires tree-sitter feature).
-    /// Provides better comment preservation and exact byte ranges.
-    #[arg(long)]
-    pub with_cst: bool,
 }
 
 #[derive(Subcommand, Debug)]

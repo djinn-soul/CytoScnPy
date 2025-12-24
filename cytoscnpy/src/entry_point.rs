@@ -625,7 +625,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     dry_run: cli_var.dry_run,
                     exclude: vec![], // Use empty - files already filtered by analyzer
                     verbose: cli_var.output.verbose,
-                    with_cst: cli_var.with_cst,
+                    with_cst: true, // CST is always enabled by default
                 };
                 clone_pairs_found =
                     crate::commands::run_clones(&cli_var.paths, clone_options, &mut *writer)?;
@@ -690,9 +690,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 );
                 eprintln!("   Min confidence: 90%");
                 eprintln!("   Targets: functions, classes, imports");
-                if cli_var.with_cst {
-                    eprintln!("   CST mode: enabled (precise byte ranges)");
-                }
+                eprintln!("   CST mode: enabled (precise byte ranges)");
                 eprintln!();
             }
             let fix_options = crate::commands::DeadCodeFixOptions {
@@ -702,7 +700,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 fix_classes: true,
                 fix_imports: true,
                 verbose: cli_var.output.verbose,
-                with_cst: cli_var.with_cst,
+                with_cst: true, // CST is always enabled by default
             };
             crate::commands::run_fix_deadcode(&result, fix_options, &mut *writer)?;
         }

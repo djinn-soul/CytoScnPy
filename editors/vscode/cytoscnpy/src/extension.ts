@@ -340,6 +340,9 @@ export function activate(context: vscode.ExtensionContext) {
       editor.setDecorations(infoDecorationType, infoRanges);
     }
 
+    // Track time for performance logging
+    // let lastAnalysisTime = Date.now();
+
     // Function to refresh diagnostics for the active document
     async function refreshDiagnostics(document: vscode.TextDocument) {
       if (document.languageId !== "python") {
@@ -348,10 +351,20 @@ export function activate(context: vscode.ExtensionContext) {
 
       const filePath = document.uri.fsPath;
       const content = document.getText();
-      const contentHash = computeHash(content);
+      const contentHash = computeHash(content); // Assuming computeHash is still used, or md5 is defined elsewhere.
+
+      // Log time since last analysis (Dev Info)
+      // const now = Date.now();
+      // const timeSinceLast = (now - lastAnalysisTime) / 1000;
+      // console.log(
+      //   `[CytoScnPy] Triggering analysis (Time since last: ${timeSinceLast.toFixed(
+      //     2
+      //   )}s)`
+      // );
+      // lastAnalysisTime = now;
 
       // Check cache history - instant restore if content matches previous state
-      const cachedHistory = fileCache.get(filePath) || [];
+      const cachedHistory = fileCache.get(filePath) || []; // Assuming fileCache is still the global cache
       const cachedEntry = cachedHistory.find(
         (entry) => entry.hash === contentHash
       );

@@ -303,10 +303,16 @@ export function runCytoScnPyAnalysis(
 
     const { execFile } = require("child_process");
 
+    // const startTime = Date.now();
     execFile(
       config.path,
       args,
       (error: Error | null, stdout: string, stderr: string) => {
+        // const duration = (Date.now() - startTime) / 1000;
+        // console.log(
+        //   `[CytoScnPy] Analysis completed in ${duration.toFixed(3)}s`
+        // );
+
         if (error) {
           // CLI exited with non-zero code, but might still have valid JSON
           // (e.g., gate thresholds failed but analysis succeeded)

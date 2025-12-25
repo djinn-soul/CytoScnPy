@@ -4,10 +4,45 @@ use crate::rules::secrets::SecretFinding;
 use crate::rules::Finding;
 use crate::taint::types::TaintFinding;
 use crate::visitor::Definition;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+/// Represents a fix suggestion with precise byte ranges for code modification.
+/// Used by the VS Code extension to apply surgical fixes.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FixSuggestion {
+    /// The starting byte offset (0-indexed) in the file.
+    pub start_byte: usize,
+    /// The ending byte offset (exclusive) in the file.
+    pub end_byte: usize,
+    /// The replacement content. Empty string means deletion.
+    pub replacement: String,
+}
+
+impl FixSuggestion {
+    /// Creates a new fix suggestion for deletion (empty replacement).
+    #[must_use]
+    pub fn deletion(start_byte: usize, end_byte: usize) -> Self {
+        Self {
+            start_byte,
+            end_byte,
+            replacement: String::new(),
+        }
+    }
+
+    /// Creates a new fix suggestion with replacement content.
+    #[must_use]
+    pub fn replacement(start_byte: usize, end_byte: usize, replacement: String) -> Self {
+        Self {
+            start_byte,
+            end_byte,
+            replacement,
+        }
+    }
+}
 
 /// Represents a parsing error in a file.
 #[derive(Serialize, Clone)]
+
 pub struct ParseError {
     /// The file where the error occurred.
     pub file: std::path::PathBuf,

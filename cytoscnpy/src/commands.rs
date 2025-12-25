@@ -752,7 +752,7 @@ pub fn run_clones<W: Write>(
     let detector = CloneDetector::with_config(config);
 
     // Run detection
-    let result = detector.detect(&all_files)?;
+    let result = detector.detect(&all_files);
 
     // Verbose: show detection statistics
     if !options.json {
@@ -905,7 +905,7 @@ fn print_clone_stats<W: Write>(
 }
 
 /// Helper to generate findings from clone pairs.
-fn generate_clone_findings(
+pub fn generate_clone_findings(
     pairs: &[crate::clones::ClonePair],
     _all_files: &[(PathBuf, String)],
     _with_cst: bool,

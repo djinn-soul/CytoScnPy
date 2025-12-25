@@ -23,6 +23,9 @@ fn test_generate_report_full() {
             def_type: "function".to_owned(),
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
+            end_line: 10,
+            start_byte: 0,
+            end_byte: 0,
             confidence: 100,
             references: 0,
             is_exported: false,
@@ -32,6 +35,7 @@ fn test_generate_report_full() {
             cell_number: None,
             is_self_referential: false,
             message: Some("unused".to_owned()),
+            fix: None,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -160,6 +164,9 @@ fn test_calculate_score_logic() {
 
             file: Arc::new(PathBuf::from("test.py")),
             line: i,
+            end_line: i,
+            start_byte: 0,
+            end_byte: 0,
             confidence: 100,
             references: 0,
             is_exported: false,
@@ -169,6 +176,7 @@ fn test_calculate_score_logic() {
             cell_number: None,
             is_self_referential: false,
             message: None,
+            fix: None,
         });
     }
     generate_report(&result, output_dir).unwrap();

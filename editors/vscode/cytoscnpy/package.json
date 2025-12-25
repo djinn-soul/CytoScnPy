@@ -105,6 +105,11 @@
           "default": false,
           "description": "Enable scanning for code quality issues."
         },
+        "cytoscnpy.enableCloneScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable code clone detection to find duplicate/similar code blocks."
+        },
         "cytoscnpy.confidenceThreshold": {
           "type": "number",
           "default": 0,

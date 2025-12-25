@@ -602,7 +602,28 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
         // Print JSON or report (but defer the summary and time for combined output later)
         if cli_var.output.json {
-            writeln!(writer, "{}", serde_json::to_string_pretty(&result)?)?;
+            // If clones are enabled, include clone_findings in the JSON output
+            if cli_var.clones {
+                // Run clone detection
+                let clone_findings =
+                    run_clone_detection_for_json(&cli_var.paths, cli_var.clone_similarity);
+
+                // Create combined output with clone_findings
+                #[derive(serde::Serialize)]
+                struct CombinedOutput<'a> {
+                    #[serde(flatten)]
+                    analysis: &'a crate::analyzer::AnalysisResult,
+                    clone_findings: Vec<crate::clones::CloneFinding>,
+                }
+
+                let combined = CombinedOutput {
+                    analysis: &result,
+                    clone_findings,
+                };
+                writeln!(writer, "{}", serde_json::to_string_pretty(&combined)?)?;
+            } else {
+                writeln!(writer, "{}", serde_json::to_string_pretty(&result)?)?;
+            }
         } else {
             // Determine if we should show standard CLI output
             #[cfg(feature = "html_report")]
@@ -838,4 +859,43 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
         Ok(exit_code)
     }
+}
+
+/// Run clone detection and return findings for JSON output.
+/// This is used to include clone_findings in the combined JSON output.
+fn run_clone_detection_for_json(
+    paths: &[std::path::PathBuf],
+    similarity: f64,
+) -> Vec<crate::clones::CloneFinding> {
+    use crate::clones::{CloneConfig, CloneDetector};
+
+    // Collect files
+    let mut all_files: Vec<(std::path::PathBuf, String)> = Vec::new();
+    for path in paths {
+        if path.is_file() {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                all_files.push((path.clone(), content));
+            }
+        } else if path.is_dir() {
+            for entry in walkdir::WalkDir::new(path)
+                .into_iter()
+                .filter_map(Result::ok)
+            {
+                let p = entry.path();
+                if p.extension().is_some_and(|e| e == "py") {
+                    if let Ok(content) = std::fs::read_to_string(p) {
+                        all_files.push((p.to_path_buf(), content));
+                    }
+                }
+            }
+        }
+    }
+
+    // Run detection
+    let config = CloneConfig::default().with_min_similarity(similarity);
+    let detector = CloneDetector::with_config(config);
+    let result = detector.detect(&all_files);
+
+    // Generate findings
+    crate::commands::generate_clone_findings(&result.pairs, &all_files, true)
 }

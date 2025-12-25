@@ -416,9 +416,13 @@ impl CytoScnPy {
                     );
                 }
 
+                // Convert byte-based error to line-based for readability
+                let error_msg = format!("{e}");
+                let readable_error = convert_byte_range_to_line(&error_msg, &source);
+
                 parse_errors.push(ParseError {
                     file: file_path.to_path_buf(),
-                    error: format!("{e}"),
+                    error: readable_error,
                 });
             }
         }
@@ -1032,4 +1036,26 @@ fn collect_docstring_lines(
             _ => {}
         }
     }
+}
+
+/// Converts byte range references in error messages to line numbers.
+///
+/// Ruff parser errors include "at byte range X..Y" which is not user-friendly.
+/// This function replaces them with "at line N" for better readability.
+fn convert_byte_range_to_line(error_msg: &str, source: &str) -> String {
+    use regex::Regex;
+
+    // Match "at byte range X..Y" or "byte range X..Y"
+    let re = Regex::new(r"(?:at )?byte range (\d+)\.\.(\d+)").unwrap();
+
+    re.replace_all(error_msg, |caps: &regex::Captures| {
+        if let Ok(start_byte) = caps[1].parse::<usize>() {
+            // Count newlines up to start_byte to find line number
+            let line = source[..start_byte.min(source.len())].matches('\n').count() + 1;
+            format!("at line {line}")
+        } else {
+            caps[0].to_string()
+        }
+    })
+    .to_string()
 }

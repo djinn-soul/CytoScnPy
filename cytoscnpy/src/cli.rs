@@ -63,8 +63,9 @@ pub struct OutputOptions {
     pub verbose: bool,
 
     /// Quiet mode: show only summary, time, and gate results (no detailed tables).
-    #[arg(short, long)]
+    #[arg(long)]
     pub quiet: bool,
+
 
     /// Exit with code 1 if any quality issues are found.
     #[arg(long)]

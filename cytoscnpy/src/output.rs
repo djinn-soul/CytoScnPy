@@ -39,11 +39,18 @@ pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std:
 
 /// Create and return a spinner for analysis (used when file count is unknown).
 ///
+/// In test mode, returns a hidden progress bar to avoid polluting test output.
+///
 /// # Panics
 ///
 /// Panics if the progress style template is invalid (should never happen with hardcoded template).
 #[must_use]
 pub fn create_spinner() -> ProgressBar {
+    // In test mode, return a hidden progress bar to avoid polluting test output
+    if cfg!(test) {
+        return ProgressBar::hidden();
+    }
+
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         #[allow(clippy::expect_used)]
@@ -59,11 +66,18 @@ pub fn create_spinner() -> ProgressBar {
 
 /// Create a progress bar with file count (used when total files is known).
 ///
+/// In test mode, returns a hidden progress bar to avoid polluting test output.
+///
 /// # Panics
 ///
 /// Panics if the progress style template is invalid (should never happen with hardcoded template).
 #[must_use]
 pub fn create_progress_bar(total_files: u64) -> ProgressBar {
+    // In test mode, return a hidden progress bar to avoid polluting test output
+    if cfg!(test) {
+        return ProgressBar::hidden();
+    }
+
     let pb = ProgressBar::new(total_files);
     pb.set_style(
         #[allow(clippy::expect_used)]

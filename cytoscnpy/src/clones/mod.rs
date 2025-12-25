@@ -64,15 +64,21 @@ impl CloneDetector {
 
     /// Detect clones in the given source files
     ///
-    /// # Errors
-    /// Returns error if parsing fails for any file
-    pub fn detect(&self, files: &[(PathBuf, String)]) -> Result<CloneDetectionResult, CloneError> {
+    /// Parse errors are silently skipped (reported in main analysis).
+    #[must_use]
+    pub fn detect(&self, files: &[(PathBuf, String)]) -> CloneDetectionResult {
         let mut all_subtrees = Vec::new();
 
-        // Phase 1: Parse and extract subtrees
+        // Phase 1: Parse and extract subtrees (skip files with parse errors)
         for (path, source) in files {
-            let subtrees = parser::extract_subtrees(source, path)?;
-            all_subtrees.extend(subtrees);
+            match parser::extract_subtrees(source, path) {
+                Ok(subtrees) => all_subtrees.extend(subtrees),
+                Err(_e) => {
+                    // Skip unparseable files silently - they'll be reported in the main analysis
+                    // eprintln!("[WARN] Skipping {} for clone detection: {}", path.display(), e);
+                    continue;
+                }
+            }
         }
 
         // Phase 2: Create normalizers for both raw and renamed comparison
@@ -143,11 +149,11 @@ impl CloneDetector {
         let groups = self.group_clones(&pairs);
         let summary = CloneSummary::from_groups(&groups);
 
-        Ok(CloneDetectionResult {
+        CloneDetectionResult {
             pairs,
             groups,
             summary,
-        })
+        }
     }
 
     /// Group related clone pairs into clone groups

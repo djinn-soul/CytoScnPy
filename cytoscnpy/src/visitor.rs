@@ -102,6 +102,13 @@ pub struct Definition {
     pub file: Arc<PathBuf>,
     /// The line number where this definition starts.
     pub line: usize,
+    /// The line number where this definition ends.
+    pub end_line: usize,
+    /// The starting byte offset (0-indexed).
+    pub start_byte: usize,
+    /// The ending byte offset (exclusive).
+    pub end_byte: usize,
+
     /// A confidence score (0-100) indicating how certain we are that this is unused.
     /// Higher means more likely to be a valid finding.
     pub confidence: u8,
@@ -128,9 +135,12 @@ pub struct Definition {
     #[serde(default)]
     pub is_self_referential: bool,
     /// Human-readable message for this finding (generated based on `def_type`).
-    /// Human-readable message for this finding (generated based on `def_type`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Optional fix suggestion with byte ranges for surgical code removal.
+    /// Only populated when running with CST analysis enabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fix: Option<crate::analyzer::types::FixSuggestion>,
 }
 
 impl Definition {
@@ -250,9 +260,36 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
     }
 
+    /// Helper to extract range info (start_line, end_line, start_byte, end_byte) from a node.
+    fn get_range_info<T: Ranged>(&self, node: &T) -> (usize, usize, usize, usize) {
+        let range = node.range();
+        let start_byte = range.start().to_usize();
+        let end_byte = range.end().to_usize();
+        // line_index uses 1-based indexing for lines
+        let start_line = self.line_index.line_index(range.start());
+        let end_line = self.line_index.line_index(range.end());
+        (start_line, end_line, start_byte, end_byte)
+    }
+
     /// Helper to add a definition with default parameters.
-    fn add_def(&mut self, name: String, def_type: &str, line: usize) {
-        self.add_def_with_bases(name, def_type, line, SmallVec::new());
+    fn add_def(
+        &mut self,
+        name: String,
+        def_type: &str,
+        line: usize,
+        end_line: usize,
+        start_byte: usize,
+        end_byte: usize,
+    ) {
+        self.add_def_with_bases(
+            name,
+            def_type,
+            line,
+            end_line,
+            start_byte,
+            end_byte,
+            SmallVec::new(),
+        );
     }
 
     /// Pushes a new scope onto the stack and updates cached prefix.
@@ -381,6 +418,9 @@ impl<'a> CytoScnPyVisitor<'a> {
         name: String,
         def_type: &str,
         line: usize,
+        end_line: usize,
+        start_byte: usize,
+        end_byte: usize,
         base_classes: SmallVec<[String; 2]>,
     ) {
         let simple_name = name.split('.').next_back().unwrap_or(&name).to_owned();
@@ -422,6 +462,16 @@ impl<'a> CytoScnPyVisitor<'a> {
             _ => format!("'{simple_name}' is defined but never used"),
         };
 
+        // Try to create a fix suggestion if we have valid CST ranges
+        // This ensures the JS extension gets ranges even if CST module didn't run
+        let fix = if start_byte < end_byte {
+            Some(crate::analyzer::types::FixSuggestion::deletion(
+                start_byte, end_byte,
+            ))
+        } else {
+            None
+        };
+
         let definition = Definition {
             name: name.clone(),
             full_name: name,
@@ -429,6 +479,9 @@ impl<'a> CytoScnPyVisitor<'a> {
             def_type: def_type.to_owned(),
             file: Arc::clone(&self.file_path), // O(1) Arc clone instead of O(n) PathBuf clone
             line,
+            end_line,
+            start_byte,
+            end_byte,
             confidence: 100,
             references,
             is_exported: is_implicitly_used,
@@ -438,6 +491,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             cell_number: None,
             is_self_referential: false,
             message: Some(message),
+            fix,
         };
 
         self.definitions.push(definition);
@@ -560,7 +614,16 @@ impl<'a> CytoScnPyVisitor<'a> {
                 if let Some(returns) = &node.returns {
                     self.visit_expr(returns);
                 }
-                self.visit_function_def(&node.name, &node.parameters, &node.body, node.start());
+                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                self.visit_function_def(
+                    &node.name,
+                    &node.parameters,
+                    &node.body,
+                    line,
+                    end_line,
+                    start_byte,
+                    end_byte,
+                );
             }
             // Handle class definitions
             Stmt::ClassDef(node) => {
@@ -592,7 +655,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 let name = &node.name;
                 let qualified_name = self.get_qualified_name(name.as_str());
-                let line = self.line_index.line_index(node.start());
+                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
 
                 // Extract base class names to check for inheritance patterns later.
                 // In ruff, node.bases() returns an iterator over base class expressions
@@ -614,6 +677,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                     qualified_name.clone(),
                     "class",
                     line,
+                    end_line,
+                    start_byte,
+                    end_byte,
                     base_classes.clone(),
                 );
 
@@ -696,15 +762,26 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             // Handle imports
             Stmt::Import(node) => {
+                // Add each import to definitions
                 for alias in &node.names {
-                    let asname = alias.asname.as_ref().unwrap_or(&alias.name);
-                    let line = self.line_index.line_index(node.range.start());
-                    self.add_def(asname.to_string(), "import", line);
-                    self.add_local_def(asname.to_string(), asname.to_string());
+                    // imports often don't have AS names, so we check
+                    let simple_name = alias.asname.as_ref().unwrap_or(&alias.name);
+                    let (line, end_line, start_byte, end_byte) = self.get_range_info(alias);
+
+                    self.add_def(
+                        simple_name.to_string(),
+                        "import",
+                        line,
+                        end_line,
+                        start_byte,
+                        end_byte,
+                    );
+
+                    self.add_local_def(simple_name.to_string(), simple_name.to_string());
 
                     // Add alias mapping: asname -> name
                     self.alias_map
-                        .insert(asname.to_string(), alias.name.to_string());
+                        .insert(simple_name.to_string(), alias.name.to_string());
                 }
             }
             // Handle 'from ... import'
@@ -717,10 +794,18 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
 
-                let line = self.line_index.line_index(node.range.start());
                 for alias in &node.names {
                     let asname = alias.asname.as_ref().unwrap_or(&alias.name);
-                    self.add_def(asname.to_string(), "import", line);
+                    let (line, end_line, start_byte, end_byte) = self.get_range_info(alias);
+
+                    self.add_def(
+                        asname.to_string(),
+                        "import",
+                        line,
+                        end_line,
+                        start_byte,
+                        end_byte,
+                    );
                     self.add_local_def(asname.to_string(), asname.to_string());
 
                     // Add alias mapping: asname -> module.name (if module exists) or just name
@@ -757,9 +842,17 @@ impl<'a> CytoScnPyVisitor<'a> {
                         // Skip __all__ as it was already handled above
                         if name_node.id.as_str() != "__all__" {
                             let qualified_name = self.get_qualified_name(&name_node.id);
-                            let line = self.line_index.line_index(node.range.start());
+                            let (line, end_line, start_byte, end_byte) =
+                                self.get_range_info(name_node);
                             // Clone for add_def, move to add_local_def (last use)
-                            self.add_def(qualified_name.clone(), "variable", line);
+                            self.add_def(
+                                qualified_name.clone(),
+                                "variable",
+                                line,
+                                end_line,
+                                start_byte,
+                                end_byte,
+                            );
                             self.add_local_def(name_node.id.to_string(), qualified_name);
                         }
                     } else {
@@ -778,8 +871,15 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Track variable definition
                 if let Expr::Name(name_node) = &*node.target {
                     let qualified_name = self.get_qualified_name(&name_node.id);
-                    let line = self.line_index.line_index(node.range.start());
-                    self.add_def(qualified_name.clone(), "variable", line);
+                    let (line, end_line, start_byte, end_byte) = self.get_range_info(name_node);
+                    self.add_def(
+                        qualified_name.clone(),
+                        "variable",
+                        line,
+                        end_line,
+                        start_byte,
+                        end_byte,
+                    );
                     self.add_local_def(name_node.id.to_string(), qualified_name.clone());
 
                     // If inside a dataclass, mark as implicitly used (field)
@@ -967,10 +1067,12 @@ impl<'a> CytoScnPyVisitor<'a> {
         name: &str,
         args: &ast::Parameters,
         body: &[Stmt],
-        range_start: ruff_text_size::TextSize,
+        line: usize,
+        end_line: usize,
+        start_byte: usize,
+        end_byte: usize,
     ) {
         let qualified_name = self.get_qualified_name(name);
-        let line = self.line_index.line_index(range_start);
 
         // Determine if it's a function or a method based on class stack.
         let def_type = if self.class_stack.is_empty() {
@@ -979,7 +1081,14 @@ impl<'a> CytoScnPyVisitor<'a> {
             "method"
         };
 
-        self.add_def(qualified_name.clone(), def_type, line);
+        self.add_def(
+            qualified_name.clone(),
+            def_type,
+            line,
+            end_line,
+            start_byte,
+            end_byte,
+        );
 
         // Register the function in the current (parent) scope's local_var_map
         // This allows nested function calls like `used_inner()` to be resolved
@@ -1009,7 +1118,15 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             // Skip self and cls - they're implicit
             if param_name != "self" && param_name != "cls" {
-                self.add_def(param_qualified, "parameter", line);
+                let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
+                self.add_def(
+                    param_qualified,
+                    "parameter",
+                    p_line,
+                    p_end_line,
+                    p_start_byte,
+                    p_end_byte,
+                );
             }
         }
 
@@ -1026,7 +1143,15 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             // Skip self and cls
             if param_name != "self" && param_name != "cls" {
-                self.add_def(param_qualified, "parameter", line);
+                let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
+                self.add_def(
+                    param_qualified,
+                    "parameter",
+                    p_line,
+                    p_end_line,
+                    p_start_byte,
+                    p_end_byte,
+                );
             }
         }
 
@@ -1036,7 +1161,15 @@ impl<'a> CytoScnPyVisitor<'a> {
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name.clone(), param_qualified.clone());
-            self.add_def(param_qualified, "parameter", line);
+            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
+            self.add_def(
+                param_qualified,
+                "parameter",
+                p_line,
+                p_end_line,
+                p_start_byte,
+                p_end_byte,
+            );
         }
 
         // *args parameter (ruff uses .name instead of .arg)
@@ -1045,7 +1178,15 @@ impl<'a> CytoScnPyVisitor<'a> {
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
-            self.add_def(param_qualified, "parameter", line);
+            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(&**vararg);
+            self.add_def(
+                param_qualified,
+                "parameter",
+                p_line,
+                p_end_line,
+                p_start_byte,
+                p_end_byte,
+            );
         }
 
         // **kwargs parameter (ruff uses .name instead of .arg)
@@ -1054,7 +1195,15 @@ impl<'a> CytoScnPyVisitor<'a> {
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
-            self.add_def(param_qualified, "parameter", line);
+            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(&**kwarg);
+            self.add_def(
+                param_qualified,
+                "parameter",
+                p_line,
+                p_end_line,
+                p_start_byte,
+                p_end_byte,
+            );
         }
 
         // Store parameters for this function
@@ -1429,8 +1578,22 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
                 if let Some(rest) = &node.rest {
                     let qualified_name = self.get_qualified_name(rest);
-                    let line = self.line_index.line_index(node.range.start());
-                    self.add_def(qualified_name.clone(), "variable", line);
+                    // Assuming rest identifier has range, we use node range as approximation if not available
+                    // Actually rest is an Identifier which might not be Ranged directly in some AST versions,
+                    // but usually String/Identifier is just string.
+                    // Wait, `rest` is Identifier. In ruff_python_ast Identifier wraps string and range.
+                    // But looking at code `if let Some(rest) = &node.rest`, rest type is `Identifier`.
+                    // Does Identifier impl Ranged? Yes.
+                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                    // Using node range because rest match captures the rest
+                    self.add_def(
+                        qualified_name.clone(),
+                        "variable",
+                        line,
+                        end_line,
+                        start_byte,
+                        end_byte,
+                    );
                     // Add to local scope so it can be resolved when used
                     self.add_local_def(rest.to_string(), qualified_name);
                 }
@@ -1447,8 +1610,15 @@ impl<'a> CytoScnPyVisitor<'a> {
             ast::Pattern::MatchStar(node) => {
                 if let Some(name) = &node.name {
                     let qualified_name = self.get_qualified_name(name);
-                    let line = self.line_index.line_index(node.range.start());
-                    self.add_def(qualified_name.clone(), "variable", line);
+                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                    self.add_def(
+                        qualified_name.clone(),
+                        "variable",
+                        line,
+                        end_line,
+                        start_byte,
+                        end_byte,
+                    );
                     // Add to local scope so it can be resolved when used
                     self.add_local_def(name.to_string(), qualified_name);
                 }
@@ -1459,8 +1629,15 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
                 if let Some(name) = &node.name {
                     let qualified_name = self.get_qualified_name(name);
-                    let line = self.line_index.line_index(node.range.start());
-                    self.add_def(qualified_name.clone(), "variable", line);
+                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                    self.add_def(
+                        qualified_name.clone(),
+                        "variable",
+                        line,
+                        end_line,
+                        start_byte,
+                        end_byte,
+                    );
                     // Add to local scope so it can be resolved when used
                     self.add_local_def(name.to_string(), qualified_name);
                 }

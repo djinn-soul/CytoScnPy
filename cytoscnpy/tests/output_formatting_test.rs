@@ -21,6 +21,9 @@ fn create_mock_result() -> AnalysisResult {
             def_type: "function".to_owned(),
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
+            end_line: 10,
+            start_byte: 0,
+            end_byte: 0,
             confidence: 100,
             references: 0,
             is_exported: false,
@@ -30,6 +33,7 @@ fn create_mock_result() -> AnalysisResult {
             cell_number: None,
             is_self_referential: false,
             message: None,
+            fix: None,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -220,6 +224,9 @@ fn test_print_unused_items_with_items() {
         def_type: "function".to_owned(),
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
+        end_line: 5,
+        start_byte: 0,
+        end_byte: 0,
         confidence: 100,
         references: 0,
         is_exported: false,
@@ -229,6 +236,7 @@ fn test_print_unused_items_with_items() {
         cell_number: None,
         is_self_referential: false,
         message: None,
+        fix: None,
     }];
     let result = print_unused_items(&mut buffer, "Unused Functions", &items, "Function");
     assert!(result.is_ok());
@@ -246,6 +254,9 @@ fn test_print_unused_parameters() {
         def_type: "parameter".to_owned(),
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
+        end_line: 5,
+        start_byte: 0,
+        end_byte: 0,
         confidence: 100,
         references: 0,
         is_exported: false,
@@ -255,6 +266,7 @@ fn test_print_unused_parameters() {
         cell_number: None,
         is_self_referential: false,
         message: None,
+        fix: None,
     }];
     let result = print_unused_items(&mut buffer, "Unused Parameters", &items, "Parameter");
     assert!(result.is_ok());

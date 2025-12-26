@@ -961,7 +961,27 @@ pub fn generate_clone_findings(
         ));
     }
 
-    findings
+    // Deduplicate: keep only the highest-similarity finding per (file, line)
+    let mut best_by_location: std::collections::HashMap<
+        (String, usize),
+        crate::clones::CloneFinding,
+    > = std::collections::HashMap::new();
+
+    for finding in findings {
+        let key = (finding.file.display().to_string(), finding.line);
+        match best_by_location.entry(key) {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(finding);
+            }
+            std::collections::hash_map::Entry::Occupied(mut e) => {
+                if finding.similarity > e.get().similarity {
+                    e.insert(finding);
+                }
+            }
+        }
+    }
+
+    best_by_location.into_values().collect()
 }
 
 /// Helper to apply clone fixes.

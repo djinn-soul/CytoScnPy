@@ -276,19 +276,30 @@ impl CloneFinding {
             CloneType::Type3 => "near-miss",
         };
 
+        // Get file basename for cleaner display
+        let other_file_name = other
+            .file
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file");
+        let other_name = other.name.as_deref().unwrap_or(other_file_name);
+        let location_ref = format!("{}:{}", other_file_name, other.start_line);
+
         let message = if is_duplicate {
             format!(
-                "Duplicate code ({} clone, {:.0}% similar) - consider removing in favor of {}",
+                "Duplicate of {} at {} ({} clone, {:.0}% similar)",
+                other_name,
+                location_ref,
                 clone_type_str,
-                pair.similarity * 100.0,
-                other.name.as_deref().unwrap_or("canonical version")
+                pair.similarity * 100.0
             )
         } else {
             format!(
-                "Clone detected ({} clone, {:.0}% similar to {})",
+                "Similar to {} at {} ({} clone, {:.0}% match)",
+                other_name,
+                location_ref,
                 clone_type_str,
-                pair.similarity * 100.0,
-                other.name.as_deref().unwrap_or("another function")
+                pair.similarity * 100.0
             )
         };
 

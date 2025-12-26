@@ -30,7 +30,7 @@ impl Comment {
 
         // Check if only whitespace between comment end and target position
         let between = &source[self.end_byte..byte_pos];
-        between.chars().all(|c| c.is_whitespace())
+        between.chars().all(char::is_whitespace)
     }
 }
 

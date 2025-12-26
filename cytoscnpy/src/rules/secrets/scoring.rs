@@ -143,6 +143,7 @@ impl ContextScorer {
     }
 
     /// Checks if the file is a test file.
+    #[allow(clippy::unused_self)]
     fn is_test_file(&self, path: &Path) -> bool {
         let path_str = path.to_string_lossy().to_lowercase();
 
@@ -171,6 +172,7 @@ impl ContextScorer {
     }
 
     /// Checks if the line contains an environment variable access pattern.
+    #[allow(clippy::unused_self)]
     fn is_env_var_access(&self, line: &str) -> bool {
         let lower = line.to_lowercase();
         lower.contains("os.environ")
@@ -197,6 +199,7 @@ impl ContextScorer {
     }
 
     /// Checks if the value looks like a placeholder.
+    #[allow(clippy::unused_self)]
     fn is_placeholder(&self, line: &str) -> bool {
         let lower = line.to_lowercase();
         // Common placeholder patterns

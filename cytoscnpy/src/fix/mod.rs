@@ -6,7 +6,7 @@
 //! - Dead code removal (remove unused functions/classes)
 //! - Future: import cleanup, formatting fixes, etc.
 //!
-//! The core component is [`ByteRangeRewriter`], which applies
+//! The core component is `ByteRangeRewriter`, which applies
 //! edits using byte offsets to safely modify source code.
 
 mod rewriter;

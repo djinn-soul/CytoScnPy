@@ -239,6 +239,7 @@ impl ConfidenceScorer {
         }
 
         // Clamp to 0-100
+        #[allow(clippy::cast_sign_loss)]
         let final_score = score.clamp(0, 100) as u8;
 
         let decision = if final_score >= self.auto_fix_threshold {

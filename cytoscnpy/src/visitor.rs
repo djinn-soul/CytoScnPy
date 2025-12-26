@@ -592,6 +592,25 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Visits a statement node in the AST.
+    ///
+    /// This is the core statement visitor that handles all Python statement types.
+    /// It is intentionally monolithic due to Rust's borrow checker constraints -
+    /// extracting helper methods would require complex lifetime annotations or
+    /// splitting the visitor state.
+    ///
+    /// # Structure
+    ///
+    /// The function handles these statement types in order:
+    /// - **`FunctionDef`** (line ~606): Delegates to `visit_function_def` helper
+    /// - **`ClassDef`** (line ~629): Class definitions with decorators, bases, metaclasses
+    /// - **Import/ImportFrom** (line ~764): Module imports and alias tracking
+    /// - **Assign/AugAssign/AnnAssign** (line ~823): Variable definitions
+    /// - **Control flow** (line ~908): If/For/While/With/Try/Match statements
+    /// - **Return/Assert/Raise/Delete** (line ~1008): Other statements
+    ///
+    /// # Recursion Safety
+    ///
+    /// Uses `MAX_RECURSION_DEPTH` guard to prevent stack overflow on deeply nested code.
     #[allow(clippy::too_many_lines)]
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
         // Recursion depth guard to prevent stack overflow on deeply nested code
@@ -1226,6 +1245,23 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Visits an expression node in the AST.
+    ///
+    /// This function tracks name references and attribute accesses to determine
+    /// which symbols are actually used in the code.
+    ///
+    /// # Structure
+    ///
+    /// The function handles these expression types:
+    /// - **Name** (line ~1259): Variable/name references with scope resolution
+    /// - **Attribute** (line ~1300+): Attribute access (obj.attr)
+    /// - **Call** (line ~1350+): Function/method calls with argument tracking
+    /// - **Subscript** (line ~1400+): Index operations (`obj[key]`)
+    /// - **Lambda/Comprehensions** (line ~1450+): Nested scopes
+    /// - **Literals/Operators** (various): `BinOp`, `Compare`, `BoolOp`, etc.
+    ///
+    /// # Recursion Safety
+    ///
+    /// Uses `MAX_RECURSION_DEPTH` guard shared with `visit_stmt`.
     #[allow(clippy::too_many_lines)]
     pub fn visit_expr(&mut self, expr: &Expr) {
         // Recursion depth guard to prevent stack overflow on deeply nested code

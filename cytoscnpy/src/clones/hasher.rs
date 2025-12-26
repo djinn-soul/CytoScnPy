@@ -4,7 +4,7 @@
 //! without comparing every pair (O(n²) → O(n)).
 
 use crate::clones::normalizer::NormalizedTree;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::hash::{Hash, Hasher};
 
 /// LSH hasher for finding similar code blocks
@@ -55,7 +55,7 @@ impl LshHasher {
         }
 
         // Collect pairs that share any bucket
-        let mut candidates: FxHashMap<(usize, usize), ()> = FxHashMap::default();
+        let mut candidates: FxHashSet<(usize, usize)> = FxHashSet::default();
         for indices in buckets.values() {
             if indices.len() > 1 {
                 for i in 0..indices.len() {
@@ -65,16 +65,17 @@ impl LshHasher {
                         } else {
                             (indices[j], indices[i])
                         };
-                        candidates.insert(pair, ());
+                        candidates.insert(pair);
                     }
                 }
             }
         }
 
-        candidates.into_keys().collect()
+        candidates.into_iter().collect()
     }
 
     /// Generate shingles (n-grams) from the tree structure
+    #[allow(clippy::unused_self)]
     fn generate_shingles(&self, tree: &NormalizedTree) -> Vec<u64> {
         let kinds = tree.kind_sequence();
         if kinds.len() < 3 {
@@ -119,8 +120,8 @@ impl LshHasher {
         let end = (start + self.rows_per_band).min(signature.len());
 
         let mut hasher = rustc_hash::FxHasher::default();
-        for i in start..end {
-            signature[i].hash(&mut hasher);
+        for slot in &signature[start..end] {
+            slot.hash(&mut hasher);
         }
         hasher.finish()
     }

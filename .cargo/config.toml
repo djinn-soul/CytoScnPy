@@ -38,6 +38,11 @@ CARGO_TERM_COLOR = "always"
 # Use faster linker on Windows (requires rust-lld)
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
+rustflags = [
+    "-C", "link-arg=/OPT:REF", # Remove unreferenced functions and data
+    "-C", "link-arg=/OPT:ICF", # Identical COMDAT folding
+    "-C", "link-dead-code=no", # Aggressive dead code elimination
+]
 
 # Use faster linker on Linux (mold is fastest, lld is fallback)
 # Install: sudo apt install mold  OR  sudo apt install lld
@@ -64,8 +69,3 @@ codegen-units = 256
 incremental = true
 debug = 1
 
-# Optimized release builds (smallest binary, best performance)
-[profile.release]
-lto = "fat"          # Full link-time optimization
-codegen-units = 1    # Single unit for maximum optimization
-strip = true         # Strip symbols for smaller binary

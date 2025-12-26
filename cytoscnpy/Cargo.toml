@@ -20,18 +20,38 @@ path = "src/main.rs"
 tempfile = "3.10"
 
 [dependencies]
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.5", default-features = false, features = [
+    "derive",
+    "std",
+    "help",
+    "usage",
+    "error-context",
+    "suggestions",
+] }
 # ruff v0.14.9 (2025-12-11) - latest stable release
 ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", rev = "3f63ea4b504d50eaf3c479de68e4017d2434a160" }
 ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", rev = "3f63ea4b504d50eaf3c479de68e4017d2434a160" }
 ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "3f63ea4b504d50eaf3c479de68e4017d2434a160" }
 walkdir = "2.5"
 rayon = "1.10"
-serde = { version = "1.0", features = ["derive"] }
-toml = "0.9"
-serde_json = "1.0"
+serde = { version = "1.0", default-features = false, features = [
+    "derive",
+    "std",
+] }
+toml = { version = "0.9", default-features = false, features = [
+    "parse",
+    "display",
+    "serde",
+] }
+serde_json = { version = "1.0", features = [
+    "std",
+] } # Restoring default briefly to ensure it works, then trim
 nbformat = "0.15"
-regex = "1.10"
+regex = { version = "1.10", default-features = false, features = [
+    "std",
+    "unicode-perl",
+    "perf",
+] }
 anyhow = "1.0"
 colored = "3.0"
 indicatif = "0.18.3"
@@ -48,7 +68,10 @@ dhat = { version = "0.3", optional = true }
 tree-sitter = { version = "0.26", optional = true }
 tree-sitter-python = { version = "0.25", optional = true }
 askama = { version = "0.14.0", optional = true }
-chrono = { version = "0.4.42", optional = true }
+chrono = { version = "0.4.42", default-features = false, features = [
+    "std",
+    "clock",
+], optional = true }
 open = { version = "5.3.3", optional = true }
 
 [features]

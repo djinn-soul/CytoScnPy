@@ -523,6 +523,35 @@ The following tools are recommended but not yet fully integrated:
 
 ---
 
+## 📦 Binary Size Optimization
+
+CytoScnPy prioritizes a small binary size for easy distribution. When contributing, please adhere to these optimization strategies:
+
+### 1. "Ruthless" Compiler Settings
+
+We use aggressive optimization in `[profile.release]` (`Cargo.toml`):
+
+- `opt-level = "z"`: Optimize for size.
+- `lto = "fat"`: Maximum link-time optimization across all crates.
+- `panic = "abort"`: Removes stack unwinding code.
+- `codegen-units = 1`: Single compilation unit for better optimization context.
+- `strip = true`: Removes debug symbols.
+
+### 2. Linker Flags
+
+Windows builds use strict linker flags in `.cargo/config.toml`:
+
+- `/OPT:REF`: Removes unreferenced functions/data.
+- `/OPT:ICF`: Merges identical functions (Identical COMDAT Folding).
+- `link-dead-code=no`: Prevents the linker from keeping dead code.
+
+### 3. Dependency Management
+
+- **Trim Features**: Always disable `default-features` for large dependencies (e.g., `clap`, `serde`, `tokio`). Enable only what is strictly needed.
+- **No UPX**: We explicitly **do not** use UPX compression because it triggers antivirus false positives and slows down startup. We rely on pure compiler/linker optimizations.
+
+---
+
 ## 📝 Coding Guidelines
 
 - **Formatting:** Always run `cargo fmt` before committing.

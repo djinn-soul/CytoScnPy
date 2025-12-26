@@ -51,9 +51,11 @@ struct_excessive_bools = "allow"
 cast_precision_loss = "allow"
 return_self_not_must_use = "allow"
 
-# Release profile optimizations for better performance
+# Release profile optimizations for size and performance balance
 [profile.release]
-lto = "thin"      # Link-time optimization
-codegen-units = 1 # Better optimization, slower compile
-opt-level = 3     # Maximum optimization
-strip = true      # Strip debug symbols
+opt-level = "z"     # Ruthless size optimization
+lto = "fat"         # Max cross-crate optimization
+codegen-units = 1   # Single unit for better optimization
+panic = "abort"     # Remove unwinding code
+strip = true        # Strip debug symbols
+incremental = false # Full optimization context

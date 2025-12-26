@@ -394,13 +394,13 @@ def another_used():
 
     #[test]
     fn test_python_import_deletion() {
-        let source = r#"import os
+        let source = r"import os
 import sys
 from typing import List
 
 def main():
     print(sys.version)
-"#;
+";
         // Delete "import os\n" (bytes 0-10)
         let mut rewriter = ByteRangeRewriter::new(source);
         let end = source.find("import sys").unwrap();
@@ -413,7 +413,7 @@ def main():
 
     #[test]
     fn test_multiple_deletions_same_file() {
-        let source = r#"import os
+        let source = r"import os
 import sys
 import json
 
@@ -425,7 +425,7 @@ def func_b():
 
 def func_c():
     pass
-"#;
+";
         // Delete import os and func_b
         let mut rewriter = ByteRangeRewriter::new(source);
 

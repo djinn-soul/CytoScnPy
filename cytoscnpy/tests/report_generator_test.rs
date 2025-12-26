@@ -77,8 +77,8 @@ fn test_generate_report_full() {
             total_size: 1.0,
             functions_count: 1,
             classes_count: 0,
-            raw_metrics: Default::default(),
-            halstead_metrics: Default::default(),
+            raw_metrics: cytoscnpy::raw_metrics::RawMetrics::default(),
+            halstead_metrics: cytoscnpy::halstead::HalsteadMetrics::default(),
         },
     };
 
@@ -144,8 +144,8 @@ fn test_calculate_score_logic() {
             total_size: 0.0,
             functions_count: 0,
             classes_count: 0,
-            raw_metrics: Default::default(),
-            halstead_metrics: Default::default(),
+            raw_metrics: cytoscnpy::raw_metrics::RawMetrics::default(),
+            halstead_metrics: cytoscnpy::halstead::HalsteadMetrics::default(),
         },
     };
 

@@ -44,6 +44,7 @@ impl TreeSimilarity {
 
     /// Calculate similarity score (0.0 - 1.0)
     #[must_use]
+    #[allow(clippy::cast_precision_loss)] // Intentional: tree sizes won't exceed f64 precision
     pub fn similarity(&self, tree_a: &NormalizedTree, tree_b: &NormalizedTree) -> f64 {
         let distance = self.edit_distance(tree_a, tree_b);
         let max_size = tree_a.size().max(tree_b.size());
@@ -111,11 +112,11 @@ impl TreeSimilarity {
         let mut dp = vec![vec![0usize; n + 1]; m + 1];
 
         // Base cases
-        for i in 0..=m {
-            dp[i][0] = i * self.delete_cost;
+        for (i, row) in dp.iter_mut().enumerate() {
+            row[0] = i * self.delete_cost;
         }
-        for j in 0..=n {
-            dp[0][j] = j * self.insert_cost;
+        for (j, cell) in dp[0].iter_mut().enumerate() {
+            *cell = j * self.insert_cost;
         }
 
         // Fill DP table
@@ -152,7 +153,7 @@ mod tests {
 
     fn node(kind: &str, label: Option<&str>) -> NormalizedNode {
         NormalizedNode {
-            kind: kind.to_string(),
+            kind: kind.to_owned(),
             label: label.map(String::from),
             children: vec![],
         }

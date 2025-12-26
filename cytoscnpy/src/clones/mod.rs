@@ -22,7 +22,7 @@ mod types;
 pub use confidence::{ConfidenceScorer, FixConfidence, FixContext, FixDecision};
 pub use config::CloneConfig;
 pub use normalizer::Normalizer;
-pub use parser::AstParser;
+pub use parser::{extract_subtrees, Subtree, SubtreeNode, SubtreeType};
 pub use similarity::TreeSimilarity;
 pub use types::{
     CloneFinding, CloneGroup, CloneInstance, ClonePair, CloneRelation, CloneSummary, CloneType,
@@ -76,7 +76,6 @@ impl CloneDetector {
                 Err(_e) => {
                     // Skip unparseable files silently - they'll be reported in the main analysis
                     // eprintln!("[WARN] Skipping {} for clone detection: {}", path.display(), e);
-                    continue;
                 }
             }
         }
@@ -168,12 +167,13 @@ impl CloneDetector {
     /// Filters out pairs where the control flow structure differs significantly.
     /// Only applies to function-level clones (functions have meaningful CFG).
     #[cfg(feature = "cfg")]
+    #[allow(clippy::unused_self)]
     fn validate_with_cfg(
         &self,
         pairs: Vec<ClonePair>,
         subtrees: &[parser::Subtree],
     ) -> Vec<ClonePair> {
-        use crate::cfg::CFG;
+        use crate::cfg::Cfg;
         use parser::SubtreeType;
 
         // Build a map from (file, start_byte) to subtree index for lookup
@@ -217,8 +217,8 @@ impl CloneDetector {
                 let name_a = subtree_a.name.as_deref().unwrap_or("func");
                 let name_b = subtree_b.name.as_deref().unwrap_or("func");
 
-                let cfg_a = CFG::from_source(&subtree_a.source_slice, name_a);
-                let cfg_b = CFG::from_source(&subtree_b.source_slice, name_b);
+                let cfg_a = Cfg::from_source(&subtree_a.source_slice, name_a);
+                let cfg_b = Cfg::from_source(&subtree_b.source_slice, name_b);
 
                 match (cfg_a, cfg_b) {
                     (Some(a), Some(b)) => {

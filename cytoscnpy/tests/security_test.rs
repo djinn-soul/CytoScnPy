@@ -5,9 +5,6 @@
     clippy::needless_raw_string_hashes,
     clippy::field_reassign_with_default
 )]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::needless_raw_string_hashes)]
-#![allow(clippy::field_reassign_with_default)]
 
 use cytoscnpy::config::Config;
 use cytoscnpy::linter::LinterVisitor;

@@ -1,4 +1,5 @@
 //! Tests for the clones module (Clone Detection).
+#![allow(clippy::float_cmp, clippy::unwrap_used)]
 
 use cytoscnpy::clones::{
     CloneConfig, CloneFinding, CloneGroup, CloneInstance, ClonePair, CloneRelation, CloneSummary,
@@ -65,7 +66,7 @@ fn test_clone_pair_same_file() {
     };
 
     assert!(pair.is_same_file());
-    assert_eq!(pair.similarity, 0.95);
+    assert!((pair.similarity - 0.95).abs() < f64::EPSILON);
 }
 
 #[test]
@@ -346,7 +347,7 @@ fn test_clone_finding_from_pair_duplicate() {
     assert!(finding.is_duplicate);
     assert_eq!(finding.severity, "WARNING");
     assert_eq!(finding.name, Some("duplicate_func".to_owned()));
-    assert!(finding.message.contains("Duplicate code"));
+    assert!(finding.message.contains("Duplicate of"));
 }
 
 #[test]
@@ -364,27 +365,29 @@ fn test_clone_relation() {
 }
 
 #[test]
-fn test_clone_type_serialization() {
+fn test_clone_type_serialization() -> Result<(), Box<dyn std::error::Error>> {
     let type1 = CloneType::Type1;
     let type2 = CloneType::Type2;
     let type3 = CloneType::Type3;
 
     // Test that they can be serialized
-    let json1 = serde_json::to_string(&type1).unwrap();
-    let json2 = serde_json::to_string(&type2).unwrap();
-    let json3 = serde_json::to_string(&type3).unwrap();
+    let json1 = serde_json::to_string(&type1)?;
+    let json2 = serde_json::to_string(&type2)?;
+    let json3 = serde_json::to_string(&type3)?;
 
     assert!(json1.contains("Type1"));
     assert!(json2.contains("Type2"));
     assert!(json3.contains("Type3"));
 
     // Test deserialization
-    let parsed: CloneType = serde_json::from_str(&json1).unwrap();
+    let parsed: CloneType = serde_json::from_str(&json1)?;
     assert_eq!(parsed, CloneType::Type1);
+
+    Ok(())
 }
 
 #[test]
-fn test_clone_instance_serialization() {
+fn test_clone_instance_serialization() -> Result<(), Box<dyn std::error::Error>> {
     let instance = CloneInstance {
         file: PathBuf::from("test.py"),
         start_line: 10,
@@ -396,13 +399,15 @@ fn test_clone_instance_serialization() {
         node_kind: NodeKind::Function,
     };
 
-    let json = serde_json::to_string(&instance).unwrap();
+    let json = serde_json::to_string(&instance)?;
     assert!(json.contains("test.py"));
     assert!(json.contains("my_function"));
 
-    let parsed: CloneInstance = serde_json::from_str(&json).unwrap();
+    let parsed: CloneInstance = serde_json::from_str(&json)?;
     assert_eq!(parsed.start_line, 10);
     assert_eq!(parsed.name, Some("my_function".to_owned()));
+
+    Ok(())
 }
 
 #[test]

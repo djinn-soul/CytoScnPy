@@ -27,7 +27,7 @@ fn main() -> ExitCode {
     // Delegate all other commands to shared entry_point function
     // Note: We avoid std::process::exit() to allow LLVM profile data flush for PGO builds
     match entry_point::run_with_args(std::env::args().skip(1).collect()) {
-        Ok(code) => ExitCode::from(code as u8),
+        Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
         Err(e) => {
             eprintln!("Error: {e}");
             ExitCode::FAILURE

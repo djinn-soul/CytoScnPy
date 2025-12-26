@@ -45,7 +45,7 @@ pub struct RawFinding {
 /// Recognizers can scan text content and/or AST nodes to detect secrets.
 pub trait SecretRecognizer: Send + Sync {
     /// Name of the recognizer for logging/debugging.
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
 
     /// Base confidence score (0-100) for findings from this recognizer.
     fn base_score(&self) -> u8;
@@ -74,7 +74,7 @@ pub trait SecretRecognizer: Send + Sync {
 pub struct RegexRecognizer;
 
 impl SecretRecognizer for RegexRecognizer {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "RegexRecognizer"
     }
 
@@ -220,7 +220,7 @@ impl EntropyRecognizer {
 }
 
 impl SecretRecognizer for EntropyRecognizer {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "EntropyRecognizer"
     }
 
@@ -391,7 +391,7 @@ impl AstRecognizer {
             || lower.starts_with("changeme")
             || lower.starts_with("replace_")
             || lower.starts_with("example")
-            || lower.starts_with("<")
+            || lower.starts_with('<')
             || lower.contains("${")
             || lower.contains("{{")
             || lower == "none"
@@ -413,9 +413,8 @@ impl AstRecognizer {
         }
 
         // Skip if value is not a string literal
-        let string_value = match Self::extract_string_value(value) {
-            Some(v) => v,
-            None => return,
+        let Some(string_value) = Self::extract_string_value(value) else {
+            return;
         };
 
         // Skip placeholders
@@ -517,7 +516,7 @@ impl AstRecognizer {
 }
 
 impl SecretRecognizer for AstRecognizer {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "AstRecognizer"
     }
 
@@ -548,7 +547,7 @@ impl SecretRecognizer for AstRecognizer {
 
 /// User-defined custom pattern recognizer.
 pub struct CustomRecognizer {
-    /// List of (name, regex, rule_id, severity, score) patterns.
+    /// List of `(name, regex, rule_id, severity, score)` patterns.
     patterns: Vec<(String, Regex, String, String, u8)>,
 }
 
@@ -573,7 +572,7 @@ impl CustomRecognizer {
 }
 
 impl SecretRecognizer for CustomRecognizer {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "CustomRecognizer"
     }
 

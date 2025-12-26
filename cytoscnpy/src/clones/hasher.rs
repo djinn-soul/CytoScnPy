@@ -157,7 +157,7 @@ mod tests {
             nodes: kinds
                 .iter()
                 .map(|k| NormalizedNode {
-                    kind: (*k).to_string(),
+                    kind: (*k).to_owned(),
                     label: None,
                     children: vec![],
                 })

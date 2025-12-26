@@ -62,7 +62,7 @@ impl AstCstMapper {
         (start, end)
     }
 
-    /// Find all decorated_definition nodes
+    /// Find all `decorated_definition` nodes
     fn find_decorated_definitions(&self) -> Vec<&CstNode> {
         self.tree.root.find_by_kind("decorated_definition")
     }
@@ -129,31 +129,20 @@ impl AstCstMapper {
 
     /// Calculate nesting depth of a node
     fn calculate_nesting_depth(&self, target: &CstNode) -> usize {
-        self.calculate_depth_recursive(&self.tree.root, target, 0)
+        Self::calculate_depth_recursive(&self.tree.root, target, 0)
     }
 
-    fn calculate_depth_recursive(
-        &self,
-        current: &CstNode,
-        target: &CstNode,
-        depth: usize,
-    ) -> usize {
+    fn calculate_depth_recursive(current: &CstNode, target: &CstNode, depth: usize) -> usize {
         if std::ptr::eq(current, target) {
             return depth;
         }
 
-        let increment = if current.kind == "function_definition"
-            || current.kind == "class_definition"
-            || current.kind == "decorated_definition"
-        {
-            1
-        } else {
-            0
-        };
+        let increment = usize::from(current.kind == "function_definition"
+            || current.kind == "class_definition" || current.kind == "decorated_definition");
 
         for child in &current.children {
             if child.start_byte <= target.start_byte && child.end_byte >= target.end_byte {
-                let result = self.calculate_depth_recursive(child, target, depth + increment);
+                let result = Self::calculate_depth_recursive(child, target, depth + increment);
                 if result > 0 {
                     return result;
                 }
@@ -189,11 +178,11 @@ mod tests {
 
     #[test]
     fn test_expand_for_decorators() {
-        let source = r#"@decorator
+        let source = r"@decorator
 @another
 def foo():
     pass
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
         let mapper = AstCstMapper::new(tree);
@@ -210,11 +199,11 @@ def foo():
 
     #[test]
     fn test_precise_range_includes_preceding_comments() {
-        let source = r#"# This describes foo
+        let source = r"# This describes foo
 @decorator
 def foo():
     pass
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
         let mapper = AstCstMapper::new(tree);
@@ -230,11 +219,11 @@ def foo():
 
     #[test]
     fn test_interleaved_comments_detection() {
-        let source = r#"def foo():
+        let source = r"def foo():
     x = 1
     # This is interleaved
     return x
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
         let mapper = AstCstMapper::new(tree);
@@ -245,9 +234,9 @@ def foo():
 
     #[test]
     fn test_no_interleaved_comments_for_simple_function() {
-        let source = r#"def simple():
+        let source = r"def simple():
     return 42
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
         let mapper = AstCstMapper::new(tree);

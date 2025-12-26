@@ -1,4 +1,4 @@
-//! Tests for taint/analyzer.rs - TaintAnalyzer, PluginRegistry, and plugins.
+//! Tests for taint/analyzer.rs - `TaintAnalyzer`, `PluginRegistry`, and plugins.
 #![allow(clippy::unwrap_used)]
 
 use cytoscnpy::taint::analyzer::{
@@ -49,6 +49,27 @@ fn test_plugin_registry_new() {
     assert!(registry.sanitizers.is_empty());
 }
 
+// Mock structs for testing
+struct MockSink;
+impl TaintSinkPlugin for MockSink {
+    fn name(&self) -> &'static str {
+        "MockSink"
+    }
+    fn check_sink(&self, _call: &ruff_python_ast::ExprCall) -> Option<SinkMatch> {
+        None
+    }
+}
+
+struct MockSanitizer;
+impl SanitizerPlugin for MockSanitizer {
+    fn name(&self) -> &'static str {
+        "MockSanitizer"
+    }
+    fn is_sanitizer(&self, _call: &ruff_python_ast::ExprCall) -> bool {
+        false
+    }
+}
+
 #[test]
 fn test_plugin_registry_register_source() {
     let mut registry = PluginRegistry::new();
@@ -59,16 +80,6 @@ fn test_plugin_registry_register_source() {
 #[test]
 fn test_plugin_registry_register_sink() {
     let mut registry = PluginRegistry::new();
-    // Create a mock sink plugin
-    struct MockSink;
-    impl TaintSinkPlugin for MockSink {
-        fn name(&self) -> &str {
-            "MockSink"
-        }
-        fn check_sink(&self, _call: &ruff_python_ast::ExprCall) -> Option<SinkMatch> {
-            None
-        }
-    }
     registry.register_sink(MockSink);
     assert_eq!(registry.sinks.len(), 1);
 }
@@ -76,15 +87,6 @@ fn test_plugin_registry_register_sink() {
 #[test]
 fn test_plugin_registry_register_sanitizer() {
     let mut registry = PluginRegistry::new();
-    struct MockSanitizer;
-    impl SanitizerPlugin for MockSanitizer {
-        fn name(&self) -> &str {
-            "MockSanitizer"
-        }
-        fn is_sanitizer(&self, _call: &ruff_python_ast::ExprCall) -> bool {
-            false
-        }
-    }
     registry.register_sanitizer(MockSanitizer);
     assert_eq!(registry.sanitizers.len(), 1);
 }
@@ -187,10 +189,10 @@ fn test_taint_analyzer_analyze_file_safe() {
 #[test]
 fn test_taint_analyzer_analyze_file_with_input() {
     let analyzer = TaintAnalyzer::new(TaintConfig::intraprocedural_only());
-    let source = r#"
+    let source = r"
 user_input = input()
 eval(user_input)
-"#;
+";
     let findings = analyzer.analyze_file(source, &PathBuf::from("test.py"));
     // Should find input -> eval vulnerability
     assert!(!findings.is_empty() || findings.is_empty()); // May or may not find depending on module-level analysis
@@ -199,11 +201,11 @@ eval(user_input)
 #[test]
 fn test_taint_analyzer_analyze_file_function() {
     let analyzer = TaintAnalyzer::new(TaintConfig::intraprocedural_only());
-    let source = r#"
+    let source = r"
 def vulnerable():
     user = input()
     eval(user)
-"#;
+";
     let findings = analyzer.analyze_file(source, &PathBuf::from("test.py"));
     // Should find input -> eval vulnerability in function
     drop(findings); // Analysis runs without crash
@@ -212,11 +214,11 @@ def vulnerable():
 #[test]
 fn test_taint_analyzer_analyze_file_async_function() {
     let analyzer = TaintAnalyzer::new(TaintConfig::intraprocedural_only());
-    let source = r#"
+    let source = r"
 async def vulnerable():
     user = input()
     eval(user)
-"#;
+";
     let findings = analyzer.analyze_file(source, &PathBuf::from("test.py"));
     drop(findings); // Analysis runs without crash
 }

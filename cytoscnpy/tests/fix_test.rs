@@ -1,4 +1,5 @@
-//! Tests for the fix module (ByteRangeRewriter).
+//! Tests for the fix module (`ByteRangeRewriter`).
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use cytoscnpy::fix::{ByteRangeRewriter, Edit, EditBuilder, RewriteError};
 
@@ -99,13 +100,13 @@ def another_used():
 
 #[test]
 fn test_python_import_deletion() {
-    let source = r#"import os
+    let source = r"import os
 import sys
 from typing import List
 
 def main():
     print(sys.version)
-"#;
+";
     let mut rewriter = ByteRangeRewriter::new(source);
     let end = source.find("import sys").unwrap();
     rewriter.add_edit(Edit::delete(0, end));
@@ -117,7 +118,7 @@ def main():
 
 #[test]
 fn test_multiple_deletions_same_file() {
-    let source = r#"import os
+    let source = r"import os
 import sys
 import json
 
@@ -129,7 +130,7 @@ def func_b():
 
 def func_c():
     pass
-"#;
+";
     let mut rewriter = ByteRangeRewriter::new(source);
 
     let os_end = source.find("import sys").unwrap();

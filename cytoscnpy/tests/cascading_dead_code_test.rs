@@ -193,10 +193,10 @@ print(result)
     );
 }
 
-/// Test analyze_code (single file) also performs cascading detection.
+/// Test `analyze_code` (single file) also performs cascading detection.
 #[test]
 fn test_analyze_code_cascading_dead_code() {
-    let code = r#"
+    let code = r"
 class DeadClass:
     def dead_method_1(self):
         return 1
@@ -205,7 +205,7 @@ class DeadClass:
         return 2
 
 # DeadClass is never used
-"#;
+";
 
     let analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = analyzer.analyze_code(code, std::path::Path::new("test.py"));

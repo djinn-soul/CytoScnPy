@@ -260,7 +260,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
     }
 
-    /// Helper to extract range info (start_line, end_line, start_byte, end_byte) from a node.
+    /// Helper to extract range info (`start_line`, `end_line`, `start_byte`, `end_byte`) from a node.
     fn get_range_info<T: Ranged>(&self, node: &T) -> (usize, usize, usize, usize) {
         let range = node.range();
         let start_byte = range.start().to_usize();

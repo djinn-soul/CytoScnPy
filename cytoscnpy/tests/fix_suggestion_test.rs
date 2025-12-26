@@ -1,9 +1,8 @@
-//! Tests for FixSuggestion struct and related functionality.
+//! Tests for `FixSuggestion` struct and related functionality.
 //! TDD: These tests are written BEFORE the implementation.
 
-use serde_json;
 
-/// Test that FixSuggestion struct serializes correctly to JSON.
+/// Test that `FixSuggestion` struct serializes correctly to JSON.
 #[test]
 fn test_fix_suggestion_serialization() {
     // This test will fail until we implement FixSuggestion
@@ -21,7 +20,7 @@ fn test_fix_suggestion_serialization() {
     assert!(json.contains("\"replacement\":\"\""));
 }
 
-/// Test that FixSuggestion for deletion has empty replacement.
+/// Test that `FixSuggestion` for deletion has empty replacement.
 #[test]
 fn test_fix_suggestion_deletion() {
     use cytoscnpy::analyzer::types::FixSuggestion;
@@ -33,7 +32,7 @@ fn test_fix_suggestion_deletion() {
     assert!(fix.replacement.is_empty());
 }
 
-/// Test that Definition can optionally carry a FixSuggestion.
+/// Test that `Definition` can optionally carry a `FixSuggestion`.
 #[test]
 fn test_definition_with_fix() {
     use cytoscnpy::analyzer::types::FixSuggestion;
@@ -43,10 +42,10 @@ fn test_definition_with_fix() {
 
     // Definitions should be able to carry fix suggestions
     let def = Definition {
-        name: "unused_func".to_string(),
-        full_name: "module.unused_func".to_string(),
-        simple_name: "unused_func".to_string(),
-        def_type: "function".to_string(),
+        name: "unused_func".to_owned(),
+        full_name: "module.unused_func".to_owned(),
+        simple_name: "unused_func".to_owned(),
+        def_type: "function".to_owned(),
         file: Arc::new(PathBuf::from("test.py")),
         line: 10,
         end_line: 10,
@@ -60,7 +59,7 @@ fn test_definition_with_fix() {
         is_type_checking: false,
         cell_number: None,
         is_self_referential: false,
-        message: Some("unused function".to_string()),
+        message: Some("unused function".to_owned()),
         fix: Some(FixSuggestion::deletion(50, 100)),
     };
 
@@ -78,10 +77,10 @@ fn test_definition_without_fix_serializes() {
     use std::sync::Arc;
 
     let def = Definition {
-        name: "used_func".to_string(),
-        full_name: "module.used_func".to_string(),
-        simple_name: "used_func".to_string(),
-        def_type: "function".to_string(),
+        name: "used_func".to_owned(),
+        full_name: "module.used_func".to_owned(),
+        simple_name: "used_func".to_owned(),
+        def_type: "function".to_owned(),
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
         end_line: 5,
@@ -113,10 +112,10 @@ fn test_definition_with_fix_serializes() {
     use std::sync::Arc;
 
     let def = Definition {
-        name: "dead_code".to_string(),
-        full_name: "module.dead_code".to_string(),
-        simple_name: "dead_code".to_string(),
-        def_type: "function".to_string(),
+        name: "dead_code".to_owned(),
+        full_name: "module.dead_code".to_owned(),
+        simple_name: "dead_code".to_owned(),
+        def_type: "function".to_owned(),
         file: Arc::new(PathBuf::from("test.py")),
         line: 20,
         end_line: 20,
@@ -130,7 +129,7 @@ fn test_definition_with_fix_serializes() {
         is_type_checking: false,
         cell_number: None,
         is_self_referential: false,
-        message: Some("unused function".to_string()),
+        message: Some("unused function".to_owned()),
         fix: Some(FixSuggestion {
             start_byte: 200,
             end_byte: 350,

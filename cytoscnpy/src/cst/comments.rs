@@ -95,12 +95,12 @@ mod tests {
 
     #[test]
     fn test_extract_comments() {
-        let source = r#"# Module comment
+        let source = r"# Module comment
 def foo():  # inline comment
     # body comment
     pass
 # After function
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
         let comments = extract_comments(&tree);
@@ -118,7 +118,7 @@ def foo():  # inline comment
 
     #[test]
     fn test_associated_comments() {
-        let source = r#"# Associated with foo
+        let source = r"# Associated with foo
 @decorator
 def foo():
     pass
@@ -126,7 +126,7 @@ def foo():
 # Not associated
 def bar():
     pass
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
 

@@ -672,7 +672,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     with_cst: true, // CST is always enabled by default
                 };
                 clone_pairs_found =
-                    crate::commands::run_clones(&cli_var.paths, clone_options, &mut *writer)?;
+                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut *writer)?;
             }
 
             // Print summary and time (only for non-JSON output)
@@ -751,7 +751,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 verbose: cli_var.output.verbose,
                 with_cst: true, // CST is always enabled by default
             };
-            crate::commands::run_fix_deadcode(&result, fix_options, &mut *writer)?;
+            crate::commands::run_fix_deadcode(&result, &fix_options, &mut *writer)?;
         }
 
         // Check for fail threshold (CLI > config > env var > default)
@@ -862,7 +862,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 }
 
 /// Run clone detection and return findings for JSON output.
-/// This is used to include clone_findings in the combined JSON output.
+/// This is used to include `clone_findings` in the combined JSON output.
 fn run_clone_detection_for_json(
     paths: &[std::path::PathBuf],
     similarity: f64,

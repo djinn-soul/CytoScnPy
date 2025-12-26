@@ -135,7 +135,7 @@ result = used_function()
 
     // Run with env var set to ultra-low threshold
     let output = Command::new(&binary_path)
-        .args(&[".", "--json"])
+        .args([".", "--json"])
         .current_dir(temp_dir.path())
         .env("CYTOSCNPY_FAIL_THRESHOLD", "0.01")
         .output()
@@ -175,7 +175,7 @@ def unused_function():
 
     // Env var says fail at 0.01%, but CLI says 1000% (should always pass)
     let output = Command::new(&binary_path)
-        .args(&[".", "--fail-threshold", "1000", "--json"])
+        .args([".", "--fail-threshold", "1000", "--json"])
         .current_dir(temp_dir.path())
         .env("CYTOSCNPY_FAIL_THRESHOLD", "0.01")
         .output()

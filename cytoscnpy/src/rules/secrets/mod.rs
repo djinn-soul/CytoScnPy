@@ -82,10 +82,10 @@ impl SecretScanner {
     /// Creates a new secret scanner from configuration.
     ///
     /// By default, all recognizers are enabled:
-    /// - RegexRecognizer (built-in patterns)
-    /// - AstRecognizer (suspicious variable names) - enabled by default
-    /// - EntropyRecognizer (high-entropy strings)
-    /// - CustomRecognizer (user-defined patterns)
+    /// - `RegexRecognizer` (built-in patterns)
+    /// - `AstRecognizer` (suspicious variable names) - enabled by default
+    /// - `EntropyRecognizer` (high-entropy strings)
+    /// - `CustomRecognizer` (user-defined patterns)
     #[must_use]
     pub fn new(config: &SecretsConfig) -> Self {
         let mut recognizers: Vec<Box<dyn SecretRecognizer>> = Vec::new();
@@ -367,9 +367,7 @@ mod tests {
             let test_conf = test_findings[0].confidence;
             assert!(
                 test_conf < normal_conf,
-                "Test file should have lower confidence: {} vs {}",
-                test_conf,
-                normal_conf
+                "Test file should have lower confidence: {test_conf} vs {normal_conf}"
             );
         }
     }
@@ -399,7 +397,7 @@ mod tests {
         assert!(calculate_entropy("aB3xY7mN9p") > 3.0);
 
         // Empty string
-        assert_eq!(calculate_entropy(""), 0.0);
+        assert!((calculate_entropy("") - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]

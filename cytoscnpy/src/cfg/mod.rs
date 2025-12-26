@@ -95,7 +95,8 @@ impl BasicBlock {
 
 /// Control Flow Graph for a single function
 #[derive(Debug)]
-pub struct CFG {
+#[allow(clippy::upper_case_acronyms)]
+pub struct Cfg {
     /// Basic blocks indexed by ID
     pub blocks: Vec<BasicBlock>,
     /// Entry block ID
@@ -124,7 +125,7 @@ struct CfgBuilder {
     blocks: Vec<BasicBlock>,
     current_block: usize,
     loop_depth: usize,
-    /// Stack of (loop_header_id, loop_exit_id) for break/continue
+    /// Stack of (`loop_header_id`, `loop_exit_id`) for break/continue
     loop_stack: Vec<(usize, usize)>,
 }
 
@@ -225,10 +226,6 @@ impl CfgBuilder {
             }
 
             // Nested function/class definitions - don't recurse into them
-            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {
-                self.add_stmt(StmtKind::Simple, line);
-            }
-
             // Simple statements
             Stmt::Expr(expr_stmt) => {
                 // Check if it's a call expression
@@ -239,8 +236,8 @@ impl CfgBuilder {
                 }
             }
 
-            // All other statements are "simple"
-            _ => {
+            // Nested definitions and all other statements are "simple"
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) | _ => {
                 self.add_stmt(StmtKind::Simple, line);
             }
         }
@@ -449,7 +446,7 @@ impl CfgBuilder {
         self.current_block = merge_block;
     }
 
-    fn build(self) -> CFG {
+    fn build(self) -> Cfg {
         let entry = 0;
 
         // Find exit blocks (blocks with no successors or with return/raise)
@@ -467,7 +464,7 @@ impl CfgBuilder {
             .map(|(id, _)| id)
             .collect();
 
-        CFG {
+        Cfg {
             blocks: self.blocks,
             entry,
             exits: if exits.is_empty() { vec![0] } else { exits },
@@ -475,7 +472,7 @@ impl CfgBuilder {
     }
 }
 
-impl CFG {
+impl Cfg {
     /// Build a CFG from a function definition
     #[must_use]
     pub fn from_function(func: &ast::StmtFunctionDef) -> Self {
@@ -548,6 +545,7 @@ impl CFG {
 
     /// Calculate a similarity score between 0.0 and 1.0
     #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn similarity_score(&self, other: &Self) -> f64 {
         let fp1 = self.fingerprint();
         let fp2 = other.fingerprint();
@@ -567,7 +565,7 @@ impl CFG {
             score += 3.0;
         } else {
             let depth_diff = (fp1.max_loop_depth as f64 - fp2.max_loop_depth as f64).abs();
-            score += (1.0 - depth_diff / 3.0).max(0.0) * 3.0;
+            score += (1.0 - depth_diff / 3.0_f64).max(0.0) * 3.0;
         }
         weight_sum += 3.0;
 
@@ -619,7 +617,7 @@ mod tests {
 
     #[test]
     fn test_cfg_fingerprint() {
-        let cfg = CFG {
+        let cfg = Cfg {
             blocks: vec![BasicBlock {
                 id: 0,
                 statements: vec![
@@ -649,13 +647,13 @@ mod tests {
 
     #[test]
     fn test_cfg_from_source_simple() {
-        let source = r#"
+        let source = r"
 def simple_func():
     x = 1
     y = 2
     return x + y
-"#;
-        let cfg = CFG::from_source(source, "simple_func").expect("Should parse");
+";
+        let cfg = Cfg::from_source(source, "simple_func").expect("Should parse");
 
         // Simple linear function: entry block with statements
         assert!(!cfg.blocks.is_empty());
@@ -666,14 +664,14 @@ def simple_func():
 
     #[test]
     fn test_cfg_from_source_with_if() {
-        let source = r#"
+        let source = r"
 def func_with_if(x):
     if x > 0:
         return 1
     else:
         return -1
-"#;
-        let cfg = CFG::from_source(source, "func_with_if").expect("Should parse");
+";
+        let cfg = Cfg::from_source(source, "func_with_if").expect("Should parse");
 
         let fp = cfg.fingerprint();
         assert_eq!(fp.branch_count, 1);
@@ -684,14 +682,14 @@ def func_with_if(x):
 
     #[test]
     fn test_cfg_from_source_with_loop() {
-        let source = r#"
+        let source = r"
 def func_with_loop():
     total = 0
     for i in range(10):
         total += i
     return total
-"#;
-        let cfg = CFG::from_source(source, "func_with_loop").expect("Should parse");
+";
+        let cfg = Cfg::from_source(source, "func_with_loop").expect("Should parse");
 
         let fp = cfg.fingerprint();
         assert_eq!(fp.loop_count, 1);
@@ -700,13 +698,13 @@ def func_with_loop():
 
     #[test]
     fn test_cfg_from_source_nested_loops() {
-        let source = r#"
+        let source = r"
 def nested_loops():
     for i in range(10):
         for j in range(10):
             print(i, j)
-"#;
-        let cfg = CFG::from_source(source, "nested_loops").expect("Should parse");
+";
+        let cfg = Cfg::from_source(source, "nested_loops").expect("Should parse");
 
         let fp = cfg.fingerprint();
         assert_eq!(fp.loop_count, 2);
@@ -715,7 +713,7 @@ def nested_loops():
 
     #[test]
     fn test_cfg_behavioral_similarity_identical() {
-        let source = r#"
+        let source = r"
 def func_a():
     if True:
         x = 1
@@ -727,9 +725,9 @@ def func_b():
         y = 2
     for j in range(20):
         print(j)
-"#;
-        let cfg_a = CFG::from_source(source, "func_a").expect("Should parse");
-        let cfg_b = CFG::from_source(source, "func_b").expect("Should parse");
+";
+        let cfg_a = Cfg::from_source(source, "func_a").expect("Should parse");
+        let cfg_b = Cfg::from_source(source, "func_b").expect("Should parse");
 
         // Same structure = behaviorally similar
         assert!(cfg_a.is_behaviorally_similar(&cfg_b));
@@ -738,7 +736,7 @@ def func_b():
 
     #[test]
     fn test_cfg_behavioral_similarity_different() {
-        let source = r#"
+        let source = r"
 def simple_func():
     return 1
 
@@ -747,9 +745,9 @@ def complex_func():
         if i > 5:
             return i
     return 0
-"#;
-        let cfg_simple = CFG::from_source(source, "simple_func").expect("Should parse");
-        let cfg_complex = CFG::from_source(source, "complex_func").expect("Should parse");
+";
+        let cfg_simple = Cfg::from_source(source, "simple_func").expect("Should parse");
+        let cfg_complex = Cfg::from_source(source, "complex_func").expect("Should parse");
 
         // Different structure = not behaviorally similar
         assert!(!cfg_simple.is_behaviorally_similar(&cfg_complex));
@@ -758,7 +756,7 @@ def complex_func():
 
     #[test]
     fn test_cfg_with_try_except() {
-        let source = r#"
+        let source = r"
 def func_with_try():
     try:
         risky_call()
@@ -766,11 +764,11 @@ def func_with_try():
         handle_error()
     finally:
         cleanup()
-"#;
-        let cfg = CFG::from_source(source, "func_with_try").expect("Should parse");
+";
+        let cfg = Cfg::from_source(source, "func_with_try").expect("Should parse");
 
         let fp = cfg.fingerprint();
-        assert!(fp.stmt_histogram.get(&StmtKind::Try).is_some());
+        assert!(fp.stmt_histogram.contains_key(&StmtKind::Try));
         // Try creates multiple blocks for handlers
         assert!(fp.block_count > 1);
     }
@@ -778,13 +776,13 @@ def func_with_try():
     #[test]
     fn test_cfg_function_not_found() {
         let source = "def other_func(): pass";
-        let result = CFG::from_source(source, "nonexistent");
+        let result = Cfg::from_source(source, "nonexistent");
         assert!(result.is_none());
     }
 
     #[test]
     fn test_cfg_with_while_break_continue() {
-        let source = r#"
+        let source = r"
 def func_with_control():
     i = 0
     while i < 10:
@@ -794,13 +792,13 @@ def func_with_control():
         if i == 8:
             break
     return i
-"#;
-        let cfg = CFG::from_source(source, "func_with_control").expect("Should parse");
+";
+        let cfg = Cfg::from_source(source, "func_with_control").expect("Should parse");
 
         let fp = cfg.fingerprint();
         assert_eq!(fp.loop_count, 1);
         assert_eq!(fp.branch_count, 2); // Two if statements
-        assert!(fp.stmt_histogram.get(&StmtKind::Break).is_some());
-        assert!(fp.stmt_histogram.get(&StmtKind::Continue).is_some());
+        assert!(fp.stmt_histogram.contains_key(&StmtKind::Break));
+        assert!(fp.stmt_histogram.contains_key(&StmtKind::Continue));
     }
 }

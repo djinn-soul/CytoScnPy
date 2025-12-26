@@ -1,9 +1,13 @@
+//! Tests for visitor range precision and fix suggestions.
+
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use cytoscnpy::analyzer::CytoScnPy;
 use std::path::Path;
 
 #[test]
 fn test_precise_visitor_ranges() {
-    let code = r#"
+    let code = r"
 import os
 import sys
 
@@ -13,7 +17,7 @@ def foo(x):
 class Bar:
     def baz(self):
         pass
-"#;
+";
 
     let analyzer = CytoScnPy::default();
     let result = analyzer.analyze_code(code, Path::new("test.py"));
@@ -110,9 +114,9 @@ class Bar:
         .find(|d| d.simple_name == "baz")
         .expect("baz method not found");
 
-    let baz_start = code.find("def baz(self):").unwrap();
+    let method_baz_start = code.find("def baz(self):").unwrap();
     assert_eq!(
-        method_baz.start_byte, baz_start,
+        method_baz.start_byte, method_baz_start,
         "Method 'baz' start byte mismatch"
     );
     assert!(

@@ -20,7 +20,7 @@ pub struct ScoringContext<'a> {
 /// Score adjustments for various contextual signals.
 #[derive(Debug, Clone)]
 pub struct ScoringAdjustments {
-    /// Bonus when near a suspicious keyword (api_key=).
+    /// Bonus when near a suspicious keyword (`api_key=`).
     pub near_keyword: i16,
     /// Penalty for findings in test files.
     pub in_test_file: i16,
@@ -28,7 +28,7 @@ pub struct ScoringAdjustments {
     pub in_comment: i16,
     /// Bonus for high entropy strings.
     pub high_entropy: i16,
-    /// Penalty for os.environ.get() patterns.
+    /// Penalty for `os.environ.get()` patterns.
     pub is_env_var: i16,
     /// Penalty for paths/URLs.
     pub is_path_or_url: i16,
@@ -180,6 +180,7 @@ impl ContextScorer {
     }
 
     /// Checks if a string looks like a file path or URL.
+    #[allow(clippy::unused_self)]
     fn looks_like_path_or_url(&self, s: &str) -> bool {
         // URL patterns
         if s.contains("http://") || s.contains("https://") || s.contains("ftp://") {

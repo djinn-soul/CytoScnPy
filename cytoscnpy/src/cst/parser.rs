@@ -25,7 +25,7 @@ impl From<tree_sitter::Point> for Point {
 /// A CST node with exact source location
 #[derive(Debug, Clone)]
 pub struct CstNode {
-    /// Node kind (e.g., "function_definition", "identifier")
+    /// Node kind (e.g., `"function_definition"`, `"identifier"`)
     pub kind: String,
     /// Start byte offset (inclusive)
     pub start_byte: usize,
@@ -51,7 +51,7 @@ impl CstNode {
             .collect();
 
         Self {
-            kind: node.kind().to_string(),
+            kind: node.kind().to_owned(),
             start_byte: node.start_byte(),
             end_byte: node.end_byte(),
             start_point: node.start_position().into(),
@@ -199,7 +199,7 @@ impl CstParser {
 
         Ok(CstTree {
             root,
-            source: source.to_string(),
+            source: source.to_owned(),
         })
     }
 }
@@ -210,9 +210,9 @@ mod tests {
 
     #[test]
     fn test_parse_simple_function() {
-        let source = r#"def foo():
+        let source = r"def foo():
     pass
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
 
@@ -234,10 +234,10 @@ mod tests {
 
     #[test]
     fn test_find_smallest_covering() {
-        let source = r#"def foo():
+        let source = r"def foo():
     x = 1
     return x
-"#;
+";
         let mut parser = CstParser::new().unwrap();
         let tree = parser.parse(source).unwrap();
 

@@ -1046,7 +1046,9 @@ fn convert_byte_range_to_line(error_msg: &str, source: &str) -> String {
     use regex::Regex;
 
     // Match "at byte range X..Y" or "byte range X..Y"
-    let re = Regex::new(r"(?:at )?byte range (\d+)\.\.(\d+)").unwrap();
+    let Ok(re) = Regex::new(r"(?:at )?byte range (\d+)\.\.(\d+)") else {
+        return error_msg.to_owned();
+    };
 
     re.replace_all(error_msg, |caps: &regex::Captures| {
         if let Ok(start_byte) = caps[1].parse::<usize>() {

@@ -638,6 +638,7 @@ fn find_python_files(root: &Path, exclude: &[String]) -> Vec<PathBuf> {
 
 /// Options for clone detection
 #[derive(Debug, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct CloneOptions {
     /// Minimum similarity threshold (0.0-1.0)
     pub similarity: f64,
@@ -662,8 +663,8 @@ pub struct CloneOptions {
 /// - Code element kind (function, class, method) from AST
 /// - Similarity percentage
 fn generate_clone_suggestion(
-    clone_type: &crate::clones::CloneType,
-    node_kind: &crate::clones::NodeKind,
+    clone_type: crate::clones::CloneType,
+    node_kind: crate::clones::NodeKind,
     name: &str,
     similarity: f64,
 ) -> String {
@@ -734,7 +735,7 @@ fn generate_clone_suggestion(
 #[allow(clippy::too_many_lines)]
 pub fn run_clones<W: Write>(
     paths: &[PathBuf],
-    options: CloneOptions,
+    options: &CloneOptions,
     mut writer: W,
 ) -> Result<usize> {
     use crate::clones::{CloneConfig, CloneDetector};
@@ -814,8 +815,8 @@ pub fn run_clones<W: Write>(
 
                 // Generate context-aware suggestion based on clone type and AST node
                 let suggestion = generate_clone_suggestion(
-                    &finding.clone_type,
-                    &finding.node_kind,
+                    finding.clone_type,
+                    finding.node_kind,
                     &name,
                     finding.similarity,
                 );
@@ -865,13 +866,13 @@ fn load_python_files(paths: &[PathBuf], exclude: &[String]) -> Vec<(PathBuf, Str
 /// Helper to print clone detection statistics.
 fn print_clone_stats<W: Write>(
     mut writer: W,
-    _all_files: &[(PathBuf, String)],
+    all_files: &[(PathBuf, String)],
     pairs: &[crate::clones::ClonePair],
     verbose: bool,
 ) -> Result<()> {
     if verbose {
         writeln!(writer, "[VERBOSE] Clone Detection Statistics:")?;
-        writeln!(writer, "   Files scanned: {}", _all_files.len())?;
+        writeln!(writer, "   Files scanned: {}", all_files.len())?;
         writeln!(writer, "   Clone pairs found: {}", pairs.len())?;
 
         // Count by type
@@ -891,6 +892,7 @@ fn print_clone_stats<W: Write>(
 
         // Show average similarity
         if !pairs.is_empty() {
+            #[allow(clippy::cast_precision_loss)]
             let avg_similarity: f64 =
                 pairs.iter().map(|p| p.similarity).sum::<f64>() / pairs.len() as f64;
             writeln!(
@@ -905,10 +907,11 @@ fn print_clone_stats<W: Write>(
 }
 
 /// Helper to generate findings from clone pairs.
+#[must_use]
 pub fn generate_clone_findings(
     pairs: &[crate::clones::ClonePair],
-    _all_files: &[(PathBuf, String)],
-    _with_cst: bool,
+    #[allow(unused_variables)] all_files: &[(PathBuf, String)],
+    #[allow(unused_variables)] with_cst: bool,
 ) -> Vec<crate::clones::CloneFinding> {
     use crate::clones::{CloneFinding, ConfidenceScorer, FixContext};
     #[cfg(feature = "cst")]
@@ -922,12 +925,15 @@ pub fn generate_clone_findings(
             // Helper to calc confidence for an instance removal
             #[allow(unused_variables)]
             let calc_conf = |inst: &crate::clones::CloneInstance| -> u8 {
-                let mut ctx = FixContext::default();
-                ctx.same_file = pair.is_same_file();
+                #[allow(unused_mut)]
+                let mut ctx = FixContext {
+                    same_file: pair.is_same_file(),
+                    ..FixContext::default()
+                };
 
                 #[cfg(feature = "cst")]
-                if _with_cst {
-                    if let Some((_, content)) = _all_files.iter().find(|(p, _)| p == &inst.file) {
+                if with_cst {
+                    if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &inst.file) {
                         if let Ok(mut parser) = CstParser::new() {
                             if let Ok(tree) = parser.parse(content) {
                                 let mapper = AstCstMapper::new(tree);
@@ -954,8 +960,8 @@ pub fn generate_clone_findings(
     for finding in &mut findings {
         let name = finding.name.as_deref().unwrap_or("<anonymous>");
         finding.suggestion = Some(generate_clone_suggestion(
-            &finding.clone_type,
-            &finding.node_kind,
+            finding.clone_type,
+            finding.node_kind,
             name,
             finding.similarity,
         ));
@@ -990,7 +996,7 @@ fn apply_clone_fixes_internal<W: Write>(
     findings: &[crate::clones::CloneFinding],
     all_files: &[(PathBuf, String)],
     dry_run: bool,
-    _with_cst: bool,
+    #[allow(unused_variables)] with_cst: bool,
 ) -> Result<()> {
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
@@ -1020,7 +1026,7 @@ fn apply_clone_fixes_internal<W: Write>(
             let mut end_byte = finding.end_byte;
 
             #[cfg(feature = "cst")]
-            if _with_cst {
+            if with_cst {
                 if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &finding.file) {
                     if let Ok(mut parser) = CstParser::new() {
                         if let Ok(tree) = parser.parse(content) {
@@ -1076,6 +1082,7 @@ fn apply_clone_fixes_internal<W: Write>(
 
 /// Options for dead code fix
 #[derive(Debug, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct DeadCodeFixOptions {
     /// Minimum confidence threshold for auto-fix (0-100)
     pub min_confidence: u8,
@@ -1113,7 +1120,7 @@ pub struct FixResult {
 #[allow(clippy::too_many_lines)]
 pub fn run_fix_deadcode<W: Write>(
     results: &crate::analyzer::AnalysisResult,
-    options: DeadCodeFixOptions,
+    options: &DeadCodeFixOptions,
     mut writer: W,
 ) -> Result<Vec<FixResult>> {
     if options.dry_run {
@@ -1127,7 +1134,7 @@ pub fn run_fix_deadcode<W: Write>(
     }
 
     // Collect items to remove, grouped by file
-    let items_by_file = collect_items_to_fix(results, &options);
+    let items_by_file = collect_items_to_fix(results, options);
 
     if items_by_file.is_empty() {
         writeln!(
@@ -1139,12 +1146,12 @@ pub fn run_fix_deadcode<W: Write>(
     }
 
     // Verbose: show fix statistics
-    print_fix_stats(&mut writer, &items_by_file, results, &options)?;
+    print_fix_stats(&mut writer, &items_by_file, results, options)?;
 
     let mut all_results = Vec::new();
 
     for (file_path, items) in items_by_file {
-        if let Some(res) = apply_dead_code_fix_to_file(&mut writer, &file_path, items, &options)? {
+        if let Some(res) = apply_dead_code_fix_to_file(&mut writer, &file_path, &items, options)? {
             all_results.push(res);
         }
     }
@@ -1309,7 +1316,7 @@ fn print_fix_stats<W: Write>(
 fn apply_dead_code_fix_to_file<W: Write>(
     writer: &mut W,
     file_path: &Path,
-    items: Vec<(&'static str, &crate::visitor::Definition)>,
+    items: &[(&'static str, &crate::visitor::Definition)],
     options: &DeadCodeFixOptions,
 ) -> Result<Option<FixResult>> {
     #[cfg(feature = "cst")]
@@ -1358,7 +1365,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
         None
     };
 
-    for (item_type, def) in &items {
+    for (item_type, def) in items {
         if let Some((start, end)) = find_def_range(&module.body, &def.simple_name, item_type) {
             let start_byte = start;
             let end_byte = end;

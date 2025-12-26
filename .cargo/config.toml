@@ -1,0 +1,71 @@
+# Cargo configuration for CytoScnPy workspace
+# This file enables faster compilation and development workflows
+
+[alias]
+# Run clippy with all targets
+lint = "clippy --all-targets --all-features"
+# Run clippy and fix auto-fixable issues
+lint-fix = "clippy --all-targets --all-features --fix --allow-dirty --allow-staged"
+
+# Development workflow (cargo-watch)
+watch-check = "watch -x check" # Auto-run check on file changes
+watch-test = "watch -x test"   # Auto-run tests on file changes
+watch-lint = "watch -x clippy" # Auto-run clippy on file changes
+
+# Testing tools
+coverage = "llvm-cov --html --output-dir coverage" # Generate HTML coverage report (cross-platform)
+mutants = "mutants --jobs 4" # Run mutation testing (verify test quality)
+semver = "semver-checks" # Check for semver violations after upgrades
+
+# Note: cargo audit, cargo outdated, cargo deny work directly as installed subcommands
+
+[build]
+# Build with all available cores
+jobs = -1
+# rustflags = ["-W", "missing-docs"]
+
+# PyO3 will automatically detect Python from VIRTUAL_ENV
+# This works cross-platform (Windows, Linux, macOS)
+[env]
+VIRTUAL_ENV = { value = ".venv", relative = true }
+# Enable colored output
+CARGO_TERM_COLOR = "always"
+
+# ============================================
+# Development Speed Optimizations
+# ============================================
+
+# Use faster linker on Windows (requires rust-lld)
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+
+# Use faster linker on Linux (mold is fastest, lld is fallback)
+# Install: sudo apt install mold  OR  sudo apt install lld
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# Development profile optimizations
+[profile.dev]
+# Maximum parallelism for faster incremental builds
+codegen-units = 256
+# Ensure incremental compilation is enabled
+incremental = true
+# Slightly faster debug builds (less debug info)
+debug = 1
+
+# Build dependencies with optimizations (faster runtime in tests)
+[profile.dev.package."*"]
+opt-level = 1
+
+# Test profile - optimize test execution speed
+[profile.test]
+codegen-units = 256
+incremental = true
+debug = 1
+
+# Optimized release builds (smallest binary, best performance)
+[profile.release]
+lto = "fat"          # Full link-time optimization
+codegen-units = 1    # Single unit for maximum optimization
+strip = true         # Strip symbols for smaller binary

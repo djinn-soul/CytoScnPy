@@ -35,9 +35,13 @@ pub struct Subtree {
 /// Type of subtree node
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubtreeType {
+    /// Regular function definition
     Function,
+    /// Async function definition
     AsyncFunction,
+    /// Class definition
     Class,
+    /// Method within a class
     Method,
 }
 
@@ -115,22 +119,15 @@ impl AstParser {
 /// Returns error if parsing fails
 pub fn extract_subtrees(source: &str, path: &PathBuf) -> Result<Vec<Subtree>, CloneError> {
     let module = AstParser::parse(source)?;
-    let lines: Vec<&str> = source.lines().collect();
     let mut subtrees = Vec::new();
 
-    extract_from_body(&module.body, path, source, &lines, &mut subtrees);
+    extract_from_body(&module.body, path, source, &mut subtrees);
 
     Ok(subtrees)
 }
 
 /// Recursively extract subtrees from a statement body
-fn extract_from_body(
-    body: &[Stmt],
-    path: &PathBuf,
-    source: &str,
-    lines: &[&str],
-    subtrees: &mut Vec<Subtree>,
-) {
+fn extract_from_body(body: &[Stmt], path: &PathBuf, source: &str, subtrees: &mut Vec<Subtree>) {
     for stmt in body {
         match stmt {
             Stmt::FunctionDef(f) => {
@@ -158,7 +155,7 @@ fn extract_from_body(
                 });
 
                 // Recurse into nested functions
-                extract_from_body(&f.body, path, source, lines, subtrees);
+                extract_from_body(&f.body, path, source, subtrees);
             }
             Stmt::ClassDef(c) => {
                 let start_byte = c.range().start().to_usize();
@@ -178,7 +175,7 @@ fn extract_from_body(
                 });
 
                 // Recurse into class body for methods
-                extract_from_body(&c.body, path, source, lines, subtrees);
+                extract_from_body(&c.body, path, source, subtrees);
             }
             _ => {}
         }
@@ -198,6 +195,7 @@ fn extract_stmt_nodes(body: &[Stmt]) -> Vec<SubtreeNode> {
 }
 
 /// Convert a statement to a subtree node
+#[allow(clippy::too_many_lines)]
 fn stmt_to_node(stmt: &Stmt) -> SubtreeNode {
     match stmt {
         // ruff uses is_async flag, not separate AsyncFunctionDef
@@ -379,11 +377,7 @@ fn stmt_to_node(stmt: &Stmt) -> SubtreeNode {
         }
         Stmt::Import(i) => {
             // simplified import handling
-            let labels: Vec<String> = i
-                .names
-                .iter()
-                .map(|n| n.name.as_str().to_owned())
-                .collect();
+            let labels: Vec<String> = i.names.iter().map(|n| n.name.as_str().to_owned()).collect();
             SubtreeNode {
                 kind: "import".into(),
                 label: Some(labels.join(",")),
@@ -394,12 +388,9 @@ fn stmt_to_node(stmt: &Stmt) -> SubtreeNode {
             let module = i
                 .module
                 .as_ref()
-                .map_or("", ruff_python_ast::Identifier::as_str).to_owned();
-            let labels: Vec<String> = i
-                .names
-                .iter()
-                .map(|n| n.name.as_str().to_owned())
-                .collect();
+                .map_or("", ruff_python_ast::Identifier::as_str)
+                .to_owned();
+            let labels: Vec<String> = i.names.iter().map(|n| n.name.as_str().to_owned()).collect();
             SubtreeNode {
                 kind: "import_from".into(),
                 label: Some(format!("{}::{}", module, labels.join(","))),

@@ -20,9 +20,9 @@ semver = "semver-checks" # Check for semver violations after upgrades
 # Note: cargo audit, cargo outdated, cargo deny work directly as installed subcommands
 
 [build]
-# Build with all available cores
-jobs = -1
-# rustflags = ["-W", "missing-docs"]
+# Cap parallelism - LLVM scaling past ~8-12 threads often thrashes memory
+# This frequently improves wall-clock time on 16-32 core systems
+jobs = 8
 
 # PyO3 will automatically detect Python from VIRTUAL_ENV
 # This works cross-platform (Windows, Linux, macOS)
@@ -34,8 +34,12 @@ CARGO_TERM_COLOR = "always"
 # ============================================
 # Development Speed Optimizations
 # ============================================
+# Based on empirical testing of Rust compile performance.
+# Key insight: dev builds are often memory-bound, not CPU-bound.
 
 # Use faster linker on Windows (requires rust-lld)
+# NOTE: /OPT:REF and /OPT:ICF moved to release profile - they affect binary
+# size, not compile speed, and may slightly slow debug linking.
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
 rustflags = [
@@ -50,22 +54,34 @@ rustflags = [
 linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
-# Development profile optimizations
-[profile.dev]
-# Maximum parallelism for faster incremental builds
-codegen-units = 256
-# Ensure incremental compilation is enabled
-incremental = true
-# Slightly faster debug builds (less debug info)
-debug = 1
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
 
-# Build dependencies with optimizations (faster runtime in tests)
+
+
+
+# Development profile optimizations - focused on COMPILE SPEED
+[profile.dev]
+opt-level = 0              # No optimization, fastest compile
+codegen-units = 256        # 128 often beats 256 for incremental builds
+incremental = true         # Essential for dev iteration speed
+debug = 0                  # No debug info - significantly faster
+debug-assertions = false   # Less MIR/LLVM IR generation
+overflow-checks = false    # Removes branches everywhere
+lto = "off"                # Prevent any ThinLTO sneaking in via deps
+panic = "abort"            # No unwind tables - faster codegen & linking
+# target-cpu = "native" # Uncomment to optimize for your local CPU architecture (limits portability)
+
+# Build dependencies with minimal optimization (balance speed vs perf)
 [profile.dev.package."*"]
-opt-level = 1
+opt-level = 1              # Slight optimization for deps (faster runtime)
 
 # Test profile - optimize test execution speed
 [profile.test]
+opt-level = 0
 codegen-units = 256
 incremental = true
-debug = 1
-
+debug = 0
+debug-assertions = false   # Faster test compilation
+overflow-checks = false
+# Note: panic = "abort" is ignored for test profile by Cargo

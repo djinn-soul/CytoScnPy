@@ -59,3 +59,4 @@ codegen-units = 1   # Single unit for better optimization
 panic = "abort"     # Remove unwinding code
 strip = true        # Strip debug symbols
 incremental = false # Full optimization context
+# target-cpu = "native" # Uncomment to optimize for your local CPU architecture (limits portability)

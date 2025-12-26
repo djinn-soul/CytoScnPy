@@ -223,19 +223,39 @@ function transformRawResult(
 
   // Process clone findings (displayed as hints with navigation suggestions)
   // Clone detection uses AST-based hashing and edit distance (not CFG)
+  // Deduplicate: keep only the highest-similarity clone per location
   if (rawResult.clone_findings) {
-    for (const clone of rawResult.clone_findings) {
-      const similarityPercent = Math.round(clone.similarity * 100);
-      const suggestion =
-        clone.suggestion ||
-        "Consider extracting shared code into a common function.";
-      const lines = clone.end_line - clone.line + 1;
+    // Group by (file, line) and keep the best match
+    const cloneMap = new Map<
+      string,
+      { clone: RawCloneFinding; similarity: number }
+    >();
 
-      // Create finding for this clone location
+    for (const clone of rawResult.clone_findings) {
+      const key = `${clone.file}:${clone.line}`;
+      const existing = cloneMap.get(key);
+      if (!existing || clone.similarity > existing.similarity) {
+        cloneMap.set(key, { clone, similarity: clone.similarity });
+      }
+    }
+
+    // Create findings from deduplicated clones
+    for (const { clone } of cloneMap.values()) {
+      const similarityPercent = Math.round(clone.similarity * 100);
+      const relatedFile = clone.related_clone.file.split(/[\\/]/).pop(); // basename
+      const relatedLine = clone.related_clone.line;
+
+      // Build a cleaner message with reference
+      const message = `Similar to ${
+        clone.related_clone.name || relatedFile
+      }:${relatedLine} (${similarityPercent}% match). ${
+        clone.suggestion || "Consider refactoring."
+      }`;
+
       findings.push({
         file_path: clone.file,
         line_number: clone.line,
-        message: `${clone.message} ${suggestion}`,
+        message,
         rule_id: clone.rule_id,
         severity: clone.is_duplicate ? "warning" : "hint",
       });

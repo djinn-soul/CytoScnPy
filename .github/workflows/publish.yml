@@ -36,6 +36,14 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y mold
 
+      - name: Install zld linker
+        if: runner.os == 'macOS'
+        run: |
+          brew install michaeleisel/zld/zld
+          if [ -f /opt/homebrew/bin/zld ]; then
+            sudo ln -sf /opt/homebrew/bin/zld /usr/local/bin/zld
+          fi
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -114,6 +122,14 @@ jobs:
       - name: Install mold linker
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y mold
+
+      - name: Install zld linker
+        if: runner.os == 'macOS'
+        run: |
+          brew install michaeleisel/zld/zld
+          if [ -f /opt/homebrew/bin/zld ]; then
+            sudo ln -sf /opt/homebrew/bin/zld /usr/local/bin/zld
+          fi
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -407,6 +423,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "vscode-cli-macos"
+
+      - name: Install zld linker
+        run: |
+          brew install michaeleisel/zld/zld
+          if [ -f /opt/homebrew/bin/zld ]; then
+            sudo ln -sf /opt/homebrew/bin/zld /usr/local/bin/zld
+          fi
 
       - name: Build CLI for macOS x64 with PGO
         run: |

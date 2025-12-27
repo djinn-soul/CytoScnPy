@@ -72,14 +72,14 @@ debug = 0                  # No debug info - significantly faster
 debug-assertions = false   # Less MIR/LLVM IR generation
 overflow-checks = false    # Removes branches everywhere
 lto = "off"                # Prevent any ThinLTO sneaking in via deps
-panic = "abort"            # No unwind tables - faster codegen & linking
-# target-cpu = "native" # Uncomment to optimize for your local CPU architecture (limits portability)
+# panic = "abort"          # DISABLED: Incompatible with tests (test harness requires unwind)
+# target-cpu = "native"    # Uncomment to optimize for your local CPU architecture (limits portability)
 
 # Build dependencies with minimal optimization (balance speed vs perf)
 [profile.dev.package."*"]
 opt-level = 1              # Slight optimization for deps (faster runtime)
 
-# Test profile - optimize test execution speed
+# Test profile - inherits from dev, optimized for test execution speed
 [profile.test]
 opt-level = 0
 codegen-units = 256
@@ -87,4 +87,3 @@ incremental = true
 debug = 0
 debug-assertions = false   # Faster test compilation
 overflow-checks = false
-# Note: panic = "abort" is ignored for test profile by Cargo

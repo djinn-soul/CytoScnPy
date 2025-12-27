@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # Don't cancel release builds
+
 env:
   PYO3_PYTHON: python3
 
@@ -29,17 +33,10 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install mold linker
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y mold
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
-          shared-key: "wheels-${{ matrix.os }}"
+          cache-key: "wheels-${{ matrix.os }}"
 
       - name: Disable Windows Defender (CI only)
         if: runner.os == 'Windows'
@@ -52,27 +49,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $PGO_PROFILE = "${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          if (-Not (Test-Path $PGO_PROFILE)) {
-            $PGO_PROFILE = "${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          }
-          $env:RUSTFLAGS = "-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          . scripts/load-pgo-profile.ps1 -Platform windows
           maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
 
       - name: Build wheel with PGO (Linux)
         if: runner.os == 'Linux'
         run: |
-          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/linux/merged.profdata"
-          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          source scripts/load-pgo-profile.sh linux
           maturin build --release --out dist --find-interpreter
 
       - name: Build wheel with PGO (macOS)
         if: runner.os == 'macOS'
         run: |
-          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/macos/merged.profdata"
-          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          source scripts/load-pgo-profile.sh macos
           maturin build --release --out dist --find-interpreter
 
       - name: Upload artifact
@@ -106,19 +95,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
           targets: ${{ matrix.target }}
-
-      - name: Install mold linker
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y mold
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
+          cache-key: ${{ matrix.target }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -128,26 +109,7 @@ jobs:
       - name: Build Binary with PGO
         shell: bash
         run: |
-          # Determine OS-specific profile folder
-          case "${{ runner.os }}" in
-            Windows) PGO_OS="windows" ;;
-            Linux)   PGO_OS="linux" ;;
-            macOS)   PGO_OS="macos" ;;
-          esac
-
-          # Use OS-specific profile or fallback to windows (most comprehensive)
-          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/${PGO_OS}/merged.profdata"
-          if [ ! -f "$PGO_PROFILE" ]; then
-            PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          fi
-
-          # Convert Windows path to Unix-style for LLVM
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            PGO_PROFILE=$(echo "$PGO_PROFILE" | sed 's|\\|/|g')
-          fi
-
-          export RUSTFLAGS="-Cprofile-use=${PGO_PROFILE} -Ccodegen-units=1"
-          echo "Building with PGO: RUSTFLAGS=$RUSTFLAGS"
+          source scripts/load-pgo-profile.sh auto
           cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
 
       - name: Rename Binary
@@ -332,35 +294,25 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
           targets: x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu,x86_64-apple-darwin,aarch64-apple-darwin
-
-      - name: Install mold linker
-        run: sudo apt-get update && sudo apt-get install -y mold
+          cache-key: "vscode-cli"
 
       - name: Install cross-compilation tools
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "vscode-cli"
-
       - name: Build CLI for Linux x64 with PGO
         run: |
-          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/linux/merged.profdata"
-          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          source scripts/load-pgo-profile.sh linux
           cargo build --release --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
 
       - name: Build CLI for Windows x64 with PGO
         run: |
-          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          source scripts/load-pgo-profile.sh windows
           cargo build --release --target x86_64-pc-windows-gnu -p cytoscnpy-cli
 
       - name: Create bin directory
@@ -410,16 +362,12 @@ jobs:
 
       - name: Build CLI for macOS x64 with PGO
         run: |
-          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/macos/merged.profdata"
-          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          source scripts/load-pgo-profile.sh macos
           cargo build --release --target x86_64-apple-darwin -p cytoscnpy-cli
 
       - name: Build CLI for macOS ARM64 with PGO
         run: |
-          PGO_PROFILE="${{ github.workspace }}/pgo-profiles/macos/merged.profdata"
-          [ ! -f "$PGO_PROFILE" ] && PGO_PROFILE="${{ github.workspace }}/pgo-profiles/windows/merged.profdata"
-          export RUSTFLAGS="-Cprofile-use=$PGO_PROFILE -Ccodegen-units=1"
+          source scripts/load-pgo-profile.sh macos
           cargo build --release --target aarch64-apple-darwin -p cytoscnpy-cli
 
       - name: Upload macOS x64 binary

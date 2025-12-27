@@ -8,10 +8,15 @@ on:
       - "benchmark/**"
       - ".github/workflows/benchmark.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   benchmark:
     name: Performance & Regression Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       PYO3_PYTHON: python
 
@@ -24,11 +29,10 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install mold linker
-        run: sudo apt-get update && sudo apt-get install -y mold
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
+        with:
+          workspaces: "cytoscnpy -> target"
 
       - name: Install dependencies
         run: |

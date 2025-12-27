@@ -11,6 +11,10 @@ on:
       - ".github/workflows/test-ci.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   PYO3_PYTHON: python3
@@ -19,6 +23,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -28,20 +33,13 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install mold linker
-        run: sudo apt-get update && sudo apt-get install -y mold
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
           workspaces: |
             cytoscnpy -> target
             cytoscnpy-mcp -> target
             cytoscnpy-cli -> target
-          cache-on-failure: true
 
       - name: Build cytoscnpy
         run: cargo build --verbose --features python-bindings
@@ -101,19 +99,11 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
           targets: ${{ matrix.target }}
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "vscode-cli-${{ matrix.os }}"
-
-      - name: Install mold linker
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y mold
+          cache-key: "vscode-cli-${{ matrix.os }}"
 
       - name: Build CLI for Extension
         run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
@@ -122,13 +112,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p editors/vscode/cytoscnpy/bin
-          # Windows output is at target/target-name/release/exe
-          # Others at target/target-name/release/bin
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            cp target/${{ matrix.target }}/release/${{ matrix.executable }} editors/vscode/cytoscnpy/bin/${{ matrix.binary_name }}
-          else
-            cp target/${{ matrix.target }}/release/${{ matrix.executable }} editors/vscode/cytoscnpy/bin/${{ matrix.binary_name }}
-          fi
+          cp target/${{ matrix.target }}/release/${{ matrix.executable }} editors/vscode/cytoscnpy/bin/${{ matrix.binary_name }}
           chmod +x editors/vscode/cytoscnpy/bin/*
 
       - name: Install Extension Dependencies

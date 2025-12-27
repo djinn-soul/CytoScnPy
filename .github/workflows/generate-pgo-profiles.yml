@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # =============================================================================
   # Generate PGO Profile for Windows
@@ -93,18 +97,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
           components: llvm-tools-preview
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: pgo-linux
-
-      - name: Install mold linker
-        run: sudo apt-get update && sudo apt-get install -y mold
+          cache-key: pgo-linux
 
       - name: Build instrumented binary
         run: |

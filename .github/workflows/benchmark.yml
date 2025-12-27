@@ -27,6 +27,9 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install mold linker
+        run: sudo apt-get update && sudo apt-get install -y mold
+
       - name: Install dependencies
         run: |
           pip install -r benchmark/requirements.txt

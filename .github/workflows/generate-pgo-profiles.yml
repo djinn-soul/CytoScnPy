@@ -162,6 +162,13 @@ jobs:
         with:
           key: pgo-macos
 
+      - name: Install zld linker
+        run: |
+          brew install michaeleisel/zld/zld
+          if [ -f /opt/homebrew/bin/zld ]; then
+            sudo ln -sf /opt/homebrew/bin/zld /usr/local/bin/zld
+          fi
+
       - name: Build instrumented binary
         run: |
           export RUSTFLAGS="-Cprofile-generate=${{ runner.temp }}/pgo-data -Ccodegen-units=1"

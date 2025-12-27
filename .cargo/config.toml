@@ -54,8 +54,11 @@ rustflags = [
 linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+# Use faster linker on macOS (zld)
+# NOTE: Disabled - zld fails to build on GitHub CI with latest Xcode.
+# Uncomment locally if you have zld installed: brew install michaeleisel/zld/zld
+# [target.x86_64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
 
 
 

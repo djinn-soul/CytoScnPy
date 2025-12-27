@@ -111,6 +111,10 @@ jobs:
         with:
           shared-key: "vscode-cli-${{ matrix.os }}"
 
+      - name: Install mold linker
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y mold
+
       - name: Build CLI for Extension
         run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
 

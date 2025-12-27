@@ -4,6 +4,40 @@ This directory contains helper scripts for development and testing on both **Win
 
 ## Scripts
 
+### PGO Profile Loading
+
+**`load-pgo-profile.ps1`** / **`load-pgo-profile.sh`** - Load PGO profiles for release builds
+
+```bash
+# Linux/macOS
+source scripts/load-pgo-profile.sh auto
+
+# Windows PowerShell
+. scripts/load-pgo-profile.ps1 -Platform windows
+```
+
+### PGO Build (Full Process)
+
+**`build_pgo.ps1`** / **`build_pgo.sh`** - Complete Profile-Guided Optimization build
+
+```bash
+# Linux/macOS
+./scripts/build_pgo.sh
+
+# Windows PowerShell
+.\scripts\build_pgo.ps1
+```
+
+These scripts perform the full PGO workflow:
+
+1. Install `llvm-tools-preview` component
+2. Build instrumented binary
+3. Run workloads to generate profile data (analyzes the codebase itself)
+4. Merge `.profraw` files into `.profdata`
+5. Build final optimized binary with PGO
+
+> **Note:** This is a time-consuming process (~5-10 min). Use `load-pgo-profile` for quick builds with pre-generated profiles.
+
 ### Coverage Reports
 
 #### Windows (PowerShell)

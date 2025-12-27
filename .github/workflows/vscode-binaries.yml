@@ -51,6 +51,10 @@ jobs:
         with:
           key: vscode-cli-${{ matrix.target }}
 
+      - name: Install mold linker
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y mold
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

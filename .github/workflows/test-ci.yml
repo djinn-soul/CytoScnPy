@@ -41,34 +41,21 @@ jobs:
             cytoscnpy-mcp -> target
             cytoscnpy-cli -> target
 
-      - name: Build cytoscnpy
-        run: cargo build --verbose --features python-bindings
-        working-directory: ./cytoscnpy
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
 
-      - name: Run cytoscnpy tests
-        run: cargo test --verbose --features python-bindings
-        working-directory: ./cytoscnpy
+      - name: Build all crates
+        run: cargo build --all-features --verbose
 
-      - name: Build cytoscnpy-mcp
-        run: cargo build --verbose
-        working-directory: ./cytoscnpy-mcp
-
-      - name: Run cytoscnpy-mcp tests
-        run: cargo test --verbose
-        working-directory: ./cytoscnpy-mcp
-
-      - name: Build cytoscnpy-cli
-        run: cargo build --verbose
-        working-directory: ./cytoscnpy-cli
-
-      - name: Run cytoscnpy-cli tests
-        run: cargo test --verbose
-        working-directory: ./cytoscnpy-cli
+      - name: Run Rust tests with nextest
+        run: cargo nextest run --all-features --verbose
+        env:
+          PYO3_PYTHON: python3
 
       - name: Install Python dependencies
         run: pip install -e ".[dev]"
 
-      - name: Run Python CLI tests
+      - name: Run Python tests
         run: pytest python/tests/ -v
 
   vscode-test:

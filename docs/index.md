@@ -2,7 +2,7 @@
 
 **High-Performance Python Static Analysis Tool Powered by Rust**
 
-[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
+[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/cytoscnpy)](https://pypi.org/project/cytoscnpy/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 

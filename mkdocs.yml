@@ -65,6 +65,9 @@ markdown_extensions:
 nav:
   - Overview: index.md
   - User Guide: usage.md
+  - Security:
+      - Overview: security.md
+      - Dangerous Code Rules: dangerous-code.md
   - Integrations: integrations.md
   - API Reference: api.md
   - Contributing: contributing.md

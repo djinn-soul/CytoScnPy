@@ -30,7 +30,9 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 Enable with `--secrets` and `--danger`.
 
 **Secret Scanning**: Finds hardcoded secrets (API keys, tokens) using regex and entropy analysis.
-**Dangerous Code**: Detects `eval()`, `exec()`, SQL injection risks, and shell injection.
+**Dangerous Code**: Detects patterns known to cause vulnerabilities (SQLi, XSS, RCE, etc.).
+
+For detailed vulnerability rules (`CSP-Dxxx`), see [Security Analysis](security.md).
 
 ### 📊 Code Quality Metrics
 

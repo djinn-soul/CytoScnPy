@@ -26,7 +26,8 @@ cargo clean
 # 3. Build with instrumentation
 echo "🏗️  Building with instrumentation..."
 # -Ccodegen-units=1 is REQUIRED for reliable PGO
-export RUSTFLAGS="-Cprofile-generate=$PGO_DATA_DIR -Ccodegen-units=1"
+# -vp-counters-per-site=8 allocates more counters for large codebases
+export RUSTFLAGS="-Cprofile-generate=$PGO_DATA_DIR -Ccodegen-units=1 -Cllvm-args=-vp-counters-per-site=8"
 echo "   RUSTFLAGS: $RUSTFLAGS"
 cargo build --release -p cytoscnpy-cli
 

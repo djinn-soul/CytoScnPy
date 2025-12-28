@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # Don't cancel release builds
+
 env:
   PYO3_PYTHON: python3
 
@@ -29,13 +33,10 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
-          shared-key: "wheels-${{ matrix.os }}"
+          cache-key: "wheels-${{ matrix.os }}"
 
       - name: Disable Windows Defender (CI only)
         if: runner.os == 'Windows'
@@ -44,13 +45,24 @@ jobs:
       - name: Install maturin
         run: pip install maturin
 
-      - name: Build wheel (Windows - skip 3.14)
+      - name: Build wheel with PGO (Windows)
         if: runner.os == 'Windows'
-        run: maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
+        shell: pwsh
+        run: |
+          . scripts/load-pgo-profile.ps1 -Platform windows
+          maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
 
-      - name: Build wheel (Linux/macOS)
-        if: runner.os != 'Windows' # only run for Linux and macOS
-        run: maturin build --release --out dist --find-interpreter
+      - name: Build wheel with PGO (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          source scripts/load-pgo-profile.sh linux
+          maturin build --release --out dist --find-interpreter
+
+      - name: Build wheel with PGO (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          source scripts/load-pgo-profile.sh macos
+          maturin build --release --out dist --find-interpreter
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -83,23 +95,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
           targets: ${{ matrix.target }}
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
+          cache-key: ${{ matrix.target }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Build Binary
-        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+      - name: Build Binary with PGO
+        shell: bash
+        run: |
+          source scripts/load-pgo-profile.sh auto
+          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
 
       - name: Rename Binary
         shell: bash
@@ -283,26 +294,26 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
         with:
           targets: x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu,x86_64-apple-darwin,aarch64-apple-darwin
+          cache-key: "vscode-cli"
 
       - name: Install cross-compilation tools
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "vscode-cli"
+      - name: Build CLI for Linux x64 with PGO
+        run: |
+          source scripts/load-pgo-profile.sh linux
+          cargo build --release --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
 
-      - name: Build CLI for Linux x64
-        run: cargo build --release --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
-
-      - name: Build CLI for Windows x64
-        run: cargo build --release --target x86_64-pc-windows-gnu -p cytoscnpy-cli
+      - name: Build CLI for Windows x64 with PGO
+        run: |
+          source scripts/load-pgo-profile.sh windows
+          cargo build --release --target x86_64-pc-windows-gnu -p cytoscnpy-cli
 
       - name: Create bin directory
         run: mkdir -p editors/vscode/cytoscnpy/bin
@@ -349,11 +360,15 @@ jobs:
         with:
           shared-key: "vscode-cli-macos"
 
-      - name: Build CLI for macOS x64
-        run: cargo build --release --target x86_64-apple-darwin -p cytoscnpy-cli
+      - name: Build CLI for macOS x64 with PGO
+        run: |
+          source scripts/load-pgo-profile.sh macos
+          cargo build --release --target x86_64-apple-darwin -p cytoscnpy-cli
 
-      - name: Build CLI for macOS ARM64
-        run: cargo build --release --target aarch64-apple-darwin -p cytoscnpy-cli
+      - name: Build CLI for macOS ARM64 with PGO
+        run: |
+          source scripts/load-pgo-profile.sh macos
+          cargo build --release --target aarch64-apple-darwin -p cytoscnpy-cli
 
       - name: Upload macOS x64 binary
         uses: actions/upload-artifact@v4

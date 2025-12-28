@@ -1,7 +1,10 @@
 //! Tests for accuracy improvements (return tracking, `__all__` exports, `TYPE_CHECKING` imports).
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::needless_raw_string_hashes)]
-#![allow(clippy::doc_markdown)]
+
+#![allow(
+    clippy::unwrap_used,
+    clippy::doc_markdown,
+    clippy::needless_raw_string_hashes
+)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;

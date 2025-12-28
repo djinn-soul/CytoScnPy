@@ -1,5 +1,5 @@
 //! Extended tests for `halstead.rs` - Halstead complexity metrics.
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::cast_precision_loss)]
 
 use cytoscnpy::halstead::{analyze_halstead, analyze_halstead_functions, HalsteadMetrics};
 use ruff_python_ast as ast;
@@ -130,8 +130,8 @@ from sys import argv
 from typing import List, Dict
 ";
     let metrics = analyze_source(source);
-    // imports contribute to metrics
-    assert!(metrics.n2 >= 0);
+    // metrics are computed without crash
+    let _ = metrics;
 }
 
 #[test]
@@ -226,7 +226,7 @@ def outer():
 ";
     let functions = analyze_functions(source);
     // Should find both outer and inner
-    assert!(functions.len() >= 1);
+    assert!(!functions.is_empty());
 }
 
 #[test]

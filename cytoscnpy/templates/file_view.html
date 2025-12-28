@@ -11,35 +11,13 @@
   href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-highlight/prism-line-highlight.min.css"
   rel="stylesheet"
 />
-<style>
-  /* Override Prism styles for better integration */
-  pre[class*="language-"] {
-    background: #1e1e1e !important;
-    margin: 0 !important;
-    border-radius: 0 0 0.75rem 0.75rem;
-    border: none !important;
-    text-shadow: none !important;
-  }
-  code[class*="language-"],
-  pre[class*="language-"] {
-    font-family: "JetBrains Mono", "Fira Code", monospace !important;
-    font-size: 0.9rem !important;
-    line-height: 1.5 !important;
-  }
-  .line-numbers .line-numbers-rows {
-    border-right: 1px solid #333 !important;
-  }
-  /* Toolbar container */
-  .code-toolbar {
-    position: relative;
-    background: #252526;
-    border-radius: 0.75rem 0.75rem 0 0;
-    border: 1px solid #374151;
-    border-bottom: none;
-    padding: 0.5rem 1rem;
-    display: flex;
-    justify-content: flex-end;
-  }
+  /* Shared indicators */
+  .complexity-high { color: var(--danger); }
+  .complexity-medium { color: var(--warning); }
+  .complexity-low { color: var(--success); }
+  .mi-a { color: var(--success); }
+  .mi-b { color: var(--warning); }
+  .mi-c { color: var(--danger); }
 </style>
 {% endblock %} {% block content %}
 <div
@@ -109,21 +87,14 @@
   <!-- Back Button (Restored) -->
   <button
     onclick="history.back()"
+    class="pagination-btn"
     style="
-      background: var(--card-bg);
-      border: 1px solid #374151;
-      color: var(--text-light);
       padding: 0.4rem 0.8rem;
-      border-radius: 0.375rem;
-      cursor: pointer;
+      font-size: 0.85rem;
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      font-size: 0.85rem;
-      transition: all 0.2s;
     "
-    onmouseover="this.style.borderColor='var(--primary)'; this.style.color='var(--primary)'"
-    onmouseout="this.style.borderColor='#374151'; this.style.color='var(--text-light)'"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -164,15 +135,14 @@
   </div>
   <div style="display: flex; gap: 0.5rem; align-items: center">
     <span style="font-weight: 600; color: #d1d5db">Complexity:</span>
-    <span
-      style="color: {% if complexity > 25.0 %}#ef4444{% elif complexity > 10.0 %}#eab308{% else %}#22c55e{% endif %};"
+    <span class="{% if complexity > 25.0 %}complexity-high{% elif complexity > 10.0 %}complexity-medium{% else %}complexity-low{% endif %}"
       >{{ complexity }}</span
     >
   </div>
   <div style="display: flex; gap: 0.5rem; align-items: center">
     <span style="font-weight: 600; color: #d1d5db">MI:</span>
-    <span
-      style="font-weight: 600; color: {% if raw_mi >= 80.0 %}#4ade80{% elif raw_mi >= 60.0 %}#facc15{% else %}#f87171{% endif %};"
+    <span class="{% if raw_mi >= 80.0 %}mi-a{% elif raw_mi >= 60.0 %}mi-b{% else %}mi-c{% endif %}"
+      style="font-weight: 600;"
       >{{ mi }}</span
     >
   </div>
@@ -283,7 +253,10 @@
                 const lineEl = lines[index];
 
                 // Styling based on severity
-                const color = issue.severity === 'HIGH' || issue.severity === 'CRITICAL' ? '#f87171' : '#facc15';
+                const rootStyle = getComputedStyle(document.documentElement);
+                const color = issue.severity === 'HIGH' || issue.severity === 'CRITICAL'
+                    ? rootStyle.getPropertyValue('--danger').trim()
+                    : rootStyle.getPropertyValue('--warning').trim();
 
                 // Add marker
                 lineEl.style.position = 'relative';

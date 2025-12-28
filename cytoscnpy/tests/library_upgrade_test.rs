@@ -3,6 +3,8 @@
 //! These tests ensure that upgraded dependencies work correctly with the codebase.
 //! Run after updating dependencies in Cargo.toml to validate compatibility.
 
+#![allow(clippy::unwrap_used)]
+
 use cytoscnpy::config::Config;
 use std::fs;
 use std::path::Path;
@@ -189,10 +191,11 @@ exclude_folders = ["path/with/slashes", "path\\with\\backslashes", "has spaces"]
 /// Test that colored output can be disabled (important for testing).
 #[test]
 fn test_colored_upgrade_overrides() {
+    use colored::Colorize;
+
     // 1. Test disabling colors
     colored::control::set_override(false);
 
-    use colored::Colorize;
     let text_no_color = "test".red().to_string();
 
     // When colors are disabled, no ANSI codes should be present
@@ -217,18 +220,18 @@ fn test_colored_upgrade_api_compatibility() {
     use colored::Colorize;
 
     // These should compile and not panic - API compatibility check
-    let _red = "test".red();
-    let _green = "test".green();
+    let red = "test".red();
+    let green = "test".green();
     let _blue = "test".blue();
     let _bold = "test".bold();
     let _underline = "test".underline();
-    let _chained = "test".red().bold().underline();
+    let chained = "test".red().bold().underline();
     let _bg = "test".on_red();
 
     // All should be convertible to String
-    assert!(!_red.to_string().is_empty());
-    assert!(!_green.to_string().is_empty());
-    assert!(!_chained.to_string().is_empty());
+    assert!(!red.to_string().is_empty());
+    assert!(!green.to_string().is_empty());
+    assert!(!chained.to_string().is_empty());
 }
 
 /// Test various color methods produce output (regardless of terminal support).

@@ -3,7 +3,7 @@
   "publisher": "djinn09",
   "displayName": "CytoScnPy",
   "description": "Python static analyzer with MCP server for GitHub Copilot. Real-time dead code detection, security scanning, and code quality metrics.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
@@ -104,6 +104,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable scanning for code quality issues."
+        },
+        "cytoscnpy.enableCloneScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable code clone detection to find duplicate/similar code blocks."
         },
         "cytoscnpy.confidenceThreshold": {
           "type": "number",

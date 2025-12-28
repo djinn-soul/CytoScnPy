@@ -19,9 +19,9 @@ cytoscnpy [PATHS]... [OPTIONS]
 | Flag               | Short | Description                              |
 | ------------------ | ----- | ---------------------------------------- |
 | `--confidence <N>` | `-c`  | Confidence threshold 0-100 (default: 60) |
-| `--secrets`        |       | Scan for API keys, tokens, credentials   |
-| `--danger`         |       | Scan for dangerous code + taint analysis |
-| `--quality`        |       | Scan for code quality issues             |
+| `--secrets`        | `-s`  | Scan for API keys, tokens, credentials   |
+| `--danger`         | `-d`  | Scan for dangerous code + taint analysis |
+| `--quality`        | `-q`  | Scan for code quality issues             |
 
 ### Output Options
 
@@ -41,6 +41,23 @@ cytoscnpy [PATHS]... [OPTIONS]
 | `--ipynb-cells`          | Report findings per notebook cell          |
 | `--exclude-folder <DIR>` | Exclude specific folders                   |
 | `--include-folder <DIR>` | Force include folders (overrides defaults) |
+
+### Auto-Fix Options
+
+| Flag      | Short | Description                                    |
+| --------- | ----- | ---------------------------------------------- |
+| `--fix`   |       | Preview dead code removal (dry-run by default) |
+| `--apply` | `-a`  | Apply changes to files (use with `--fix`)      |
+
+> **Note:** CST mode (tree-sitter) is enabled by default for precise comment preservation.
+> Only high-confidence items (≥90%) are auto-fixed. `--fix` shows a preview by default!
+
+### Clone Detection Options
+
+| Flag                     | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `--clones`               | Enable code clone detection                 |
+| `--clone-similarity <N>` | Similarity threshold 0.0-1.0 (default: 0.8) |
 
 ### CI/CD Gate Options
 
@@ -86,6 +103,53 @@ cytoscnpy . --html
 **Report location:** `.cytoscnpy/report/index.html` (automatically opens in browser)
 
 > **Note:** Requires `html_report` feature (enabled by default).
+
+---
+
+### Dead Code Auto-Fix
+
+Automatically remove unused code from your codebase:
+
+```bash
+# Preview changes first (default behavior)
+cytoscnpy . --fix
+
+# Apply changes to files
+cytoscnpy . --fix --apply
+cytoscnpy . --fix -a         # Short flag
+```
+
+**What gets fixed:**
+
+- Unused functions
+- Unused classes (and their methods via cascading detection)
+- Unused imports
+
+**Safety features:**
+
+- Only items with confidence ≥90% are auto-fixed
+- `--fix` shows preview by default (dry-run)
+- Use `--apply` to actually modify files
+- CST mode preserves comments and formatting
+
+---
+
+### Clone Detection
+
+Find duplicate or near-duplicate code fragments:
+
+```bash
+# Basic clone detection
+cytoscnpy . --clones
+
+# Adjust similarity threshold (default: 0.8 = 80%)
+cytoscnpy . --clones --clone-similarity 0.7
+
+# Combine with other analysis
+cytoscnpy . --clones --secrets --quality
+```
+
+> **Note:** Clones are report-only; they are never auto-removed by `--fix`.
 
 ---
 
@@ -276,6 +340,8 @@ entropy_threshold = 4.5
 min_length = 16
 scan_comments = true
 skip_docstrings = false
+min_score = 50
+suspicious_names = ["db_config", "oauth_token"]
 
 # Note: include_ipynb and ipynb_cells are CLI-only flags (use --include-ipynb)
 ```

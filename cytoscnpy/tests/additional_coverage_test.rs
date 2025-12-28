@@ -1,9 +1,12 @@
 //! Additional CLI, Test-Aware, and Integration tests
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::needless_raw_string_hashes)]
-#![allow(clippy::str_to_string)]
-#![allow(clippy::uninlined_format_args)]
+
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::str_to_string,
+    clippy::uninlined_format_args,
+    clippy::needless_raw_string_hashes
+)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::config::Config;

@@ -29,7 +29,7 @@ fn test_no_crash_on_invalid_utf8_path() {
     let _result = analyzer.analyze_code("print('hello')", &path);
 }
 
-/// Test that analyze_code works with normal UTF-8 paths (cross-platform).
+/// Test that `analyze_code` works with normal UTF-8 paths (cross-platform).
 #[test]
 fn test_valid_utf8_path() {
     let analyzer = CytoScnPy::default();
@@ -42,7 +42,7 @@ fn test_valid_utf8_path() {
     assert!(result.parse_errors.is_empty());
 }
 
-/// Test that analyze_code handles paths with unicode characters.
+/// Test that `analyze_code` handles paths with unicode characters.
 #[test]
 fn test_unicode_path() {
     let analyzer = CytoScnPy::default();
@@ -55,7 +55,7 @@ fn test_unicode_path() {
     assert!(result.parse_errors.is_empty());
 }
 
-/// Test that analyze_code handles paths with special characters.
+/// Test that `analyze_code` handles paths with special characters.
 #[test]
 fn test_special_characters_path() {
     let analyzer = CytoScnPy::default();
@@ -68,7 +68,7 @@ fn test_special_characters_path() {
     assert!(result.parse_errors.is_empty());
 }
 
-/// Test that analyze_code handles empty path gracefully.
+/// Test that `analyze_code` handles empty path gracefully.
 #[test]
 fn test_empty_path() {
     let analyzer = CytoScnPy::default();

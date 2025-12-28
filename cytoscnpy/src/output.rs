@@ -39,11 +39,18 @@ pub fn print_exclusion_list(writer: &mut impl Write, folders: &[String]) -> std:
 
 /// Create and return a spinner for analysis (used when file count is unknown).
 ///
+/// In test mode, returns a hidden progress bar to avoid polluting test output.
+///
 /// # Panics
 ///
 /// Panics if the progress style template is invalid (should never happen with hardcoded template).
 #[must_use]
 pub fn create_spinner() -> ProgressBar {
+    // In test mode, return a hidden progress bar to avoid polluting test output
+    if cfg!(test) {
+        return ProgressBar::hidden();
+    }
+
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         #[allow(clippy::expect_used)]
@@ -59,11 +66,18 @@ pub fn create_spinner() -> ProgressBar {
 
 /// Create a progress bar with file count (used when total files is known).
 ///
+/// In test mode, returns a hidden progress bar to avoid polluting test output.
+///
 /// # Panics
 ///
 /// Panics if the progress style template is invalid (should never happen with hardcoded template).
 #[must_use]
 pub fn create_progress_bar(total_files: u64) -> ProgressBar {
+    // In test mode, return a hidden progress bar to avoid polluting test output
+    if cfg!(test) {
+        return ProgressBar::hidden();
+    }
+
     let pb = ProgressBar::new(total_files);
     pb.set_style(
         #[allow(clippy::expect_used)]
@@ -248,7 +262,7 @@ pub fn print_findings(
 ///
 /// # Errors
 ///
-/// Returns an error if writing to the output fails.
+/// Returns an error if writing to the writer fails.
 pub fn print_secrets(
     writer: &mut impl Write,
     title: &str,
@@ -282,7 +296,7 @@ pub fn print_secrets(
 ///
 /// # Errors
 ///
-/// Returns an error if writing to the output fails.
+/// Returns an error if writing to the writer fails.
 pub fn print_unused_items(
     writer: &mut impl Write,
     title: &str,
@@ -363,7 +377,7 @@ pub fn print_parse_errors(
 ///
 /// # Errors
 ///
-/// Returns an error if writing to the output fails.
+/// Returns an error if writing to the writer fails.
 pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     print_header(writer)?;
     print_summary_pills(writer, result)?;
@@ -413,18 +427,7 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
     print_findings(writer, "Quality Issues", &result.quality)?;
     print_parse_errors(writer, &result.parse_errors)?;
 
-    // Summary recap at end
-    let total = result.unused_functions.len()
-        + result.unused_methods.len()
-        + result.unused_imports.len()
-        + result.unused_parameters.len()
-        + result.unused_classes.len()
-        + result.unused_variables.len();
-    let security = result.danger.len() + result.secrets.len() + result.quality.len();
-    writeln!(
-        writer,
-        "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
-    )?;
+    // Note: Summary is printed by entry_point to support combined clone summary
 
     Ok(())
 }

@@ -63,6 +63,39 @@ These features are tested but not yet implemented. Remove `#[ignore]` from tests
 
 ---
 
+## <a id="phase-8"></a>Phase 8: CFG Integration ✅ DONE
+
+### 8.1 Control Flow Graph Construction ✅
+
+Implemented CFG construction from Python AST for behavioral analysis:
+
+- **CFG Builder**: Constructs basic blocks from `StmtFunctionDef`
+- **Control Flow**: Handles `if`, `for`, `while`, `try`, `match`, `break`, `continue`, `return`, `raise`
+- **Loop Depth**: Tracks nesting depth for each basic block
+- **Fingerprinting**: Behavioral signature for clone comparison
+
+### 8.2 Clone Detection Integration ✅
+
+CFG validation as secondary filter for clone detection:
+
+| Feature                  | Description                                    |
+| ------------------------ | ---------------------------------------------- |
+| `cfg_validation` config  | Enable/disable CFG validation in `CloneConfig` |
+| `validate_with_cfg()`    | Phase 4.5 filter in `CloneDetector::detect()`  |
+| `cfg_validated` context  | +15 confidence boost in `ConfidenceScorer`     |
+| 70% similarity threshold | CFG pairs below this are filtered out          |
+
+### 8.3 Feature Flag
+
+Enabled via `--features cfg` at compile time:
+
+```bash
+cargo build --features cfg
+cargo test --features cfg
+```
+
+---
+
 ## <a id="phase-6"></a>Phase 6: Editor Integration ✅ DONE
 
 ### 6.1 VS Code Extension ✅
@@ -204,17 +237,19 @@ _Genuinely unused items we fail to detect._
 | **Methods**   | 10    | Methods inside unused classes not linked        | High     | Medium            |
 | **Classes**   | 1     | Complex inheritance patterns                    | Low      | Hard              |
 
-##### Priority 1: Class-Method Linking
+##### Priority 1: Class-Method Linking ✅ DONE
 
 **Problem:** Methods inside unused classes are not detected.
 
 ```python
 class UnusedClass:  # Detected as unused ✅
-    def method(self):  # NOT detected (should be linked to class)
+    def method(self):  # NOW detected via cascading detection ✅
         pass
 ```
 
-**Solution:** When a class is unused, automatically mark all its methods as unused.
+**Solution:** When a class is unused, automatically mark all its methods as unused (cascading deadness).
+
+**Implementation:** Modified `aggregate_results()` and `analyze_code()` in `processing.rs` to flag all methods within unused classes. Respects heuristic protections (visitor pattern methods are excluded).
 
 ##### Priority 2: Variable Scope Improvements
 
@@ -522,10 +557,15 @@ _Pushing the boundaries of static analysis._
 
 ---
 
-### <a id="phase-11"></a>Phase 11: Auto-Remediation
+### <a id="phase-11"></a>Phase 11: Auto-Remediation ✅ DONE
 
 _Safe, automated code fixes._
 
-- [ ] **Safe Code Removal (`--fix`)**
-  - **Challenge:** Standard AST parsers discard whitespace/comments.
-  - **Strategy:** Use `RustPython` AST byte ranges or `tree-sitter` to identify ranges, then perform precise string manipulation to preserve formatting.
+- [x] **Safe Code Removal (`--fix`)**
+  - **Implementation:** Use AST byte ranges from `ruff_python_parser` for precise removal.
+  - **Features:**
+    - `--fix` flag removes unused functions, classes, and imports
+    - `--dry-run` previews changes without applying
+    - CST mode (tree-sitter) is now enabled by default for better comment preservation
+    - Only high-confidence items (≥90%) are auto-fixed
+    - Cascading detection: methods inside unused classes are auto-removed with their parent class

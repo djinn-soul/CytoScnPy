@@ -1,5 +1,5 @@
 //! Extended tests for `taint/propagation.rs` - Taint propagation rules.
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 use cytoscnpy::taint::propagation::{
     get_assigned_name, is_expr_tainted, is_parameterized_query, is_sanitizer_call, TaintState,
@@ -336,9 +336,9 @@ fn test_get_assigned_name_tuple() {
     let name = get_assigned_name(&expr);
     assert!(name.is_some());
     let names = name.unwrap();
-    assert!(names.contains("a"));
-    assert!(names.contains("b"));
-    assert!(names.contains("c"));
+    assert!(names.contains('a'));
+    assert!(names.contains('b'));
+    assert!(names.contains('c'));
 }
 
 #[test]

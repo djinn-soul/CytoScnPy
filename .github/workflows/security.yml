@@ -1,0 +1,65 @@
+name: Security & Quality Checks
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "cytoscnpy/**"
+      - "cytoscnpy-cli/**"
+      - "cytoscnpy-mcp/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/security.yml"
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Security audit for known vulnerabilities
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Run security audit
+        run: cargo audit
+
+  # License compliance check
+  deny:
+    name: License & Dependency Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Check licenses and dependencies
+        run: cargo deny check
+
+  # Unused dependencies detection
+  machete:
+    name: Unused Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
+
+      - name: Install cargo-machete
+        uses: taiki-e/install-action@cargo-machete
+
+      - name: Check for unused dependencies
+        run: cargo machete

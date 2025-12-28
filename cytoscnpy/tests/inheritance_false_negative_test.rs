@@ -1,10 +1,10 @@
-//! This test ensures that user-defined BaseModel classes don't incorrectly
+//! This test ensures that user-defined `BaseModel` classes don't incorrectly
 //! trigger framework detection and cause subclasses to be marked as used.
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::path::PathBuf;
 
-/// Test that classes inheriting from a user-defined BaseModel are detected as unused
+/// Test that classes inheriting from a user-defined `BaseModel` are detected as unused
 /// when they are never instantiated.
 #[test]
 fn test_user_defined_basemodel_subclasses_detected() {
@@ -50,29 +50,25 @@ user = User("John")
     // Order should be detected as unused (it's never instantiated)
     assert!(
         unused_class_names.contains(&"Order"),
-        "Order should be detected as unused! Got: {:?}",
-        unused_class_names
+        "Order should be detected as unused! Got: {unused_class_names:?}",
     );
 
     // Cart should also be detected as unused
     assert!(
         unused_class_names.contains(&"Cart"),
-        "Cart should be detected as unused! Got: {:?}",
-        unused_class_names
+        "Cart should be detected as unused! Got: {unused_class_names:?}"
     );
 
     // User should NOT be in unused_classes (it's instantiated)
     assert!(
         !unused_class_names.contains(&"User"),
-        "User should NOT be in unused_classes! Got: {:?}",
-        unused_class_names
+        "User should NOT be in unused_classes! Got: {unused_class_names:?}"
     );
 
     // BaseModel should NOT be in unused_classes (it's used as base class)
     assert!(
         !unused_class_names.contains(&"BaseModel"),
-        "BaseModel should NOT be in unused_classes! Got: {:?}",
-        unused_class_names
+        "BaseModel should NOT be in unused_classes! Got: {unused_class_names:?}"
     );
 }
 
@@ -103,7 +99,7 @@ class ProductSchema(BaseModel):
         .map(|d| d.simple_name.as_str())
         .collect();
 
-    println!("Unused Pydantic classes: {:?}", unused_class_names);
+    println!("Unused Pydantic classes: {unused_class_names:?}");
 
     // Pydantic models should have low confidence or be marked as used
     // They may still appear in unused_classes but with low confidence
@@ -137,7 +133,7 @@ class Product(models.Model):
         .map(|d| d.simple_name.as_str())
         .collect();
 
-    println!("Unused Django classes: {:?}", unused_class_names);
+    println!("Unused Django classes: {unused_class_names:?}");
 
     // Django models may appear but should have framework-related handling
 }

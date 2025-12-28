@@ -30,10 +30,10 @@ s.append("world")
 
 #[test]
 fn test_list_misuse() {
-    let code = r#"
+    let code = r"
 l = [1, 2]
 l.strip()
-"#;
+";
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].rule_id, "CSP-D301");
@@ -86,14 +86,14 @@ x.append(1) # Safe
 
 #[test]
 fn test_comprehensions() {
-    let code = r#"
+    let code = r"
 l = [x for x in range(10)]
 l.strip() # Error
 s = {x for x in range(10)}
 s.append(1) # Error
 d = {x: x for x in range(10)}
 d.add(1) # Error
-"#;
+";
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 3);
     for finding in findings {

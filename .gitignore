@@ -18,6 +18,7 @@ venvtest
 snugbug
 .ruff_cache
 dist
+site/
 node_modules
 .pytest_cache
 .venv

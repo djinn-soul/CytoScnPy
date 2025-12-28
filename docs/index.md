@@ -1,0 +1,59 @@
+# CytoScnPy
+
+**High-Performance Python Static Analysis Tool Powered by Rust**
+
+[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/cytoscnpy)](https://pypi.org/project/cytoscnpy/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a hybrid Rust/Python architecture to detect dead code, security vulnerabilities, and code quality issues with extreme speed and minimal memory footprint.
+
+## Key Features
+
+- 🚀 **Blazing Fast**: Written in Rust for maximum performance.
+- 💀 **Dead Code Detection**: Finds unused functions, classes, methods, imports, and variables.
+- 🔒 **Security Scanning**: Detects secrets (API keys), dangerous patterns (eval/exec), and taint analysis.
+- 📊 **Code Quality**: Calculates Cyclomatic Complexity, Halstead metrics, and Maintainability Index.
+- 🧩 **Deep Integration**: VS Code extension and MCP server for AI assistants.
+- 🛠️ **Framework Aware**: Native support for Flask, Django, FastAPI, and Pydantic.
+
+---
+
+## Installation
+
+Install via pip:
+
+```bash
+pip install cytoscnpy
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/djinn09/CytoScnPy.git
+cd CytoScnPy
+maturin develop -m cytoscnpy/Cargo.toml
+```
+
+---
+
+## Quick Start
+
+Analyze your current directory for everything (dead code, security, quality):
+
+```bash
+cytoscnpy . --secrets --danger --quality
+```
+
+Generate a JSON report for CI/CD:
+
+```bash
+cytoscnpy . --json > report.json
+```
+
+Preview and fix dead code automatically:
+
+```bash
+cytoscnpy . --fix        # Preview changes
+cytoscnpy . --fix --apply # Apply changes
+```

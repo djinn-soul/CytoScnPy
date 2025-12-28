@@ -11,6 +11,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing :: Static Analysis",
 ]
 readme = "README.md"
 
@@ -18,6 +19,10 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov>=4.0"]
+docs = [
+    "mkdocs-material>=9.5.0",
+    "mkdocs-minify-plugin>=0.8.0",
+]
 
 [tool.maturin]
 bindings = "pyo3"

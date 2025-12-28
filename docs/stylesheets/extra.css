@@ -1,0 +1,14 @@
+/* Reduce spacing between logo and title */
+.md-header__button.md-logo {
+    padding-right: 0.1rem;
+    margin-right: 0;
+}
+
+.md-header__title {
+    margin-left: 0 !important;
+}
+
+/* Ensure title is visible on mobile if needed */
+.md-header__topic {
+    font-weight: bold;
+}

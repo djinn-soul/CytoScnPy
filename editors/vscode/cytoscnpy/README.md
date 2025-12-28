@@ -7,6 +7,7 @@
 - **Real-time Analysis**: Automatically scans your Python files for unused code, security vulnerabilities, and quality issues as you type or save.
 - **Security Scanning**: Detects hardcoded secrets (API keys, tokens), SQL injection risks, and dangerous code patterns (`eval`, `exec`).
 - **Taint Analysis**: Tracks data flow from untrusted sources to dangerous sinks to detect SQL injection, command injection, and code execution vulnerabilities.
+- **Clone Detection**: Finds duplicate or similar code blocks to reduce technical debt.
 - **Quality Metrics**: Calculates Cyclomatic Complexity, Halstead Metrics, and Maintainability Index.
 - **Inline Diagnostics**: View errors and warnings directly in your editor with detailed hover information.
 - **Workspace Analysis**: Analyze entire directories or workspaces at once.
@@ -43,7 +44,8 @@ This extension contributes the following settings:
 | `cytoscnpy.enableSecretsScan`       | `false` | Enable scanning for hardcoded secrets.                        |
 | `cytoscnpy.enableDangerScan`        | `false` | Enable scanning for dangerous code patterns.                  |
 | `cytoscnpy.enableQualityScan`       | `false` | Enable scanning for code quality issues.                      |
-| `cytoscnpy.confidenceThreshold`     | `75`    | Minimum confidence level (0-100) for reporting findings.      |
+| `cytoscnpy.enableCloneScan`         | `false` | Enable code clone detection to find duplicate/similar code.   |
+| `cytoscnpy.confidenceThreshold`     | `0`     | Minimum confidence level (0-100). Set to 0 to show all.       |
 | `cytoscnpy.excludeFolders`          | `[]`    | Folders to exclude from analysis (e.g., `["build", "dist"]`). |
 | `cytoscnpy.includeFolders`          | `[]`    | Folders to force-include in analysis (e.g., `["tests"]`).     |
 | `cytoscnpy.includeTests`            | `false` | Include test files in analysis.                               |

@@ -43,6 +43,10 @@ plugins:
   - search
   - minify:
       minify_html: true
+  - optimize:
+      enabled: true
+      cache: true
+  - blog
 
 extra_css:
   - stylesheets/extra.css
@@ -69,5 +73,7 @@ nav:
       - Overview: security.md
       - Dangerous Code Rules: dangerous-code.md
   - Integrations: integrations.md
+  - Blog:
+      - blog/index.md
   - API Reference: api.md
   - Contributing: contributing.md

@@ -22,6 +22,8 @@ dev = ["pytest>=7.0", "pytest-cov>=4.0"]
 docs = [
     "mkdocs-material>=9.5.0",
     "mkdocs-minify-plugin>=0.8.0",
+    "pillow>=10.0.0",
+    "cairosvg>=2.7.0",
 ]
 
 [tool.maturin]

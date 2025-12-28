@@ -43,9 +43,6 @@ plugins:
   - search
   - minify:
       minify_html: true
-  - optimize:
-      enabled: true
-      cache: true
   - blog
 
 extra_css:

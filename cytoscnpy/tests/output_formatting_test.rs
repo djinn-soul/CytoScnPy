@@ -52,6 +52,7 @@ fn create_mock_result() -> AnalysisResult {
         }],
         taint_findings: vec![],
         parse_errors: vec![],
+        clones: vec![],
         file_metrics: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 1,
@@ -322,6 +323,7 @@ fn test_print_report_no_issues() {
         quality: vec![],
         taint_findings: vec![],
         parse_errors: vec![],
+        clones: vec![],
         file_metrics: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 0,

@@ -13,9 +13,23 @@
     <style>
       :root {
         --primary: #4f46e5;
+        --primary-hover: #4338ca;
         --bg-dark: #1f2937;
         --text-light: #f3f4f6;
+        --text-muted: #9ca3af;
         --card-bg: #111827;
+        --border-color: #374151;
+
+        /* Semantic Colors */
+        --success: #10b981;
+        --warning: #fbbf24;
+        --danger: #f87171;
+        --info: #3b82f6;
+
+        /* Severity Colors (for Issues page) */
+        --severity-high: var(--danger);
+        --severity-medium: var(--warning);
+        --severity-low: var(--info);
       }
       body {
         font-family: "Inter", system-ui, -apple-system, sans-serif;
@@ -93,6 +107,180 @@
         padding-top: 0;
         padding-bottom: 0;
       }
+
+      /* Shared Control Bar Styles */
+      .controls-bar {
+        margin-bottom: 1.5rem;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .form-input {
+        background: var(--card-bg);
+        border: 1px solid #374151;
+        color: var(--text-light);
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: border-color 0.2s;
+      }
+      .form-input:focus {
+        border-color: var(--primary);
+        outline: none;
+      }
+      .form-select {
+        background: var(--card-bg);
+        border: 1px solid #374151;
+        color: var(--text-light);
+        padding: 0.5rem 2rem 0.5rem 1rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: border-color 0.2s;
+      }
+      .form-select:hover {
+        border-color: #9ca3af;
+      }
+
+      /* Pagination Styles */
+      .pagination-controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+      }
+      .pagination-btn {
+        background: var(--card-bg);
+        border: 1px solid #374151;
+        color: var(--text-light);
+        padding: 0.4rem 1rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+      }
+      .pagination-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: rgba(79, 70, 229, 0.05);
+      }
+      .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .pagination-info {
+        display: flex;
+        align-items: center;
+        color: #9ca3af;
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+
+      /* Shared Layout Components */
+      .file-group {
+        margin-bottom: 2rem;
+      }
+      .file-group-header {
+        background: rgba(55, 65, 81, 0.3);
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        color: var(--text-light);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid var(--border-color);
+      }
+      .report-item {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .report-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+      .report-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+      }
+      .report-item-title {
+        font-weight: 600;
+        font-size: 1.05rem;
+        color: var(--text-light);
+      }
+      .report-item-location {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        font-family: monospace;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .report-item-location a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+      .report-item-location a:hover {
+        text-decoration: underline;
+      }
+
+      /* Border helpers for severity/status */
+      .border-low {
+        border-left: 4px solid var(--info);
+      }
+      .border-medium {
+        border-left: 4px solid var(--warning);
+      }
+      .border-high {
+        border-left: 4px solid var(--danger);
+      }
+      /* Shared indicators */
+      .complexity-high,
+      .severity-high {
+        color: var(--danger);
+      }
+      .complexity-medium,
+      .severity-medium {
+        color: var(--warning);
+      }
+      .complexity-low,
+      .severity-low {
+        color: var(--success);
+      }
+
+      /* Toggle Button */
+      .group-toggle-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-light);
+        cursor: pointer;
+        user-select: none;
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        transition: all 0.2s;
+        background: var(--card-bg);
+      }
+      .group-toggle-btn:hover {
+        border-color: var(--text-muted);
+      }
+      .group-toggle-btn:has(input:checked) {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: rgba(99, 102, 241, 0.1);
+      }
+      .group-toggle-btn input:checked + .label-text {
+        font-weight: 600;
+      }
     </style>
     {% block head %}{% endblock %}
   </head>
@@ -108,6 +296,7 @@
         <div class="nav-links">
           <a href="{{ root_path }}/index.html">Dashboard</a>
           <a href="{{ root_path }}/issues.html">Issues</a>
+          <a href="{{ root_path }}/clones.html">Clones</a>
           <a href="{{ root_path }}/files.html">Files</a>
         </div>
       </div>

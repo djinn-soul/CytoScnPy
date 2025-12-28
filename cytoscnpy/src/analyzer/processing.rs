@@ -702,6 +702,7 @@ impl CytoScnPy {
             quality: all_quality.clone(),
             taint_findings,
             parse_errors: all_parse_errors.clone(),
+            clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files,
                 secrets_count: all_secrets.len(),
@@ -983,6 +984,7 @@ impl CytoScnPy {
             quality: quality.clone(),
             taint_findings: Vec::new(),
             parse_errors: parse_errors.clone(),
+            clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files: 1,
                 secrets_count: secrets.len(),

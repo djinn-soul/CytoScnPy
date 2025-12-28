@@ -100,12 +100,12 @@ pub fn run_clones<W: Write>(
     paths: &[PathBuf],
     options: &CloneOptions,
     mut writer: W,
-) -> Result<usize> {
+) -> Result<(usize, Vec<CloneFinding>)> {
     let all_files = load_python_files(paths, &options.exclude);
 
     if all_files.is_empty() {
         writeln!(writer, "No Python files found.")?;
-        return Ok(0);
+        return Ok((0, Vec::new()));
     }
 
     let config = CloneConfig::default().with_min_similarity(options.similarity);
@@ -122,7 +122,7 @@ pub fn run_clones<W: Write>(
         } else {
             writeln!(writer, "{}", "No clones detected.".green())?;
         }
-        return Ok(0);
+        return Ok((0, Vec::new()));
     }
 
     let findings = generate_clone_findings(&result.pairs, &all_files, options.with_cst);
@@ -196,7 +196,7 @@ pub fn run_clones<W: Write>(
         )?;
     }
 
-    Ok(result.pairs.len())
+    Ok((result.pairs.len(), findings))
 }
 
 fn print_clone_stats<W: Write>(

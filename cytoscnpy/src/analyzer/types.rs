@@ -1,3 +1,4 @@
+use crate::clones::CloneFinding;
 use crate::halstead::HalsteadMetrics;
 use crate::raw_metrics::RawMetrics;
 use crate::rules::secrets::SecretFinding;
@@ -93,6 +94,9 @@ pub struct AnalysisResult {
     pub taint_findings: Vec<TaintFinding>,
     /// List of parse errors encountered.
     pub parse_errors: Vec<ParseError>,
+    /// List of detected code clones.
+    #[serde(default)]
+    pub clones: Vec<CloneFinding>,
     /// Per-file metrics.
     pub file_metrics: Vec<FileMetrics>,
     /// Summary statistics of the analysis.

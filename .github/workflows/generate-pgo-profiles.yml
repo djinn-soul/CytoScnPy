@@ -42,49 +42,15 @@ jobs:
         with:
           key: pgo-windows
 
-      - name: Build instrumented binary
+      - name: Generate PGO profile
         shell: pwsh
-        run: |
-          $pgoDataDir = "${{ runner.temp }}/pgo-data"
-          New-Item -ItemType Directory -Force -Path $pgoDataDir | Out-Null
-          $pgoDataDirUnix = $pgoDataDir -replace '\\', '/'
-          $env:RUSTFLAGS = "-Cprofile-generate=$pgoDataDirUnix -Ccodegen-units=1"
-          Write-Host "RUSTFLAGS: $env:RUSTFLAGS"
-          cargo build --release -p cytoscnpy-cli
-
-      - name: Run workload for profiling
-        shell: pwsh
-        run: |
-          $pgoDataDir = "${{ runner.temp }}/pgo-data"
-          $binary = "target/release/cytoscnpy-cli.exe"
-          $pgoDataDirUnix = $pgoDataDir -replace '\\', '/'
-          $env:LLVM_PROFILE_FILE = "$pgoDataDirUnix/cytoscnpy-%p-%m.profraw"
-
-          Write-Host "Running workloads..."
-          & $binary . --quiet 2>&1 | Out-Null
-          & $binary benchmark/examples --quiet --clones --secrets 2>&1 | Out-Null
-          & $binary cc . --json 2>&1 | Out-Null
-          & $binary mi . --json 2>&1 | Out-Null
-          & $binary hal . --json 2>&1 | Out-Null
-          & $binary raw . --json 2>&1 | Out-Null
-
-      - name: Merge profile data
-        shell: pwsh
-        run: |
-          $pgoDataDir = "${{ runner.temp }}/pgo-data"
-          $rustcSysRoot = rustc --print sysroot
-          $llvmProfData = Get-ChildItem -Path "$rustcSysRoot\lib\rustlib\x86_64-pc-windows-msvc\bin\llvm-profdata.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-
-          $profRawFiles = Get-ChildItem -Path $pgoDataDir -Filter "*.profraw" -Recurse
-          Write-Host "Found $($profRawFiles.Count) profile files"
-
-          & $llvmProfData merge -o "$pgoDataDir/merged.profdata" $profRawFiles.FullName
+        run: .\scripts\build_pgo.ps1
 
       - name: Upload PGO profile
         uses: actions/upload-artifact@v4
         with:
           name: pgo-profile-windows
-          path: ${{ runner.temp }}/pgo-data/merged.profdata
+          path: target/pgo-data/merged.profdata
           retention-days: 30
 
   # =============================================================================
@@ -103,40 +69,16 @@ jobs:
           components: llvm-tools-preview
           cache-key: pgo-linux
 
-      - name: Build instrumented binary
+      - name: Generate PGO profile
         run: |
-          export RUSTFLAGS="-Cprofile-generate=${{ runner.temp }}/pgo-data -Ccodegen-units=1"
-          echo "RUSTFLAGS: $RUSTFLAGS"
-          cargo build --release -p cytoscnpy-cli
-
-      - name: Run workload for profiling
-        run: |
-          mkdir -p ${{ runner.temp }}/pgo-data
-          export LLVM_PROFILE_FILE="${{ runner.temp }}/pgo-data/cytoscnpy-%p-%m.profraw"
-
-          echo "Running workloads..."
-          ./target/release/cytoscnpy-cli . --quiet || true
-          ./target/release/cytoscnpy-cli benchmark/examples --quiet --clones --secrets || true
-          ./target/release/cytoscnpy-cli cc . --json > /dev/null || true
-          ./target/release/cytoscnpy-cli mi . --json > /dev/null || true
-          ./target/release/cytoscnpy-cli hal . --json > /dev/null || true
-          ./target/release/cytoscnpy-cli raw . --json > /dev/null || true
-
-      - name: Merge profile data
-        run: |
-          LLVM_PROFDATA=$(find $(rustc --print sysroot) -name "llvm-profdata" -type f | head -1)
-          echo "Using: $LLVM_PROFDATA"
-
-          PROFRAW_COUNT=$(find ${{ runner.temp }}/pgo-data -name "*.profraw" | wc -l)
-          echo "Found $PROFRAW_COUNT profile files"
-
-          $LLVM_PROFDATA merge -o ${{ runner.temp }}/pgo-data/merged.profdata ${{ runner.temp }}/pgo-data/*.profraw
+          chmod +x scripts/build_pgo.sh
+          ./scripts/build_pgo.sh
 
       - name: Upload PGO profile
         uses: actions/upload-artifact@v4
         with:
           name: pgo-profile-linux
-          path: ${{ runner.temp }}/pgo-data/merged.profdata
+          path: target/pgo-data/merged.profdata
           retention-days: 30
 
   # =============================================================================
@@ -159,38 +101,14 @@ jobs:
         with:
           key: pgo-macos
 
-      - name: Build instrumented binary
+      - name: Generate PGO profile
         run: |
-          export RUSTFLAGS="-Cprofile-generate=${{ runner.temp }}/pgo-data -Ccodegen-units=1"
-          echo "RUSTFLAGS: $RUSTFLAGS"
-          cargo build --release -p cytoscnpy-cli
-
-      - name: Run workload for profiling
-        run: |
-          mkdir -p ${{ runner.temp }}/pgo-data
-          export LLVM_PROFILE_FILE="${{ runner.temp }}/pgo-data/cytoscnpy-%p-%m.profraw"
-
-          echo "Running workloads..."
-          ./target/release/cytoscnpy-cli . --quiet || true
-          ./target/release/cytoscnpy-cli benchmark/examples --quiet --clones --secrets || true
-          ./target/release/cytoscnpy-cli cc . --json > /dev/null || true
-          ./target/release/cytoscnpy-cli mi . --json > /dev/null || true
-          ./target/release/cytoscnpy-cli hal . --json > /dev/null || true
-          ./target/release/cytoscnpy-cli raw . --json > /dev/null || true
-
-      - name: Merge profile data
-        run: |
-          LLVM_PROFDATA=$(find $(rustc --print sysroot) -name "llvm-profdata" -type f | head -1)
-          echo "Using: $LLVM_PROFDATA"
-
-          PROFRAW_COUNT=$(find ${{ runner.temp }}/pgo-data -name "*.profraw" | wc -l)
-          echo "Found $PROFRAW_COUNT profile files"
-
-          $LLVM_PROFDATA merge -o ${{ runner.temp }}/pgo-data/merged.profdata ${{ runner.temp }}/pgo-data/*.profraw
+          chmod +x scripts/build_pgo.sh
+          ./scripts/build_pgo.sh
 
       - name: Upload PGO profile
         uses: actions/upload-artifact@v4
         with:
           name: pgo-profile-macos
-          path: ${{ runner.temp }}/pgo-data/merged.profdata
+          path: target/pgo-data/merged.profdata
           retention-days: 30

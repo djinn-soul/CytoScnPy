@@ -17,6 +17,12 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 - 🧩 **Deep Integration**: VS Code extension and MCP server for AI assistants.
 - 🛠️ **Framework Aware**: Native support for Flask, Django, FastAPI, and Pydantic.
 
+## Deep Integration
+
+- **Hybrid Architecture**: High-performance Rust core (`cytoscnpy`) with Python bindings (`PyO3`).
+- **Taint Analysis**: Tracks data flow from untrusted sources to dangerous sinks (SQL, Shell, Code Execution).
+- **Clone Detection**: Uses Weisfeiler-Lehman graph hashing for semantic similarity.
+
 ---
 
 ## Installation

@@ -147,6 +147,24 @@ CytoScnPy can enforce quality standards by exiting with code `1`:
 
 CytoScnPy has specialized subcommands for specific metrics.
 
+#### `hal` - Halstead Metrics
+
+```bash
+cytoscnpy hal . --functions
+```
+
+Calculates Halstead complexity metrics.
+
+- `--functions`: Compute at function level.
+
+#### `files` - Per-File Metrics
+
+```bash
+cytoscnpy files . --json
+```
+
+Shows detailed metrics table for each file.
+
 #### `cc` - Cyclomatic Complexity
 
 ```bash
@@ -157,6 +175,7 @@ Calculates McCabe complexity.
 
 - `--show-complexity`: Show score.
 - `--min-rank <A-F>`: Filter by rank (A=Simple ... F=Critical).
+- `--max-complexity <N>`: Fail if complexity > N.
 
 #### `mi` - Maintainability Index
 
@@ -168,6 +187,15 @@ Calculates Maintainability Index (0-100).
 
 - `--show`: Show values.
 - `--fail-threshold <N>`: Fail if MI < N.
+
+### Additional Quality Options
+
+| Flag                | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `--max-nesting <N>` | Fail if nesting depth > N.                   |
+| `--max-args <N>`    | Fail if function arguments > N.              |
+| `--max-lines <N>`   | Fail if function lines > N.                  |
+| `--ipynb-cells`     | Report findings at cell level for notebooks. |
 
 #### `raw` - Raw Metrics
 
@@ -183,4 +211,6 @@ Calculates LOC, SLOC, Comments, Blank lines.
 cytoscnpy stats . --all
 ```
 
-Runs full analysis and prints summary statistics.
+Runs full analysis (secrets, danger, quality) and prints summary statistics.
+
+- `--all`: Enable all scanners (equivalent to `-s -d -q`).

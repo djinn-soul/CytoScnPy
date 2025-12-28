@@ -71,9 +71,35 @@ cytoscnpy mcp-server
 }
 ```
 
-**Available Tools**:
+### Available Tools
 
-- `analyze_path`: Full analysis.
-- `analyze_code`: Snippet analysis.
-- `quick_scan`: Security check.
-- `cyclomatic_complexity`: Complexity metrics.
+When connected, CytoScnPy exposes the following tools to Claude/Copilot:
+
+| Tool                    | Description                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| `analyze_path`          | Full analysis on files/directories. (Secrets, Danger, Quality, Taint) |
+| `analyze_code`          | Analyze a code snippet directly.                                      |
+| `quick_scan`            | Fast security scan (Secrets & Dangerous patterns).                    |
+| `cyclomatic_complexity` | Calculate complexity metrics for a path.                              |
+| `maintainability_index` | Calculate MI scores (0-100) for a path.                               |
+
+### Configuration
+
+#### Claude Desktop
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "cytoscnpy": {
+      "command": "cytoscnpy",
+      "args": ["mcp-server"]
+    }
+  }
+}
+```
+
+#### GitHub Copilot (VS Code)
+
+Automatically enabled when the [VS Code Extension](#vs-code-extension) is installed. No extra config needed.

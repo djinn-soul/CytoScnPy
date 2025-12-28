@@ -8,12 +8,12 @@ This benchmark evaluates **11 dead code detection tools** against a curated Pyth
 
 | Metric                       | Winner           | Value           |
 | ---------------------------- | ---------------- | --------------- |
-| 🚀 **Fastest Tool**          | CytoScnPy (Rust) | 0.04s           |
-| 🎯 **Best Overall F1**       | deadcode         | 0.6716          |
-| 🔬 **Highest Precision**     | uncalled         | 0.7564          |
-| 💾 **Lowest Memory**         | CytoScnPy (Rust) | 8.2 MB          |
-| ⚖️ **Best Speed/Accuracy**   | CytoScnPy        | 0.04s @ F1 0.64 |
-| 🏆 **Best Method Detection** | CytoScnPy        | F1=0.81         |
+| 🚀 **Fastest Tool**          | CytoScnPy (Rust) | 0.038s          |
+| 🎯 **Best Overall F1**       | CytoScnPy        | 0.6770          |
+| 🔬 **Highest Precision**     | uncalled         | 0.7654          |
+| 💾 **Lowest Memory**         | CytoScnPy (Rust) | 8.3 MB          |
+| ⚖️ **Best Speed/Accuracy**   | CytoScnPy        | 0.04s @ F1 0.68 |
+| 🏆 **Best Method Detection** | CytoScnPy        | F1=0.89         |
 
 ### Detection Capabilities at a Glance
 
@@ -106,17 +106,17 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Tool                 | Time (s) | Mem (MB) | TP     | FP     | FN     | Precision  | Recall     | F1 Score   |
 | -------------------- | -------- | -------- | ------ | ------ | ------ | ---------- | ---------- | ---------- |
-| **CytoScnPy (Rust)** | **0.04** | **8.2**  | **80** | **37** | **52** | **0.6838** | **0.6061** | **0.6426** |
-| CytoScnPy (Python)   | 0.12     | 22.8     | 78     | 38     | 54     | 0.6724     | 0.5909     | 0.6290     |
-| Skylos               | 1.32     | 64.6     | 64     | 29     | 68     | 0.6882     | 0.4848     | 0.5689     |
-| Vulture (0%)         | 0.23     | 20.1     | 89     | 52     | 43     | 0.6312     | 0.6742     | 0.6520     |
-| Vulture (60%)        | 0.20     | 20.2     | 89     | 52     | 43     | 0.6312     | 0.6742     | 0.6520     |
-| Flake8               | 1.18     | 272.1    | 16     | 16     | 116    | 0.5000     | 0.1212     | 0.1951     |
-| Pylint               | 6.22     | 414.5    | 17     | 18     | 115    | 0.4857     | 0.1288     | 0.2036     |
-| Ruff                 | 0.17     | 38.0     | 25     | 19     | 107    | 0.5682     | 0.1894     | 0.2841     |
-| uncalled             | 0.13     | 18.0     | 59     | 19     | 73     | 0.7564     | 0.4470     | 0.5619     |
-| dead                 | 0.24     | 37.2     | 41     | 51     | 91     | 0.4457     | 0.3130     | 0.3661     |
-| **deadcode**         | 0.31     | 29.0     | **91** | 48     | 41     | 0.6547     | **0.6894** | **0.6716** |
+| **CytoScnPy (Rust)** | **0.04** | **8.3**  | **87** | **35** | **48** | **0.7131** | **0.6444** | **0.6770** |
+| CytoScnPy (Python)   | 0.09     | 15.2     | 86     | 36     | 49     | 0.7049     | 0.6370     | 0.6693     |
+| Skylos               | 1.51     | 65.4     | 64     | 28     | 71     | 0.6957     | 0.4741     | 0.5639     |
+| Vulture (0%)         | 0.40     | 20.3     | 92     | 59     | 43     | 0.6093     | 0.6815     | 0.6434     |
+| Vulture (60%)        | 0.38     | 20.2     | 92     | 59     | 43     | 0.6093     | 0.6815     | 0.6434     |
+| Flake8               | 1.17     | 272.6    | 16     | 16     | 119    | 0.5000     | 0.1185     | 0.1916     |
+| Pylint               | 8.46     | 439.0    | 17     | 19     | 118    | 0.4722     | 0.1259     | 0.1988     |
+| Ruff                 | 0.31     | 38.3     | 25     | 20     | 110    | 0.5556     | 0.1852     | 0.2778     |
+| uncalled             | 0.26     | 18.6     | 62     | 19     | 73     | 0.7654     | 0.4593     | 0.5741     |
+| dead                 | 0.45     | 38.3     | 42     | 55     | 93     | 0.4330     | 0.3111     | 0.3621     |
+| **deadcode**         | 1.09     | 29.1     | **93** | 51     | 42     | 0.6458     | **0.6889** | **0.6667** |
 
 ---
 
@@ -213,17 +213,17 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 ### Method Detection (27 ground truth items)
 
-| Tool                 | TP     | FP  | FN    | Precision | Recall     | F1 Score   |
-| -------------------- | ------ | --- | ----- | --------- | ---------- | ---------- |
-| uncalled             | 19     | 0   | 8     | 1.0000    | 0.7037     | 0.8261     |
-| **CytoScnPy (Rust)** | **21** | 4   | **6** | 0.8400    | **0.7778** | **0.8077** |
-| Vulture              | 19     | 5   | 8     | 0.7917    | 0.7037     | 0.7451     |
-| deadcode             | 19     | 5   | 8     | 0.7917    | 0.7037     | 0.7451     |
-| Skylos               | 16     | 4   | 11    | 0.8000    | 0.5926     | 0.6809     |
-| dead                 | 11     | 0   | 16    | 1.0000    | 0.4074     | 0.5789     |
-| Flake8               | 0      | 0   | 27    | 0.0000    | 0.0000     | 0.0000     |
-| Pylint               | 0      | 0   | 27    | 0.0000    | 0.0000     | 0.0000     |
-| Ruff                 | 0      | 0   | 27    | 0.0000    | 0.0000     | 0.0000     |
+| Tool                 | TP     | FP  | FN    | Precision  | Recall     | F1 Score   |
+| -------------------- | ------ | --- | ----- | ---------- | ---------- | ---------- |
+| **CytoScnPy (Rust)** | **25** | 4   | **2** | **0.8621** | **0.9259** | **0.8929** |
+| uncalled             | 19     | 0   | 8     | 1.0000     | 0.7037     | 0.8261     |
+| Vulture              | 19     | 5   | 8     | 0.7917     | 0.7037     | 0.7451     |
+| deadcode             | 19     | 5   | 8     | 0.7917     | 0.7037     | 0.7451     |
+| Skylos               | 16     | 4   | 11    | 0.8000     | 0.5926     | 0.6809     |
+| dead                 | 11     | 0   | 16    | 1.0000     | 0.4074     | 0.5789     |
+| Flake8               | 0      | 0   | 27    | 0.0000     | 0.0000     | 0.0000     |
+| Pylint               | 0      | 0   | 27    | 0.0000     | 0.0000     | 0.0000     |
+| Ruff                 | 0      | 0   | 27    | 0.0000     | 0.0000     | 0.0000     |
 
 #### Analysis
 
@@ -300,11 +300,11 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Category     | Best Tool        | F1 Score | Why                              |
 | ------------ | ---------------- | -------- | -------------------------------- |
-| **Class**    | CytoScnPy        | 0.73     | Best precision with good recall  |
-| **Function** | Vulture/deadcode | 0.79     | Best precision/recall balance    |
-| **Import**   | Ruff             | 0.63     | Fast, mature F401 implementation |
-| **Method**   | uncalled         | 0.83     | Perfect precision, good recall   |
-| **Variable** | Ruff             | 0.50     | F841 rule with good precision    |
+| **Class**    | CytoScnPy        | 0.76     | Best precision with good recall  |
+| **Function** | Vulture/deadcode | 0.78     | Best precision/recall balance    |
+| **Import**   | Ruff             | 0.65     | Fast, mature F401 implementation |
+| **Method**   | CytoScnPy        | 0.89     | Best precision and recall        |
+| **Variable** | Ruff             | 0.48     | F841 rule with good precision    |
 
 ### Tool Categories
 
@@ -620,4 +620,4 @@ Memory is measured as **Peak Resident Set Size (RSS)** during tool execution:
 
 ---
 
-_Last updated: 2025-12-20 (132 total ground truth items, 11 tools benchmarked)_
+_Last updated: 2025-12-28 (135 total ground truth items, 11 tools benchmarked)_

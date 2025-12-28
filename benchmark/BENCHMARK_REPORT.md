@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-CytoScnPy demonstrates **strong performance** with ~269K lines/second throughput while maintaining competitive accuracy (F1=0.64). It is **~3x faster** than the Python version and **~30x faster** than Skylos. **Best-in-class method detection** (F1=0.81).
+CytoScnPy demonstrates **strong performance** with ~270K lines/second throughput while maintaining competitive accuracy (F1=0.68). It is **~3x faster** than the Python version and **~29x faster** than Skylos. **Best-in-class method detection** (F1=0.89).
 
 ---
 
@@ -37,30 +37,30 @@ Real-world projects analyzed with 20 runs + 3 warmup iterations:
 
 | Tool                 | Time (s)  | Memory (MB) | Issues |
 | -------------------- | --------- | ----------- | ------ |
-| **CytoScnPy (Rust)** | **0.043** | **8.2**     | 92     |
-| CytoScnPy (Python)   | 0.117     | 22.8        | 93     |
-| Vulture (60%)        | 0.199     | 20.2        | 148    |
-| uncalled             | 0.132     | 18.0        | 78     |
-| dead                 | 0.242     | 37.2        | 106    |
-| deadcode             | 0.309     | 29.0        | 139    |
-| Ruff                 | 0.166     | 38.0        | 1626   |
-| Skylos               | 1.323     | 64.6        | 93     |
-| Flake8               | 1.183     | 272.1       | 177    |
-| Pylint               | 6.222     | 414.5       | 3377   |
+| **CytoScnPy (Rust)** | **0.038** | **8.3**     | 93     |
+| CytoScnPy (Python)   | 0.094     | 15.2        | 93     |
+| Vulture (60%)        | 0.381     | 20.2        | 158    |
+| uncalled             | 0.262     | 18.6        | 81     |
+| Ruff                 | 0.306     | 38.3        | 1659   |
+| dead                 | 0.450     | 38.3        | 112    |
+| deadcode             | 1.094     | 29.1        | 144    |
+| Skylos               | 1.511     | 65.4        | 92     |
+| Flake8               | 1.165     | 272.6       | 186    |
+| Pylint               | 8.458     | 439.0       | 3608   |
 
 ### Accuracy (F1 Score)
 
 | Tool          | Precision | Recall | **F1**   | Best At          |
 | ------------- | --------- | ------ | -------- | ---------------- |
+| **CytoScnPy** | 0.71      | 0.64   | **0.68** | Methods, Classes |
 | deadcode      | 0.65      | 0.69   | **0.67** | Functions        |
-| Vulture       | 0.63      | 0.67   | **0.65** | Functions        |
-| **CytoScnPy** | 0.68      | 0.61   | **0.64** | Methods, Classes |
-| uncalled      | 0.76      | 0.45   | 0.56     | Methods          |
-| Skylos        | 0.69      | 0.48   | 0.57     | Classes          |
-| dead          | 0.45      | 0.31   | 0.37     | -                |
-| Ruff          | 0.57      | 0.19   | 0.28     | Imports          |
-| Pylint        | 0.49      | 0.13   | 0.20     | Variables        |
-| Flake8        | 0.50      | 0.12   | 0.20     | Imports          |
+| Vulture       | 0.61      | 0.68   | **0.64** | Functions        |
+| uncalled      | 0.77      | 0.46   | 0.57     | Methods          |
+| Skylos        | 0.70      | 0.47   | 0.56     | Classes          |
+| dead          | 0.43      | 0.31   | 0.36     | Methods          |
+| Ruff          | 0.56      | 0.19   | 0.28     | Imports          |
+| Pylint        | 0.47      | 0.13   | 0.20     | Variables        |
+| Flake8        | 0.50      | 0.12   | 0.19     | Imports          |
 
 ---
 
@@ -87,8 +87,8 @@ Real-world projects analyzed with 20 runs + 3 warmup iterations:
 
 | Tool          | TP  | FP  | FN  | F1       |
 | ------------- | --- | --- | --- | -------- |
-| uncalled      | 19  | 0   | 8   | **0.83** |
-| **CytoScnPy** | 21  | 4   | 6   | **0.81** |
+| **CytoScnPy** | 25  | 4   | 2   | **0.89** |
+| uncalled      | 19  | 0   | 8   | 0.83     |
 | Vulture       | 19  | 5   | 8   | 0.75     |
 
 ### Import Detection
@@ -113,10 +113,10 @@ Real-world projects analyzed with 20 runs + 3 warmup iterations:
 
 ### Strengths of CytoScnPy
 
-- ✅ **Fastest Rust-based dead code detector** (30x faster than Skylos)
-- ✅ **Lowest memory usage** (8.2 MB vs 65+ MB for competitors)
-- ✅ **Best method detection** (F1=0.81, surpassing uncalled in recall)
-- ✅ **Best class detection** (F1=0.73, highest among all tools)
+- ✅ **Fastest Rust-based dead code detector**
+- ✅ **Lowest memory usage**
+- ✅ **Best method detection** (F1=0.89, surpassing uncalled)
+- ✅ **Best class detection** (F1=0.76, highest among all tools)
 - ✅ **Scales linearly** with codebase size
 
 ### Areas for Improvement

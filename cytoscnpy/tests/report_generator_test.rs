@@ -54,6 +54,7 @@ fn test_generate_report_full() {
         }],
         taint_findings: vec![],
         parse_errors: vec![],
+        clones: vec![],
         file_metrics: vec![FileMetrics {
             file: PathBuf::from("test.py"),
             loc: 100,
@@ -128,6 +129,7 @@ fn test_calculate_score_logic() {
         quality: vec![],
         taint_findings: vec![],
         parse_errors: vec![],
+        clones: vec![],
         file_metrics: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 0,

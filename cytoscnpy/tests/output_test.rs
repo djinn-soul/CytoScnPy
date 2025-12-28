@@ -51,6 +51,7 @@ fn test_print_report_formatting() {
         quality: vec![],
         taint_findings: vec![],
         parse_errors: vec![],
+        clones: vec![],
         file_metrics: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 5,

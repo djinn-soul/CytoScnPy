@@ -6,8 +6,8 @@
 
 use crate::analyzer::AnalysisResult;
 use crate::report::templates::{
-    CategoryScore, DashboardTemplate, FileViewTemplate, FilesTemplate, IssueItem, IssuesTemplate,
-    OverallScore,
+    CategoryScore, CloneItem, ClonesTemplate, DashboardTemplate, FileViewTemplate, FilesTemplate,
+    IssueItem, IssuesTemplate, OverallScore,
 };
 use anyhow::Result;
 use askama::Template;
@@ -181,6 +181,42 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
     };
     fs::write(output_dir.join("files.html"), files_page.render()?)?;
 
+    // 7. Generate Clones Page
+    let clone_items: Vec<CloneItem> = result
+        .clones
+        .iter()
+        .filter(|c| c.is_duplicate)
+        .map(|c| {
+            let safe_file = c.file.to_string_lossy().replace(['/', '\\', ':'], "_") + ".html";
+            let safe_related = c
+                .related_clone
+                .file
+                .to_string_lossy()
+                .replace(['/', '\\', ':'], "_")
+                + ".html";
+
+            CloneItem {
+                similarity: c.similarity,
+                clone_type: c.clone_type.display_name().to_string(),
+                name: c.name.clone().unwrap_or_else(|| "<anonymous>".to_string()),
+                file: c.file.to_string_lossy().to_string(),
+                line: c.line,
+                link: format!("files/{}#L{}", safe_file, c.line),
+                related_file: c.related_clone.file.to_string_lossy().to_string(),
+                related_line: c.related_clone.line,
+                related_link: format!("files/{}#L{}", safe_related, c.related_clone.line),
+            }
+        })
+        .collect();
+
+    let clones_page = ClonesTemplate {
+        clones: clone_items,
+        generated_at: generated_at.clone(),
+        version: version.clone(),
+        root_path: ".".to_owned(),
+    };
+    fs::write(output_dir.join("clones.html"), clones_page.render()?)?;
+
     // 7. Generate Assets (CSS/JS)
     write_assets(output_dir)?;
 
@@ -261,8 +297,15 @@ fn calculate_score(result: &AnalysisResult) -> OverallScore {
     // 2 points per unused symbol as requested
     maintainability_penalty += (unused_count as f64) * 2.0;
 
-    // Cap maintainability penalty at 20 (not 30)
-    maintainability_penalty = maintainability_penalty.min(20.0);
+    // Penalize clones (3 points per duplicate)
+    for clone in &result.clones {
+        if clone.is_duplicate {
+            maintainability_penalty += 3.0;
+        }
+    }
+
+    // Cap maintainability penalty at 45 (increased from 20 to account for clones)
+    maintainability_penalty = maintainability_penalty.min(45.0);
 
     // --- 3. Reliability / Correctness (15-20% weight) ---
     // Signals: Error handling, Exceptions

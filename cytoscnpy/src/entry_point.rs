@@ -642,8 +642,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             // Track clone count for combined summary
             let mut clone_pairs_found = 0usize;
 
-            // Handle --clones flag
-            if cli_var.clones {
+            // Handle --clones flag (or implicit execution for HTML report)
+            if cli_var.clones || cli_var.output.html {
                 if cli_var.output.verbose && !cli_var.output.json {
                     eprintln!("[VERBOSE] Clone detection enabled");
                     eprintln!(
@@ -671,8 +671,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     verbose: cli_var.output.verbose,
                     with_cst: true, // CST is always enabled by default
                 };
-                clone_pairs_found =
-                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut *writer)?;
+
+                let (count, findings) = if cli_var.clones {
+                    // Explicit run: print to stdout
+                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut *writer)?
+                } else {
+                    // Implicit run for HTML: suppress output
+                    let mut sink = std::io::sink();
+                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut sink)?
+                };
+
+                clone_pairs_found = count;
+                result.clones = findings;
             }
 
             // Print summary and time (only for non-JSON output)

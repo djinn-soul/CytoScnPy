@@ -1,15 +1,21 @@
 // child_process.execFile is used inline in runCytoScnPyAnalysis
 
-interface CytoScnPyFinding {
+export interface CytoScnPyFinding {
   file_path: string;
   line_number: number;
   col?: number;
   message: string;
   rule_id: string;
-  severity: "error" | "warning" | "info";
+  severity: "error" | "warning" | "info" | "hint";
+  // CST-based fix suggestion (if available)
+  fix?: {
+    start_byte: number;
+    end_byte: number;
+    replacement: string;
+  };
 }
 
-interface CytoScnPyAnalysisResult {
+export interface CytoScnPyAnalysisResult {
   findings: CytoScnPyFinding[];
   parseErrors: ParseError[];
 }
@@ -25,6 +31,7 @@ export interface CytoScnPyConfig {
   enableSecretsScan: boolean;
   enableDangerScan: boolean;
   enableQualityScan: boolean;
+  enableCloneScan: boolean; // Enable code clone detection (--clones flag)
   confidenceThreshold: number;
   excludeFolders: string[];
   includeFolders: string[];
@@ -46,7 +53,12 @@ interface RawCytoScnPyFinding {
   rule_id?: string;
   severity?: string;
   name?: string;
-  simple_name?: string; // Short name without class prefix (e.g., "method_a" instead of "ComplexClass.method_a")
+  simple_name?: string;
+  fix?: {
+    start_byte: number;
+    end_byte: number;
+    replacement: string;
+  };
 }
 
 interface RawCytoScnPyResult {
@@ -60,7 +72,33 @@ interface RawCytoScnPyResult {
   danger?: RawCytoScnPyFinding[];
   quality?: RawCytoScnPyFinding[];
   taint_findings?: RawCytoScnPyFinding[];
+  clone_findings?: RawCloneFinding[];
   parse_errors?: { file: string; line: number; message: string }[];
+}
+
+// Clone detection finding structure (matches Rust CloneFinding struct)
+interface RawCloneFinding {
+  rule_id: string;
+  message: string;
+  severity: string;
+  file: string;
+  line: number;
+  end_line: number;
+  start_byte: number;
+  end_byte: number;
+  clone_type: "Type1" | "Type2" | "Type3";
+  similarity: number;
+  name?: string;
+  related_clone: {
+    file: string;
+    line: number;
+    end_line: number;
+    name?: string;
+  };
+  fix_confidence: number;
+  is_duplicate: boolean;
+  suggestion?: string;
+  node_kind: "Function" | "AsyncFunction" | "Class" | "Method";
 }
 
 function transformRawResult(
@@ -103,6 +141,7 @@ function transformRawResult(
         message: rawFinding.message || messageFormatter(rawFinding),
         rule_id: rawFinding.rule_id || defaultRuleId,
         severity: normalizeSeverity(rawFinding.severity) || defaultSeverity,
+        fix: rawFinding.fix,
       });
     }
   };
@@ -182,6 +221,47 @@ function transformRawResult(
     }
   }
 
+  // Process clone findings (displayed as hints with navigation suggestions)
+  // Clone detection uses AST-based hashing and edit distance (not CFG)
+  // Deduplicate: keep only the highest-similarity clone per location
+  if (rawResult.clone_findings) {
+    // Group by (file, line) and keep the best match
+    const cloneMap = new Map<
+      string,
+      { clone: RawCloneFinding; similarity: number }
+    >();
+
+    for (const clone of rawResult.clone_findings) {
+      const key = `${clone.file}:${clone.line}`;
+      const existing = cloneMap.get(key);
+      if (!existing || clone.similarity > existing.similarity) {
+        cloneMap.set(key, { clone, similarity: clone.similarity });
+      }
+    }
+
+    // Create findings from deduplicated clones
+    for (const { clone } of cloneMap.values()) {
+      const similarityPercent = Math.round(clone.similarity * 100);
+      const relatedFile = clone.related_clone.file.split(/[\\/]/).pop(); // basename
+      const relatedLine = clone.related_clone.line;
+
+      // Build a cleaner message with reference
+      const message = `Similar to ${
+        clone.related_clone.name || relatedFile
+      }:${relatedLine} (${similarityPercent}% match). ${
+        clone.suggestion || "Consider refactoring."
+      }`;
+
+      findings.push({
+        file_path: clone.file,
+        line_number: clone.line,
+        message,
+        rule_id: clone.rule_id,
+        severity: clone.is_duplicate ? "warning" : "hint",
+      });
+    }
+  }
+
   return { findings, parseErrors };
 }
 
@@ -202,6 +282,10 @@ export function runCytoScnPyAnalysis(
     if (config.enableQualityScan) {
       args.push("--quality");
     }
+    if (config.enableCloneScan) {
+      args.push("--clones");
+    }
+
     if (config.confidenceThreshold > 0) {
       args.push("--confidence", config.confidenceThreshold.toString());
     }
@@ -239,20 +323,31 @@ export function runCytoScnPyAnalysis(
 
     const { execFile } = require("child_process");
 
+    // const startTime = Date.now();
     execFile(
       config.path,
       args,
       (error: Error | null, stdout: string, stderr: string) => {
+        // const duration = (Date.now() - startTime) / 1000;
+        // console.log(
+        //   `[CytoScnPy] Analysis completed in ${duration.toFixed(3)}s`
+        // );
+
         if (error) {
-          console.error(
-            `CytoScnPy analysis failed for ${filePath}: ${error.message}`
-          );
-          console.error(`Stderr: ${stderr}`);
+          // CLI exited with non-zero code, but might still have valid JSON
+          // (e.g., gate thresholds failed but analysis succeeded)
           try {
             const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
             const result = transformRawResult(rawResult);
             resolve(result);
           } catch (parseError) {
+            // JSON parsing failed - this is a real error
+            console.error(
+              `CytoScnPy analysis failed for ${filePath}: ${error.message}`
+            );
+            if (stderr) {
+              console.error(`Stderr: ${stderr}`);
+            }
             reject(
               new Error(
                 `Failed to run CytoScnPy analysis: ${error.message}. Stderr: ${stderr}`

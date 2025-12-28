@@ -1,6 +1,5 @@
 # CytoScnPy Benchmark Report
 
-**Date:** 2025-12-15  
 **Platform:** Windows 11  
 **Tool:** Hyperfine 1.20.0
 
@@ -8,7 +7,7 @@
 
 ## Executive Summary
 
-CytoScnPy demonstrates **strong performance** with ~269K lines/second throughput while maintaining competitive accuracy (F1=0.63). It is **~2x faster** than the Python version and **~9x faster** than Skylos.
+CytoScnPy demonstrates **strong performance** with ~270K lines/second throughput while maintaining competitive accuracy (F1=0.68). It is **~3x faster** than the Python version and **~29x faster** than Skylos. **Best-in-class method detection** (F1=0.89).
 
 ---
 
@@ -38,30 +37,30 @@ Real-world projects analyzed with 20 runs + 3 warmup iterations:
 
 | Tool                 | Time (s)  | Memory (MB) | Issues |
 | -------------------- | --------- | ----------- | ------ |
-| **CytoScnPy (Rust)** | **0.022** | **7.8**     | 93     |
-| CytoScnPy (Python)   | 0.088     | 18.1        | 93     |
-| Vulture (60%)        | 0.434     | 20.2        | 148    |
-| uncalled             | 0.134     | 18.4        | 78     |
-| dead                 | 0.237     | 38.1        | 106    |
-| deadcode             | 0.310     | 29.1        | 139    |
-| Ruff                 | 0.274     | 37.8        | 1626   |
-| Skylos               | 1.280     | 64.5        | 93     |
-| Flake8               | 1.187     | 268.8       | 181    |
-| Pylint               | 7.676     | 411.7       | 3399   |
+| **CytoScnPy (Rust)** | **0.038** | **8.3**     | 93     |
+| CytoScnPy (Python)   | 0.094     | 15.2        | 93     |
+| Vulture (60%)        | 0.381     | 20.2        | 158    |
+| uncalled             | 0.262     | 18.6        | 81     |
+| Ruff                 | 0.306     | 38.3        | 1659   |
+| dead                 | 0.450     | 38.3        | 112    |
+| deadcode             | 1.094     | 29.1        | 144    |
+| Skylos               | 1.511     | 65.4        | 92     |
+| Flake8               | 1.165     | 272.6       | 186    |
+| Pylint               | 8.458     | 439.0       | 3608   |
 
 ### Accuracy (F1 Score)
 
 | Tool          | Precision | Recall | **F1**   | Best At          |
 | ------------- | --------- | ------ | -------- | ---------------- |
+| **CytoScnPy** | 0.71      | 0.64   | **0.68** | Methods, Classes |
 | deadcode      | 0.65      | 0.69   | **0.67** | Functions        |
-| Vulture       | 0.63      | 0.67   | **0.65** | Functions        |
-| **CytoScnPy** | 0.67      | 0.59   | **0.63** | Methods, Classes |
-| uncalled      | 0.76      | 0.45   | 0.56     | Methods          |
-| Skylos        | 0.69      | 0.48   | 0.57     | Classes          |
-| dead          | 0.45      | 0.31   | 0.37     | -                |
-| Ruff          | 0.57      | 0.19   | 0.28     | Imports          |
-| Pylint        | 0.49      | 0.13   | 0.20     | Variables        |
-| Flake8        | 0.50      | 0.12   | 0.20     | Imports          |
+| Vulture       | 0.61      | 0.68   | **0.64** | Functions        |
+| uncalled      | 0.77      | 0.46   | 0.57     | Methods          |
+| Skylos        | 0.70      | 0.47   | 0.56     | Classes          |
+| dead          | 0.43      | 0.31   | 0.36     | Methods          |
+| Ruff          | 0.56      | 0.19   | 0.28     | Imports          |
+| Pylint        | 0.47      | 0.13   | 0.20     | Variables        |
+| Flake8        | 0.50      | 0.12   | 0.19     | Imports          |
 
 ---
 
@@ -88,8 +87,8 @@ Real-world projects analyzed with 20 runs + 3 warmup iterations:
 
 | Tool          | TP  | FP  | FN  | F1       |
 | ------------- | --- | --- | --- | -------- |
-| uncalled      | 19  | 0   | 8   | **0.83** |
-| **CytoScnPy** | 19  | 4   | 8   | **0.76** |
+| **CytoScnPy** | 25  | 4   | 2   | **0.89** |
+| uncalled      | 19  | 0   | 8   | 0.83     |
 | Vulture       | 19  | 5   | 8   | 0.75     |
 
 ### Import Detection
@@ -114,10 +113,10 @@ Real-world projects analyzed with 20 runs + 3 warmup iterations:
 
 ### Strengths of CytoScnPy
 
-- ✅ **Fastest Rust-based dead code detector** (4x faster than Rust equivalent Skylos)
-- ✅ **Lowest memory usage** (7.8 MB vs 65+ MB for competitors)
-- ✅ **Best method detection precision** (0.83 tied with uncalled)
-- ✅ **Best class detection** (0.73 F1, highest among all tools)
+- ✅ **Fastest Rust-based dead code detector**
+- ✅ **Lowest memory usage**
+- ✅ **Best method detection** (F1=0.89, surpassing uncalled)
+- ✅ **Best class detection** (F1=0.76, highest among all tools)
 - ✅ **Scales linearly** with codebase size
 
 ### Areas for Improvement

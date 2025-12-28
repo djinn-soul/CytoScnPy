@@ -34,16 +34,20 @@ CONFIGURATION FILE (.cytoscnpy.toml):
 #[derive(Args, Debug, Default, Clone)]
 pub struct ScanOptions {
     /// Scan for API keys/secrets.
-    #[arg(long)]
+    #[arg(short = 's', long)]
     pub secrets: bool,
 
     /// Scan for dangerous code (includes taint analysis).
-    #[arg(long)]
+    #[arg(short = 'd', long)]
     pub danger: bool,
 
     /// Scan for code quality issues.
-    #[arg(long)]
+    #[arg(short = 'q', long)]
     pub quality: bool,
+
+    /// Skip dead code detection (only run security/quality scans).
+    #[arg(short = 'n', long = "no-dead")]
+    pub no_dead: bool,
 }
 
 /// Options for output formatting and verbosity.
@@ -59,8 +63,9 @@ pub struct OutputOptions {
     pub verbose: bool,
 
     /// Quiet mode: show only summary, time, and gate results (no detailed tables).
-    #[arg(short, long)]
+    #[arg(long)]
     pub quiet: bool,
+
 
     /// Exit with code 1 if any quality issues are found.
     #[arg(long)]
@@ -91,8 +96,16 @@ pub struct IncludeOptions {
 /// Command line interface configuration using `clap`.
 /// This struct defines the arguments and flags accepted by the program.
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None, after_help = CONFIG_HELP)]
+#[command(
+    author, 
+    version, 
+    about = "CytoScnPy - Fast, accurate Python static analysis for dead code, secrets, and quality issues",
+    long_about = None, 
+    after_help = CONFIG_HELP
+)]
+#[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
 pub struct Cli {
+    
     #[command(subcommand)]
     /// The subcommand to execute (e.g., raw, cc, hal).
     pub command: Option<Commands>,
@@ -158,6 +171,28 @@ pub struct Cli {
     /// Add artificial delay (ms) per file for testing progress bar.
     #[arg(long, hide = true)]
     pub debug_delay: Option<u64>,
+
+    /// Enable code clone detection (Type-1/2/3).
+    /// Finds duplicate or near-duplicate code fragments.
+    #[arg(long)]
+    pub clones: bool,
+
+    /// Minimum similarity threshold for clone detection (0.0-1.0).
+    /// Default is 0.8 (80% similarity).
+    #[arg(long, default_value = "0.8")]
+    pub clone_similarity: f64,
+
+    /// Auto-fix detected dead code (removes unused functions, classes, imports).
+    /// By default, shows a preview of what would be changed (dry-run).
+    /// Use --apply to actually modify files.
+    /// Note: Clone detection is report-only; clones are never auto-removed.
+    #[arg(long)]
+    pub fix: bool,
+
+    /// Apply the fixes to files (use with --fix).
+    /// Without this flag, --fix only shows a preview of what would be changed.
+    #[arg(short = 'a', long)]
+    pub apply: bool,
 }
 
 #[derive(Subcommand, Debug)]

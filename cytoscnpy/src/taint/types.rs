@@ -72,7 +72,7 @@ pub enum TaintSource {
     DjangoRequest(String),
     /// `FastAPI` parameter (Query, Path, Body, Form)
     FastApiParam(String),
-    /// Azure Functions request object (params, get_json, get_body, route_params)
+    /// Azure Functions request object (params, `get_json`, `get_body`, `route_params`)
     AzureFunctionsRequest(String),
     /// Python `input()` builtin
     Input,
@@ -130,6 +130,7 @@ impl TaintInfo {
     }
 
     /// Extends the taint path with a new variable.
+    #[must_use] 
     pub fn extend_path(&self, var_name: &str) -> Self {
         let mut new_path = self.path.clone();
         new_path.push(var_name.to_owned());

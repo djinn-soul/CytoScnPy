@@ -1,0 +1,331 @@
+{% extends "base.html" %} {% block head %}
+<title>CytoScnPy - Detected Clones</title>
+<style>
+  .similarity-badge {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+  .clone-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    border-radius: 0.375rem;
+  }
+  .comparison-side h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.85rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+</style>
+{% endblock %} {% block content %}
+<h1 style="margin-bottom: 0.5rem">Code Duplication Analysis</h1>
+<p style="color: var(--text-muted); margin-bottom: 1rem">
+  Detected {{ clones.len() }} code clones. High duplication affects
+  maintainability.
+</p>
+
+<!-- Controls Bar -->
+<div class="controls-bar">
+  <input
+    type="text"
+    id="searchInput"
+    placeholder="Search files or names..."
+    class="form-input"
+    style="flex: 1; min-width: 200px"
+  />
+
+  <select id="sortOrder" class="form-select">
+    <option value="similarity_desc">Similarity (High &rarr; Low)</option>
+    <option value="similarity_asc">Similarity (Low &rarr; High)</option>
+    <option value="file_asc">File Name (A &rarr; Z)</option>
+  </select>
+
+  <label class="group-toggle-btn">
+    <input
+      type="checkbox"
+      id="groupByFile"
+      style="accent-color: var(--primary)"
+    />
+    <span class="label-text">Group by File</span>
+  </label>
+</div>
+
+<div id="clonesContainer">
+  <!-- Hidden source data for JS -->
+  <div id="sourceData" style="display: none">
+    {% for clone in clones %}
+    <div
+      class="clone-data"
+      data-name="{{ clone.name }}"
+      data-type="{{ clone.clone_type }}"
+      data-similarity="{{ clone.similarity }}"
+      data-file="{{ clone.file }}"
+      data-line="{{ clone.line }}"
+      data-link="{{ clone.link }}"
+      data-related-file="{{ clone.related_file }}"
+      data-related-line="{{ clone.related_line }}"
+      data-related-link="{{ clone.related_link }}"
+    ></div>
+    {% endfor %}
+  </div>
+
+  <div id="listContainer" data-page-size="10"></div>
+
+  <div id="paginationControls" class="pagination-controls"></div>
+
+  <div
+    id="emptyState"
+    class="empty-state"
+    style="
+      display: none;
+      text-align: center;
+      padding: 4rem;
+      color: #9ca3af;
+      background: var(--card-bg);
+      border-radius: 0.5rem;
+      border: 1px dashed #374151;
+    "
+  >
+    <p>No clones found matching your filters.</p>
+  </div>
+</div>
+
+<script>
+  const state = {
+    search: "",
+    sortBy: "similarity_desc",
+    groupByFile: false,
+    page: 1,
+  };
+
+  let allClones = [];
+
+  // Initialize
+  document.addEventListener("DOMContentLoaded", () => {
+    // Parse source data
+    const dataNodes = document.querySelectorAll(".clone-data");
+    allClones = Array.from(dataNodes).map((node) => ({
+      name: node.dataset.name,
+      type: node.dataset.type,
+      similarity: parseFloat(node.dataset.similarity),
+      file: node.dataset.file,
+      line: parseInt(node.dataset.line),
+      link: node.dataset.link,
+      relatedFile: node.dataset.relatedFile,
+      relatedLine: parseInt(node.dataset.relatedLine),
+      relatedLink: node.dataset.relatedLink,
+    }));
+
+    render();
+
+    // Bind events
+    document.getElementById("searchInput").addEventListener("input", (e) => {
+      state.search = e.target.value.toLowerCase();
+      state.page = 1;
+      render();
+    });
+    document.getElementById("sortOrder").addEventListener("change", (e) => {
+      state.sortBy = e.target.value;
+      state.page = 1;
+      render();
+    });
+    document.getElementById("groupByFile").addEventListener("change", (e) => {
+      state.groupByFile = e.target.checked;
+      state.page = 1;
+      render();
+    });
+  });
+
+  function render() {
+    // 1. Filter
+    let visible = allClones.filter((c) => {
+      const search = state.search;
+      return (
+        !search ||
+        c.name.toLowerCase().includes(search) ||
+        c.file.toLowerCase().includes(search) ||
+        c.relatedFile.toLowerCase().includes(search)
+      );
+    });
+
+    // 2. Sort
+    visible.sort((a, b) => {
+      if (state.sortBy === "similarity_desc")
+        return b.similarity - a.similarity;
+      if (state.sortBy === "similarity_asc") return a.similarity - b.similarity;
+      if (state.sortBy === "file_asc") return a.file.localeCompare(b.file);
+      return 0;
+    });
+
+    const container = document.getElementById("listContainer");
+    container.innerHTML = "";
+
+    const emptyState = document.getElementById("emptyState");
+    const pagination = document.getElementById("paginationControls");
+
+    if (visible.length === 0) {
+      emptyState.style.display = "block";
+      pagination.style.display = "none";
+      return;
+    }
+    emptyState.style.display = "none";
+    pagination.style.display = "flex";
+
+    // 3. Paginate & Render
+    const pageSize = 10;
+    let totalPages;
+
+    if (state.groupByFile) {
+      // Group visible items
+      const groups = {};
+      visible.forEach((item) => {
+        if (!groups[item.file]) groups[item.file] = [];
+        groups[item.file].push(item);
+      });
+
+      const keys = Object.keys(groups).sort();
+      totalPages = Math.ceil(keys.length / pageSize);
+      if (state.page > totalPages) state.page = 1;
+      renderPagination(totalPages); // Re-render pagination for groups
+
+      const pagedKeys = keys.slice(
+        (state.page - 1) * pageSize,
+        (state.page - 1) * pageSize + pageSize
+      );
+
+      pagedKeys.forEach((file) => {
+        const groupDiv = document.createElement("div");
+        groupDiv.style.marginBottom = "2rem";
+
+        const header = document.createElement("div");
+        header.className = "file-group-header";
+        // Inline styles from issues.html for consistency
+        header.style.background = "rgba(55, 65, 81, 0.3)";
+        header.style.padding = "0.75rem 1rem";
+        header.style.marginBottom = "1rem";
+        header.style.borderRadius = "0.5rem";
+        header.style.fontWeight = "600";
+        header.style.color = "var(--text-light)";
+        header.style.display = "flex";
+        header.style.justifyContent = "space-between";
+        header.style.alignItems = "center";
+        header.style.border = "1px solid #374151";
+
+        header.innerHTML = `
+                    <span>${file}</span>
+                    <span class="badge" style="background:var(--primary); color:white; padding:0.25rem 0.75rem; border-radius:999px; font-size:0.8rem;">
+                        ${groups[file].length} Clones
+                    </span>
+                `;
+        groupDiv.appendChild(header);
+
+        groups[file].forEach((clone) => {
+          groupDiv.appendChild(createCloneCard(clone));
+        });
+        container.appendChild(groupDiv);
+      });
+    } else {
+      // Flat list pagination
+      totalPages = Math.ceil(visible.length / pageSize);
+      if (state.page > totalPages) state.page = 1;
+      renderPagination(totalPages);
+
+      const start = (state.page - 1) * pageSize;
+      const end = start + pageSize;
+      visible.slice(start, end).forEach((clone) => {
+        container.appendChild(createCloneCard(clone));
+      });
+    }
+  }
+
+  function createCloneCard(clone) {
+    const card = document.createElement("div");
+    card.className = "report-item border-medium";
+    card.innerHTML = `
+            <div class="report-item-header">
+                <div>
+                    <span class="report-item-title">${clone.name}</span>
+                    <span style="font-size: 0.8rem; color: #6b7280; margin-left: 0.5rem;">${
+                      clone.type
+                    }</span>
+                </div>
+                <span class="similarity-badge">${(
+                  clone.similarity * 100
+                ).toFixed(0)}% Similarity</span>
+            </div>
+            <div class="clone-comparison">
+                <div class="comparison-side">
+                    <h4>Original / Source</h4>
+                    <div class="report-item-location">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                            <polyline points="13 2 13 9 20 9"></polyline>
+                        </svg>
+                        <a href="${clone.link}">${clone.file}:${clone.line}</a>
+                    </div>
+                </div>
+                <div class="comparison-side">
+                    <h4>Duplicate / Target</h4>
+                    <div class="report-item-location">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                            <polyline points="13 2 13 9 20 9"></polyline>
+                        </svg>
+                        <a href="${clone.relatedLink}">${clone.relatedFile}:${
+      clone.relatedLine
+    }</a>
+                    </div>
+                </div>
+            </div>
+        `;
+    return card;
+  }
+
+  function renderPagination(totalPages) {
+    const container = document.getElementById("paginationControls");
+    container.innerHTML = "";
+
+    if (totalPages <= 1) {
+      container.style.display = "none";
+      return;
+    }
+
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "pagination-btn";
+    prevBtn.innerHTML = "&larr; Previous";
+    prevBtn.disabled = state.page === 1;
+    prevBtn.onclick = () => {
+      state.page--;
+      render();
+      window.scrollTo(0, 0);
+    };
+
+    const info = document.createElement("div");
+    info.className = "pagination-info";
+    info.innerText = `Page ${state.page} of ${totalPages}`;
+
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "pagination-btn";
+    nextBtn.innerHTML = "Next &rarr;";
+    nextBtn.disabled = state.page === totalPages;
+    nextBtn.onclick = () => {
+      state.page++;
+      render();
+      window.scrollTo(0, 0);
+    };
+
+    container.appendChild(prevBtn);
+    container.appendChild(info);
+    container.appendChild(nextBtn);
+  }
+</script>
+{% endblock %}

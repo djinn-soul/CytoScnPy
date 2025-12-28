@@ -1,8 +1,11 @@
 //! Tests for framework detection (Flask, Django, etc.).
-#![allow(clippy::expect_used)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::str_to_string)]
-#![allow(clippy::needless_raw_string_hashes)]
+
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::str_to_string,
+    clippy::needless_raw_string_hashes
+)]
 
 use cytoscnpy::framework::FrameworkAwareVisitor;
 use cytoscnpy::utils::LineIndex;

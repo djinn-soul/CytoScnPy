@@ -47,7 +47,7 @@ pub struct CytoScnPyConfig {
     pub secrets_config: SecretsConfig,
 }
 
-/// Configuration for advanced secrets scanning (Secret Scanning 2.0).
+/// Configuration for advanced secrets scanning (Secret Scanning).
 #[derive(Debug, Deserialize, Clone)]
 pub struct SecretsConfig {
     /// Minimum Shannon entropy threshold (0.0-8.0) for high-entropy detection.
@@ -71,6 +71,14 @@ pub struct SecretsConfig {
     /// Custom secret patterns defined by user.
     #[serde(default)]
     pub patterns: Vec<CustomSecretPattern>,
+    /// Minimum confidence score to report (0-100).
+    /// Findings below this threshold are filtered out.
+    #[serde(default = "default_min_score")]
+    pub min_score: u8,
+    /// Additional suspicious variable names for AST-based detection.
+    /// These extend the built-in list (password, secret, key, token, etc.).
+    #[serde(default)]
+    pub suspicious_names: Vec<String>,
 }
 
 fn default_entropy_threshold() -> f64 {
@@ -93,6 +101,10 @@ fn default_skip_docstrings() -> bool {
     false
 }
 
+fn default_min_score() -> u8 {
+    50 // Report findings with >= 50% confidence
+}
+
 impl Default for SecretsConfig {
     fn default() -> Self {
         Self {
@@ -102,6 +114,8 @@ impl Default for SecretsConfig {
             scan_comments: default_scan_comments(),
             skip_docstrings: default_skip_docstrings(),
             patterns: Vec::new(),
+            min_score: default_min_score(),
+            suspicious_names: Vec::new(),
         }
     }
 }

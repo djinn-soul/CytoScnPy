@@ -172,12 +172,15 @@ CytoScnPy/
 
 The project includes several CI/CD workflows in `.github/workflows/`:
 
-| Workflow      | File            | Trigger         | Purpose                                     |
-| ------------- | --------------- | --------------- | ------------------------------------------- |
-| **Rust CI**   | `rust-ci.yml`   | PR to main      | Build, test, and lint Rust code             |
-| **Benchmark** | `benchmark.yml` | PR to main      | Run accuracy benchmarks, detect regressions |
-| **Coverage**  | `coverage.yml`  | Push to main    | Generate and upload code coverage reports   |
-| **Publish**   | `publish.yml`   | Git tags (`v*`) | Build wheels and publish to PyPI/TestPyPI   |
+| Workflow         | File                        | Trigger         | Purpose                                     |
+| ---------------- | --------------------------- | --------------- | ------------------------------------------- |
+| **Test Suite**   | `test-ci.yml`               | PR to main      | Build, nextest, pytest                      |
+| **Benchmark**    | `benchmark.yml`             | PR to main      | Run accuracy benchmarks, detect regressions |
+| **Coverage**     | `coverage.yml`              | Push to main    | Generate and upload code coverage reports   |
+| **Security**     | `security.yml`              | PR/Push to main | `cargo audit`, `deny`, `machete`            |
+| **Publish**      | `publish.yml`               | Git tags (`v*`) | Build wheels and publish to PyPI/TestPyPI   |
+| **VS Code Bins** | `vscode-binaries.yml`       | Manual          | Build VS Code extension binaries            |
+| **PGO Profiles** | `generate-pgo-profiles.yml` | Manual          | Generate PGO profiling data                 |
 
 ### Running Workflows Locally
 
@@ -432,22 +435,25 @@ cargo nextest run
 cargo nextest list
 ```
 
-### Code Coverage (cargo-tarpaulin)
+### Code Coverage (cargo-llvm-cov)
 
-Generate HTML coverage reports to see which code paths are tested:
+Generate coverage reports to see which code paths are tested:
 
 ```bash
-# Generate HTML coverage report (outputs to coverage/tarpaulin-report.html)
-cargo coverage
+# Generate HTML coverage report
+cargo llvm-cov --html
 
-# Or run directly with more options
-cargo tarpaulin --out Html --out Lcov --output-dir coverage
+# Generate LCOV format (for CI)
+cargo llvm-cov --lcov --output-path lcov.info
 
-# View coverage for specific package
-cargo tarpaulin -p cytoscnpy --out Html
+# View summary only
+cargo llvm-cov report --summary-only
+
+# With specific features
+cargo llvm-cov --all-features
 ```
 
-> [!NOTE] > `cargo-tarpaulin` works best on Linux. On Windows, consider using WSL or `cargo llvm-cov` as an alternative.
+> [!NOTE] > `cargo-llvm-cov` is the preferred tool as it works cross-platform. CI uses this for Codecov integration.
 
 ### Mutation Testing (cargo-mutants)
 
@@ -515,11 +521,55 @@ The following tools are recommended but not yet fully integrated:
   - Install: `cargo install cargo-make`
   - Create `Makefile.toml` for complex build workflows
   - Useful for CI/CD pipelines
-- [ ] **CI Integration**: Add GitHub Actions workflow for:
-  - `cargo audit` on every PR
-  - `cargo deny check` for license compliance
-  - `cargo machete` to catch unused dependencies
-  - `cargo nextest run` for test execution
+- [x] **CI Integration**: GitHub Actions workflows added (see `security.yml` and `test-ci.yml`):
+  - `cargo audit` on every PR ✅
+  - `cargo deny check` for license compliance ✅
+  - `cargo machete` to catch unused dependencies ✅
+  - `cargo nextest run` for test execution ✅
+
+---
+
+## 📦 Binary Size Optimization
+
+CytoScnPy prioritizes a small binary size for easy distribution. When contributing, please adhere to these optimization strategies:
+
+### 1. "Ruthless" Compiler Settings
+
+We use aggressive optimization in `[profile.release]` (`Cargo.toml`):
+
+- `opt-level = "z"`: Optimize for size.
+- `lto = "fat"`: Maximum link-time optimization across all crates.
+- `panic = "abort"`: Removes stack unwinding code.
+- `codegen-units = 1`: Single compilation unit for better optimization context.
+- `strip = true`: Removes debug symbols.
+
+### 2. Linker Flags
+
+Windows builds use strict linker flags in `.cargo/config.toml`:
+
+- `/OPT:REF`: Removes unreferenced functions/data.
+- `/OPT:ICF`: Merges identical functions (Identical COMDAT Folding).
+- `link-dead-code=no`: Prevents the linker from keeping dead code.
+
+### 3. Dependency Management
+
+- **Trim Features**: Always disable `default-features` for large dependencies (e.g., `clap`, `serde`, `tokio`). Enable only what is strictly needed.
+- **No UPX**: We explicitly **do not** use UPX compression because it triggers antivirus false positives and slows down startup. We rely on pure compiler/linker optimizations.
+
+### 4. Profile-Guided Optimization (PGO)
+
+Release builds use PGO for optimal performance. PGO profiles are stored in `pgo-profiles/`.
+
+```bash
+# Load PGO profile (Linux/macOS)
+source scripts/load-pgo-profile.sh auto
+
+# Load PGO profile (Windows PowerShell)
+. scripts/load-pgo-profile.ps1 -Platform windows
+
+# Then build with PGO
+cargo build --release
+```
 
 ---
 

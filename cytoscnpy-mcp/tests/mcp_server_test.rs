@@ -66,7 +66,7 @@ def main():
 fn test_analyze_code_with_complexity() {
     let server = CytoScnPyServer::new();
     // Code with high cyclomatic complexity (many branches)
-    let code = r#"
+    let code = r"
 def complex_function(a, b, c, d, e):
     if a > 0:
         if b > 0:
@@ -84,7 +84,7 @@ def complex_function(a, b, c, d, e):
             return 5
     else:
         return 6
-"#;
+";
     let params = Parameters(AnalyzeCodeRequest {
         code: code.to_owned(),
         filename: "complex.py".to_owned(),
@@ -157,11 +157,11 @@ def main():
 #[allow(clippy::expect_used)]
 fn test_analyze_code_dangerous_patterns() {
     let server = CytoScnPyServer::new();
-    let code = r#"
+    let code = r"
 def dangerous_function(user_input):
     eval(user_input)  # dangerous!
     exec(user_input)  # also dangerous!
-"#;
+";
     let params = Parameters(AnalyzeCodeRequest {
         code: code.to_owned(),
         filename: "dangerous.py".to_owned(),

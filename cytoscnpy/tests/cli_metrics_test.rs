@@ -1,8 +1,11 @@
 //! Tests for CLI metrics output.
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::str_to_string)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::ignore_without_reason)]
+
+#![allow(
+    clippy::unwrap_used,
+    clippy::str_to_string,
+    clippy::uninlined_format_args,
+    clippy::ignore_without_reason
+)]
 
 use cytoscnpy::commands::{run_cc, run_files, run_hal, run_mi, run_raw, run_stats};
 use std::fs::{self, File};

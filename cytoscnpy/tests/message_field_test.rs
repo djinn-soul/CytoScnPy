@@ -1,8 +1,10 @@
 //! Tests for the message field generation in Definition struct.
-#![allow(clippy::expect_used)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::doc_markdown)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::doc_markdown,
+    clippy::uninlined_format_args
+)]
 
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;

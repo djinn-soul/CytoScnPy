@@ -277,11 +277,10 @@ fn test_confidence_threshold() {
 
 #[test]
 fn test_empty_directory() {
-    // Create a temporary empty directory for testing
-    let temp_dir = std::env::temp_dir().join("cytoscnpy_test_empty");
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    // Create a temporary empty directory for testing using tempfile for reliability
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
 
-    let result = run_cytoscnpy(temp_dir.to_str().unwrap(), &["--include-tests"]);
+    let result = run_cytoscnpy(temp_dir.path().to_str().unwrap(), &["--include-tests"]);
 
     // Should handle empty directory gracefully
     assert_eq!(
@@ -290,8 +289,7 @@ fn test_empty_directory() {
     );
     assert_eq!(count_items(&result, "unused_functions"), 0);
 
-    // Cleanup
-    std::fs::remove_dir_all(&temp_dir).ok();
+    // temp_dir is automatically cleaned up when it goes out of scope
 }
 
 #[test]

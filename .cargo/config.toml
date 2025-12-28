@@ -1,0 +1,89 @@
+# Cargo configuration for CytoScnPy workspace
+# This file enables faster compilation and development workflows
+
+[alias]
+# Run clippy with all targets
+lint = "clippy --all-targets --all-features"
+# Run clippy and fix auto-fixable issues
+lint-fix = "clippy --all-targets --all-features --fix --allow-dirty --allow-staged"
+
+# Development workflow (cargo-watch)
+watch-check = "watch -x check" # Auto-run check on file changes
+watch-test = "watch -x test"   # Auto-run tests on file changes
+watch-lint = "watch -x clippy" # Auto-run clippy on file changes
+
+# Testing tools
+coverage = "llvm-cov --html --output-dir coverage" # Generate HTML coverage report (cross-platform)
+mutants = "mutants --jobs 4" # Run mutation testing (verify test quality)
+semver = "semver-checks" # Check for semver violations after upgrades
+
+# Note: cargo audit, cargo outdated, cargo deny work directly as installed subcommands
+
+[build]
+# Cap parallelism - LLVM scaling past ~8-12 threads often thrashes memory
+# This frequently improves wall-clock time on 16-32 core systems
+jobs = 8
+
+# PyO3 will automatically detect Python from VIRTUAL_ENV
+# This works cross-platform (Windows, Linux, macOS)
+[env]
+VIRTUAL_ENV = { value = ".venv", relative = true }
+# Enable colored output
+CARGO_TERM_COLOR = "always"
+
+# ============================================
+# Development Speed Optimizations
+# ============================================
+# Based on empirical testing of Rust compile performance.
+# Key insight: dev builds are often memory-bound, not CPU-bound.
+
+# Use faster linker on Windows (requires rust-lld)
+# NOTE: /OPT:REF and /OPT:ICF moved to release profile - they affect binary
+# size, not compile speed, and may slightly slow debug linking.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+rustflags = [
+    "-C", "link-arg=/OPT:REF", # Remove unreferenced functions and data
+    "-C", "link-arg=/OPT:ICF", # Identical COMDAT folding
+    "-C", "link-dead-code=no", # Aggressive dead code elimination
+]
+
+# Use faster linker on Linux (mold is fastest, lld is fallback)
+# Install: sudo apt install mold  OR  sudo apt install lld
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# Use faster linker on macOS (zld)
+# NOTE: Disabled - zld fails to build on GitHub CI with latest Xcode.
+# Uncomment locally if you have zld installed: brew install michaeleisel/zld/zld
+# [target.x86_64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+
+
+
+
+# Development profile optimizations - focused on COMPILE SPEED
+[profile.dev]
+opt-level = 0              # No optimization, fastest compile
+codegen-units = 256        # 128 often beats 256 for incremental builds
+incremental = true         # Essential for dev iteration speed
+debug = 0                  # No debug info - significantly faster
+debug-assertions = false   # Less MIR/LLVM IR generation
+overflow-checks = false    # Removes branches everywhere
+lto = "off"                # Prevent any ThinLTO sneaking in via deps
+# panic = "abort"          # DISABLED: Incompatible with tests (test harness requires unwind)
+# target-cpu = "native"    # Uncomment to optimize for your local CPU architecture (limits portability)
+
+# Build dependencies with minimal optimization (balance speed vs perf)
+[profile.dev.package."*"]
+opt-level = 1              # Slight optimization for deps (faster runtime)
+
+# Test profile - inherits from dev, optimized for test execution speed
+[profile.test]
+opt-level = 0
+codegen-units = 256
+incremental = true
+debug = 0
+debug-assertions = false   # Faster test compilation
+overflow-checks = false

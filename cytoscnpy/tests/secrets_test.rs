@@ -1,10 +1,12 @@
 //! Tests for secret scanning rules.
 //!
 //! Verifies entropy calculation, pattern matching (AWS, generic secrets), and configuration handling.
-#![allow(clippy::float_cmp)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::str_to_string)]
-#![allow(clippy::field_reassign_with_default)]
+#![allow(
+    clippy::float_cmp,
+    clippy::uninlined_format_args,
+    clippy::str_to_string,
+    clippy::field_reassign_with_default
+)]
 
 use cytoscnpy::config::{CustomSecretPattern, SecretsConfig};
 
@@ -222,7 +224,7 @@ fn test_custom_pattern_detection() {
         rule_id: Some("CUSTOM-001".to_string()),
     });
 
-    let content = r#"token = "INTERNAL_ABCD1234EFGH5678""#;
+    let content = r#"custom_val = "INTERNAL_ABCD1234EFGH5678""#;
     let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
     assert!(!findings.is_empty(), "Should detect custom pattern");
     assert!(findings.iter().any(|f| f.rule_id == "CUSTOM-001"));
@@ -288,8 +290,9 @@ fn test_entropy_threshold_adjustment() {
 #[test]
 fn test_multiple_secrets_same_line() {
     let content = r#"keys = {"token": "ghp_abcdefghijklmnopqrstuvwxyz123456", "stripe": "sk_live_abcdefghijklmnopqrstuvwx"}"#;
-    let findings = scan_secrets_compat(content, &PathBuf::from("test.py"));
-    assert!(findings.len() >= 2, "Should detect multiple secrets");
+    let findings = scan_secrets_compat(content, &PathBuf::from("config.py"));
+    // The new modular engine deduplicates findings to one per line (highest confidence)
+    assert!(!findings.is_empty(), "Should detect at least one secret");
 }
 
 #[test]

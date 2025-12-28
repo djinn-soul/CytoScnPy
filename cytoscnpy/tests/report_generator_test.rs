@@ -23,6 +23,9 @@ fn test_generate_report_full() {
             def_type: "function".to_owned(),
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
+            end_line: 10,
+            start_byte: 0,
+            end_byte: 0,
             confidence: 100,
             references: 0,
             is_exported: false,
@@ -32,6 +35,7 @@ fn test_generate_report_full() {
             cell_number: None,
             is_self_referential: false,
             message: Some("unused".to_owned()),
+            fix: None,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -50,6 +54,7 @@ fn test_generate_report_full() {
         }],
         taint_findings: vec![],
         parse_errors: vec![],
+        clones: vec![],
         file_metrics: vec![FileMetrics {
             file: PathBuf::from("test.py"),
             loc: 100,
@@ -73,8 +78,8 @@ fn test_generate_report_full() {
             total_size: 1.0,
             functions_count: 1,
             classes_count: 0,
-            raw_metrics: Default::default(),
-            halstead_metrics: Default::default(),
+            raw_metrics: cytoscnpy::raw_metrics::RawMetrics::default(),
+            halstead_metrics: cytoscnpy::halstead::HalsteadMetrics::default(),
         },
     };
 
@@ -124,6 +129,7 @@ fn test_calculate_score_logic() {
         quality: vec![],
         taint_findings: vec![],
         parse_errors: vec![],
+        clones: vec![],
         file_metrics: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 0,
@@ -140,11 +146,10 @@ fn test_calculate_score_logic() {
             total_size: 0.0,
             functions_count: 0,
             classes_count: 0,
-            raw_metrics: Default::default(),
-            halstead_metrics: Default::default(),
+            raw_metrics: cytoscnpy::raw_metrics::RawMetrics::default(),
+            halstead_metrics: cytoscnpy::halstead::HalsteadMetrics::default(),
         },
     };
-    
 
     // 1. Perfect score
     generate_report(&result, output_dir).unwrap();
@@ -158,9 +163,12 @@ fn test_calculate_score_logic() {
             full_name: format!("f{i}"),
             simple_name: format!("f{i}"),
             def_type: "function".to_owned(),
-            
+
             file: Arc::new(PathBuf::from("test.py")),
             line: i,
+            end_line: i,
+            start_byte: 0,
+            end_byte: 0,
             confidence: 100,
             references: 0,
             is_exported: false,
@@ -170,9 +178,10 @@ fn test_calculate_score_logic() {
             cell_number: None,
             is_self_referential: false,
             message: None,
+            fix: None,
         });
     }
     generate_report(&result, output_dir).unwrap();
-    let html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
+    let _html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
     // Score should be lower now
 }

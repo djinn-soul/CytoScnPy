@@ -4,15 +4,23 @@ import * as vscode from "vscode";
 import * as os from "os";
 import * as path from "path";
 import * as crypto from "crypto";
-import { runCytoScnPyAnalysis, CytoScnPyConfig } from "./analyzer";
+import {
+  runCytoScnPyAnalysis,
+  CytoScnPyConfig,
+  CytoScnPyFinding,
+} from "./analyzer";
 import { exec } from "child_process"; // Import exec for metric commands
 
 // Cache for file content hashes to skip re-analyzing unchanged files
+// We keep a history of entries to support instant Undo/Redo operations
 interface CacheEntry {
   hash: string;
   diagnostics: vscode.Diagnostic[];
+  findings: CytoScnPyFinding[];
+  timestamp: number;
 }
-const fileCache = new Map<string, CacheEntry>();
+const MAX_CACHE_HISTORY = 10;
+const fileCache = new Map<string, CacheEntry[]>();
 
 // Helper function to compute content hash
 function computeHash(content: string): string {
@@ -188,6 +196,7 @@ function getCytoScnPyConfiguration(
     enableSecretsScan: config.get<boolean>("enableSecretsScan") || false,
     enableDangerScan: config.get<boolean>("enableDangerScan") || false,
     enableQualityScan: config.get<boolean>("enableQualityScan") || false,
+    enableCloneScan: config.get<boolean>("enableCloneScan") || false,
     confidenceThreshold: config.get<number>("confidenceThreshold") || 0,
     excludeFolders: config.get<string[]>("excludeFolders") || [],
     includeFolders: config.get<string[]>("includeFolders") || [],
@@ -309,7 +318,10 @@ export function activate(context: vscode.ExtensionContext) {
       const infoRanges: vscode.DecorationOptions[] = [];
 
       for (const diag of diagnostics) {
-        const decoration = { range: diag.range, hoverMessage: diag.message };
+        // FIX: Only set the range for the squiggle/gutter icon mapping
+        // FIX: Do NOT set hoverMessage, as VS Code natively displays diagnostic messages on hover.
+        // FIX: Setting it here causes duplicate messages in the hover tooltip.
+        const decoration = { range: diag.range };
         switch (diag.severity) {
           case vscode.DiagnosticSeverity.Error:
             errorRanges.push(decoration);
@@ -328,6 +340,9 @@ export function activate(context: vscode.ExtensionContext) {
       editor.setDecorations(infoDecorationType, infoRanges);
     }
 
+    // Track time for performance logging
+    // let lastAnalysisTime = Date.now();
+
     // Function to refresh diagnostics for the active document
     async function refreshDiagnostics(document: vscode.TextDocument) {
       if (document.languageId !== "python") {
@@ -336,22 +351,37 @@ export function activate(context: vscode.ExtensionContext) {
 
       const filePath = document.uri.fsPath;
       const content = document.getText();
-      const contentHash = computeHash(content);
+      const contentHash = computeHash(content); // Assuming computeHash is still used, or md5 is defined elsewhere.
 
-      // Check cache - skip analysis if content unchanged
-      const cached = fileCache.get(filePath);
-      if (cached && cached.hash === contentHash) {
-        // Use cached diagnostics
-        cytoscnpyDiagnostics.set(document.uri, cached.diagnostics);
-        issuesTreeDataProvider.update(cached.diagnostics);
+      // Log time since last analysis (Dev Info)
+      // const now = Date.now();
+      // const timeSinceLast = (now - lastAnalysisTime) / 1000;
+      // console.log(
+      //   `[CytoScnPy] Triggering analysis (Time since last: ${timeSinceLast.toFixed(
+      //     2
+      //   )}s)`
+      // );
+      // lastAnalysisTime = now;
+
+      // Check cache history - instant restore if content matches previous state
+      const cachedHistory = fileCache.get(filePath) || []; // Assuming fileCache is still the global cache
+      const cachedEntry = cachedHistory.find(
+        (entry) => entry.hash === contentHash
+      );
+      if (cachedEntry) {
+        // Use cached diagnostics (Instant Undo support)
+        cytoscnpyDiagnostics.set(document.uri, cachedEntry.diagnostics);
+        issuesTreeDataProvider.update(cachedEntry.diagnostics);
 
         const editor = vscode.window.activeTextEditor;
         if (
           editor &&
           editor.document.uri.toString() === document.uri.toString()
         ) {
-          applyGutterDecorations(editor, cached.diagnostics);
+          applyGutterDecorations(editor, cachedEntry.diagnostics);
         }
+        // Update timestamp to mark as recently used
+        cachedEntry.timestamp = Date.now();
         return;
       }
 
@@ -359,6 +389,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         const result = await runCytoScnPyAnalysis(filePath, config); // Pass config
+
         const diagnostics: vscode.Diagnostic[] = result.findings.map(
           (finding) => {
             const lineIndex = finding.line_number - 1;
@@ -395,11 +426,13 @@ export function activate(context: vscode.ExtensionContext) {
                 severity = vscode.DiagnosticSeverity.Information;
                 break;
               case "LOW":
+              case "HINT":
                 severity = vscode.DiagnosticSeverity.Hint;
                 break;
               default:
                 severity = vscode.DiagnosticSeverity.Information;
             }
+
             const diagnostic = new vscode.Diagnostic(
               range,
               `${finding.message} [${finding.rule_id}]`,
@@ -458,7 +491,22 @@ export function activate(context: vscode.ExtensionContext) {
         cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
         // Store in cache for future use
-        fileCache.set(filePath, { hash: contentHash, diagnostics });
+        // Store in cache history
+        let history = fileCache.get(filePath) || [];
+        // Add new entry
+        history.push({
+          hash: contentHash,
+          diagnostics,
+          findings: result.findings,
+          timestamp: Date.now(),
+        });
+
+        // Enforce history limit (LRU-ish: keep most recent timestamps)
+        if (history.length > MAX_CACHE_HISTORY) {
+          history.sort((a, b) => b.timestamp - a.timestamp); // Descending by time
+          history = history.slice(0, MAX_CACHE_HISTORY);
+        }
+        fileCache.set(filePath, history);
 
         // Update sidebar tree view with issue count and badge
         issuesTreeDataProvider.update(diagnostics);
@@ -486,26 +534,28 @@ export function activate(context: vscode.ExtensionContext) {
       refreshDiagnostics(vscode.window.activeTextEditor.document);
     }
 
-    // Analyze document on change with debounce
-    // Special case: Undo/Redo refreshes immediately
-    let debounceTimer: NodeJS.Timeout;
+    // Analyze document on save (CLI analyzes disk content)
     context.subscriptions.push(
-      vscode.workspace.onDidChangeTextDocument((event) => {
-        if (event.document.languageId === "python") {
-          clearTimeout(debounceTimer);
+      vscode.workspace.onDidSaveTextDocument((document) => {
+        if (document.languageId === "python") {
+          refreshDiagnostics(document);
+        }
+      })
+    );
 
-          // Check if this is an Undo or Redo operation - refresh immediately
-          if (
-            event.reason === vscode.TextDocumentChangeReason.Undo ||
-            event.reason === vscode.TextDocumentChangeReason.Redo
-          ) {
-            refreshDiagnostics(event.document);
-          } else {
-            // Regular typing - use debounce
-            debounceTimer = setTimeout(() => {
-              refreshDiagnostics(event.document);
-            }, 500);
-          }
+    // Re-run analysis when CytoScnPy settings change (e.g., settings.json saved)
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration("cytoscnpy")) {
+          // Clear cache to force re-analysis with new settings
+          fileCache.clear();
+
+          // Re-analyze all open Python documents
+          vscode.workspace.textDocuments.forEach((doc) => {
+            if (doc.languageId === "python") {
+              refreshDiagnostics(doc);
+            }
+          });
         }
       })
     );
@@ -672,27 +722,8 @@ export function activate(context: vscode.ExtensionContext) {
       )
     );
 
-    // Register a HoverProvider for Python files
-    context.subscriptions.push(
-      vscode.languages.registerHoverProvider("python", {
-        provideHover(document, position, token) {
-          const diagnostics = cytoscnpyDiagnostics.get(document.uri);
-          if (!diagnostics) {
-            return;
-          }
-
-          for (const diagnostic of diagnostics) {
-            if (diagnostic.range.contains(position)) {
-              // Return the diagnostic message as markdown for better formatting
-              return new vscode.Hover(
-                new vscode.MarkdownString(diagnostic.message)
-              );
-            }
-          }
-          return;
-        },
-      })
-    );
+    // NOTE: Removed custom HoverProvider - VS Code natively displays diagnostic messages on hover
+    // Adding our own HoverProvider was causing duplicate messages.
 
     // Register Code Action Provider for quick fixes
     context.subscriptions.push(
@@ -734,25 +765,62 @@ export function activate(context: vscode.ExtensionContext) {
                 continue;
               }
 
-              // Create "Remove line" action
-              const removeAction = new vscode.CodeAction(
-                `Remove ${ruleId.replace("unused-", "")}`,
-                vscode.CodeActionKind.QuickFix
+              // Try to find the corresponding finding in cache (match current content hash)
+              const currentHash = computeHash(document.getText());
+              const cachedHistory = fileCache.get(document.uri.fsPath) || [];
+              const cachedEntry = cachedHistory.find(
+                (e) => e.hash === currentHash
               );
-              removeAction.diagnostics = [diagnostic];
-              removeAction.isPreferred = true;
 
-              // Use WorkspaceEdit to delete the entire line
-              const edit = new vscode.WorkspaceEdit();
-              const lineRange = document.lineAt(
-                diagnostic.range.start.line
-              ).rangeIncludingLineBreak;
-              edit.delete(document.uri, lineRange);
-              removeAction.edit = edit;
+              const finding = cachedEntry?.findings.find(
+                (f) =>
+                  f.rule_id === ruleId &&
+                  f.line_number === diagnostic.range.start.line + 1
+              );
 
-              actions.push(removeAction);
+              if (finding && finding.fix) {
+                // Precise CST-based fix available
+                const fixAction = new vscode.CodeAction(
+                  `Remove ${ruleId.replace("unused-", "")}`,
+                  vscode.CodeActionKind.QuickFix
+                );
+                fixAction.diagnostics = [diagnostic];
+                fixAction.isPreferred = true;
 
-              // Create "Comment out" action
+                const edit = new vscode.WorkspaceEdit();
+                const startPos = document.positionAt(finding.fix.start_byte);
+                const endPos = document.positionAt(finding.fix.end_byte);
+
+                // If replacement is empty, it's a deletion
+                edit.replace(
+                  document.uri,
+                  new vscode.Range(startPos, endPos),
+                  finding.fix.replacement
+                );
+                fixAction.edit = edit;
+                actions.push(fixAction);
+
+                // Also provide comment out option? Maybe useful still.
+                // But skip "Remove line" fallback.
+              } else {
+                // Fallback to line-based removal
+                const removeAction = new vscode.CodeAction(
+                  `Remove ${ruleId.replace("unused-", "")} (line)`,
+                  vscode.CodeActionKind.QuickFix
+                );
+                removeAction.diagnostics = [diagnostic];
+                removeAction.isPreferred = true;
+
+                const edit = new vscode.WorkspaceEdit();
+                const lineRange = document.lineAt(
+                  diagnostic.range.start.line
+                ).rangeIncludingLineBreak;
+                edit.delete(document.uri, lineRange);
+                removeAction.edit = edit;
+                actions.push(removeAction);
+              }
+
+              // Always offer "Comment out" action
               const commentAction = new vscode.CodeAction(
                 `Comment out ${ruleId.replace("unused-", "")}`,
                 vscode.CodeActionKind.QuickFix

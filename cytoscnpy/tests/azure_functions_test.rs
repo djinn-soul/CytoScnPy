@@ -1,4 +1,5 @@
 //! Tests for Azure Functions framework detection and taint analysis.
+#![allow(clippy::expect_used)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::constants::get_framework_file_re;
@@ -537,17 +538,17 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
 #[test]
 fn test_azure_functions_empty_file() {
-    let code = r#"
+    let code = r"
 import azure.functions as func
 
 # No functions defined
 app = func.FunctionApp()
-"#;
+";
 
     let result = analyze_code(code);
 
     // Should not crash, just have no unused functions
-    assert!(result.unused_functions.is_empty() || result.unused_functions.len() >= 0);
+    assert!(result.unused_functions.is_empty());
 }
 
 #[test]

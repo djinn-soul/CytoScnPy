@@ -416,9 +416,13 @@ impl CytoScnPy {
                     );
                 }
 
+                // Convert byte-based error to line-based for readability
+                let error_msg = format!("{e}");
+                let readable_error = convert_byte_range_to_line(&error_msg, &source);
+
                 parse_errors.push(ParseError {
                     file: file_path.to_path_buf(),
-                    error: format!("{e}"),
+                    error: readable_error,
                 });
             }
         }
@@ -632,16 +636,19 @@ impl CytoScnPy {
             }
         }
 
-        // Class-method linking: Methods of unused classes should also be flagged
-        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        // Class-method linking: ALL methods of unused classes should be flagged as unused.
+        // This implements "cascading deadness" - if a class is unreachable, all its methods are too.
+        // EXCEPTION: Skip methods protected by heuristics (visitor pattern, etc.)
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
 
         for def in &methods_with_refs {
             if def.confidence >= self.confidence_threshold {
-                // Only process if the method is marked as self-referential
-                // This means the only reference comes from itself (recursion)
-                if !def.is_self_referential {
+                // Skip visitor pattern methods - they have heuristic protection
+                if def.simple_name.starts_with("visit_")
+                    || def.simple_name.starts_with("leave_")
+                    || def.simple_name.starts_with("transform_")
+                {
                     continue;
                 }
 
@@ -695,6 +702,7 @@ impl CytoScnPy {
             quality: all_quality.clone(),
             taint_findings,
             parse_errors: all_parse_errors.clone(),
+            clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files,
                 secrets_count: all_secrets.len(),
@@ -939,23 +947,25 @@ impl CytoScnPy {
             }
         }
 
-        // Class-method linking: Methods of unused classes should also be flagged
-        // BUT ONLY if they are self-referential (recursive) and have no external references.
+        // Class-method linking: ALL methods of unused classes should be flagged as unused.
+        // This implements "cascading deadness" - if a class is unreachable, all its methods are too.
+        // EXCEPTION: Skip methods protected by heuristics (visitor pattern, etc.)
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
 
         for def in &methods_with_refs {
             if def.confidence >= self.confidence_threshold {
-                // Only process if the method is marked as self-referential
-                // This means the only reference comes from itself (recursion)
-                if !def.is_self_referential {
+                // Skip visitor pattern methods - they have heuristic protection
+                if def.simple_name.starts_with("visit_")
+                    || def.simple_name.starts_with("leave_")
+                    || def.simple_name.starts_with("transform_")
+                {
                     continue;
                 }
 
                 if let Some(last_dot) = def.full_name.rfind('.') {
                     let parent_class = &def.full_name[..last_dot];
-                    let is_unused = unused_class_names.contains(parent_class);
-                    if is_unused {
+                    if unused_class_names.contains(parent_class) {
                         unused_methods.push(def.clone());
                     }
                 }
@@ -974,6 +984,7 @@ impl CytoScnPy {
             quality: quality.clone(),
             taint_findings: Vec::new(),
             parse_errors: parse_errors.clone(),
+            clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files: 1,
                 secrets_count: secrets.len(),
@@ -1027,4 +1038,28 @@ fn collect_docstring_lines(
             _ => {}
         }
     }
+}
+
+/// Converts byte range references in error messages to line numbers.
+///
+/// Ruff parser errors include "at byte range X..Y" which is not user-friendly.
+/// This function replaces them with "at line N" for better readability.
+fn convert_byte_range_to_line(error_msg: &str, source: &str) -> String {
+    use regex::Regex;
+
+    // Match "at byte range X..Y" or "byte range X..Y"
+    let Ok(re) = Regex::new(r"(?:at )?byte range (\d+)\.\.(\d+)") else {
+        return error_msg.to_owned();
+    };
+
+    re.replace_all(error_msg, |caps: &regex::Captures| {
+        if let Ok(start_byte) = caps[1].parse::<usize>() {
+            // Count newlines up to start_byte to find line number
+            let line = source[..start_byte.min(source.len())].matches('\n').count() + 1;
+            format!("at line {line}")
+        } else {
+            caps[0].to_string()
+        }
+    })
+    .to_string()
 }

@@ -28,7 +28,8 @@ cargo clean
 Write-Host "🏗️  Building with instrumentation..." -ForegroundColor Cyan
 # Use forward slashes in the RUSTFLAGS path for LLVM
 # -Ccodegen-units=1 is REQUIRED for reliable PGO on Windows
-$env:RUSTFLAGS="-Cprofile-generate=$pgoDataDirUnix -Ccodegen-units=1"
+# -vp-counters-per-site=8 allocates more counters for large codebases
+$env:RUSTFLAGS="-Cprofile-generate=$pgoDataDirUnix -Ccodegen-units=1 -Cllvm-args=-vp-counters-per-site=8"
 Write-Host "   RUSTFLAGS: $($env:RUSTFLAGS)"
 cargo build --release --target x86_64-pc-windows-msvc
 

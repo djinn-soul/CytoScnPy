@@ -164,7 +164,7 @@ CytoScnPy/
 │   └── src/
 │       └── main.rs            # Calls cytoscnpy::entry_point
 │
-├── benchmark/                 # 126-item ground truth suite
+├── benchmark/                 # 135-item ground truth suite
 └── target/                    # Build artifacts (gitignored)
 ```
 

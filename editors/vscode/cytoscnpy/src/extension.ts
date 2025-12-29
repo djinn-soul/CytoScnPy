@@ -9,7 +9,7 @@ import {
   CytoScnPyConfig,
   CytoScnPyFinding,
 } from "./analyzer";
-import { exec } from "child_process"; // Import exec for metric commands
+import { execFile } from "child_process"; // Use execFile to avoid shell injection
 
 // Cache for file content hashes to skip re-analyzing unchanged files
 // We keep a history of entries to support instant Undo/Redo operations
@@ -24,7 +24,7 @@ const fileCache = new Map<string, CacheEntry[]>();
 
 // Helper function to compute content hash
 function computeHash(content: string): string {
-  return crypto.createHash("md5").update(content).digest("hex");
+  return crypto.createHash("sha256").update(content).digest("hex");
 }
 
 // Create a diagnostic collection for CytoScnPy issues
@@ -167,6 +167,12 @@ function getExecutablePath(context: vscode.ExtensionContext): string {
   }
 
   const bundledPath = path.join(context.extensionPath, "bin", executableName);
+
+  // Security: Ensure the bundled path is actually within the extension directory
+  // to prevent potential path traversal vulnerabilities.
+  if (!bundledPath.startsWith(context.extensionPath)) {
+    return "cytoscnpy";
+  }
 
   // Check if bundled binary exists, otherwise fall back to pip-installed version
   try {
@@ -623,13 +629,15 @@ export function activate(context: vscode.ExtensionContext) {
 
       const filePath = vscode.window.activeTextEditor.document.uri.fsPath;
       const config = getCytoScnPyConfiguration(context);
-      const command = `${config.path} ${commandType} "${filePath}"`;
+      const args = [commandType, filePath];
 
       cytoscnpyOutputChannel.clear();
       cytoscnpyOutputChannel.show();
-      cytoscnpyOutputChannel.appendLine(`Running: ${command}\n`);
+      cytoscnpyOutputChannel.appendLine(
+        `Running: ${config.path} ${args.join(" ")}\n`
+      );
 
-      exec(command, (error, stdout, stderr) => {
+      execFile(config.path, args, (error, stdout, stderr) => {
         if (error) {
           cytoscnpyOutputChannel.appendLine(
             `Error running ${commandName}: ${error.message}`
@@ -693,18 +701,21 @@ export function activate(context: vscode.ExtensionContext) {
             `Analyzing workspace: ${workspacePath}\n`
           );
 
-          let command = `"${config.path}" "${workspacePath}" --json`;
+          const args = [workspacePath, "--json"];
           if (config.enableSecretsScan) {
-            command += " --secrets";
+            args.push("--secrets");
           }
           if (config.enableDangerScan) {
-            command += " --danger";
+            args.push("--danger");
           }
           if (config.enableQualityScan) {
-            command += " --quality";
+            args.push("--quality");
+          }
+          if (config.enableCloneScan) {
+            args.push("--clones");
           }
 
-          exec(command, (error, stdout, stderr) => {
+          execFile(config.path, args, (error, stdout, stderr) => {
             if (error) {
               cytoscnpyOutputChannel.appendLine(`Error: ${error.message}`);
               if (stderr) {

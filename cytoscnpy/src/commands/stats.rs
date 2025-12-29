@@ -122,6 +122,12 @@ pub fn run_stats<W: Write>(
     exclude: &[String],
     mut writer: W,
 ) -> Result<()> {
+    let output = if let Some(out) = output {
+        Some(crate::utils::validate_output_path(Path::new(&out))?)
+    } else {
+        None
+    };
+
     let files = find_python_files(path, exclude);
     let num_directories = count_directories(path, exclude);
 
@@ -227,7 +233,7 @@ pub fn run_stats<W: Write>(
         let json_output = serde_json::to_string_pretty(&report)?;
         if let Some(ref file_path) = output {
             fs::write(file_path, &json_output)?;
-            writeln!(writer, "Report written to: {file_path}")?;
+            writeln!(writer, "Report written to: {}", file_path.display())?;
         } else {
             writeln!(writer, "{json_output}")?;
         }
@@ -346,7 +352,11 @@ pub fn run_stats<W: Write>(
         if let Some(output_path) = output {
             fs::write(&output_path, &md)?;
             writeln!(writer, "{}", "Report generated successfully!".green())?;
-            writeln!(writer, "Output: {}", output_path.cyan())?;
+            writeln!(
+                writer,
+                "Output: {}",
+                output_path.display().to_string().cyan()
+            )?;
         } else {
             writeln!(writer, "{md}")?;
         }

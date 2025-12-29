@@ -240,7 +240,9 @@ fn apply_dead_code_fix_to_file<W: Write>(
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
 
-    let content = match fs::read_to_string(file_path) {
+    let file_path = crate::utils::validate_output_path(file_path)?;
+
+    let content = match fs::read_to_string(&file_path) {
         Ok(c) => c,
         Err(e) => {
             writeln!(
@@ -315,7 +317,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
         rewriter.add_edits(edits);
         if let Ok(fixed) = rewriter.apply() {
             let count = removed_names.len();
-            fs::write(file_path, fixed)?;
+            fs::write(&file_path, fixed)?;
             writeln!(
                 writer,
                 "  {} {} ({} removed)",

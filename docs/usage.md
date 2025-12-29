@@ -278,7 +278,7 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
 **2. False Positives in Dead Code**
 
-- Use `# pragma: no cover` or `# dead: disable` (if supported) to suppress.
+- Use `# pragma: no cytoscnpy` comment to suppress findings on a specific line.
 - Ensure all entry points are properly identified (e.g. dynamic dispatch).
 
 **3. Performance is slow**

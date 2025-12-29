@@ -18,7 +18,6 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--json`: Output raw JSON.
 - `--verbose`, `-v`: Enable verbose output for debugging.
 - `--quiet`: Quiet mode (summary only).
-- `--output <FILE>`, `-o <FILE>`: Output to file.
 - `--fail-on-quality`: Exit with code 1 if any quality issues are found.
 - `--html`: Generate HTML report (requires `html_report` feature).
 

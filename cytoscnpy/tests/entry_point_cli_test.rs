@@ -242,3 +242,43 @@ fn test_exclude_folders_flag() {
     ]);
     assert!(result.is_ok());
 }
+
+/// Test --fail-on-quality flag exits with code 1 when quality issues are found.
+#[test]
+fn test_fail_on_quality_flag() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("quality_fail_test.py");
+    // Create a deeply nested function that triggers quality issues (max nesting exceeded)
+    fs::write(
+        &file_path,
+        "def foo():\n    if True:\n        if True:\n            if True:\n                if True:\n                    pass\n",
+    )
+    .unwrap();
+
+    // With --fail-on-quality and --quality, should exit 1 due to nesting violation
+    let result = run_with_captured_output(vec![
+        "--quality".to_owned(),
+        "--fail-on-quality".to_owned(),
+        file_path.to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1); // Should fail due to quality issues
+}
+
+/// Test --fail-on-quality with no quality issues returns exit code 0.
+#[test]
+fn test_fail_on_quality_no_issues() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("quality_pass_test.py");
+    // Simple function with no quality issues
+    fs::write(&file_path, "def foo():\n    pass\n").unwrap();
+
+    // With --fail-on-quality and --quality, should exit 0 (no issues)
+    let result = run_with_captured_output(vec![
+        "--quality".to_owned(),
+        "--fail-on-quality".to_owned(),
+        file_path.to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0); // Should pass - no quality issues
+}

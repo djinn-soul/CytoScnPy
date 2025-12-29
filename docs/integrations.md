@@ -44,6 +44,8 @@ Customize behavior in VS Code Settings (`Ctrl+,`):
 
 Enable AI assistants (Claude, Cursor, Copilot) to use CytoScnPy tools.
 
+> **Note**: HTTP/SSE transport is planned for future releases to enable remote analysis. See [ROADMAP.md](../ROADMAP.md) for details.
+
 ### GitHub Copilot
 
 The VS Code extension **automatically registers** the MCP server. Just ask Copilot:

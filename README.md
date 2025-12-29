@@ -12,7 +12,7 @@ A fast static analysis tool for Python codebases, powered by Rust with hybrid Py
 - **Memory Efficient**: Uses less memory.
 - **Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
 - **Framework Aware**: Flask, Django, FastAPI, Pydantic, Azure Functions
-- **Benchmarked**: Continuous benchmarking with 126-item ground truth suite
+- **Benchmarked**: Continuous benchmarking with 135-item ground truth suite
 
 ## Installation
 
@@ -103,7 +103,7 @@ cytoscnpy . --html --secrets --danger
 | `--html`                 | Generate HTML report (auto-enables quality)      |
 | `--json`                 | Output results as JSON                           |
 | `-v, --verbose`          | Enable verbose output for debugging              |
-| `-q, --quiet`            | Quiet mode: summary only, no tables              |
+| `--quiet`                | Quiet mode: summary only, no tables              |
 | `--include-tests`        | Include test files in analysis                   |
 | `--exclude-folder <DIR>` | Exclude specific folders                         |
 | `--include-folder <DIR>` | Force include folders                            |
@@ -142,6 +142,20 @@ cytoscnpy files .                  # Per-file metrics table
 
 > **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories globally, or `--ignore <PATTERN>` for subcommand-specific glob filtering.
 
+### Feature Flags
+
+The crate supports experimental features that can be enabled at compile time:
+
+| Feature | Description                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------- |
+| `cfg`   | Enables Control Flow Graph (CFG) construction and behavioral validation for clone detection |
+
+To build with a feature enabled:
+
+```bash
+cargo build --features cfg
+```
+
 ## ⚙️ Configuration
 
 Create `.cytoscnpy.toml` (uses `[cytoscnpy]`) or add to `pyproject.toml` (uses `[tool.cytoscnpy]`):
@@ -154,7 +168,7 @@ Create `.cytoscnpy.toml` (uses `[cytoscnpy]`) or add to `pyproject.toml` (uses `
 confidence = 60  # Minimum confidence threshold (0-100)
 exclude_folders = ["venv", ".tox", "build", "node_modules", ".git"]
 include_folders = ["src", "tests"]  # Optional: whitelist folders
-include_tests = false  # Note: include_ipynb is CLI-only (use --include-ipynb flag)
+include_tests = false  # Note: include_ipynb and ipynb_cells are CLI-only (use flags)
 
 # Analysis Features
 secrets = true
@@ -189,6 +203,8 @@ name = "Slack Token"
 regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
 ```
+
+> **Note**: Notebook options (`include_ipynb`, `ipynb_cells`) are currently CLI-only but will be added to the configuration file in a future release.
 
 ### CI/CD Quality Gates
 
@@ -227,7 +243,7 @@ cytoscnpy . --fail-threshold 5 --quiet
 | Variables      | 0.30      | 0.15     | 0.20     |
 | **Overall**    | **0.71**  | **0.64** | **0.68** |
 
-> See [benchmark/BENCHMARK_REPORT.md](benchmark/BENCHMARK_REPORT.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
+> See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
 ## Architecture
 

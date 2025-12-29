@@ -1,6 +1,10 @@
 # Python API
 
-CytoScnPy exposes a minimal Python API to invoke the analyzer programmatically.
+CytoScnPy exposes a minimal Python API to invoke the analyzer programmatically. The core logic is implemented in Rust for high performance.
+
+## Package Structure
+
+The `cytoscnpy` package contains a native extension module that provides bindings to the Rust core. Currently, the primary entry point is the `run()` function.
 
 ## `cytoscnpy` module
 

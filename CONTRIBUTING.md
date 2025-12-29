@@ -683,6 +683,8 @@ RUST_LOG=debug cargo test
 - **Code Quality**: Complexity, nesting, argument count, line count
 - **Security**: SQL injection, command injection, pickle, taint analysis
 - **Edge Cases**: Empty files, unicode identifiers, long names
+- **Clone Detection**: Type-1/2/3 clones, similarity thresholds
+- **Control Flow Graph**: CFG construction, behavioral validation
 
 See [`cytoscnpy/tests/README.md`](cytoscnpy/tests/README.md) for detailed test documentation.
 
@@ -703,7 +705,7 @@ CytoScnPy provides pre-commit hooks for automated code analysis. These hooks all
    ```yaml
    repos:
      - repo: https://github.com/djinn09/CytoScnPy
-       rev: v1.0.0 # Use the latest release tag
+       rev: v1.2.0 # Use the latest release tag
        hooks:
          - id: cytoscnpy-check
            # Optional: customize arguments
@@ -743,7 +745,7 @@ You can customize hook behavior by passing arguments:
 ```yaml
 repos:
   - repo: https://github.com/djinn09/CytoScnPy
-    rev: v1.0.0
+    rev: v1.2.0
     hooks:
       - id: cytoscnpy-check
         args:

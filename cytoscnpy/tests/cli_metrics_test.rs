@@ -10,11 +10,22 @@
 use cytoscnpy::commands::{run_cc, run_files, run_hal, run_mi, run_raw, run_stats};
 use std::fs::{self, File};
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("cli_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_cli_raw() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1\n# comment").unwrap();
@@ -40,7 +51,7 @@ fn test_cli_raw() {
 
 #[test]
 fn test_cli_cc() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def foo():\n    if True:\n        pass").unwrap();
@@ -68,7 +79,7 @@ fn test_cli_cc() {
 
 #[test]
 fn test_cli_hal() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1").unwrap();
@@ -94,7 +105,7 @@ fn test_cli_hal() {
 
 #[test]
 fn test_cli_mi() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1").unwrap();
@@ -121,7 +132,7 @@ fn test_cli_mi() {
 
 #[test]
 fn test_cli_json_output() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1").unwrap();
@@ -148,7 +159,7 @@ fn test_cli_json_output() {
 
 #[test]
 fn test_cli_stats_markdown_output() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("module.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(
@@ -182,7 +193,7 @@ fn test_cli_stats_markdown_output() {
 
 #[test]
 fn test_cli_stats_json_output() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def foo():\n    pass\n\ndef bar():\n    pass").unwrap();
@@ -213,7 +224,7 @@ fn test_cli_stats_json_output() {
 
 #[test]
 fn test_cli_stats_all_flag() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "# Main module\ndef main():\n    pass").unwrap();
@@ -242,7 +253,7 @@ fn test_cli_stats_all_flag() {
 
 #[test]
 fn test_cli_stats_multiple_files() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     for i in 1..=3 {
         let file_path = dir.path().join(format!("module{}.py", i));
@@ -272,7 +283,7 @@ fn test_cli_stats_multiple_files() {
 
 #[test]
 fn test_cli_stats_with_classes() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("models.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(
@@ -305,7 +316,7 @@ fn test_cli_stats_with_classes() {
 
 #[test]
 fn test_cli_files_table_output() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1\n# comment\n\ny = 2").unwrap();
@@ -324,7 +335,7 @@ fn test_cli_files_table_output() {
 
 #[test]
 fn test_cli_files_json_output() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("app.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "# Application\ndef run():\n    print('hello')").unwrap();
@@ -348,7 +359,7 @@ fn test_cli_files_json_output() {
 
 #[test]
 fn test_cli_files_multiple_files() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     let file1 = dir.path().join("small.py");
     let mut f1 = File::create(&file1).unwrap();
@@ -373,7 +384,7 @@ fn test_cli_files_multiple_files() {
 #[test]
 #[ignore] // TODO: WalkDir exclude filtering needs deeper investigation for nested dirs
 fn test_cli_files_exclude_folder() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     let main_file = dir.path().join("main.py");
     let mut f = File::create(&main_file).unwrap();
@@ -403,7 +414,7 @@ fn test_cli_files_exclude_folder() {
 
 #[test]
 fn test_cli_files_empty_directory() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     let mut buffer = Vec::new();
     run_files(dir.path(), true, &[], &mut buffer).unwrap();
@@ -415,7 +426,7 @@ fn test_cli_files_empty_directory() {
 
 #[test]
 fn test_cli_stats_empty_directory() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     let mut buffer = Vec::new();
     run_stats(

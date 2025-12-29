@@ -2,13 +2,25 @@
 #![allow(clippy::unwrap_used)]
 
 use cytoscnpy::commands::{run_cc, run_hal, run_mi, run_raw};
+use std::fs;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-cli-flags-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("cli_flags_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_cc_min_max() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     // Function with complexity 1 (Rank A)
@@ -57,7 +69,7 @@ fn test_cc_min_max() {
 
 #[test]
 fn test_cc_average() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def foo(): pass\ndef bar(): pass").unwrap();
@@ -82,7 +94,7 @@ fn test_cc_average() {
 
 #[test]
 fn test_mi_show() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1").unwrap();
@@ -107,7 +119,7 @@ fn test_mi_show() {
 
 #[test]
 fn test_hal_functions() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def foo():\n    x = 1\n    y = 2").unwrap();
@@ -121,7 +133,7 @@ fn test_hal_functions() {
 
 #[test]
 fn test_raw_summary() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path1 = dir.path().join("test1.py");
     let mut file1 = File::create(&file_path1).unwrap();
     writeln!(file1, "x = 1").unwrap();

@@ -5,11 +5,22 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::{self, File};
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-analyzer-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("analyzer_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_analyze_basic() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -60,7 +71,7 @@ instance = UsedClass()
 
 #[test]
 fn test_analyze_empty_directory() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = cytoscnpy.analyze(dir.path());
 
@@ -71,7 +82,7 @@ fn test_analyze_empty_directory() {
 
 #[test]
 fn test_confidence_threshold_filtering() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -118,7 +129,7 @@ def _private_unused():
 
 #[test]
 fn test_module_name_generation_implicit() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create src/package/submodule.py
     let package_path = dir.path().join("src").join("package");
@@ -146,7 +157,7 @@ fn test_module_name_generation_implicit() {
 
 #[test]
 fn test_heuristics_auto_called_methods() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -182,7 +193,7 @@ instance = MyClass()
 
 #[test]
 fn test_mark_exports_in_init() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("__init__.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -221,7 +232,7 @@ def _private_function():
 
 #[test]
 fn test_mark_refs_direct_reference() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 

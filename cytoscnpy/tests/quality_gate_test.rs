@@ -12,7 +12,18 @@
 
 use std::fs;
 use std::process::Command;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-quality-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("quality_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 /// Helper to run cytoscnpy and capture output
 fn run_cytoscnpy(args: &[&str], dir: &std::path::Path) -> std::process::Output {
@@ -38,7 +49,7 @@ fn run_cytoscnpy(args: &[&str], dir: &std::path::Path) -> std::process::Output {
 #[test]
 #[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_passes_when_below_threshold() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a clean Python file with no unused code
     let file_path = temp_dir.path().join("clean.py");
@@ -67,7 +78,7 @@ print(result)
 #[test]
 #[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_fails_when_above_threshold() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create Python files with lots of unused code (high percentage)
     for i in 0..3 {
@@ -106,7 +117,7 @@ class UnusedClass:
 #[test]
 #[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_with_env_var() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a file with some unused code
     let file_path = temp_dir.path().join("mixed.py");
@@ -152,7 +163,7 @@ result = used_function()
 #[test]
 #[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_fail_under_cli_overrides_env_var() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a file with some unused code
     let file_path = temp_dir.path().join("test.py");
@@ -192,7 +203,7 @@ def unused_function():
 #[test]
 #[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_no_quality_gate_when_not_specified() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a file with tons of unused code
     let file_path = temp_dir.path().join("lots_unused.py");
@@ -224,7 +235,7 @@ class Unused2: pass
 #[test]
 #[ignore = "Requires pre-built binary"] // Requires pre-built binary
 fn test_max_complexity_gate_passes() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a simple function with low complexity
     let file_path = temp_dir.path().join("simple.py");
@@ -252,7 +263,7 @@ def simple_function():
 
 #[test]
 fn test_max_complexity_gate_fails() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a complex function with many branches
     let file_path = temp_dir.path().join("complex.py");
@@ -305,7 +316,7 @@ def complex_function(a, b, c, d, e):
 
 #[test]
 fn test_min_mi_gate_passes() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a simple, maintainable function
     let file_path = temp_dir.path().join("maintainable.py");
@@ -331,7 +342,7 @@ def simple_function():
 
 #[test]
 fn test_min_mi_gate_fails() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a file - any real code should have MI < 100
     let file_path = temp_dir.path().join("code.py");
@@ -357,7 +368,7 @@ def function():
 
 #[test]
 fn test_quiet_mode_omits_detailed_tables() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a file with quality issues
     let file_path = temp_dir.path().join("issues.py");
@@ -397,7 +408,7 @@ def deeply_nested():
 
 #[test]
 fn test_quiet_mode_shows_gate_result() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a simple file
     let file_path = temp_dir.path().join("test.py");
@@ -426,7 +437,7 @@ def function():
 
 #[test]
 fn test_auto_enable_quality_with_min_mi() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a simple file
     let file_path = temp_dir.path().join("test.py");
@@ -453,7 +464,7 @@ def function():
 
 #[test]
 fn test_auto_enable_quality_with_max_complexity() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = project_tempdir();
 
     // Create a simple file
     let file_path = temp_dir.path().join("test.py");

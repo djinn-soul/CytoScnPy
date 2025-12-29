@@ -4,11 +4,22 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-dynamic-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("dynamic_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_globals_access() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -39,7 +50,7 @@ g["unused_but_dynamic"]()
 
 #[test]
 fn test_hasattr_usage() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -72,7 +83,7 @@ if hasattr(obj, "unused_method"):
 
 #[test]
 fn test_eval_exec_dynamic_marking() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 

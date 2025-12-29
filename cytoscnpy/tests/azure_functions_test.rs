@@ -4,11 +4,22 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::constants::get_framework_file_re;
 use std::fs;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().expect("Failed to get current dir");
+    target_dir.push("target");
+    target_dir.push("test-azure-tmp");
+    fs::create_dir_all(&target_dir).expect("Failed to create test target dir");
+    tempfile::Builder::new()
+        .prefix("azure_test_")
+        .tempdir_in(target_dir)
+        .expect("Failed to create tempdir")
+}
 
 /// Helper function to analyze a Python file and return the results
 fn analyze_code(code: &str) -> cytoscnpy::analyzer::AnalysisResult {
-    let dir = tempdir().expect("Failed to create temp dir");
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     fs::write(&file_path, code).expect("Failed to write test file");
 

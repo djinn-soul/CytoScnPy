@@ -275,10 +275,24 @@ fn test_confidence_threshold() {
     );
 }
 
+use std::fs;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-integration-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("integration_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
+
 #[test]
 fn test_empty_directory() {
-    // Create a temporary empty directory for testing using tempfile for reliability
-    let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+    // Create a temporary empty directory for testing using project_tempdir for reliability
+    let temp_dir = project_tempdir();
 
     let result = run_cytoscnpy(temp_dir.path().to_str().unwrap(), &["--include-tests"]);
 

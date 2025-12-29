@@ -16,7 +16,18 @@ use ruff_python_parser::{parse, Mode};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-additional-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("additional_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 // =============================================================================
 // CLI FEATURE TESTS
@@ -25,7 +36,7 @@ use tempfile::tempdir;
 #[test]
 fn test_json_output_structure() {
     // Test that JSON output has proper structure
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def unused_func(): pass").unwrap();
@@ -58,7 +69,7 @@ fn test_json_output_structure() {
 #[test]
 fn test_exit_code_on_findings() {
     // Analyzer returns findings that can be used for exit codes
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def unused(): pass").unwrap();
@@ -214,7 +225,7 @@ from unittest.mock import patch, MagicMock
 
 #[test]
 fn test_multi_file_project_analysis() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create multiple files
     let file1 = dir.path().join("module_a.py");
@@ -258,7 +269,7 @@ fn test_multi_file_project_analysis() {
 
 #[test]
 fn test_config_file_precedence() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create pyproject.toml with lower confidence
     let pyproject = dir.path().join("pyproject.toml");
@@ -290,7 +301,7 @@ confidence = 90
 
 #[test]
 fn test_exclude_folder_logic() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create folder structure
     let src_dir = dir.path().join("src");
@@ -346,7 +357,7 @@ fn test_exclude_folder_logic() {
 
 #[test]
 fn test_include_folder_overrides_exclude() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create a folder that would normally be excluded by default
     let venv_dir = dir.path().join("venv");

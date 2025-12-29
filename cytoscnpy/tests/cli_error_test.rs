@@ -10,9 +10,21 @@
 
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::config::Config;
+use std::fs;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-cli-error-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("cli_error_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 // =============================================================================
 // Parse Error Handling Tests
@@ -20,7 +32,7 @@ use tempfile::tempdir;
 
 #[test]
 fn test_invalid_python_syntax_produces_parse_error() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("invalid.py");
     let mut file = File::create(&file_path).unwrap();
     // Invalid Python syntax - unclosed parenthesis
@@ -51,7 +63,7 @@ fn test_invalid_python_syntax_produces_parse_error() {
 
 #[test]
 fn test_analysis_continues_with_parse_errors() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create one valid file
     let valid_path = dir.path().join("valid.py");
@@ -94,7 +106,7 @@ fn test_analysis_continues_with_parse_errors() {
 
 #[test]
 fn test_parse_error_contains_file_path() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("broken_file.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "class Foo(\n    pass").unwrap();
@@ -129,7 +141,7 @@ fn test_parse_error_contains_file_path() {
 
 #[test]
 fn test_empty_python_file() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("empty.py");
     File::create(&file_path).unwrap(); // Create empty file
 
@@ -157,7 +169,7 @@ fn test_empty_python_file() {
 
 #[test]
 fn test_file_with_only_comments() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("comments.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "# This is a comment\n# Another comment").unwrap();
@@ -188,7 +200,7 @@ fn test_file_with_only_comments() {
 
 #[test]
 fn test_unicode_in_python_file() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("unicode.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "# -*- coding: utf-8 -*-").unwrap();
@@ -217,7 +229,7 @@ fn test_unicode_in_python_file() {
 
 #[test]
 fn test_deeply_nested_syntax_error() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("nested_error.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(
@@ -265,7 +277,7 @@ class Outer:
 
 #[test]
 fn test_analysis_summary_counts_files() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create 5 Python files
     for i in 0..5 {
@@ -298,7 +310,7 @@ fn test_analysis_summary_counts_files() {
 
 #[test]
 fn test_analysis_paths_with_single_file() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("single.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def unused(): pass").unwrap();

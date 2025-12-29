@@ -4,11 +4,22 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-parameter-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("parameter_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_simple_unused_parameter() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -35,7 +46,7 @@ def function_with_unused(a, b, c):
 
 #[test]
 fn test_all_parameters_used() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -56,7 +67,7 @@ def all_used(a, b, c):
 
 #[test]
 fn test_self_not_reported() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -88,7 +99,7 @@ class MyClass:
 
 #[test]
 fn test_cls_not_reported() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -117,7 +128,7 @@ class MyClass:
 
 #[test]
 fn test_args_kwargs() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -146,7 +157,7 @@ def func_with_varargs(a, *args, **kwargs):
 
 #[test]
 fn test_keyword_only_parameters() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -173,7 +184,7 @@ def func_with_kwonly(a, *, kwonly_param):
 
 #[test]
 fn test_default_values() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -204,7 +215,7 @@ def func_with_defaults(a, b=10, c=20):
 
 #[test]
 fn test_nested_functions() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -234,7 +245,7 @@ def outer(x, y):
 
 #[test]
 fn test_type_annotated_params() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -265,7 +276,7 @@ def typed_func(a: int, b: str, c: float) -> int:
 
 #[test]
 fn test_param_in_comprehension() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -287,7 +298,7 @@ def with_comprehension(items, multiplier):
 
 #[test]
 fn test_confidence_threshold_70() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 

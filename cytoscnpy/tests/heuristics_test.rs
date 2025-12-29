@@ -4,11 +4,22 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-heuristics-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("heuristics_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_heuristics_constants() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("settings.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -51,7 +62,7 @@ class OtherClass:
 
 #[test]
 fn test_visitor_pattern_heuristic() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("visitor.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -93,7 +104,7 @@ class MyVisitor:
 
 #[test]
 fn test_dataclass_fields() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("models.py");
     let mut file = File::create(&file_path).unwrap();
 

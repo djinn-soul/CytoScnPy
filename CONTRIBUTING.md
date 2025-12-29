@@ -705,7 +705,7 @@ CytoScnPy provides pre-commit hooks for automated code analysis. These hooks all
    ```yaml
    repos:
      - repo: https://github.com/djinn09/CytoScnPy
-       rev: v1.2.0 # Use the latest release tag
+       rev: v1.2.1 # Use the latest release tag
        hooks:
          - id: cytoscnpy-check
            # Optional: customize arguments

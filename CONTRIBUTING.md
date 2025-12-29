@@ -745,7 +745,7 @@ You can customize hook behavior by passing arguments:
 ```yaml
 repos:
   - repo: https://github.com/djinn09/CytoScnPy
-    rev: v1.2.0
+    rev: v1.2.1
     hooks:
       - id: cytoscnpy-check
         args:

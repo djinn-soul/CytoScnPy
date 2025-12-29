@@ -4,7 +4,7 @@
 
 ### Breaking Changes
 
-- **Pre-commit Hooks**: The hook `rev` should be updated to `v1.2.0` in your `.pre-commit-config.yaml`.
+- **Pre-commit Hooks**: The hook `rev` should be updated to `v1.2.1` in your `.pre-commit-config.yaml`.
 - **Parser Engine**: Switched from `rustpython-parser` to `ruff_python_parser`. This improves performance and Python 3.12+ compatibility but may handle syntax errors more strictly.
 
 ### Command Line Interface

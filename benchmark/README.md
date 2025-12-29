@@ -538,7 +538,7 @@ In this benchmark, all unused code is clearly unused (not partially used or dyna
 
 ⚠️ **Be cautious because**:
 
-- Benchmark uses a controlled test suite (126 items)
+- Benchmark uses a controlled test suite (135 items)
 - Real codebases have different patterns
 - Dynamic code (Django, SQLAlchemy) may have different results
 - Your mileage may vary based on coding style

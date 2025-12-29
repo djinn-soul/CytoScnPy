@@ -110,7 +110,7 @@ quality = true
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code
-max_complexity = 15    # Function CC > 15
+complexity = 15        # Function CC > 15
 min_mi = 40.0         # MI < 40
 ```
 
@@ -126,7 +126,7 @@ quality = true
 
 # CI/CD Gates
 fail_threshold = 5.0
-max_complexity = 15
+complexity = 15
 min_mi = 40.0
 ```
 

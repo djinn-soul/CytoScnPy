@@ -129,6 +129,7 @@ cytoscnpy files [OPTIONS] <PATH>
 ```
 
 - `-j`, `--json`: Output only JSON.
+- `--exclude-folder <DIR>`: Exclude specific folders from analysis.
 
 ### `mcp-server`
 

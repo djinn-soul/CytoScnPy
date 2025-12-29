@@ -165,6 +165,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 | Flag                     | Description                     |
 | ------------------------ | ------------------------------- |
 | `--exclude-folder <DIR>` | Exclude specific folders.       |
+| `--include-folder <DIR>` | Force include folders.          |
 | `--include-tests`        | Include test files in analysis. |
 | `--include-ipynb`        | Include Jupyter notebooks.      |
 

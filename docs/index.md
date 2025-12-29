@@ -27,13 +27,27 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 
 ## Installation
 
-Install via pip:
+**Linux / macOS:**
+
+```bash
+# Install
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Install
+irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+```
+
+**Via Pip:**
 
 ```bash
 pip install cytoscnpy
 ```
 
-Or build from source:
+**From Source:**
 
 ```bash
 git clone https://github.com/djinn09/CytoScnPy.git

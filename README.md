@@ -16,10 +16,29 @@ A fast static analysis tool for Python codebases, powered by Rust with hybrid Py
 
 ## Installation
 
+**Linux / macOS:**
+
+```bash
+# Install
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Install
+irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+```
+
+**Via Pip:**
+
 ```bash
 pip install cytoscnpy
+```
 
-# Or install from source
+**From Source:**
+
+```bash
 git clone https://github.com/djinn09/CytoScnPy.git
 cd CytoScnPy
 pip install maturin

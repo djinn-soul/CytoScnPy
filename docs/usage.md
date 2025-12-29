@@ -23,6 +23,22 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 - **Imports**: Unused import statements.
 - **Variables**: Local variables assigned but never read.
 
+## 📦 Installation
+
+**Linux / macOS:**
+
+```bash
+# Install
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Install
+irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+```
+
 **Framework Support**: Automatically detects usage in Flask routes, Django views, FastAPI endpoints, and Pydantic models.
 
 ### 🔒 Security Analysis
@@ -256,6 +272,7 @@ Runs full analysis (secrets, danger, quality) and prints summary statistics.
 - `--secrets` (`-s`): Enable secret scanning.
 - `--danger` (`-d`): Enable danger/taint analysis.
 - `--quality` (`-q`): Enable quality analysis.
+- `--exclude-folder <DIR>`: Exclude specific folders from stats analysis.
 - `--json`: Output as JSON.
 - `--output <FILE>` (`-o`): Save report to file.
 

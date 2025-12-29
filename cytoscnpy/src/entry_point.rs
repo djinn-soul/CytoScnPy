@@ -486,6 +486,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             config.clone(),
         );
 
+        // Set debug delay if provided
+        if let Some(delay_ms) = cli_var.debug_delay {
+            analyzer.debug_delay_ms = Some(delay_ms);
+        }
+
         // Count files first to create progress bar with accurate total
         let total_files = analyzer.count_files(&cli_var.paths);
 
@@ -498,21 +503,12 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             Some(crate::output::create_spinner())
         };
 
-        let start_time = std::time::Instant::now();
-
-        // Debug: Simulate progress for testing progress bar visibility
-        if let Some(delay_ms) = cli_var.debug_delay {
-            eprintln!("[DEBUG] delay_ms = {delay_ms}, total_files = {total_files}");
-            if let Some(ref pb) = progress {
-                for i in 0..total_files {
-                    pb.set_position(i as u64);
-                    pb.set_message(format!("file {}/{}", i + 1, total_files));
-                    pb.tick();
-                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-                }
-                pb.set_position(total_files as u64);
-            }
+        // Pass progress bar to analyzer for real-time updates
+        if let Some(ref pb) = progress {
+            analyzer.progress_bar = Some(std::sync::Arc::new(pb.clone()));
         }
+
+        let start_time = std::time::Instant::now();
 
         let mut result = analyzer.analyze_paths(&cli_var.paths);
 

@@ -60,6 +60,15 @@ cytoscnpy . --json > report.json
 Preview and fix dead code automatically:
 
 ```bash
-cytoscnpy . --fix        # Preview changes
+cytoscnpy . --fix        # Preview changes (dry run)
 cytoscnpy . --fix --apply # Apply changes
 ```
+
+---
+
+## Links
+
+- **Documentation**: [djinn09.github.io/CytoScnPy](https://djinn09.github.io/CytoScnPy/)
+- **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
+- **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
+- **GitHub Repository**: [github.com/djinn09/CytoScnPy](https://github.com/djinn09/CytoScnPy/)

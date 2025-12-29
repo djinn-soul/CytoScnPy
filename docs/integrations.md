@@ -8,7 +8,7 @@ Get real-time feedback while you code.
 
 ### Installation
 
-1. Search for **"CytoScnPy"** in the VS Code Marketplace.
+1. Search for **"CytoScnPy"** in the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy).
 2. Install the extension.
 
 ### Commands

@@ -216,3 +216,11 @@ cytoscnpy stats . --all
 Runs full analysis (secrets, danger, quality) and prints summary statistics.
 
 - `--all`: Enable all scanners (equivalent to `-s -d -q`).
+
+---
+
+## Links
+
+- **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
+- **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
+- **GitHub Repository**: [github.com/djinn09/CytoScnPy](https://github.com/djinn09/CytoScnPy/)

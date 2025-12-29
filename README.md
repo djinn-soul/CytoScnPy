@@ -1,8 +1,8 @@
 # CytoScnPy - High-Performance Python Static Analysis
 
-[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
+[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.1.3-green.svg)](https://github.com/djinn09/CytoScnPy)
+[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](https://github.com/djinn09/CytoScnPy)
 
 A fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
 
@@ -11,7 +11,7 @@ A fast static analysis tool for Python codebases, powered by Rust with hybrid Py
 - **Blazing Fast**: Faster in dead code detection.
 - **Memory Efficient**: Uses less memory.
 - **Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
-- **🎯 Framework Aware**: Flask, Django, FastAPI, Celery, Starlette, Pydantic, Azure Functions v2
+- **Framework Aware**: Flask, Django, FastAPI, Pydantic, Azure Functions
 - **Benchmarked**: Continuous benchmarking with 126-item ground truth suite
 
 ## Installation
@@ -87,8 +87,8 @@ cytoscnpy . --fix                    # Preview changes (dry-run by default)
 cytoscnpy . --fix --apply            # Apply changes
 cytoscnpy . --fix -a                 # Apply changes (short flag)
 
-# Generate HTML report
-cytoscnpy . --html --secrets --danger --quality
+# Generate HTML report (quality auto-enabled; add --secrets --danger for security)
+cytoscnpy . --html --secrets --danger
 ```
 
 **Options:**
@@ -100,7 +100,7 @@ cytoscnpy . --html --secrets --danger --quality
 | `-d, --danger`           | Scan for dangerous code + taint analysis         |
 | `-q, --quality`          | Scan for code quality issues                     |
 | `-n, --no-dead`          | Skip dead code detection (security/quality only) |
-| `--html`                 | Generate interactive HTML report                 |
+| `--html`                 | Generate HTML report (auto-enables quality)      |
 | `--json`                 | Output results as JSON                           |
 | `-v, --verbose`          | Enable verbose output for debugging              |
 | `-q, --quiet`            | Quiet mode: summary only, no tables              |
@@ -247,10 +247,13 @@ Apache-2.0 License - see [License](License) file for details.
 
 ## Links
 
-- [Rust Core Documentation](cytoscnpy/README.md)
-- [Benchmarks & Accuracy](benchmark/README.md)
-- [Roadmap](ROADMAP.md)
-- [Contributing](CONTRIBUTING.md)
+- **Documentation**: [CytoScnPy](https://djinn09.github.io/CytoScnPy/)
+- **PyPI**: [PyPi](https://pypi.org/project/cytoscnpy/)
+- **VS Code Extension**: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
+- **Rust Core Documentation**: [cytoscnpy/README.md](cytoscnpy/README.md)
+- **Benchmarks & Accuracy**: [benchmark/README.md](benchmark/README.md)
+- **Roadmap**: [ROADMAP.md](ROADMAP.md)
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## References
 

@@ -47,6 +47,10 @@ pub struct CytoScnPy {
     pub total_lines_analyzed: usize,
     /// Configuration object.
     pub config: Config,
+    /// Debug delay in milliseconds (for testing progress bar).
+    pub debug_delay_ms: Option<u64>,
+    /// Progress bar for tracking analysis progress (thread-safe).
+    pub progress_bar: Option<std::sync::Arc<indicatif::ProgressBar>>,
 }
 
 impl Default for CytoScnPy {
@@ -65,6 +69,8 @@ impl Default for CytoScnPy {
             total_files_analyzed: 0,
             total_lines_analyzed: 0,
             config: Config::default(),
+            debug_delay_ms: None,
+            progress_bar: None,
         }
     }
 }
@@ -100,6 +106,8 @@ impl CytoScnPy {
             total_files_analyzed: 0,
             total_lines_analyzed: 0,
             config,
+            debug_delay_ms: None,
+            progress_bar: None,
         }
     }
 
@@ -177,6 +185,13 @@ impl CytoScnPy {
     #[must_use]
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Builder-style method to set debug delay.
+    #[must_use]
+    pub fn with_debug_delay(mut self, delay_ms: Option<u64>) -> Self {
+        self.debug_delay_ms = delay_ms;
         self
     }
 

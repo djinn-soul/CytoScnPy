@@ -14,7 +14,6 @@ use serde::Serialize;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use walkdir::WalkDir;
 
 #[derive(Serialize, Clone)]
 struct FileMetrics {
@@ -48,29 +47,57 @@ struct StatsReport {
 }
 
 fn count_directories(root: &Path, exclude: &[String]) -> usize {
+    use ignore::WalkBuilder;
+
     let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
         .iter()
         .map(|&s| s.to_owned())
         .collect();
     let all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
 
-    WalkDir::new(root)
-        .into_iter()
-        .filter_entry(|e| {
-            let path = e.path();
-            if path.is_dir() {
-                let name = path
-                    .file_name()
-                    .map(|n| n.to_string_lossy())
-                    .unwrap_or_default();
-                return !all_excludes.iter().any(|ex| name.contains(ex));
-            }
-            true
-        })
+    let walker = WalkBuilder::new(root)
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .build();
+
+    walker
         .filter_map(std::result::Result::ok)
         .filter(|e| {
             let path = e.path();
-            path.is_dir() && path != root
+
+            // We want to count directories that are NOT excluded
+            if let Some(ft) = e.file_type() {
+                if !ft.is_dir() {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+
+            if path == root {
+                return false;
+            }
+
+            // Check if directory itself is excluded by name
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_default();
+            if all_excludes.iter().any(|ex| name.contains(ex.as_str())) {
+                return false;
+            }
+
+            // Check if it's inside an excluded parent
+            let in_excluded_parent = path.ancestors().skip(1).any(|a| {
+                a.file_name().is_some_and(|n| {
+                    let ns = n.to_string_lossy();
+                    all_excludes.iter().any(|ex| ns.contains(ex.as_str()))
+                })
+            });
+
+            !in_excluded_parent
         })
         .count()
 }

@@ -1,6 +1,5 @@
 //! Clone detection command.
 
-use super::utils::load_python_files;
 use crate::clones::{
     CloneConfig, CloneDetector, CloneFinding, ClonePair, CloneType, ConfidenceScorer, FixContext,
     NodeKind,
@@ -101,19 +100,26 @@ pub fn run_clones<W: Write>(
     options: &CloneOptions,
     mut writer: W,
 ) -> Result<(usize, Vec<CloneFinding>)> {
-    let all_files = load_python_files(paths, &options.exclude);
+    // Collect file paths (not content) for OOM-safe processing
+    let file_paths: Vec<PathBuf> = paths
+        .iter()
+        .flat_map(|p| super::utils::find_python_files(p, &options.exclude))
+        .collect();
 
-    if all_files.is_empty() {
+    if file_paths.is_empty() {
         writeln!(writer, "No Python files found.")?;
         return Ok((0, Vec::new()));
     }
 
+    let file_count = file_paths.len();
+
+    // Use OOM-safe detection - processes files in chunks
     let config = CloneConfig::default().with_min_similarity(options.similarity);
     let detector = CloneDetector::with_config(config);
-    let result = detector.detect(&all_files);
+    let result = detector.detect_from_paths(&file_paths);
 
-    if !options.json {
-        print_clone_stats(&mut writer, &all_files, &result.pairs, options.verbose)?;
+    if !options.json && options.verbose {
+        print_clone_stats_simple(&mut writer, file_count, &result.pairs)?;
     }
 
     if result.pairs.is_empty() {
@@ -125,7 +131,10 @@ pub fn run_clones<W: Write>(
         return Ok((0, Vec::new()));
     }
 
-    let findings = generate_clone_findings(&result.pairs, &all_files, options.with_cst);
+    // Lazy load only files involved in clone pairs (OOM-safe for large repos)
+    let matched_files = load_matched_files(&result.pairs);
+
+    let findings = generate_clone_findings(&result.pairs, &matched_files, options.with_cst);
 
     if options.json {
         let output = serde_json::to_string_pretty(&findings)?;
@@ -190,7 +199,7 @@ pub fn run_clones<W: Write>(
         apply_clone_fixes_internal(
             &mut writer,
             &findings,
-            &all_files,
+            &matched_files,
             options.dry_run,
             options.with_cst,
         )?;
@@ -199,43 +208,62 @@ pub fn run_clones<W: Write>(
     Ok((result.pairs.len(), findings))
 }
 
-fn print_clone_stats<W: Write>(
+/// Load only files that are involved in clone pairs (lazy loading for OOM safety)
+fn load_matched_files(pairs: &[ClonePair]) -> Vec<(PathBuf, String)> {
+    use std::collections::HashSet;
+
+    // Collect unique file paths from pairs
+    let unique_paths: HashSet<PathBuf> = pairs
+        .iter()
+        .flat_map(|p| [p.instance_a.file.clone(), p.instance_b.file.clone()])
+        .collect();
+
+    // Load only these files
+    unique_paths
+        .into_iter()
+        .filter_map(|path| {
+            std::fs::read_to_string(&path)
+                .ok()
+                .map(|content| (path, content))
+        })
+        .collect()
+}
+
+/// Print simple clone stats without file content (OOM-safe)
+fn print_clone_stats_simple<W: Write>(
     mut writer: W,
-    all_files: &[(PathBuf, String)],
+    file_count: usize,
     pairs: &[ClonePair],
-    verbose: bool,
 ) -> Result<()> {
-    if verbose {
-        writeln!(writer, "[VERBOSE] Clone Detection Statistics:")?;
-        writeln!(writer, "   Files scanned: {}", all_files.len())?;
-        writeln!(writer, "   Clone pairs found: {}", pairs.len())?;
+    writeln!(writer, "[VERBOSE] Clone Detection Statistics:")?;
+    writeln!(writer, "   Files scanned: {}", file_count)?;
+    writeln!(writer, "   Clone pairs found: {}", pairs.len())?;
 
-        let mut type1_count = 0;
-        let mut type2_count = 0;
-        let mut type3_count = 0;
-        for pair in pairs {
-            match pair.clone_type {
-                CloneType::Type1 => type1_count += 1,
-                CloneType::Type2 => type2_count += 1,
-                CloneType::Type3 => type3_count += 1,
-            }
+    let mut type1_count = 0;
+    let mut type2_count = 0;
+    let mut type3_count = 0;
+    for pair in pairs {
+        match pair.clone_type {
+            CloneType::Type1 => type1_count += 1,
+            CloneType::Type2 => type2_count += 1,
+            CloneType::Type3 => type3_count += 1,
         }
-        writeln!(writer, "   Exact Copies: {type1_count}")?;
-        writeln!(writer, "   Renamed Copies: {type2_count}")?;
-        writeln!(writer, "   Similar Code: {type3_count}")?;
-
-        if !pairs.is_empty() {
-            #[allow(clippy::cast_precision_loss)]
-            let avg_similarity: f64 =
-                pairs.iter().map(|p| p.similarity).sum::<f64>() / pairs.len() as f64;
-            writeln!(
-                writer,
-                "   Average similarity: {:.0}%",
-                avg_similarity * 100.0
-            )?;
-        }
-        writeln!(writer)?;
     }
+    writeln!(writer, "   Exact Copies: {type1_count}")?;
+    writeln!(writer, "   Renamed Copies: {type2_count}")?;
+    writeln!(writer, "   Similar Code: {type3_count}")?;
+
+    if !pairs.is_empty() {
+        #[allow(clippy::cast_precision_loss)]
+        let avg_similarity: f64 =
+            pairs.iter().map(|p| p.similarity).sum::<f64>() / pairs.len() as f64;
+        writeln!(
+            writer,
+            "   Average similarity: {:.0}%",
+            avg_similarity * 100.0
+        )?;
+    }
+    writeln!(writer)?;
     Ok(())
 }
 

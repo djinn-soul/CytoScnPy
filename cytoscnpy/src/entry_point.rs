@@ -879,33 +879,39 @@ fn run_clone_detection_for_json(
 ) -> Vec<crate::clones::CloneFinding> {
     use crate::clones::{CloneConfig, CloneDetector};
 
-    // Collect files
-    let mut all_files: Vec<(std::path::PathBuf, String)> = Vec::new();
-    for path in paths {
-        if path.is_file() {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                all_files.push((path.clone(), content));
+    // Collect file paths (not content) for OOM-safe processing
+    let file_paths: Vec<std::path::PathBuf> = paths
+        .iter()
+        .flat_map(|path| {
+            if path.is_file() {
+                vec![path.clone()]
+            } else if path.is_dir() {
+                crate::utils::collect_python_files_gitignore(path, &[], &[], false).0
+            } else {
+                vec![]
             }
-        } else if path.is_dir() {
-            for entry in walkdir::WalkDir::new(path)
-                .into_iter()
-                .filter_map(Result::ok)
-            {
-                let p = entry.path();
-                if p.extension().is_some_and(|e| e == "py") {
-                    if let Ok(content) = std::fs::read_to_string(p) {
-                        all_files.push((p.to_path_buf(), content));
-                    }
-                }
-            }
-        }
-    }
+        })
+        .collect();
 
-    // Run detection
+    // Use OOM-safe detection - processes files in chunks
     let config = CloneConfig::default().with_min_similarity(similarity);
     let detector = CloneDetector::with_config(config);
-    let result = detector.detect(&all_files);
+    let result = detector.detect_from_paths(&file_paths);
+
+    // Lazy load only matched files for findings generation
+    let matched_files: Vec<(std::path::PathBuf, String)> = {
+        use std::collections::HashSet;
+        let unique_paths: HashSet<std::path::PathBuf> = result
+            .pairs
+            .iter()
+            .flat_map(|p| [p.instance_a.file.clone(), p.instance_b.file.clone()])
+            .collect();
+        unique_paths
+            .into_iter()
+            .filter_map(|p| std::fs::read_to_string(&p).ok().map(|c| (p, c)))
+            .collect()
+    };
 
     // Generate findings
-    crate::commands::generate_clone_findings(&result.pairs, &all_files, true)
+    crate::commands::generate_clone_findings(&result.pairs, &matched_files, true)
 }

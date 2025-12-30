@@ -128,22 +128,56 @@ pub fn get_framework_file_re() -> &'static Regex {
 }
 
 /// Set of folders to exclude by default.
+/// Includes Python, Node.js, Rust, Ruby, Java, and common IDE folders.
 pub fn get_default_exclude_folders() -> &'static FxHashSet<&'static str> {
     static SET: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
         let mut s = FxHashSet::default();
+        // Python
         s.insert("__pycache__");
-        s.insert(".git");
         s.insert(".pytest_cache");
         s.insert(".mypy_cache");
+        s.insert(".ruff_cache");
         s.insert(".tox");
         s.insert("htmlcov");
         s.insert(".coverage");
-        s.insert("build");
-        s.insert("dist");
         s.insert("*.egg-info");
+        s.insert(".eggs");
         s.insert("venv");
         s.insert(".venv");
+        s.insert("env");
+        s.insert(".env");
+        s.insert(".nox");
+        s.insert(".pytype");
+        // Build outputs
+        s.insert("build");
+        s.insert("dist");
+        s.insert("site-packages");
+        // Node.js / JavaScript
+        s.insert("node_modules");
+        s.insert(".npm");
+        s.insert("bower_components");
+        // Rust
+        s.insert("target");
+        // Ruby
+        s.insert("vendor");
+        s.insert(".bundle");
+        // Java / Gradle / Maven
+        s.insert(".gradle");
+        s.insert("gradle");
+        s.insert(".mvn");
+        // IDE and version control
+        s.insert(".git");
+        s.insert(".svn");
+        s.insert(".hg");
+        s.insert(".idea");
+        s.insert(".vscode");
+        s.insert(".vs");
+        // Other
+        s.insert(".cache");
+        s.insert(".tmp");
+        s.insert("tmp");
+        s.insert("logs");
         s
     })
 }

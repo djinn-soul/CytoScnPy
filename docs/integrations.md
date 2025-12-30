@@ -8,7 +8,7 @@ Get real-time feedback while you code.
 
 ### Installation
 
-1. Search for **"CytoScnPy"** in the VS Code Marketplace.
+1. Search for **"CytoScnPy"** in the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy).
 2. Install the extension.
 
 ### Commands
@@ -43,6 +43,8 @@ Customize behavior in VS Code Settings (`Ctrl+,`):
 ## MCP Server (AI Assistants)
 
 Enable AI assistants (Claude, Cursor, Copilot) to use CytoScnPy tools.
+
+> **Note**: HTTP/SSE transport is planned for future releases to enable remote analysis. See [ROADMAP.md](../ROADMAP.md) for details.
 
 ### GitHub Copilot
 

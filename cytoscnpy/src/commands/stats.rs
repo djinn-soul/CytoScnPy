@@ -121,7 +121,7 @@ pub fn run_stats<W: Write>(
     output: Option<String>,
     exclude: &[String],
     mut writer: W,
-) -> Result<()> {
+) -> Result<usize> {
     let files = find_python_files(path, exclude);
     let num_directories = count_directories(path, exclude);
 
@@ -352,7 +352,13 @@ pub fn run_stats<W: Write>(
         }
     }
 
-    Ok(())
+    // Return quality issue count for fail-on-quality gate
+    let quality_count = analysis_result
+        .as_ref()
+        .map(|r| r.quality.len())
+        .unwrap_or(0);
+
+    Ok(quality_count)
 }
 
 /// Executes the files command - shows per-file metrics table.

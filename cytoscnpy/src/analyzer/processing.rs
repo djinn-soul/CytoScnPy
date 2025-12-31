@@ -88,6 +88,7 @@ impl CytoScnPy {
             &self.exclude_folders,
             &self.include_folders,
             self.include_ipynb,
+            self.verbose,
         )
     }
 
@@ -157,6 +158,16 @@ impl CytoScnPy {
     ) {
         // Check if this is a notebook file
         let is_notebook = file_path.extension().is_some_and(|e| e == "ipynb");
+
+        // Debug delay for testing progress bar visibility
+        if let Some(delay_ms) = self.debug_delay_ms {
+            std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        }
+
+        // Update progress bar (thread-safe)
+        if let Some(ref pb) = self.progress_bar {
+            pb.inc(1);
+        }
 
         let mut file_complexity = 0.0;
         let mut file_mi = 0.0;

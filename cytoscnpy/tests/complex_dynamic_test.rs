@@ -4,7 +4,18 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::{self, File};
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-complex-dynamic-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("complex_dynamic_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_complex_cross_file_dynamic_chain() {
@@ -21,7 +32,7 @@ fn test_complex_cross_file_dynamic_chain() {
     // 5. This reference propagates to `lib.py`.
     // 6. `lib.hidden_gem` is marked used.
 
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let src_path = dir.path().join("src");
     fs::create_dir_all(&src_path).unwrap();
 
@@ -90,7 +101,7 @@ fn test_hasattr_cross_file() {
     // Expected:
     // 'User.save' should be marked as used.
 
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // models.py
     let models_path = dir.path().join("models.py");
@@ -154,7 +165,7 @@ fn test_eval_local_scope_usage() {
     // A function defines local variables that are only used inside `eval`.
     // Without dynamic tracking, these would be reported as unused variables.
 
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("script.py");
     let mut file = File::create(&file_path).unwrap();
     write!(

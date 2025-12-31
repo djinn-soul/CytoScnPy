@@ -4,11 +4,22 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-methodctx-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("methodctx_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_method_context() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -46,7 +57,7 @@ obj.main()
 
 #[test]
 fn test_nested_class_method_call() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -83,7 +94,7 @@ obj.inner_main()
 
 #[test]
 fn test_inheritance_method_call() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -115,7 +126,7 @@ class Child(Parent):
 
 #[test]
 fn test_static_and_class_methods() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 

@@ -103,7 +103,7 @@ pub fn run_clones<W: Write>(
     // Collect file paths (not content) for OOM-safe processing
     let file_paths: Vec<PathBuf> = paths
         .iter()
-        .flat_map(|p| super::utils::find_python_files(p, &options.exclude))
+        .flat_map(|p| super::utils::find_python_files(p, &options.exclude, options.verbose))
         .collect();
 
     if file_paths.is_empty() {

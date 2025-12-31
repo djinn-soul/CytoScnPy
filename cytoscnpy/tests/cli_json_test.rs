@@ -10,9 +10,21 @@
 
 use cytoscnpy::commands::{run_cc, run_hal, run_mi, run_raw};
 use serde_json::Value;
+use std::fs;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-cli-json-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("cli_json_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 // =============================================================================
 // JSON Output Structure Tests
@@ -20,7 +32,7 @@ use tempfile::tempdir;
 
 #[test]
 fn test_raw_json_output_structure() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1\n# comment\ny = 2").unwrap();
@@ -33,6 +45,7 @@ fn test_raw_json_output_structure() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -62,7 +75,7 @@ fn test_raw_json_output_structure() {
 
 #[test]
 fn test_cc_json_output_structure() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def foo():\n    if True:\n        pass").unwrap();
@@ -75,6 +88,7 @@ fn test_cc_json_output_structure() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,
@@ -103,7 +117,7 @@ fn test_cc_json_output_structure() {
 
 #[test]
 fn test_mi_json_output_structure() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1\ny = 2").unwrap();
@@ -116,6 +130,7 @@ fn test_mi_json_output_structure() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,
@@ -138,7 +153,7 @@ fn test_mi_json_output_structure() {
 
 #[test]
 fn test_hal_json_output_structure() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1 + 2\ny = x * 3").unwrap();
@@ -151,6 +166,7 @@ fn test_hal_json_output_structure() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -187,7 +203,7 @@ fn test_hal_json_output_structure() {
 
 #[test]
 fn test_json_empty_directory() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     // Create multiple Python files
     for i in 0..3 {
         let file_path = dir.path().join(format!("test{}.py", i));
@@ -203,6 +219,7 @@ fn test_json_empty_directory() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -221,7 +238,7 @@ fn test_json_empty_directory() {
 
 #[test]
 fn test_json_numeric_values_are_numbers() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "x = 1\ny = 2\nz = 3").unwrap();
@@ -234,6 +251,7 @@ fn test_json_numeric_values_are_numbers() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -251,7 +269,7 @@ fn test_json_numeric_values_are_numbers() {
 
 #[test]
 fn test_cc_json_complexity_value_types() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test.py");
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, "def foo(): pass").unwrap();
@@ -264,6 +282,7 @@ fn test_cc_json_complexity_value_types() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,

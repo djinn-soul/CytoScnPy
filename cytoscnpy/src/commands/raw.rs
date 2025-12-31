@@ -34,11 +34,12 @@ pub fn run_raw<W: Write>(
     ignore: Vec<String>,
     summary: bool,
     output_file: Option<String>,
+    verbose: bool,
     mut writer: W,
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(path, &all_exclude);
+    let files = find_python_files(path, &all_exclude, verbose);
 
     let results: Vec<RawResult> = files
         .par_iter()

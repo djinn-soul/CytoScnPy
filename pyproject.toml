@@ -8,17 +8,32 @@ description = "High-performance dead code elimination analysis tool for Python."
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Quality Assurance",
-    "Topic :: Software Development :: Testing :: Static Analysis",
+    "Topic :: Software Development :: Testing",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
 ]
 readme = "README.md"
 
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov>=4.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "tomli; python_version < '3.11'",
+    "trove-classifiers",
+]
 docs = ["mkdocs-material>=9.5.0", "mkdocs-minify-plugin>=0.8.0"]
 
 [tool.maturin]

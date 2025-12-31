@@ -2,7 +2,7 @@
 
 ---
 
-This benchmark evaluates **11 dead code detection tools** against a curated Python test suite containing **131 ground truth items** across 6 categories. The goal is to measure detection accuracy (precision, recall, F1), performance (execution time, memory), and identify the best tools for different use cases.
+This benchmark evaluates **11 dead code detection tools** against a curated Python test suite containing **135 ground truth items** across 6 categories. The goal is to measure detection accuracy (precision, recall, F1), performance (execution time, memory), and identify the best tools for different use cases.
 
 ### Key Highlights
 
@@ -93,12 +93,12 @@ The benchmark runs automatically on every push/PR to `main` via GitHub Actions (
 
 | Type      | Count   |
 | --------- | ------- |
-| Functions | 51      |
+| Functions | 54      |
 | Classes   | 14      |
 | Methods   | 27      |
-| Imports   | 19      |
+| Imports   | 20      |
 | Variables | 20      |
-| **Total** | **131** |
+| **Total** | **135** |
 
 ---
 
@@ -424,17 +424,17 @@ F1 = 2 × (Precision × Recall) / (Precision + Recall)
 <details>
 <summary><strong>Q: How was the ground truth dataset created?</strong></summary>
 
-The ground truth contains **126 manually verified items** across 6 test categories:
+The ground truth contains **135 manually verified items** across 6 test categories:
 
 1. **Manual Analysis**: Each test file was manually reviewed to identify genuinely unused code
 2. **Cross-Validation**: Multiple reviewers verified the classifications
 3. **Category Balance**: Intentional distribution across different code patterns:
 
-   - 50 functions (40%)
-   - 27 methods (21%)
-   - 19 imports (15%)
-   - 19 variables (15%)
-   - 11 classes (9%)
+   - 54 functions (40%)
+   - 27 methods (20%)
+   - 20 imports (15%)
+   - 20 variables (15%)
+   - 14 classes (10%)
 
 4. **Edge Case Coverage**: Test suite includes challenging patterns:
    - Dynamic attribute access (`getattr`, `globals()`)
@@ -538,7 +538,7 @@ In this benchmark, all unused code is clearly unused (not partially used or dyna
 
 ⚠️ **Be cautious because**:
 
-- Benchmark uses a controlled test suite (126 items)
+- Benchmark uses a controlled test suite (135 items)
 - Real codebases have different patterns
 - Dynamic code (Django, SQLAlchemy) may have different results
 - Your mileage may vary based on coding style

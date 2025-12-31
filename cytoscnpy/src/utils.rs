@@ -116,6 +116,22 @@ pub fn normalize_display_path(path: &std::path::Path) -> String {
         .to_owned()
 }
 
+/// Checks if a name matches any exclusion pattern.
+/// Supports exact matching and wildcard patterns starting with `*.`.
+#[must_use]
+pub fn is_excluded(name: &str, excludes: &[String]) -> bool {
+    for exclude in excludes {
+        if exclude.starts_with("*.") {
+            if name.ends_with(&exclude[1..]) {
+                return true;
+            }
+        } else if name == exclude {
+            return true;
+        }
+    }
+    false
+}
+
 /// Validates that a path is contained within an allowed root directory.
 ///
 /// This provides defense-in-depth against path traversal vulnerabilities.
@@ -233,6 +249,107 @@ pub fn validate_output_path(path: &std::path::Path) -> anyhow::Result<std::path:
     Ok(absolute_path)
 }
 
+/// Collects Python files from a directory with gitignore support.
+///
+/// Uses the `ignore` crate to respect .gitignore, .git/info/exclude, and global gitignore
+/// IN ADDITION to the hardcoded default exclusions (venv, `node_modules`, target, etc.).
+///
+/// # Arguments
+/// * `root` - Root directory to search
+/// * `exclude` - Additional user-specified exclusion patterns
+/// * `include` - Folders to force-include (overrides excludes)
+/// * `include_ipynb` - Whether to include .ipynb files
+/// * `verbose` - Whether to print walk errors to stderr
+///
+/// # Returns
+/// Tuple of (Vector of PathBuf for all Python files found, directory count)
+#[must_use]
+pub fn collect_python_files_gitignore(
+    root: &std::path::Path,
+    exclude: &[String],
+    include: &[String],
+    include_ipynb: bool,
+    verbose: bool,
+) -> (Vec<std::path::PathBuf>, usize) {
+    use ignore::WalkBuilder;
+
+    // Merge user excludes with default excludes
+    let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
+        .iter()
+        .map(|&s| s.to_owned())
+        .collect();
+    let mut all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
+
+    // Remove force-included folders from exclusion list
+    all_excludes.retain(|ex| !include.iter().any(|inc| ex == inc));
+
+    // Clone excludes for use in filter closure
+    let excludes_for_filter = all_excludes.clone();
+    let root_for_filter = root.to_path_buf();
+
+    // Use ignore crate's WalkBuilder for gitignore support
+    // Add filter_entry to skip excluded directories at traversal time,
+    // preventing descent into node_modules, .venv, target, etc.
+    let walker = WalkBuilder::new(root)
+        .hidden(false) // Don't skip hidden files (we handle that with defaults)
+        .git_ignore(true) // Respect .gitignore files
+        .git_global(true) // Respect global gitignore
+        .git_exclude(true) // Respect .git/info/exclude
+        .filter_entry(move |entry| {
+            // Always allow the root directory
+            if entry.path() == root_for_filter {
+                return true;
+            }
+
+            // Only filter directories - allow all files through (we filter them later)
+            if !entry.file_type().is_some_and(|ft| ft.is_dir()) {
+                return true;
+            }
+
+            // Check if directory name matches any exclusion pattern
+            if let Some(name) = entry.file_name().to_str() {
+                if is_excluded(name, &excludes_for_filter) {
+                    return false;
+                }
+            }
+
+            true
+        })
+        .build();
+
+    let mut files = Vec::new();
+    let mut dir_count = 0;
+
+    for result in walker {
+        if let Ok(entry) = result {
+            let path = entry.path();
+
+            // Count directories (excluded dirs won't appear here due to filter_entry)
+            if entry.file_type().is_some_and(|ft| ft.is_dir()) {
+                if path != root {
+                    dir_count += 1;
+                }
+                continue;
+            }
+
+            // Check file extension
+            let is_python = path.extension().is_some_and(|ext| ext == "py");
+            let is_notebook = include_ipynb && path.extension().is_some_and(|ext| ext == "ipynb");
+
+            if !is_python && !is_notebook {
+                continue;
+            }
+
+            files.push(path.to_path_buf());
+        } else if verbose {
+            // Ignore walk errors silently unless verbose
+            eprintln!("Walk error: {}", result.unwrap_err());
+        }
+    }
+
+    (files, dir_count)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,5 +438,154 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[test]
+    fn test_collect_python_files_exclusion() -> anyhow::Result<()> {
+        let temp_dir = tempdir()?;
+        let root = temp_dir.path();
+
+        // Create a legitimate folder that contains "git" (which is a default exclude prefix or similar)
+        // Actually, default excludes are "venv", ".git", "node_modules", etc.
+        // If we use "contains", then "widget" contains "git" if ".git" was matched by substring?
+        // No, ".git" doesn't match "widget" via contains unless we did it the other way around.
+        // BUT if the user excludes "git", then "widget" would be skipped.
+        // Also "convenience" contains "venv" if "venv" was excluded.
+
+        let widget_dir = root.join("widget");
+        fs::create_dir(&widget_dir)?;
+        fs::write(widget_dir.join("a.py"), "print('hello')")?;
+
+        let convenience_dir = root.join("convenience");
+        fs::create_dir(&convenience_dir)?;
+        fs::write(convenience_dir.join("b.py"), "print('world')")?;
+
+        let venv_dir = root.join("venv");
+        fs::create_dir(&venv_dir)?;
+        fs::write(venv_dir.join("c.py"), "print('venv')")?;
+
+        let git_dir = root.join(".git");
+        fs::create_dir(&git_dir)?;
+        fs::write(git_dir.join("d.py"), "print('git')")?;
+
+        // Test with "venv" and ".git" excluded (default behavior)
+        let (files, _) = collect_python_files_gitignore(root, &[], &[], false, false);
+
+        let file_names: Vec<String> = files
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+
+        // "a.py" and "b.py" should be found. "c.py" and "d.py" should NOT.
+        assert!(file_names.contains(&"a.py".to_owned()));
+        assert!(file_names.contains(&"b.py".to_owned()));
+        assert!(!file_names.contains(&"c.py".to_owned()));
+        assert!(!file_names.contains(&"d.py".to_owned()));
+
+        // Test with wildcard exclude "*.egg-info"
+        let egg_info_dir = root.join("test.egg-info");
+        fs::create_dir(&egg_info_dir)?;
+        fs::write(egg_info_dir.join("e.py"), "print('egg-info')")?;
+
+        let (files_wildcard, _) = collect_python_files_gitignore(root, &[], &[], false, false);
+        let names_wildcard: Vec<String> = files_wildcard
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            !names_wildcard.contains(&"e.py".to_owned()),
+            "Files in test.egg-info should be excluded by *.egg-info default exclude"
+        );
+
+        // Now test with a custom exclude "git"
+        // In the old logic, this would exclude "widget"
+        let (files2, _) =
+            collect_python_files_gitignore(root, &["git".to_owned()], &[], false, false);
+        let file_names2: Vec<String> = files2
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+
+        // "a.py" (in "widget") should be found in new logic, but was missing in old logic
+        assert!(
+            file_names2.contains(&"a.py".to_string()),
+            "widget/a.py should be found even if 'git' is excluded"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_collect_python_files_force_include() -> anyhow::Result<()> {
+        let temp_dir = tempdir()?;
+        let root = temp_dir.path();
+
+        let venv_dir = root.join("venv");
+        fs::create_dir(&venv_dir)?;
+        fs::write(venv_dir.join("a.py"), "print('venv')")?;
+
+        // Test with "venv" excluded by default
+        let (files, _) = collect_python_files_gitignore(root, &[], &[], false, false);
+        assert!(files.is_empty(), "venv should be excluded by default");
+
+        // Test with "venv" force-included
+        let (files2, _) =
+            collect_python_files_gitignore(root, &[], &["venv".to_string()], false, false);
+        assert_eq!(
+            files2.len(),
+            1,
+            "venv should be included if explicitly force-included"
+        );
+        assert_eq!(files2[0].file_name().unwrap().to_string_lossy(), "a.py");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_collect_python_files_no_substring_unexclude() -> anyhow::Result<()> {
+        let temp_dir = tempdir()?;
+        let root = temp_dir.path();
+
+        // Create .venv (excluded by default)
+        let venv_dir = root.join(".venv");
+        fs::create_dir(&venv_dir)?;
+        fs::write(venv_dir.join("lib.py"), "print('library')")?;
+
+        // Create .git (excluded by default)
+        let git_dir = root.join(".git");
+        fs::create_dir(&git_dir)?;
+        fs::write(git_dir.join("config"), "git config")?;
+
+        // 1. naive include="env" should NOT un-exclude ".venv"
+        //    because "env" != ".venv"
+        let (files_1, _) =
+            collect_python_files_gitignore(root, &[], &["env".to_string()], false, false);
+        // files_1 should be empty because .venv remains excluded
+        assert!(
+            files_1.is_empty(),
+            "include='env' should NOT un-exclude '.venv'"
+        );
+
+        // 2. include="git" should NOT un-exclude ".git"
+        let (files_2, _) =
+            collect_python_files_gitignore(root, &[], &["git".to_string()], false, false);
+        assert!(
+            files_2.is_empty(),
+            "include='git' should NOT un-exclude '.git'"
+        );
+
+        // 3. include=".venv" SHOULD un-exclude ".venv" (exact match)
+        let (files_3, _) =
+            collect_python_files_gitignore(root, &[], &[".venv".to_string()], false, false);
+        let names_3: Vec<String> = files_3
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            names_3.contains(&"lib.py".to_string()),
+            "Exact include='.venv' MUST un-exclude .venv"
+        );
+
+        Ok(())
     }
 }

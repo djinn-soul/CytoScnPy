@@ -227,8 +227,9 @@ fn test_analyze_paths_respects_exclusions() {
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
-    // Analyze both directories
-    let paths = vec![venv_dir, src_dir];
+    // Analyze the parent directory (not venv_dir directly)
+    // This way the exclusion logic will apply to .venv
+    let paths = vec![dir.path().to_path_buf()];
     let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result

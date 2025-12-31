@@ -3,7 +3,7 @@
   "publisher": "djinn09",
   "displayName": "CytoScnPy",
   "description": "Python static analyzer with MCP server for GitHub Copilot. Real-time dead code detection, security scanning, and code quality metrics.",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
@@ -72,16 +72,6 @@
         "label": "CytoScnPy Static Analyzer"
       }
     ],
-    "views": {
-      "explorer": [
-        {
-          "id": "cytoscnpy-issues",
-          "name": "CytoScnPy",
-          "visibility": "visible",
-          "contextualTitle": "CytoScnPy Issues"
-        }
-      ]
-    },
     "configuration": {
       "title": "CytoScnPy Configuration",
       "properties": {
@@ -89,6 +79,19 @@
           "type": "string",
           "default": "",
           "description": "Path to the CytoScnPy executable. Leave empty to use bundled binary or pip-installed version."
+        },
+        "cytoscnpy.analysisMode": {
+          "type": "string",
+          "default": "workspace",
+          "enum": [
+            "workspace",
+            "file"
+          ],
+          "enumDescriptions": [
+            "Analyze entire workspace for accurate cross-file detection (recommended)",
+            "Analyze only the current file for faster feedback (may have false positives)"
+          ],
+          "description": "Analysis mode: 'workspace' for full project analysis, 'file' for single-file analysis."
         },
         "cytoscnpy.enableSecretsScan": {
           "type": "boolean",

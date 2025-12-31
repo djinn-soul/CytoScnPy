@@ -45,6 +45,7 @@ fn test_raw_json_output_structure() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -87,6 +88,7 @@ fn test_cc_json_output_structure() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,
@@ -128,6 +130,7 @@ fn test_mi_json_output_structure() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,
@@ -163,6 +166,7 @@ fn test_hal_json_output_structure() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -215,6 +219,7 @@ fn test_json_empty_directory() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -246,6 +251,7 @@ fn test_json_numeric_values_are_numbers() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -276,6 +282,7 @@ fn test_cc_json_complexity_value_types() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,

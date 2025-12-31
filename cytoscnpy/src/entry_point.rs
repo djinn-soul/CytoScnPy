@@ -245,6 +245,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     ignore,
                     summary,
                     output_file,
+                    cli_var.output.verbose,
                     writer,
                 )?;
             }
@@ -289,6 +290,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                         xml,
                         fail_threshold,
                         output_file,
+                        verbose: cli_var.output.verbose,
                     },
                     writer,
                 )?;
@@ -317,6 +319,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     ignore,
                     functions,
                     output_file,
+                    cli_var.output.verbose,
                     writer,
                 )?;
             }
@@ -355,6 +358,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                         average,
                         fail_threshold,
                         output_file,
+                        verbose: cli_var.output.verbose,
                     },
                     writer,
                 )?;
@@ -385,9 +389,26 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders.clone());
-                crate::commands::run_stats(
-                    &path, all, secrets, danger, quality, json, output, &exclude, writer,
+                let quality_count = crate::commands::run_stats(
+                    &path,
+                    all,
+                    secrets,
+                    danger,
+                    quality,
+                    json,
+                    output,
+                    &exclude,
+                    cli_var.output.verbose,
+                    writer,
                 )?;
+
+                // Quality gate check (--fail-on-quality) for stats subcommand
+                if cli_var.output.fail_on_quality && quality_count > 0 {
+                    if !cli_var.output.json {
+                        eprintln!("\n[GATE] Quality issues: {quality_count} found - FAILED");
+                    }
+                    return Ok(1);
+                }
             }
             Commands::Files {
                 path,
@@ -403,7 +424,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders);
-                crate::commands::run_files(&path, json, &exclude, writer)?;
+                crate::commands::run_files(&path, json, &exclude, cli_var.output.verbose, writer)?;
             }
         }
         Ok(0)
@@ -484,7 +505,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             cli_var.include.ipynb_cells,
             danger, // taint is now automatically enabled with --danger
             config.clone(),
-        );
+        )
+        .with_verbose(cli_var.output.verbose);
 
         // Set debug delay if provided
         if let Some(delay_ms) = cli_var.debug_delay {
@@ -601,8 +623,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             // If clones are enabled, include clone_findings in the JSON output
             if cli_var.clones {
                 // Run clone detection
-                let clone_findings =
-                    run_clone_detection_for_json(&cli_var.paths, cli_var.clone_similarity);
+                let clone_findings = run_clone_detection_for_json(
+                    &cli_var.paths,
+                    cli_var.clone_similarity,
+                    cli_var.output.verbose,
+                );
 
                 // Create combined output with clone_findings
                 #[derive(serde::Serialize)]
@@ -863,6 +888,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             }
         }
 
+        // Quality gate check (--fail-on-quality)
+        if cli_var.output.fail_on_quality && !result.quality.is_empty() {
+            if !cli_var.output.json {
+                eprintln!(
+                    "\n[GATE] Quality issues: {} found - FAILED",
+                    result.quality.len()
+                );
+            }
+            exit_code = 1;
+        }
+
         Ok(exit_code)
     }
 }
@@ -872,36 +908,43 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 fn run_clone_detection_for_json(
     paths: &[std::path::PathBuf],
     similarity: f64,
+    verbose: bool,
 ) -> Vec<crate::clones::CloneFinding> {
     use crate::clones::{CloneConfig, CloneDetector};
 
-    // Collect files
-    let mut all_files: Vec<(std::path::PathBuf, String)> = Vec::new();
-    for path in paths {
-        if path.is_file() {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                all_files.push((path.clone(), content));
+    // Collect file paths (not content) for OOM-safe processing
+    let file_paths: Vec<std::path::PathBuf> = paths
+        .iter()
+        .flat_map(|path| {
+            if path.is_file() {
+                vec![path.clone()]
+            } else if path.is_dir() {
+                crate::utils::collect_python_files_gitignore(path, &[], &[], false, verbose).0
+            } else {
+                vec![]
             }
-        } else if path.is_dir() {
-            for entry in walkdir::WalkDir::new(path)
-                .into_iter()
-                .filter_map(Result::ok)
-            {
-                let p = entry.path();
-                if p.extension().is_some_and(|e| e == "py") {
-                    if let Ok(content) = std::fs::read_to_string(p) {
-                        all_files.push((p.to_path_buf(), content));
-                    }
-                }
-            }
-        }
-    }
+        })
+        .collect();
 
-    // Run detection
+    // Use OOM-safe detection - processes files in chunks
     let config = CloneConfig::default().with_min_similarity(similarity);
     let detector = CloneDetector::with_config(config);
-    let result = detector.detect(&all_files);
+    let result = detector.detect_from_paths(&file_paths);
+
+    // Lazy load only matched files for findings generation
+    let matched_files: Vec<(std::path::PathBuf, String)> = {
+        use std::collections::HashSet;
+        let unique_paths: HashSet<std::path::PathBuf> = result
+            .pairs
+            .iter()
+            .flat_map(|p| [p.instance_a.file.clone(), p.instance_b.file.clone()])
+            .collect();
+        unique_paths
+            .into_iter()
+            .filter_map(|p| std::fs::read_to_string(&p).ok().map(|c| (p, c)))
+            .collect()
+    };
 
     // Generate findings
-    crate::commands::generate_clone_findings(&result.pairs, &all_files, true)
+    crate::commands::generate_clone_findings(&result.pairs, &matched_files, true)
 }

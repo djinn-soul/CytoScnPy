@@ -80,3 +80,4 @@ target
 # cytoscnpy/other_library/
 /.cytoscnpy
 .a*/
+test_repo

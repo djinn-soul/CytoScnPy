@@ -22,9 +22,6 @@ use ruff_python_parser::parse_module;
 use rustc_hash::FxHashMap;
 use std::fs;
 use std::path::Path;
-use walkdir::WalkDir;
-
-use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
 
 /// Number of files to process per chunk in parallel processing.
 /// Prevents OOM on very large projects (5000+ files) by limiting concurrent memory usage.
@@ -82,50 +79,17 @@ impl CytoScnPy {
     }
 
     /// Collects all Python files from a directory, respecting exclusion rules.
+    /// Uses gitignore-aware walking (respects .gitignore files) IN ADDITION to hardcoded defaults.
+    /// Collects all Python files from a directory, respecting exclusion rules.
+    /// Uses gitignore-aware walking (respects .gitignore files) IN ADDITION to hardcoded defaults.
     fn collect_python_files(&self, root_path: &Path) -> (Vec<std::path::PathBuf>, usize) {
-        let mut files = Vec::new();
-        let mut dir_count = 0;
-        let mut it = WalkDir::new(root_path).into_iter();
-
-        while let Some(res) = it.next() {
-            if let Ok(entry) = res {
-                let name = entry.file_name().to_string_lossy();
-
-                // Check if this folder is explicitly included
-                let is_force_included =
-                    entry.file_type().is_dir() && self.include_folders.iter().any(|f| f == &name);
-
-                // Check against both default excludes and user-provided excludes
-                let should_exclude = entry.file_type().is_dir()
-                    && !is_force_included
-                    && (DEFAULT_EXCLUDE_FOLDERS().iter().any(|&f| f == name)
-                        || self.exclude_folders.iter().any(|f| f == &name));
-
-                if should_exclude {
-                    it.skip_current_dir();
-                    continue;
-                }
-
-                if entry.file_type().is_dir() {
-                    // Don't count the root folder itself if we want strictly subdirectories?
-                    // stats command counts "Total Directories". Usually includes root if scanned?
-                    // commands.rs count_directories filters `path != root`.
-                    if entry.path() != root_path {
-                        dir_count += 1;
-                    }
-                }
-
-                if entry
-                    .path()
-                    .extension()
-                    .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
-                {
-                    files.push(entry.path().to_path_buf());
-                }
-            }
-        }
-
-        (files, dir_count)
+        crate::utils::collect_python_files_gitignore(
+            root_path,
+            &self.exclude_folders,
+            &self.include_folders,
+            self.include_ipynb,
+            self.verbose,
+        )
     }
 
     /// Analyzes a specific list of files.

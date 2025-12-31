@@ -38,6 +38,7 @@ fn test_cli_raw() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -64,6 +65,7 @@ fn test_cli_cc() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,
@@ -92,6 +94,7 @@ fn test_cli_hal() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -118,6 +121,7 @@ fn test_cli_mi() {
             exclude: vec![],
             ignore: Vec::new(),
             output_file: None,
+            verbose: false,
             ..Default::default()
         },
         &mut buffer,
@@ -145,6 +149,7 @@ fn test_cli_json_output() {
         Vec::new(),
         false,
         None,
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -179,6 +184,7 @@ fn test_cli_stats_markdown_output() {
         false,
         Some(output_path.to_string_lossy().to_string()),
         &[],
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -208,6 +214,7 @@ fn test_cli_stats_json_output() {
         true,
         None,
         &[],
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -240,6 +247,7 @@ fn test_cli_stats_all_flag() {
         false,
         Some(output_path.to_string_lossy().to_string()),
         &[],
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -271,6 +279,7 @@ fn test_cli_stats_multiple_files() {
         true,
         None,
         &[],
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -302,6 +311,7 @@ fn test_cli_stats_with_classes() {
         true,
         None,
         &[],
+        false,
         &mut buffer,
     )
     .unwrap();
@@ -322,7 +332,7 @@ fn test_cli_files_table_output() {
     writeln!(file, "x = 1\n# comment\n\ny = 2").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), false, &[], &mut buffer).unwrap();
+    run_files(dir.path(), false, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains("test.py"));
@@ -341,7 +351,7 @@ fn test_cli_files_json_output() {
     writeln!(file, "# Application\ndef run():\n    print('hello')").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), true, &[], &mut buffer).unwrap();
+    run_files(dir.path(), true, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -374,7 +384,7 @@ fn test_cli_files_multiple_files() {
     .unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), true, &[], &mut buffer).unwrap();
+    run_files(dir.path(), true, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -397,7 +407,14 @@ fn test_cli_files_exclude_folder() {
     writeln!(ef, "y = 2").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), true, &["node_modules".to_string()], &mut buffer).unwrap();
+    run_files(
+        dir.path(),
+        true,
+        &["node_modules".to_string()],
+        false,
+        &mut buffer,
+    )
+    .unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -417,7 +434,7 @@ fn test_cli_files_empty_directory() {
     let dir = project_tempdir();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), true, &[], &mut buffer).unwrap();
+    run_files(dir.path(), true, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -438,6 +455,7 @@ fn test_cli_stats_empty_directory() {
         true,
         None,
         &[],
+        false,
         &mut buffer,
     )
     .unwrap();

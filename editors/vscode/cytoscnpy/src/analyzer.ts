@@ -28,6 +28,7 @@ interface ParseError {
 
 export interface CytoScnPyConfig {
   path: string;
+  analysisMode: "workspace" | "file"; // workspace = full project, file = single file
   enableSecretsScan: boolean;
   enableDangerScan: boolean;
   enableQualityScan: boolean;
@@ -371,6 +372,117 @@ export function runCytoScnPyAnalysis(
           reject(
             new Error(
               `Failed to parse CytoScnPy JSON output for ${filePath}: ${parseError.message}. Output: ${stdout}`
+            )
+          );
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Run workspace-level analysis and return findings grouped by file path.
+ * This provides cross-file reference tracking for accurate unused code detection.
+ */
+export function runWorkspaceAnalysis(
+  workspacePath: string,
+  config: CytoScnPyConfig
+): Promise<Map<string, CytoScnPyFinding[]>> {
+  return new Promise((resolve, reject) => {
+    const args: string[] = [workspacePath, "--json"];
+
+    if (config.enableSecretsScan) {
+      args.push("--secrets");
+    }
+    if (config.enableDangerScan) {
+      args.push("--danger");
+    }
+    if (config.enableQualityScan) {
+      args.push("--quality");
+    }
+    if (config.enableCloneScan) {
+      args.push("--clones");
+    }
+    if (config.confidenceThreshold > 0) {
+      args.push("--confidence", config.confidenceThreshold.toString());
+    }
+    if (config.excludeFolders && config.excludeFolders.length > 0) {
+      for (const folder of config.excludeFolders) {
+        args.push("--exclude-folders", folder);
+      }
+    }
+    if (config.includeFolders && config.includeFolders.length > 0) {
+      for (const folder of config.includeFolders) {
+        args.push("--include-folders", folder);
+      }
+    }
+    if (config.includeTests) {
+      args.push("--include-tests");
+    }
+    if (config.includeIpynb) {
+      args.push("--include-ipynb");
+    }
+    if (config.maxComplexity) {
+      args.push("--max-complexity", config.maxComplexity.toString());
+    }
+    if (config.minMaintainabilityIndex) {
+      args.push("--min-mi", config.minMaintainabilityIndex.toString());
+    }
+    if (config.maxNesting) {
+      args.push("--max-nesting", config.maxNesting.toString());
+    }
+    if (config.maxArguments) {
+      args.push("--max-args", config.maxArguments.toString());
+    }
+    if (config.maxLines) {
+      args.push("--max-lines", config.maxLines.toString());
+    }
+
+    const { execFile } = require("child_process");
+
+    execFile(
+      config.path,
+      args,
+      { maxBuffer: 50 * 1024 * 1024 }, // 50MB buffer for large workspaces
+      (error: Error | null, stdout: string, stderr: string) => {
+        if (error && !stdout.trim()) {
+          console.error(
+            `CytoScnPy workspace analysis failed: ${error.message}`
+          );
+          if (stderr) {
+            console.error(`Stderr: ${stderr}`);
+          }
+          reject(new Error(`Workspace analysis failed: ${error.message}`));
+          return;
+        }
+
+        try {
+          const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
+          const result = transformRawResult(rawResult);
+          const path = require("path");
+
+          // Group findings by file path, converting to absolute paths
+          const findingsByFile = new Map<string, CytoScnPyFinding[]>();
+          for (const finding of result.findings) {
+            // Convert relative paths to absolute paths using workspace root
+            let filePath = finding.file_path;
+            if (!path.isAbsolute(filePath)) {
+              filePath = path.resolve(workspacePath, filePath);
+            }
+            // Normalize path separators for Windows
+            filePath = path.normalize(filePath);
+
+            if (!findingsByFile.has(filePath)) {
+              findingsByFile.set(filePath, []);
+            }
+            findingsByFile.get(filePath)!.push(finding);
+          }
+
+          resolve(findingsByFile);
+        } catch (parseError: any) {
+          reject(
+            new Error(
+              `Failed to parse workspace analysis output: ${parseError.message}`
             )
           );
         }

@@ -62,24 +62,45 @@ impl CloneDetector {
         }
     }
 
-    /// Detect clones in the given source files
-    ///
-    /// Parse errors are silently skipped (reported in main analysis).
-    #[must_use]
-    pub fn detect(&self, files: &[(PathBuf, String)]) -> CloneDetectionResult {
-        let mut all_subtrees = Vec::new();
+    /// Number of files to process per chunk to prevent OOM on large projects.
+    const CHUNK_SIZE: usize = 500;
 
-        // Phase 1: Parse and extract subtrees (skip files with parse errors)
-        for (path, source) in files {
-            match parser::extract_subtrees(source, path) {
-                Ok(subtrees) => all_subtrees.extend(subtrees),
-                Err(_e) => {
-                    // Skip unparseable files silently - they'll be reported in the main analysis
-                    // eprintln!("[WARN] Skipping {} for clone detection: {}", path.display(), e);
-                }
-            }
+    /// Detect clones from file paths with chunked processing (OOM-safe).
+    ///
+    /// This method processes files in chunks to prevent memory exhaustion:
+    /// 1. Read files in batches of CHUNK_SIZE
+    /// 2. Parse and extract fingerprints, then drop source content
+    /// 3. Compare fingerprints (lightweight) to find candidates
+    /// 4. For matched pairs, reload specific files to generate findings
+    #[must_use]
+    pub fn detect_from_paths(&self, paths: &[PathBuf]) -> CloneDetectionResult {
+        use rayon::prelude::*;
+
+        // Phase 1: Chunked fingerprint extraction
+        // Process files in chunks to limit peak memory usage
+        let mut all_subtrees: Vec<parser::Subtree> = Vec::new();
+
+        for chunk in paths.chunks(Self::CHUNK_SIZE) {
+            // Read and parse chunk
+            let chunk_subtrees: Vec<parser::Subtree> = chunk
+                .par_iter()
+                .filter_map(|path| {
+                    let source = std::fs::read_to_string(path).ok()?;
+                    parser::extract_subtrees(&source, path).ok()
+                })
+                .flatten()
+                .collect();
+
+            all_subtrees.extend(chunk_subtrees);
+            // Source content dropped here when chunk goes out of scope
         }
 
+        // Phase 2-5: Use existing detection logic on extracted subtrees
+        self.detect_from_subtrees(all_subtrees)
+    }
+
+    /// Internal detection from pre-extracted subtrees (shared by detect and detect_from_paths)
+    fn detect_from_subtrees(&self, all_subtrees: Vec<parser::Subtree>) -> CloneDetectionResult {
         // Phase 2: Create normalizers for both raw and renamed comparison
         let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1); // Preserves identifiers
         let renamed_normalizer = Normalizer::for_clone_type(CloneType::Type2); // Renames identifiers
@@ -153,6 +174,27 @@ impl CloneDetector {
             groups,
             summary,
         }
+    }
+
+    /// Detect clones in the given source files (backward compatible API)
+    ///
+    /// Parse errors are silently skipped (reported in main analysis).
+    #[must_use]
+    pub fn detect(&self, files: &[(PathBuf, String)]) -> CloneDetectionResult {
+        let mut all_subtrees = Vec::new();
+
+        // Phase 1: Parse and extract subtrees (skip files with parse errors)
+        for (path, source) in files {
+            match parser::extract_subtrees(source, path) {
+                Ok(subtrees) => all_subtrees.extend(subtrees),
+                Err(_e) => {
+                    // Skip unparseable files silently - they'll be reported in the main analysis
+                }
+            }
+        }
+
+        // Delegate to shared detection logic
+        self.detect_from_subtrees(all_subtrees)
     }
 
     /// Group related clone pairs into clone groups

@@ -80,6 +80,7 @@ def complex_part(x):
             average: false,
             fail_threshold: None,
             output_file: None,
+            verbose: false,
         },
         &mut buffer_no_multi,
     )
@@ -104,6 +105,7 @@ def complex_part(x):
             average: false,
             fail_threshold: None,
             output_file: None,
+            verbose: false,
         },
         &mut buffer_multi,
     )

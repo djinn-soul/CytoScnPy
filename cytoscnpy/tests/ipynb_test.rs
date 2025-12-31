@@ -3,7 +3,18 @@
 
 use cytoscnpy::ipynb::{extract_notebook_cells, extract_notebook_code};
 use std::fs;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-ipynb-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("ipynb_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 /// Create a simple valid notebook JSON structure for testing.
 fn create_v4_notebook(cells: &[(&str, &str)]) -> String {
@@ -35,7 +46,7 @@ fn create_v4_notebook(cells: &[(&str, &str)]) -> String {
 
 #[test]
 fn test_extract_notebook_code_single_cell() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("test.ipynb");
 
     let notebook_json = create_v4_notebook(&[("code", "print('hello')")]);
@@ -49,7 +60,7 @@ fn test_extract_notebook_code_single_cell() {
 
 #[test]
 fn test_extract_notebook_code_multiple_cells() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("test.ipynb");
 
     let notebook_json = create_v4_notebook(&[
@@ -69,7 +80,7 @@ fn test_extract_notebook_code_multiple_cells() {
 
 #[test]
 fn test_extract_notebook_code_mixed_cells() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("test.ipynb");
 
     let notebook_json = create_v4_notebook(&[
@@ -91,7 +102,7 @@ fn test_extract_notebook_code_mixed_cells() {
 
 #[test]
 fn test_extract_notebook_code_empty_notebook() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("test.ipynb");
 
     let notebook_json = create_v4_notebook(&[]);
@@ -111,7 +122,7 @@ fn test_extract_notebook_code_nonexistent_file() {
 
 #[test]
 fn test_extract_notebook_code_invalid_json() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("invalid.ipynb");
     fs::write(&notebook_path, "not valid json").unwrap();
 
@@ -121,7 +132,7 @@ fn test_extract_notebook_code_invalid_json() {
 
 #[test]
 fn test_extract_notebook_cells_single_cell() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("test.ipynb");
 
     let notebook_json = create_v4_notebook(&[("code", "x = 1")]);
@@ -137,7 +148,7 @@ fn test_extract_notebook_cells_single_cell() {
 
 #[test]
 fn test_extract_notebook_cells_multiple_cells() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("test.ipynb");
 
     let notebook_json =
@@ -161,7 +172,7 @@ fn test_extract_notebook_cells_nonexistent_file() {
 
 #[test]
 fn test_extract_notebook_cells_invalid_json() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let notebook_path = dir.path().join("invalid.ipynb");
     fs::write(&notebook_path, "{invalid").unwrap();
 

@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 /// Respects .gitignore files in addition to hardcoded defaults.
 /// Finds all Python files under the given root, excluding specified patterns.
 /// Respects .gitignore files in addition to hardcoded defaults.
-pub fn find_python_files(root: &Path, exclude: &[String]) -> Vec<PathBuf> {
-    crate::utils::collect_python_files_gitignore(root, exclude, &[], false).0
+pub fn find_python_files(root: &Path, exclude: &[String], verbose: bool) -> Vec<PathBuf> {
+    crate::utils::collect_python_files_gitignore(root, exclude, &[], false, verbose).0
 }
 
 /// Writes output to either a file or a writer.

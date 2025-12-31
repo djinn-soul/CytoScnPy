@@ -7,7 +7,18 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-cascading-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("cascading_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 // ============================================================================
 // TDD RED PHASE: These tests define the expected behavior
@@ -17,7 +28,7 @@ use tempfile::tempdir;
 /// This is the core test for cascading dead code detection.
 #[test]
 fn test_all_methods_in_unused_class_flagged() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("unused_class_methods.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -81,7 +92,7 @@ class UnusedClass:
 /// Test that static methods in unused classes are also flagged.
 #[test]
 fn test_static_methods_in_unused_class_flagged() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("static_methods.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -145,7 +156,7 @@ class UnusedUtility:
 /// Test that methods in USED classes are NOT flagged (regression check).
 #[test]
 fn test_methods_in_used_class_not_flagged() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("used_class.py");
     let mut file = File::create(&file_path).unwrap();
 

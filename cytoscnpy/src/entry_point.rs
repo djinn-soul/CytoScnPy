@@ -245,6 +245,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     ignore,
                     summary,
                     output_file,
+                    cli_var.output.verbose,
                     writer,
                 )?;
             }
@@ -289,6 +290,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                         xml,
                         fail_threshold,
                         output_file,
+                        verbose: cli_var.output.verbose,
                     },
                     writer,
                 )?;
@@ -317,6 +319,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     ignore,
                     functions,
                     output_file,
+                    cli_var.output.verbose,
                     writer,
                 )?;
             }
@@ -355,6 +358,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                         average,
                         fail_threshold,
                         output_file,
+                        verbose: cli_var.output.verbose,
                     },
                     writer,
                 )?;
@@ -386,7 +390,16 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 // Merge global excludes
                 exclude.extend(exclude_folders.clone());
                 let quality_count = crate::commands::run_stats(
-                    &path, all, secrets, danger, quality, json, output, &exclude, writer,
+                    &path,
+                    all,
+                    secrets,
+                    danger,
+                    quality,
+                    json,
+                    output,
+                    &exclude,
+                    cli_var.output.verbose,
+                    writer,
                 )?;
 
                 // Quality gate check (--fail-on-quality) for stats subcommand
@@ -411,7 +424,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders);
-                crate::commands::run_files(&path, json, &exclude, writer)?;
+                crate::commands::run_files(&path, json, &exclude, cli_var.output.verbose, writer)?;
             }
         }
         Ok(0)
@@ -492,7 +505,13 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             cli_var.include.ipynb_cells,
             danger, // taint is now automatically enabled with --danger
             config.clone(),
-        );
+        )
+        .with_verbose(cli_var.output.verbose);
+
+        // Set debug delay if provided
+        if let Some(delay_ms) = cli_var.debug_delay {
+            analyzer.debug_delay_ms = Some(delay_ms);
+        }
 
         // Count files first to create progress bar with accurate total
         let total_files = analyzer.count_files(&cli_var.paths);
@@ -506,21 +525,12 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             Some(crate::output::create_spinner())
         };
 
-        let start_time = std::time::Instant::now();
-
-        // Debug: Simulate progress for testing progress bar visibility
-        if let Some(delay_ms) = cli_var.debug_delay {
-            eprintln!("[DEBUG] delay_ms = {delay_ms}, total_files = {total_files}");
-            if let Some(ref pb) = progress {
-                for i in 0..total_files {
-                    pb.set_position(i as u64);
-                    pb.set_message(format!("file {}/{}", i + 1, total_files));
-                    pb.tick();
-                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-                }
-                pb.set_position(total_files as u64);
-            }
+        // Pass progress bar to analyzer for real-time updates
+        if let Some(ref pb) = progress {
+            analyzer.progress_bar = Some(std::sync::Arc::new(pb.clone()));
         }
+
+        let start_time = std::time::Instant::now();
 
         let mut result = analyzer.analyze_paths(&cli_var.paths);
 
@@ -613,8 +623,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             // If clones are enabled, include clone_findings in the JSON output
             if cli_var.clones {
                 // Run clone detection
-                let clone_findings =
-                    run_clone_detection_for_json(&cli_var.paths, cli_var.clone_similarity);
+                let clone_findings = run_clone_detection_for_json(
+                    &cli_var.paths,
+                    cli_var.clone_similarity,
+                    cli_var.output.verbose,
+                );
 
                 // Create combined output with clone_findings
                 #[derive(serde::Serialize)]
@@ -895,6 +908,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 fn run_clone_detection_for_json(
     paths: &[std::path::PathBuf],
     similarity: f64,
+    verbose: bool,
 ) -> Vec<crate::clones::CloneFinding> {
     use crate::clones::{CloneConfig, CloneDetector};
 
@@ -905,7 +919,7 @@ fn run_clone_detection_for_json(
             if path.is_file() {
                 vec![path.clone()]
             } else if path.is_dir() {
-                crate::utils::collect_python_files_gitignore(path, &[], &[], false).0
+                crate::utils::collect_python_files_gitignore(path, &[], &[], false, verbose).0
             } else {
                 vec![]
             }

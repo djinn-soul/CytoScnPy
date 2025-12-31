@@ -3,7 +3,6 @@
 use super::utils::find_python_files;
 use crate::analyzer::CytoScnPy;
 use crate::config::Config;
-use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
 use crate::raw_metrics::analyze_raw;
 
 use anyhow::Result;
@@ -44,62 +43,6 @@ struct StatsReport {
     danger: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     quality: Option<Vec<String>>,
-}
-
-fn count_directories(root: &Path, exclude: &[String]) -> usize {
-    use ignore::WalkBuilder;
-
-    let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
-        .iter()
-        .map(|&s| s.to_owned())
-        .collect();
-    let all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
-
-    let walker = WalkBuilder::new(root)
-        .hidden(false)
-        .git_ignore(true)
-        .git_global(true)
-        .git_exclude(true)
-        .build();
-
-    walker
-        .filter_map(std::result::Result::ok)
-        .filter(|e| {
-            let path = e.path();
-
-            // We want to count directories that are NOT excluded
-            if let Some(ft) = e.file_type() {
-                if !ft.is_dir() {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-
-            if path == root {
-                return false;
-            }
-
-            // Check if directory itself is excluded by name
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy())
-                .unwrap_or_default();
-            if all_excludes.iter().any(|ex| name.contains(ex.as_str())) {
-                return false;
-            }
-
-            // Check if it's inside an excluded parent
-            let in_excluded_parent = path.ancestors().skip(1).any(|a| {
-                a.file_name().is_some_and(|n| {
-                    let ns = n.to_string_lossy();
-                    all_excludes.iter().any(|ex| ns.contains(ex.as_str()))
-                })
-            });
-
-            !in_excluded_parent
-        })
-        .count()
 }
 
 fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) {
@@ -147,10 +90,24 @@ pub fn run_stats<W: Write>(
     json: bool,
     output: Option<String>,
     exclude: &[String],
+    verbose: bool,
     mut writer: W,
 ) -> Result<usize> {
-    let files = find_python_files(path, exclude);
-    let num_directories = count_directories(path, exclude);
+    let output = if let Some(out) = output {
+        Some(crate::utils::validate_output_path(Path::new(&out))?)
+    } else {
+        None
+    };
+
+    // Use collect_python_files_gitignore to get both files and directory count in one pass.
+    // This is more efficient and ensures consistent exclusion logic.
+    let (files, num_directories) = crate::utils::collect_python_files_gitignore(
+        path,
+        exclude,
+        &[],   // No extra includes for stats command currently
+        false, // include_ipynb: stats command defaults to py files only for now
+        verbose,
+    );
 
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()
@@ -254,7 +211,7 @@ pub fn run_stats<W: Write>(
         let json_output = serde_json::to_string_pretty(&report)?;
         if let Some(ref file_path) = output {
             fs::write(file_path, &json_output)?;
-            writeln!(writer, "Report written to: {file_path}")?;
+            writeln!(writer, "Report written to: {}", file_path.display())?;
         } else {
             writeln!(writer, "{json_output}")?;
         }
@@ -373,7 +330,11 @@ pub fn run_stats<W: Write>(
         if let Some(output_path) = output {
             fs::write(&output_path, &md)?;
             writeln!(writer, "{}", "Report generated successfully!".green())?;
-            writeln!(writer, "Output: {}", output_path.cyan())?;
+            writeln!(
+                writer,
+                "Output: {}",
+                output_path.display().to_string().cyan()
+            )?;
         } else {
             writeln!(writer, "{md}")?;
         }
@@ -398,9 +359,10 @@ pub fn run_files<W: Write>(
     path: &Path,
     json: bool,
     exclude: &[String],
+    verbose: bool,
     mut writer: W,
 ) -> Result<()> {
-    let files = find_python_files(path, exclude);
+    let files = find_python_files(path, exclude, verbose);
 
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()

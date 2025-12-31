@@ -34,7 +34,7 @@ const ANALYSIS_DEBOUNCE_MS = 1000; // Wait 1 second after last save before re-an
 
 // Helper function to compute content hash
 function computeHash(content: string): string {
-  return crypto.createHash("md5").update(content).digest("hex");
+  return crypto.createHash("sha256").update(content).digest("hex");
 }
 
 // Create a diagnostic collection for CytoScnPy issues
@@ -69,6 +69,12 @@ function getExecutablePath(context: vscode.ExtensionContext): string {
   }
 
   const bundledPath = path.join(context.extensionPath, "bin", executableName);
+
+  // Security: Ensure the bundled path is actually within the extension directory
+  // to prevent potential path traversal vulnerabilities.
+  if (!bundledPath.startsWith(context.extensionPath)) {
+    return "cytoscnpy";
+  }
 
   // Check if bundled binary exists, otherwise fall back to pip-installed version
   try {
@@ -670,15 +676,31 @@ export function activate(context: vscode.ExtensionContext) {
             clearTimeout(analysisDebounceTimer);
           }
 
-          // Debounce: wait 500ms after last save before triggering analysis
-          // This prevents multiple scans when saving rapidly (e.g., during refactoring)
+          const config = getCytoScnPyConfiguration(context);
+          // Use longer debounce for workspace mode to prevent frequent expensive scans
+          const debounceMs = config.analysisMode === "workspace" ? 3000 : 500;
+
+          // Debounce: wait based on mode
           analysisDebounceTimer = setTimeout(() => {
-            // Use incremental analysis - only re-scan the saved file
-            // This is much faster than full workspace re-analysis
-            runIncrementalAnalysis(document).catch((err) => {
-              console.error("[CytoScnPy] Incremental analysis failed:", err);
-            });
-          }, 500); // Reduced from 1000ms since incremental is fast
+            // Re-fetch config to ensure we use the latest settings
+            const currentConfig = getCytoScnPyConfiguration(context);
+
+            if (currentConfig.analysisMode === "workspace") {
+              // In workspace mode, run full analysis to maintain cross-file context correctness
+              runFullWorkspaceAnalysis().catch((err) => {
+                console.error(
+                  "[CytoScnPy] Workspace analysis on save failed:",
+                  err
+                );
+              });
+            } else {
+              // Use incremental analysis - only re-scan the saved file
+              // This is much faster than full workspace re-analysis
+              runIncrementalAnalysis(document).catch((err) => {
+                console.error("[CytoScnPy] Incremental analysis failed:", err);
+              });
+            }
+          }, debounceMs);
         }
       })
     );

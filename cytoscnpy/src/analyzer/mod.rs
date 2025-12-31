@@ -47,6 +47,12 @@ pub struct CytoScnPy {
     pub total_lines_analyzed: usize,
     /// Configuration object.
     pub config: Config,
+    /// Debug delay in milliseconds (for testing progress bar).
+    pub debug_delay_ms: Option<u64>,
+    /// Progress bar for tracking analysis progress (thread-safe).
+    pub progress_bar: Option<std::sync::Arc<indicatif::ProgressBar>>,
+    /// Whether to enable verbose logging.
+    pub verbose: bool,
 }
 
 impl Default for CytoScnPy {
@@ -65,6 +71,9 @@ impl Default for CytoScnPy {
             total_files_analyzed: 0,
             total_lines_analyzed: 0,
             config: Config::default(),
+            debug_delay_ms: None,
+            progress_bar: None,
+            verbose: false,
         }
     }
 }
@@ -100,7 +109,17 @@ impl CytoScnPy {
             total_files_analyzed: 0,
             total_lines_analyzed: 0,
             config,
+            debug_delay_ms: None,
+            progress_bar: None,
+            verbose: false,
         }
+    }
+
+    /// Builder-style method to set verbose mode.
+    #[must_use]
+    pub fn with_verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
+        self
     }
 
     /// Builder-style method to set confidence threshold.
@@ -180,6 +199,13 @@ impl CytoScnPy {
         self
     }
 
+    /// Builder-style method to set debug delay.
+    #[must_use]
+    pub fn with_debug_delay(mut self, delay_ms: Option<u64>) -> Self {
+        self.debug_delay_ms = delay_ms;
+        self
+    }
+
     /// Counts the total number of Python files that would be analyzed.
     /// Useful for setting up a progress bar before analysis.
     /// Respects .gitignore files in addition to hardcoded defaults.
@@ -193,6 +219,7 @@ impl CytoScnPy {
                     &self.exclude_folders,
                     &self.include_folders,
                     self.include_ipynb,
+                    self.verbose,
                 )
                 .0
                 .len()

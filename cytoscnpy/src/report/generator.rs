@@ -24,8 +24,10 @@ use std::path::Path;
 /// Returns an error if directory creation, file I/O, or template rendering fails.
 #[allow(clippy::too_many_lines)]
 pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()> {
+    let output_dir = crate::utils::validate_output_path(output_dir)?;
+
     if !output_dir.exists() {
-        fs::create_dir_all(output_dir)?;
+        fs::create_dir_all(&output_dir)?;
     }
 
     // 1. Calculate Score
@@ -218,10 +220,10 @@ pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()>
     fs::write(output_dir.join("clones.html"), clones_page.render()?)?;
 
     // 7. Generate Assets (CSS/JS)
-    write_assets(output_dir)?;
+    write_assets(&output_dir)?;
 
     // 8. Generate File Views
-    generate_file_views(result, &issue_items, output_dir, &generated_at, &version)?;
+    generate_file_views(result, &issue_items, &output_dir, &generated_at, &version)?;
 
     Ok(())
 }

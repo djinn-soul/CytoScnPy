@@ -8,6 +8,8 @@ on:
       - "cytoscnpy-mcp/**"
       - "cytoscnpy-cli/**"
       - "editors/vscode/**"
+      - "pyproject.toml"
+      - "Cargo.toml"
       - ".github/workflows/test-ci.yml"
   workflow_dispatch:
 
@@ -118,3 +120,27 @@ jobs:
         if: runner.os != 'Linux'
         working-directory: editors/vscode/cytoscnpy
         run: npm test
+
+  validate-metadata:
+    name: Validate PyPI Metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Tools
+        run: pip install maturin trove-classifiers twine
+
+      - name: Build Source Distribution
+        run: maturin sdist
+
+      - name: Validate Metadata (Twine)
+        run: twine check target/wheels/*.tar.gz
+
+      - name: Validate Classifiers (Strict)
+        run: python scripts/validate_classifiers.py

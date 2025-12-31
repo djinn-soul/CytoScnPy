@@ -95,7 +95,7 @@ CytoScnPy/
 │
 ├── cytoscnpy-cli/                # Standalone CLI binary
 ├── python/                       # Python package wrapper
-└── benchmark/                    # 126-item ground truth suite
+└── benchmark/                    # 135-item ground truth suite
 ```
 
 ### Technology Stack

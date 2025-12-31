@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to the Rust implementation of CytoScnPy! This document provides guidelines for setting up your environment and making contributions.
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 - **Rust**: Version 1.70 or higher. Install via [rustup.rs](https://rustup.rs).
 - **Cargo**: Comes with Rust.
@@ -11,7 +11,7 @@ Thank you for your interest in contributing to the Rust implementation of CytoSc
 - **Maturin**: For building PyO3 extensions.
 - **Git**: For version control.
 
-## 🚀 Setup Development Environment
+## Setup Development Environment
 
 ### Option A: Rust CLI Development Only
 
@@ -100,7 +100,7 @@ Thank you for your interest in contributing to the Rust implementation of CytoSc
    pytest
    ```
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 CytoScnPy/
@@ -164,11 +164,11 @@ CytoScnPy/
 │   └── src/
 │       └── main.rs            # Calls cytoscnpy::entry_point
 │
-├── benchmark/                 # 126-item ground truth suite
+├── benchmark/                 # 135-item ground truth suite
 └── target/                    # Build artifacts (gitignored)
 ```
 
-## 🔄 GitHub Actions Workflows
+## GitHub Actions Workflows
 
 The project includes several CI/CD workflows in `.github/workflows/`:
 
@@ -237,7 +237,7 @@ act -W .github/workflows/rust-ci.yml
    - Open a PR against the `main` branch.
    - Describe your changes and link to any relevant issues.
 
-## 🧩 VS Code Extension Development
+## VS Code Extension Development
 
 The VS Code extension is located in `editors/vscode/cytoscnpy`. It provides real-time analysis by wrapping the Rust CLI.
 
@@ -284,7 +284,7 @@ This will generate `cytoscnpy-0.0.1.vsix`.
 **Publishing:**
 To publish to the VS Code Marketplace, run `vsce publish` after authentication with `vsce login <publisher>`.
 
-## 🐍 Python Integration (PyO3)
+## Python Integration (PyO3)
 
 CytoScnPy uses **PyO3** to expose Rust functionality to Python, enabling hybrid distribution. This allows users to either:
 
@@ -346,7 +346,7 @@ To expose a new Rust function to Python:
 
 For more details, see the PyO3 documentation at [pyo3.rs](https://pyo3.rs).
 
-## 🎯 Priority Areas for Contribution
+## Priority Areas for Contribution
 
 See [`ROADMAP.md`](ROADMAP.md) for the detailed roadmap.
 
@@ -362,7 +362,7 @@ See [`ROADMAP.md`](ROADMAP.md) for the detailed roadmap.
 - **Framework Support:** Adding more framework patterns (SQLAlchemy, GraphQL).
 - **Performance:** Optimizing for very large codebases (1M+ lines).
 
-## 🔧 Development Tooling
+## Development Tooling
 
 This project uses several Cargo plugins to maintain code quality, security, and developer productivity.
 
@@ -529,7 +529,7 @@ The following tools are recommended but not yet fully integrated:
 
 ---
 
-## 📦 Binary Size Optimization
+## Binary Size Optimization
 
 CytoScnPy prioritizes a small binary size for easy distribution. When contributing, please adhere to these optimization strategies:
 
@@ -573,7 +573,7 @@ cargo build --release
 
 ---
 
-## 📝 Coding Guidelines
+## Coding Guidelines
 
 - **Formatting:** Always run `cargo fmt` before committing.
 - **Linting:** Ensure `cargo clippy` passes without warnings.
@@ -581,7 +581,7 @@ cargo build --release
 - **Documentation:** Add `///` doc comments for public structs and functions.
 - **Tests:** Add unit tests for new logic in the same file or in `tests/`.
 
-## 🧪 Testing
+## Testing
 
 ### Rust Unit & Integration Tests
 
@@ -683,10 +683,12 @@ RUST_LOG=debug cargo test
 - **Code Quality**: Complexity, nesting, argument count, line count
 - **Security**: SQL injection, command injection, pickle, taint analysis
 - **Edge Cases**: Empty files, unicode identifiers, long names
+- **Clone Detection**: Type-1/2/3 clones, similarity thresholds
+- **Control Flow Graph**: CFG construction, behavioral validation
 
 See [`cytoscnpy/tests/README.md`](cytoscnpy/tests/README.md) for detailed test documentation.
 
-## 🪝 Pre-Commit Hooks
+## Pre-Commit Hooks
 
 CytoScnPy provides pre-commit hooks for automated code analysis. These hooks allow users of the library to automatically run security and quality checks before each commit.
 
@@ -703,7 +705,7 @@ CytoScnPy provides pre-commit hooks for automated code analysis. These hooks all
    ```yaml
    repos:
      - repo: https://github.com/djinn09/CytoScnPy
-       rev: v1.0.0 # Use the latest release tag
+       rev: v1.2.1 # Use the latest release tag
        hooks:
          - id: cytoscnpy-check
            # Optional: customize arguments
@@ -743,7 +745,7 @@ You can customize hook behavior by passing arguments:
 ```yaml
 repos:
   - repo: https://github.com/djinn09/CytoScnPy
-    rev: v1.0.0
+    rev: v1.2.1
     hooks:
       - id: cytoscnpy-check
         args:

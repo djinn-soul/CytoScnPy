@@ -385,9 +385,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders.clone());
-                crate::commands::run_stats(
+                let quality_count = crate::commands::run_stats(
                     &path, all, secrets, danger, quality, json, output, &exclude, writer,
                 )?;
+
+                // Quality gate check (--fail-on-quality) for stats subcommand
+                if cli_var.output.fail_on_quality && quality_count > 0 {
+                    if !cli_var.output.json {
+                        eprintln!("\n[GATE] Quality issues: {quality_count} found - FAILED");
+                    }
+                    return Ok(1);
+                }
             }
             Commands::Files {
                 path,
@@ -865,6 +873,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     )?;
                 }
             }
+        }
+
+        // Quality gate check (--fail-on-quality)
+        if cli_var.output.fail_on_quality && !result.quality.is_empty() {
+            if !cli_var.output.json {
+                eprintln!(
+                    "\n[GATE] Quality issues: {} found - FAILED",
+                    result.quality.len()
+                );
+            }
+            exit_code = 1;
         }
 
         Ok(exit_code)

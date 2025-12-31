@@ -23,6 +23,22 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 - **Imports**: Unused import statements.
 - **Variables**: Local variables assigned but never read.
 
+## 📦 Installation
+
+**Linux / macOS:**
+
+```bash
+# Install
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Install
+irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+```
+
 **Framework Support**: Automatically detects usage in Flask routes, Django views, FastAPI endpoints, and Pydantic models.
 
 ### 🔒 Security Analysis
@@ -44,11 +60,21 @@ Enable with `--quality`.
 
 ### 🧩 Clone Detection
 
-Finds copy-pasted code blocks.
+Finds duplicate or near-duplicate code blocks (Type-1, Type-2, and Type-3 clones).
 
 ```bash
 cytoscnpy . --clones --clone-similarity 0.8
 ```
+
+- **Type-1**: Exact copies (identical code).
+- **Type-2**: Syntactically identical (variable renaming).
+- **Type-3**: Near-miss clones (small edits/additions).
+
+**Options:**
+
+- `--clone-similarity <0.0-1.0>`: Minimum similarity threshold. Default is `0.8` (80% similarity). Lower values find more matches but may increase false positives.
+
+**Performance**: Clone detection is computationally intensive for very large codebases.
 
 ### 🛠️ Auto-Fix
 
@@ -56,6 +82,28 @@ Remove dead code automatically.
 
 1. **Preview**: `cytoscnpy . --fix`
 2. **Apply**: `cytoscnpy . --fix --apply`
+
+### 📄 HTML Reports
+
+Generate interactive, self-contained HTML reports for easier navigation of findings.
+
+```bash
+cytoscnpy . --html --secrets --danger
+```
+
+(Note: `--html` automatically enables `--quality` but strictly security scans need explicit flags).
+
+**Features:**
+
+- **Dashboard**: High-level summary of issues.
+- **Search**: Interactive search across all findings.
+- **Filtering**: Filter by severity, category, or file.
+- **Source View**: Clickable file links with line numbers.
+
+**When to use HTML vs JSON:**
+
+- Use **HTML** for human review and team sharing.
+- Use **JSON** (`--json`) for CI/CD pipelines and automated processing.
 
 ---
 
@@ -78,7 +126,7 @@ quality = true
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code
-max_complexity = 15    # Function CC > 15
+complexity = 15        # Function CC > 15
 min_mi = 40.0         # MI < 40
 ```
 
@@ -94,13 +142,15 @@ quality = true
 
 # CI/CD Gates
 fail_threshold = 5.0
-max_complexity = 15
+complexity = 15
 min_mi = 40.0
 ```
 
 ---
 
 ## 📖 CLI Reference
+
+For a complete reference, see [docs/CLI.md](CLI.md).
 
 ```bash
 cytoscnpy [PATHS]... [OPTIONS]
@@ -123,7 +173,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 | ------------------ | --------------------------------- |
 | `--json`           | Output detection results as JSON. |
 | `--html`           | Generate interactive HTML report. |
-| `--quiet` (`-q`)   | Summary only, no detailed tables. |
+| `--quiet`          | Summary only, no detailed tables. |
 | `--verbose` (`-v`) | Debug output.                     |
 
 ### Filtering
@@ -131,6 +181,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 | Flag                     | Description                     |
 | ------------------------ | ------------------------------- |
 | `--exclude-folder <DIR>` | Exclude specific folders.       |
+| `--include-folder <DIR>` | Force include folders.          |
 | `--include-tests`        | Include test files in analysis. |
 | `--include-ipynb`        | Include Jupyter notebooks.      |
 
@@ -215,4 +266,52 @@ cytoscnpy stats . --all
 
 Runs full analysis (secrets, danger, quality) and prints summary statistics.
 
-- `--all`: Enable all scanners (equivalent to `-s -d -q`).
+**Options:**
+
+- `--all` (`-a`): Enable all scanners (secrets, danger, quality).
+- `--secrets` (`-s`): Enable secret scanning.
+- `--danger` (`-d`): Enable danger/taint analysis.
+- `--quality` (`-q`): Enable quality analysis.
+- `--exclude-folder <DIR>`: Exclude specific folders from stats analysis.
+- `--json`: Output as JSON.
+- `--output <FILE>` (`-o`): Save report to file.
+
+#### `mcp-server` - MCP Integration
+
+```bash
+cytoscnpy mcp-server
+```
+
+Starts the Model Context Protocol (MCP) server for integration with AI assistants (Claude Desktop, Cursor, GitHub Copilot).
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**1. "Too many open files" error**
+
+- Limit parallelization or exclude large directories (`node_modules`, `.git`).
+
+**2. False Positives in Dead Code**
+
+- Use `# pragma: no cytoscnpy` comment to suppress findings on a specific line.
+- Ensure all entry points are properly identified (e.g. dynamic dispatch).
+
+**3. Performance is slow**
+
+- Check if large files or build artifacts are being scanned. Use `--exclude-folder`.
+- Clone detection is slower than standard analysis.
+
+**4. "Missing integrity" finding**
+
+- Security check requires SRI hashes for external scripts. Add `integrity="..."` to your HTML.
+
+---
+
+## Links
+
+- **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
+- **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
+- **GitHub Repository**: [github.com/djinn09/CytoScnPy](https://github.com/djinn09/CytoScnPy/)

@@ -27,13 +27,27 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 
 ## Installation
 
-Install via pip:
+**Linux / macOS:**
+
+```bash
+# Install
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Install
+irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+```
+
+**Via Pip:**
 
 ```bash
 pip install cytoscnpy
 ```
 
-Or build from source:
+**From Source:**
 
 ```bash
 git clone https://github.com/djinn09/CytoScnPy.git
@@ -60,6 +74,15 @@ cytoscnpy . --json > report.json
 Preview and fix dead code automatically:
 
 ```bash
-cytoscnpy . --fix        # Preview changes
+cytoscnpy . --fix        # Preview changes (dry run)
 cytoscnpy . --fix --apply # Apply changes
 ```
+
+---
+
+## Links
+
+- **Documentation**: [djinn09.github.io/CytoScnPy](https://djinn09.github.io/CytoScnPy/)
+- **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
+- **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
+- **GitHub Repository**: [github.com/djinn09/CytoScnPy](https://github.com/djinn09/CytoScnPy/)

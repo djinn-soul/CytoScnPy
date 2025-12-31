@@ -1,8 +1,8 @@
 # CytoScnPy - High-Performance Python Static Analysis
 
-[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/rust-ci.yml)
+[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.1.3-green.svg)](https://github.com/djinn09/CytoScnPy)
+[![Version](https://img.shields.io/badge/version-1.2.1-green.svg)](https://github.com/djinn09/CytoScnPy)
 
 A fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
 
@@ -11,15 +11,34 @@ A fast static analysis tool for Python codebases, powered by Rust with hybrid Py
 - **Blazing Fast**: Faster in dead code detection.
 - **Memory Efficient**: Uses less memory.
 - **Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
-- **🎯 Framework Aware**: Flask, Django, FastAPI, Celery, Starlette, Pydantic, Azure Functions v2
-- **Benchmarked**: Continuous benchmarking with 126-item ground truth suite
+- **Framework Aware**: Flask, Django, FastAPI, Pydantic, Azure Functions
+- **Benchmarked**: Continuous benchmarking with 135-item ground truth suite
 
 ## Installation
 
+**Linux / macOS:**
+
+```bash
+# Install
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Install
+irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+```
+
+**Via Pip:**
+
 ```bash
 pip install cytoscnpy
+```
 
-# Or install from source
+**From Source:**
+
+```bash
 git clone https://github.com/djinn09/CytoScnPy.git
 cd CytoScnPy
 pip install maturin
@@ -87,8 +106,8 @@ cytoscnpy . --fix                    # Preview changes (dry-run by default)
 cytoscnpy . --fix --apply            # Apply changes
 cytoscnpy . --fix -a                 # Apply changes (short flag)
 
-# Generate HTML report
-cytoscnpy . --html --secrets --danger --quality
+# Generate HTML report (quality auto-enabled; add --secrets --danger for security)
+cytoscnpy . --html --secrets --danger
 ```
 
 **Options:**
@@ -100,10 +119,10 @@ cytoscnpy . --html --secrets --danger --quality
 | `-d, --danger`           | Scan for dangerous code + taint analysis         |
 | `-q, --quality`          | Scan for code quality issues                     |
 | `-n, --no-dead`          | Skip dead code detection (security/quality only) |
-| `--html`                 | Generate interactive HTML report                 |
+| `--html`                 | Generate HTML report (auto-enables quality)      |
 | `--json`                 | Output results as JSON                           |
 | `-v, --verbose`          | Enable verbose output for debugging              |
-| `-q, --quiet`            | Quiet mode: summary only, no tables              |
+| `--quiet`                | Quiet mode: summary only, no tables              |
 | `--include-tests`        | Include test files in analysis                   |
 | `--exclude-folder <DIR>` | Exclude specific folders                         |
 | `--include-folder <DIR>` | Force include folders                            |
@@ -142,6 +161,20 @@ cytoscnpy files .                  # Per-file metrics table
 
 > **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories globally, or `--ignore <PATTERN>` for subcommand-specific glob filtering.
 
+### Feature Flags
+
+The crate supports experimental features that can be enabled at compile time:
+
+| Feature | Description                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------- |
+| `cfg`   | Enables Control Flow Graph (CFG) construction and behavioral validation for clone detection |
+
+To build with a feature enabled:
+
+```bash
+cargo build --features cfg
+```
+
 ## ⚙️ Configuration
 
 Create `.cytoscnpy.toml` (uses `[cytoscnpy]`) or add to `pyproject.toml` (uses `[tool.cytoscnpy]`):
@@ -154,7 +187,7 @@ Create `.cytoscnpy.toml` (uses `[cytoscnpy]`) or add to `pyproject.toml` (uses `
 confidence = 60  # Minimum confidence threshold (0-100)
 exclude_folders = ["venv", ".tox", "build", "node_modules", ".git"]
 include_folders = ["src", "tests"]  # Optional: whitelist folders
-include_tests = false  # Note: include_ipynb is CLI-only (use --include-ipynb flag)
+include_tests = false  # Note: include_ipynb and ipynb_cells are CLI-only (use flags)
 
 # Analysis Features
 secrets = true
@@ -189,6 +222,8 @@ name = "Slack Token"
 regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
 ```
+
+> **Note**: Notebook options (`include_ipynb`, `ipynb_cells`) are currently CLI-only but will be added to the configuration file in a future release.
 
 ### CI/CD Quality Gates
 
@@ -227,7 +262,7 @@ cytoscnpy . --fail-threshold 5 --quiet
 | Variables      | 0.30      | 0.15     | 0.20     |
 | **Overall**    | **0.71**  | **0.64** | **0.68** |
 
-> See [benchmark/BENCHMARK_REPORT.md](benchmark/BENCHMARK_REPORT.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
+> See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
 ## Architecture
 
@@ -247,10 +282,13 @@ Apache-2.0 License - see [License](License) file for details.
 
 ## Links
 
-- [Rust Core Documentation](cytoscnpy/README.md)
-- [Benchmarks & Accuracy](benchmark/README.md)
-- [Roadmap](ROADMAP.md)
-- [Contributing](CONTRIBUTING.md)
+- **Documentation**: [CytoScnPy](https://djinn09.github.io/CytoScnPy/)
+- **PyPI**: [PyPi](https://pypi.org/project/cytoscnpy/)
+- **VS Code Extension**: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
+- **Rust Core Documentation**: [cytoscnpy/README.md](cytoscnpy/README.md)
+- **Benchmarks & Accuracy**: [benchmark/README.md](benchmark/README.md)
+- **Roadmap**: [ROADMAP.md](ROADMAP.md)
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## References
 

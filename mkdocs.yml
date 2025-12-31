@@ -66,11 +66,15 @@ markdown_extensions:
 nav:
   - Overview: index.md
   - User Guide: usage.md
+  - Reference:
+      - CLI Reference: CLI.md
+      - Migration Guide: migration.md
+  - Changelog: HISTORY.md
   - Security:
       - Overview: security.md
       - Dangerous Code Rules: dangerous-code.md
   - Integrations: integrations.md
   - Blog:
       - blog/index.md
-  - API Reference: api.md
+
   - Contributing: contributing.md

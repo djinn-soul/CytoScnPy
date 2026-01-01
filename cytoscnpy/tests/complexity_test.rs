@@ -128,13 +128,17 @@ def test_func():
     let findings_with_assert = analyze_complexity(code, Path::new("test.py"), false);
     let f_with = &findings_with_assert[0];
     // Base 1 + assert 1 + assert 1 + if 1 = 4
-    assert_eq!(f_with.complexity, 4, "With no_assert=false, asserts should add complexity");
+    assert_eq!(
+        f_with.complexity, 4,
+        "With no_assert=false, asserts should add complexity"
+    );
 
     // With no_assert=true, assert statements DON'T add to complexity
     let findings_no_assert = analyze_complexity(code, Path::new("test.py"), true);
     let f_no = &findings_no_assert[0];
     // Base 1 + if 1 = 2 (asserts ignored)
-    assert_eq!(f_no.complexity, 2, "With no_assert=true, asserts should NOT add complexity");
+    assert_eq!(
+        f_no.complexity, 2,
+        "With no_assert=true, asserts should NOT add complexity"
+    );
 }
-
-

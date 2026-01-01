@@ -7,6 +7,18 @@
 use cytoscnpy::commands::run_mi;
 use serde::Deserialize;
 use std::fs;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-commands-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("commands_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[derive(Deserialize, Debug)]
 struct MiResult {
@@ -20,7 +32,7 @@ struct MiResult {
 #[test]
 fn test_run_mi_multi_flag_integration() {
     // Setup temporary directory
-    let temp_dir = tempfile::tempdir().unwrap();
+    let temp_dir = project_tempdir();
     let file_path = temp_dir.path().join("test_multi_int.py");
 
     // Create the file content
@@ -68,6 +80,7 @@ def complex_part(x):
             average: false,
             fail_threshold: None,
             output_file: None,
+            verbose: false,
         },
         &mut buffer_no_multi,
     )
@@ -92,6 +105,7 @@ def complex_part(x):
             average: false,
             fail_threshold: None,
             output_file: None,
+            verbose: false,
         },
         &mut buffer_multi,
     )

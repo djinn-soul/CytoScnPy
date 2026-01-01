@@ -1,9 +1,20 @@
-//! Tests for entry_point.rs CLI argument handling and run_with_args function.
+//! Tests for `entry_point`.rs CLI argument handling and `run_with_args` function.
 #![allow(clippy::unwrap_used)]
 
 use cytoscnpy::entry_point::{run_with_args, run_with_args_to};
 use std::fs;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-cli-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("cli_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 /// Helper function to run CLI with output captured to suppress test noise.
 fn run_with_captured_output(args: Vec<String>) -> anyhow::Result<i32> {
@@ -30,7 +41,7 @@ fn test_help_flag() {
 /// Test analyzing a single Python file.
 #[test]
 fn test_analyze_single_file() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("test_file.py");
     fs::write(&file_path, "def unused_func():\n    pass\n").unwrap();
 
@@ -44,7 +55,7 @@ fn test_analyze_single_file() {
 /// Test analyzing with --secrets flag.
 #[test]
 fn test_secrets_flag() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("secrets_test.py");
     fs::write(&file_path, "API_KEY = 'sk-1234567890abcdef'\n").unwrap();
 
@@ -59,7 +70,7 @@ fn test_secrets_flag() {
 /// Test analyzing with --danger flag.
 #[test]
 fn test_danger_flag() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("danger_test.py");
     fs::write(&file_path, "import os\nos.system('ls')\n").unwrap();
 
@@ -74,7 +85,7 @@ fn test_danger_flag() {
 /// Test analyzing with --quality flag.
 #[test]
 fn test_quality_flag() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("quality_test.py");
     fs::write(
         &file_path,
@@ -104,7 +115,7 @@ fn test_nonexistent_path() {
 /// Test the `raw` subcommand.
 #[test]
 fn test_raw_subcommand() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("raw_test.py");
     fs::write(&file_path, "x = 1\ny = 2\n").unwrap();
 
@@ -120,7 +131,7 @@ fn test_raw_subcommand() {
 /// Test the `cc` (cyclomatic complexity) subcommand.
 #[test]
 fn test_cc_subcommand() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("cc_test.py");
     fs::write(&file_path, "def foo():\n    if True:\n        pass\n").unwrap();
 
@@ -136,7 +147,7 @@ fn test_cc_subcommand() {
 /// Test the `hal` (Halstead metrics) subcommand.
 #[test]
 fn test_hal_subcommand() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("hal_test.py");
     fs::write(&file_path, "x = 1 + 2 * 3\n").unwrap();
 
@@ -152,7 +163,7 @@ fn test_hal_subcommand() {
 /// Test the `mi` (Maintainability Index) subcommand.
 #[test]
 fn test_mi_subcommand() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("mi_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
@@ -168,7 +179,7 @@ fn test_mi_subcommand() {
 /// Test the `stats` subcommand.
 #[test]
 fn test_stats_subcommand() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("stats_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
@@ -184,7 +195,7 @@ fn test_stats_subcommand() {
 /// Test the `files` subcommand.
 #[test]
 fn test_files_subcommand() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("files_test.py");
     fs::write(&file_path, "x = 1\n").unwrap();
 
@@ -200,7 +211,7 @@ fn test_files_subcommand() {
 /// Test --verbose flag.
 #[test]
 fn test_verbose_flag() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("verbose_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
@@ -214,7 +225,7 @@ fn test_verbose_flag() {
 /// Test --confidence flag.
 #[test]
 fn test_confidence_flag() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("confidence_test.py");
     fs::write(&file_path, "def maybe_used():\n    pass\n").unwrap();
 
@@ -230,7 +241,7 @@ fn test_confidence_flag() {
 /// Test --exclude-folders flag.
 #[test]
 fn test_exclude_folders_flag() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("exclude_test.py");
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 

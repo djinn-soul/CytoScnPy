@@ -14,7 +14,18 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-accuracy-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("accuracy_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 // ============================================================================
 // PRIORITY 1: Class-Method Linking
@@ -25,7 +36,7 @@ use tempfile::tempdir;
 /// This is a key accuracy improvement to reduce false negatives.
 #[test]
 fn test_unused_class_methods_are_detected() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("class_methods.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -94,7 +105,7 @@ obj.used_method()
 /// Even if a method calls itself, if the class is unused, the method is unused.
 #[test]
 fn test_recursive_method_in_unused_class_is_flagged() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("recursive_class.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -139,7 +150,7 @@ class UnusedClass:
 /// This fixes false positives like `used_inner @ code.py:4`.
 #[test]
 fn test_nested_function_call_within_parent_scope() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("nested_calls.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -196,7 +207,7 @@ print(outer_function())
 /// Test that functions returned from factory functions are marked as used.
 #[test]
 fn test_returned_nested_function_is_used() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("factory.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -251,7 +262,7 @@ func()
 /// Test that variables bound in match patterns and used are NOT flagged.
 #[test]
 fn test_pattern_matching_bound_variable_used() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("pattern_match.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -318,7 +329,7 @@ handle_command(["load", "test.txt"])
 /// Regression test: Ensure decorator patterns still work.
 #[test]
 fn test_decorator_wrapper_still_works() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("decorator.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -361,7 +372,7 @@ decorated_func()
 /// Regression test: __all__ exports still work.
 #[test]
 fn test_all_exports_regression() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("exports.py");
     let mut file = File::create(&file_path).unwrap();
 

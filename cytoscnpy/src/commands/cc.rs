@@ -43,6 +43,8 @@ pub struct CcOptions {
     pub fail_threshold: Option<usize>,
     /// Write output to this file path.
     pub output_file: Option<String>,
+    /// Verbose output.
+    pub verbose: bool,
 }
 
 #[derive(Serialize)]
@@ -64,7 +66,7 @@ struct CcResult {
 pub fn run_cc<W: Write>(path: &Path, options: CcOptions, mut writer: W) -> Result<()> {
     let mut all_exclude = options.exclude;
     all_exclude.extend(options.ignore);
-    let files = find_python_files(path, &all_exclude);
+    let files = find_python_files(path, &all_exclude, options.verbose);
 
     let mut results: Vec<CcResult> = files
         .par_iter()

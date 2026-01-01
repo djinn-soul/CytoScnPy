@@ -137,8 +137,9 @@ pub fn print_summary_pills(
     // First row: Code issues
     writeln!(
         writer,
-        "{}  {}  {}  {}  {}",
+        "{}  {}  {}  {}  {}  {}",
         pill("Unreachable", result.unused_functions.len()),
+        pill("Methods", result.unused_methods.len()),
         pill("Imports", result.unused_imports.len()),
         pill("Params", result.unused_parameters.len()),
         pill("Vars", result.unused_variables.len()),
@@ -386,6 +387,7 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
 
     // Check if there are any issues
     let total_issues = result.unused_functions.len()
+        + result.unused_methods.len()  // Was missing!
         + result.unused_imports.len()
         + result.unused_parameters.len()
         + result.unused_classes.len()
@@ -407,6 +409,7 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         &result.unused_functions,
         "Function",
     )?;
+    print_unused_items(writer, "Unused Methods", &result.unused_methods, "Method")?;
     print_unused_items(writer, "Unused Imports", &result.unused_imports, "Import")?;
     print_unused_items(
         writer,

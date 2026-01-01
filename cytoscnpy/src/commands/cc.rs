@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 
 /// Options for Cyclomatic Complexity analysis
 #[derive(Debug, Default)]
@@ -69,9 +69,9 @@ impl HasRank for CcResult {
 ///
 /// Returns an error if file I/O fails or JSON/XML serialization fails.
 #[allow(clippy::cast_precision_loss)]
-pub fn run_cc<W: Write>(path: &Path, options: CcOptions, mut writer: W) -> Result<()> {
+pub fn run_cc<W: Write>(roots: &[PathBuf], options: CcOptions, mut writer: W) -> Result<()> {
     let all_exclude = merge_excludes(options.exclude, options.ignore);
-    let files = find_python_files(path, &all_exclude, options.verbose);
+    let files = find_python_files(roots, &all_exclude, options.verbose);
 
     let results: Vec<CcResult> = files
         .par_iter()

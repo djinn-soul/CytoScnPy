@@ -92,12 +92,32 @@ pub struct IncludeOptions {
     pub ipynb_cells: bool,
 }
 
+/// Shared path arguments (mutually exclusive paths/root).
+#[derive(Args, Debug, Default, Clone)]
+pub struct PathArgs {
+    /// Paths to analyze (files or directories).
+    /// Can be a single directory, multiple files, or a mix of both.
+    /// When no paths are provided, defaults to the current directory.
+    /// Cannot be used with --root.
+    #[arg(conflicts_with = "root")]
+    pub paths: Vec<PathBuf>,
+
+    /// Project root for path containment and analysis.
+    /// Use this instead of positional paths when running from a different directory.
+    /// When specified, this path is used as both the analysis target AND the
+    /// security containment boundary for file operations.
+    /// Cannot be used together with positional path arguments.
+    #[arg(long, conflicts_with = "paths")]
+    pub root: Option<PathBuf>,
+}
+
 /// Common options for metric subcommands (cc, hal, mi, raw).
 /// Use `#[command(flatten)]` to include these in a subcommand.
 #[derive(Args, Debug, Default, Clone)]
 pub struct MetricArgs {
-    /// Path to analyze (optional, defaults to current directory).
-    pub path: Option<PathBuf>,
+    /// Path options (paths vs root).
+    #[command(flatten)]
+    pub paths: PathArgs,
 
     /// Output JSON.
     #[arg(long, short = 'j')]
@@ -128,6 +148,22 @@ pub struct RankArgs {
     pub max_rank: Option<char>,
 }
 
+/// Common options for the files subcommand.
+#[derive(Args, Debug, Default, Clone)]
+pub struct FilesArgs {
+    /// Path options (paths vs root).
+    #[command(flatten)]
+    pub paths: PathArgs,
+
+    /// Output JSON.
+    #[arg(long)]
+    pub json: bool,
+
+    /// Exclude folders.
+    #[arg(long, alias = "exclude-folder")]
+    pub exclude: Vec<String>,
+}
+
 /// Command line interface configuration using `clap`.
 /// This struct defines the arguments and flags accepted by the program.
 #[derive(Parser, Debug)]
@@ -144,20 +180,9 @@ pub struct Cli {
     /// The subcommand to execute (e.g., raw, cc, hal).
     pub command: Option<Commands>,
 
-    /// Paths to analyze (files or directories).
-    /// Can be a single directory, multiple files, or a mix of both.
-    /// When no paths are provided, defaults to the current directory.
-    /// Note: Cannot be used together with --root.
-    #[arg(conflicts_with = "root")]
-    pub paths: Vec<PathBuf>,
-
-    /// Project root for path containment and analysis.
-    /// Use this instead of positional paths when running from a different directory.
-    /// When specified, this path is used as both the analysis target AND the
-    /// security containment boundary for file operations.
-    /// Cannot be used together with positional path arguments.
-    #[arg(long, conflicts_with = "paths")]
-    pub root: Option<PathBuf>,
+    /// Global path options (paths vs root).
+    #[command(flatten)]
+    pub paths: PathArgs,
 
     /// Confidence threshold (0-100).
     /// Only findings with confidence higher than this value will be reported.
@@ -330,14 +355,9 @@ pub enum Commands {
     McpServer,
     /// Generate comprehensive project statistics report
     Stats {
-        /// Path to analyze (cannot be used with --root).
-        #[arg(conflicts_with = "root")]
-        path: Option<PathBuf>,
-
-        /// Project root for path containment and analysis.
-        /// Use this instead of positional path when running from a different directory.
-        #[arg(long, conflicts_with = "path")]
-        root: Option<PathBuf>,
+        /// Path options (path vs root).
+        #[command(flatten)]
+        paths: PathArgs,
 
         /// Enable all analysis: secrets, danger, quality, and per-file metrics.
         #[arg(long, short = 'a')]
@@ -369,15 +389,8 @@ pub enum Commands {
     },
     /// Show per-file metrics table
     Files {
-        /// Path to analyze.
-        path: Option<PathBuf>,
-
-        /// Output JSON.
-        #[arg(long)]
-        json: bool,
-
-        /// Exclude folders.
-        #[arg(long, alias = "exclude-folder")]
-        exclude: Vec<String>,
+        /// Common options for listing files.
+        #[command(flatten)]
+        args: FilesArgs,
     },
 }

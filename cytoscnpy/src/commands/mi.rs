@@ -12,7 +12,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 
 /// Options for Maintainability Index analysis
 #[derive(Debug, Default)]
@@ -61,9 +61,9 @@ impl HasRank for MiResult {
 ///
 /// Returns an error if file I/O fails or JSON serialization fails.
 #[allow(clippy::cast_precision_loss)]
-pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Result<()> {
+pub fn run_mi<W: Write>(roots: &[PathBuf], options: MiOptions, mut writer: W) -> Result<()> {
     let all_exclude = merge_excludes(options.exclude, options.ignore);
-    let files = find_python_files(path, &all_exclude, options.verbose);
+    let files = find_python_files(roots, &all_exclude, options.verbose);
 
     let results: Vec<MiResult> = files
         .par_iter()

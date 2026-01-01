@@ -164,18 +164,31 @@ fn get_call_name(expr: &Expr) -> Option<String> {
 // Subcommand Helper Functions
 // ============================================================================
 
-/// Resolves a subcommand path, defaulting to `.` if None, and checks existence.
-/// Returns `Ok(PathBuf)` if the path exists, `Err(1)` if it doesn't.
-fn resolve_subcommand_path(path: Option<std::path::PathBuf>) -> Result<std::path::PathBuf, i32> {
-    let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
-    if !path.exists() {
-        eprintln!(
-            "Error: The file or directory '{}' does not exist.",
-            path.display()
-        );
-        return Err(1);
+/// Resolves subcommand paths, defaulting to `.` if empty, and checks existence.
+/// Returns `Ok(Vec<PathBuf>)` if all paths exist, `Err(1)` if any doesn't.
+fn resolve_subcommand_paths(
+    paths: Vec<std::path::PathBuf>,
+    root: Option<std::path::PathBuf>,
+) -> Result<Vec<std::path::PathBuf>, i32> {
+    // If --root is provided, it's the only path we care about
+    let final_paths = if let Some(r) = root {
+        vec![r]
+    } else if paths.is_empty() {
+        vec![std::path::PathBuf::from(".")]
+    } else {
+        paths
+    };
+
+    for path in &final_paths {
+        if !path.exists() {
+            eprintln!(
+                "Error: The file or directory '{}' does not exist.",
+                path.display()
+            );
+            return Err(1);
+        }
     }
-    Ok(path)
+    Ok(final_paths)
 }
 
 /// Validates and prepares an output file path for a subcommand.
@@ -199,6 +212,16 @@ fn merge_excludes(subcommand_excludes: Vec<String>, global_excludes: &[String]) 
     let mut merged = subcommand_excludes;
     merged.extend(global_excludes.iter().cloned());
     merged
+}
+
+/// Validates that --root and positional paths are not used together.
+/// Returns Ok(()) if valid, Err(1) if both are provided.
+fn validate_path_args(args: &crate::cli::PathArgs) -> Result<(), i32> {
+    if args.root.is_some() && !args.paths.is_empty() {
+        eprintln!("Error: Cannot use both --root and positional path arguments");
+        return Err(1);
+    }
+    Ok(())
 }
 
 /// Runs the analyzer (or other commands) with the given arguments.
@@ -240,29 +263,38 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
     };
 
+    // Explicit runtime validation for mutual exclusivity of --root and positional paths
+    if let Err(code) = validate_path_args(&cli_var.paths) {
+        return Ok(code);
+    }
+
     // Logic to determine analysis_root if not explicitly provided via --root
     // We look at both global paths and subcommand paths to see if any are absolute.
-    let mut all_target_paths = cli_var.paths.clone();
+    let mut all_target_paths = cli_var.paths.paths.clone();
     if let Some(ref command) = cli_var.command {
         match command {
             Commands::Raw { common, .. }
             | Commands::Cc { common, .. }
             | Commands::Hal { common, .. }
             | Commands::Mi { common, .. } => {
-                if let Some(p) = &common.path {
-                    all_target_paths.push(p.clone());
-                }
-            }
-            Commands::Files { path, .. } => {
-                if let Some(p) = path {
-                    all_target_paths.push(p.clone());
-                }
-            }
-            Commands::Stats { path, root, .. } => {
-                if let Some(r) = root {
+                if let Some(r) = &common.paths.root {
                     all_target_paths.push(r.clone());
-                } else if let Some(p) = path {
-                    all_target_paths.push(p.clone());
+                } else {
+                    all_target_paths.extend(common.paths.paths.iter().cloned());
+                }
+            }
+            Commands::Files { args, .. } => {
+                if let Some(r) = &args.paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(args.paths.paths.iter().cloned());
+                }
+            }
+            Commands::Stats { paths, .. } => {
+                if let Some(r) = &paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(paths.paths.iter().cloned());
                 }
             }
             _ => {}
@@ -270,7 +302,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
     }
 
     let (effective_paths, analysis_root): (Vec<std::path::PathBuf>, std::path::PathBuf) =
-        if let Some(ref root) = cli_var.root {
+        if let Some(ref root) = cli_var.paths.root {
             // --root was provided: use it as the analysis path AND containment boundary
             (vec![root.clone()], root.clone())
         } else {
@@ -298,7 +330,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 root = common;
             }
 
-            let paths = if cli_var.paths.is_empty() {
+            let paths = if cli_var.paths.paths.is_empty() {
                 // If it's a subcommand call, we might not have global paths.
                 // But loading config from the first subcommand path is better than ".".
                 if let Some(first) = all_target_paths.first() {
@@ -307,7 +339,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     vec![std::path::PathBuf::from(".")]
                 }
             } else {
-                cli_var.paths.clone()
+                cli_var.paths.paths.clone()
             };
             (paths, root)
         };
@@ -334,14 +366,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
     if let Some(command) = cli_var.command {
         match command {
             Commands::Raw { common, summary } => {
-                let path = match resolve_subcommand_path(common.path) {
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
+                }
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
                     Ok(p) => p,
                     Err(code) => return Ok(code),
                 };
                 let exclude = merge_excludes(common.exclude, &exclude_folders);
                 let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_raw(
-                    &path,
+                    &paths,
                     common.json,
                     exclude,
                     common.ignore,
@@ -362,14 +397,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 xml,
                 fail_threshold,
             } => {
-                let path = match resolve_subcommand_path(common.path) {
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
+                }
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
                     Ok(p) => p,
                     Err(code) => return Ok(code),
                 };
                 let exclude = merge_excludes(common.exclude, &exclude_folders);
                 let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_cc(
-                    &path,
+                    &paths,
                     crate::commands::CcOptions {
                         json: common.json,
                         exclude,
@@ -390,14 +428,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 )?;
             }
             Commands::Hal { common, functions } => {
-                let path = match resolve_subcommand_path(common.path) {
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
+                }
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
                     Ok(p) => p,
                     Err(code) => return Ok(code),
                 };
                 let exclude = merge_excludes(common.exclude, &exclude_folders);
                 let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_hal(
-                    &path,
+                    &paths,
                     common.json,
                     exclude,
                     common.ignore,
@@ -415,14 +456,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 average,
                 fail_threshold,
             } => {
-                let path = match resolve_subcommand_path(common.path) {
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
+                }
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
                     Ok(p) => p,
                     Err(code) => return Ok(code),
                 };
                 let exclude = merge_excludes(common.exclude, &exclude_folders);
                 let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_mi(
-                    &path,
+                    &paths,
                     crate::commands::MiOptions {
                         json: common.json,
                         exclude,
@@ -447,8 +491,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 return Ok(1);
             }
             Commands::Stats {
-                path,
-                root,
+                paths,
                 all,
                 secrets,
                 danger,
@@ -457,15 +500,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 output,
                 exclude,
             } => {
-                // Use --root if provided, otherwise use positional path
-                let effective_path = match resolve_subcommand_path(root.or(path)) {
+                if let Err(code) = validate_path_args(&paths) {
+                    return Ok(code);
+                }
+                // Use --root if provided, otherwise use positional paths
+                let effective_paths = match resolve_subcommand_paths(paths.paths, paths.root) {
                     Ok(p) => p,
                     Err(code) => return Ok(code),
                 };
                 let exclude = merge_excludes(exclude, &exclude_folders);
                 let quality_count = crate::commands::run_stats(
                     &analysis_root,
-                    &effective_path,
+                    &effective_paths,
                     all,
                     secrets,
                     danger,
@@ -485,17 +531,22 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     return Ok(1);
                 }
             }
-            Commands::Files {
-                path,
-                json,
-                exclude,
-            } => {
-                let path = match resolve_subcommand_path(path) {
+            Commands::Files { args } => {
+                if let Err(code) = validate_path_args(&args.paths) {
+                    return Ok(code);
+                }
+                let paths = match resolve_subcommand_paths(args.paths.paths, args.paths.root) {
                     Ok(p) => p,
                     Err(code) => return Ok(code),
                 };
-                let exclude = merge_excludes(exclude, &exclude_folders);
-                crate::commands::run_files(&path, json, &exclude, cli_var.output.verbose, writer)?;
+                let exclude = merge_excludes(args.exclude, &exclude_folders);
+                crate::commands::run_files(
+                    &paths,
+                    args.json,
+                    &exclude,
+                    cli_var.output.verbose,
+                    writer,
+                )?;
             }
         }
         Ok(0)

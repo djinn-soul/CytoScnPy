@@ -3,12 +3,18 @@
 use anyhow::Result;
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-/// Finds all Python files under the given root, excluding specified patterns.
+/// Finds all Python files under the given roots, excluding specified patterns.
 /// Respects .gitignore files in addition to hardcoded defaults.
-pub fn find_python_files(root: &Path, exclude: &[String], verbose: bool) -> Vec<PathBuf> {
-    crate::utils::collect_python_files_gitignore(root, exclude, &[], false, verbose).0
+pub fn find_python_files(roots: &[PathBuf], exclude: &[String], verbose: bool) -> Vec<PathBuf> {
+    let mut all_files = Vec::new();
+    for root in roots {
+        let (files, _) =
+            crate::utils::collect_python_files_gitignore(root, exclude, &[], false, verbose);
+        all_files.extend(files);
+    }
+    all_files
 }
 
 /// Merges primary excludes with additional ignore patterns into a single list.

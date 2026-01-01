@@ -12,7 +12,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Clone)]
 struct FileMetrics {
@@ -83,7 +83,7 @@ fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) 
 )]
 pub fn run_stats<W: Write>(
     root: &Path,
-    path: &Path,
+    roots: &[PathBuf],
     all: bool,
     secrets: bool,
     danger: bool,
@@ -105,13 +105,19 @@ pub fn run_stats<W: Write>(
 
     // Use collect_python_files_gitignore to get both files and directory count in one pass.
     // This is more efficient and ensures consistent exclusion logic.
-    let (files, num_directories) = crate::utils::collect_python_files_gitignore(
-        path,
-        exclude,
-        &[],   // No extra includes for stats command currently
-        false, // include_ipynb: stats command defaults to py files only for now
-        verbose,
-    );
+    let mut files = Vec::new();
+    let mut num_directories = 0;
+    for path in roots {
+        let (f, d) = crate::utils::collect_python_files_gitignore(
+            path,
+            exclude,
+            &[],   // No extra includes for stats command currently
+            false, // include_ipynb: stats command defaults to py files only for now
+            verbose,
+        );
+        files.extend(f);
+        num_directories += d;
+    }
 
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()
@@ -159,7 +165,7 @@ pub fn run_stats<W: Write>(
             .with_quality(include_quality)
             .with_excludes(exclude.to_vec())
             .with_config(Config::default());
-        Some(analyzer.analyze_paths(&[path.to_path_buf()]))
+        Some(analyzer.analyze_paths(roots))
     } else {
         None
     };
@@ -360,13 +366,13 @@ pub fn run_stats<W: Write>(
 /// Returns an error if file I/O fails or JSON serialization fails.
 #[allow(clippy::cast_precision_loss)]
 pub fn run_files<W: Write>(
-    path: &Path,
+    roots: &[PathBuf],
     json: bool,
     exclude: &[String],
     verbose: bool,
     mut writer: W,
 ) -> Result<()> {
-    let files = find_python_files(path, exclude, verbose);
+    let files = find_python_files(roots, exclude, verbose);
 
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()

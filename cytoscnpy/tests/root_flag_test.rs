@@ -149,6 +149,77 @@ fn test_root_flag_with_stats_subcommand() {
 }
 
 #[test]
+fn test_stats_root_and_path_conflict() {
+    // Using both --root and positional path with stats should ERROR
+    let temp_dir = tempdir().unwrap();
+    let project_root = temp_dir.path().join("myproject");
+    create_test_project(&project_root);
+
+    let project_path = project_root.to_string_lossy().to_string();
+
+    // Try to use both positional path AND --root with stats
+    let (exit_code, _output) = run_cytoscnpy(vec!["stats", "./other", "--root", &project_path]);
+
+    assert_eq!(
+        exit_code, 1,
+        "Stats should fail when both path and --root are given"
+    );
+}
+
+#[test]
+fn test_cc_with_root() {
+    // CC subcommand should now support --root flag
+    let temp_dir = tempdir().unwrap();
+    let project_root = temp_dir.path().join("myproject");
+    create_test_project(&project_root);
+
+    let project_path = project_root.to_string_lossy().to_string();
+
+    // Run cc with --root instead of positional path
+    // We expect this to pass (exit code 0)
+    let (exit_code, output) = run_cytoscnpy(vec!["cc", "--root", &project_path]);
+
+    assert_eq!(exit_code, 0, "cc --root should succeed. Output: {}", output);
+    assert!(
+        output.contains("main.py"),
+        "Output should contain main.py findings"
+    );
+}
+
+#[test]
+fn test_cc_root_and_path_conflict() {
+    // cc should fail with both --root and positional path
+    let temp_dir = tempdir().unwrap();
+    let project_root = temp_dir.path().join("myproject");
+    create_test_project(&project_root);
+    let project_path = project_root.to_string_lossy().to_string();
+    let (exit_code, _) = run_cytoscnpy(vec!["cc", "./src", "--root", &project_path]);
+    assert_eq!(exit_code, 1);
+}
+
+#[test]
+fn test_raw_root_and_path_conflict() {
+    // raw should fail with both --root and positional path
+    let temp_dir = tempdir().unwrap();
+    let project_root = temp_dir.path().join("myproject");
+    create_test_project(&project_root);
+    let project_path = project_root.to_string_lossy().to_string();
+    let (exit_code, _) = run_cytoscnpy(vec!["raw", "./src", "--root", &project_path]);
+    assert_eq!(exit_code, 1);
+}
+
+#[test]
+fn test_files_root_and_path_conflict() {
+    // files should fail with both --root and positional path
+    let temp_dir = tempdir().unwrap();
+    let project_root = temp_dir.path().join("myproject");
+    create_test_project(&project_root);
+    let project_path = project_root.to_string_lossy().to_string();
+    let (exit_code, _) = run_cytoscnpy(vec!["files", "./src", "--root", &project_path]);
+    assert_eq!(exit_code, 1);
+}
+
+#[test]
 fn test_default_path_behavior_unchanged() {
     // Without --root, the existing positional path behavior should work exactly as before
     let temp_dir = tempdir().unwrap();

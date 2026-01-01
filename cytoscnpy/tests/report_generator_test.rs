@@ -6,13 +6,25 @@ use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::report::generator::generate_report;
 use cytoscnpy::rules::Finding;
 use cytoscnpy::visitor::Definition;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-report-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("report_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_generate_report_full() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let output_dir = dir.path();
 
     let result = AnalysisResult {
@@ -114,7 +126,7 @@ fn test_calculate_score_logic() {
     // by checking the content of index.html if we really wanted to.
 
     // For now, let's just ensure it doesn't crash with various findings.
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let output_dir = dir.path();
 
     let mut result = AnalysisResult {

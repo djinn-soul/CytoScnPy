@@ -14,12 +14,23 @@ use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-multipath-tmp");
+    fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("multipath_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 /// Test that `analyze_paths` with a single directory works the same as analyze
 #[test]
 fn test_analyze_paths_single_directory() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -53,7 +64,7 @@ result = used_function()
 /// Test that `analyze_paths` with multiple individual files works
 #[test]
 fn test_analyze_paths_multiple_files() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create file1.py
     let file1_path = dir.path().join("file1.py");
@@ -96,7 +107,7 @@ fn test_analyze_paths_multiple_files() {
 /// Test that `analyze_paths` with empty paths analyzes current directory
 #[test]
 fn test_analyze_paths_empty_defaults_to_current_dir() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
     write!(file, "def unused_func(): pass").unwrap();
@@ -118,7 +129,7 @@ fn test_analyze_paths_empty_defaults_to_current_dir() {
 /// Test that `analyze_paths` with mixed files and directories works
 #[test]
 fn test_analyze_paths_mixed_files_and_directories() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create a file in root
     let file1_path = dir.path().join("root_file.py");
@@ -158,7 +169,7 @@ fn test_analyze_paths_mixed_files_and_directories() {
 /// Test that `analyze_paths` filters non-Python files
 #[test]
 fn test_analyze_paths_filters_non_python() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create a Python file
     let py_path = dir.path().join("script.py");
@@ -196,7 +207,7 @@ fn test_analyze_paths_filters_non_python() {
 /// Test that `analyze_paths` respects exclude_folders
 #[test]
 fn test_analyze_paths_respects_exclusions() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create a .venv directory (should be excluded by default)
     let venv_dir = dir.path().join(".venv");
@@ -216,8 +227,9 @@ fn test_analyze_paths_respects_exclusions() {
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
-    // Analyze both directories
-    let paths = vec![venv_dir, src_dir];
+    // Analyze the parent directory (not venv_dir directly)
+    // This way the exclusion logic will apply to .venv
+    let paths = vec![dir.path().to_path_buf()];
     let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
@@ -236,7 +248,7 @@ fn test_analyze_paths_respects_exclusions() {
 /// Test that `analyze_paths` works with secrets scanning on specific files
 #[test]
 fn test_analyze_paths_with_secrets_scanning() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create a file with a secret
     let file_path = dir.path().join("config.py");
@@ -258,7 +270,7 @@ fn test_analyze_paths_with_secrets_scanning() {
 /// Test that `analyze_paths` works with danger scanning on specific files
 #[test]
 fn test_analyze_paths_with_danger_scanning() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create a file with dangerous code
     let file_path = dir.path().join("dangerous.py");
@@ -288,7 +300,7 @@ os.system(user_input)
 /// Test that `analyze_paths` handles cross-file references
 #[test]
 fn test_analyze_paths_cross_file_references() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create module.py with a function
     let module_path = dir.path().join("module.py");
@@ -326,7 +338,7 @@ result = helper_function()
 /// Test that `analyze_paths` includes notebooks when enabled
 #[test]
 fn test_analyze_paths_with_notebooks() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create a simple notebook file
     let notebook_path = dir.path().join("notebook.ipynb");
@@ -362,7 +374,7 @@ fn test_analyze_paths_with_notebooks() {
 /// Test pre-commit style usage: analyze only specific changed files
 #[test]
 fn test_analyze_paths_precommit_style() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Simulate a project with many files
     let files: Vec<PathBuf> = (0..5)

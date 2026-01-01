@@ -4,11 +4,22 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-import-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("import_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 #[test]
 fn test_cross_module_alias_resolution() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create lib.py with a function
     let lib_path = dir.path().join("lib.py");
@@ -48,7 +59,7 @@ l.my_func()
 
 #[test]
 fn test_from_import_resolution() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create lib.py with a function
     let lib_path = dir.path().join("lib.py");
@@ -84,7 +95,7 @@ f()
 
 #[test]
 fn test_chained_alias_resolution() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
 
     // Create pandas.py (simulated)
     let lib_path = dir.path().join("pandas.py");

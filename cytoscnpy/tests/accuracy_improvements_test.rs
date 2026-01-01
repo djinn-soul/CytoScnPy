@@ -9,13 +9,24 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::TempDir;
+
+fn project_tempdir() -> TempDir {
+    let mut target_dir = std::env::current_dir().unwrap();
+    target_dir.push("target");
+    target_dir.push("test-acc-imp-tmp");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    tempfile::Builder::new()
+        .prefix("accuracy_imp_test_")
+        .tempdir_in(target_dir)
+        .unwrap()
+}
 
 /// Test that returned function names are marked as used.
 /// This fixes false positives for decorator wrappers and closures.
 #[test]
 fn test_return_statement_function_tracking() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("decorator.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -59,7 +70,7 @@ decorated_func()
 /// Test that nested functions returned from outer functions are marked as used.
 #[test]
 fn test_return_nested_function() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("closure.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -95,7 +106,7 @@ result = outer()
 /// Test that names in __all__ are marked as used.
 #[test]
 fn test_all_exports_marked_as_used() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("exports.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -160,7 +171,7 @@ class NotExportedClass:
 /// Genuinely unused TYPE_CHECKING imports should still be flagged.
 #[test]
 fn test_type_checking_imports_not_flagged() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("type_hints.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -211,7 +222,7 @@ process([])
 /// OrderedDict is used in the return type annotation, so it should not be flagged.
 #[test]
 fn test_type_checking_typing_extensions() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("type_hints_ext.py");
     let mut file = File::create(&file_path).unwrap();
 
@@ -250,7 +261,7 @@ get_data()
 /// Test that regular unused imports are still flagged correctly.
 #[test]
 fn test_regular_imports_still_flagged() {
-    let dir = tempdir().unwrap();
+    let dir = project_tempdir();
     let file_path = dir.path().join("imports.py");
     let mut file = File::create(&file_path).unwrap();
 

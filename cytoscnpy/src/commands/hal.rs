@@ -37,11 +37,12 @@ pub fn run_hal<W: Write>(
     ignore: Vec<String>,
     functions: bool,
     output_file: Option<String>,
+    verbose: bool,
     mut writer: W,
 ) -> Result<()> {
     let mut all_exclude = exclude;
     all_exclude.extend(ignore);
-    let files = find_python_files(path, &all_exclude);
+    let files = find_python_files(path, &all_exclude, verbose);
 
     let results: Vec<HalResult> = files
         .par_iter()

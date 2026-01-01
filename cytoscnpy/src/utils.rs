@@ -213,7 +213,7 @@ pub fn validate_output_path(path: &std::path::Path) -> anyhow::Result<std::path:
     // 4. Verification: check if the resolved ancestor is within the allowed root.
     if !canonical_ancestor.starts_with(&canonical_root) {
         anyhow::bail!(
-            "Security Error: Path traversal detected. Resolved path '{}' is outside the project root '{}'",
+            "Error: Path '{}' is outside the project root '{}'.",
             canonical_ancestor.display(),
             canonical_root.display()
         );

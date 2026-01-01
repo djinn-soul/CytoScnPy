@@ -18,11 +18,10 @@ import cytoscnpy
 
 @pytest.fixture
 def temp_project():
-    """Create a temporary project with sample Python files."""
-    tmpdir = tempfile.mkdtemp()
-    
-    # Create a file with unused code and potential secrets
-    code = '''
+    """Create a temporary project with sample Python files inside the current directory."""
+    with tempfile.TemporaryDirectory(dir=".", prefix=".tmp_") as tmpdir:
+        # Create a file with unused code and potential secrets
+        code = '''
 import os  # unused import
 import sys
 
@@ -37,12 +36,9 @@ API_KEY = "sk-1234567890abcdef1234567890abcdef"  # potential secret
 if __name__ == "__main__":
     print(used_function())
 '''
-    (Path(tmpdir) / "sample.py").write_text(code)
-    
-    yield tmpdir
-    
-    # Cleanup
-    shutil.rmtree(tmpdir, ignore_errors=True)
+        (Path(tmpdir) / "sample.py").write_text(code)
+        
+        yield tmpdir
 
 
 class TestShortFlags:

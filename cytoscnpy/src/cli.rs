@@ -92,6 +92,42 @@ pub struct IncludeOptions {
     pub ipynb_cells: bool,
 }
 
+/// Common options for metric subcommands (cc, hal, mi, raw).
+/// Use `#[command(flatten)]` to include these in a subcommand.
+#[derive(Args, Debug, Default, Clone)]
+pub struct MetricArgs {
+    /// Path to analyze (optional, defaults to current directory).
+    pub path: Option<PathBuf>,
+
+    /// Output JSON.
+    #[arg(long, short = 'j')]
+    pub json: bool,
+
+    /// Exclude folders.
+    #[arg(long, short = 'e', alias = "exclude-folder")]
+    pub exclude: Vec<String>,
+
+    /// Ignore directories matching glob pattern.
+    #[arg(long, short = 'i')]
+    pub ignore: Vec<String>,
+
+    /// Save output to file.
+    #[arg(long, short = 'O')]
+    pub output_file: Option<String>,
+}
+
+/// Rank filtering options (A-F grades) for complexity/MI commands.
+#[derive(Args, Debug, Default, Clone)]
+pub struct RankArgs {
+    /// Set minimum rank (A-F or A-C depending on command).
+    #[arg(long, short = 'n', alias = "min")]
+    pub min_rank: Option<char>,
+
+    /// Set maximum rank (A-F or A-C depending on command).
+    #[arg(long, short = 'x', alias = "max")]
+    pub max_rank: Option<char>,
+}
+
 /// Command line interface configuration using `clap`.
 /// This struct defines the arguments and flags accepted by the program.
 #[derive(Parser, Debug)]
@@ -207,162 +243,94 @@ pub struct Cli {
 pub enum Commands {
     /// Calculate raw metrics (LOC, LLOC, SLOC, Comments, Multi, Blank)
     Raw {
-        /// Path to analyze (optional, defaults to current directory)
-        path: Option<PathBuf>,
+        /// Common metric options (path, json, exclude, ignore, output_file).
+        #[command(flatten)]
+        common: MetricArgs,
 
-        /// Output JSON
-        #[arg(long, short = 'j')]
-        json: bool,
-
-        /// Exclude folders
-        #[arg(long, short = 'e', alias = "exclude-folder")]
-        exclude: Vec<String>,
-
-        /// Ignore directories matching glob pattern
-        #[arg(long, short = 'i')]
-        ignore: Vec<String>,
-
-        /// Show summary of gathered metrics
+        /// Show summary of gathered metrics.
         #[arg(long, short = 's')]
         summary: bool,
-
-        /// Save output to file
-        #[arg(long, short = 'O')]
-        output_file: Option<String>,
     },
     /// Calculate Cyclomatic Complexity
     Cc {
-        /// Path to analyze
-        path: Option<PathBuf>,
+        /// Common metric options (path, json, exclude, ignore, output_file).
+        #[command(flatten)]
+        common: MetricArgs,
 
-        /// Output JSON
-        #[arg(long, short = 'j')]
-        json: bool,
+        /// Rank filtering options (min/max rank).
+        #[command(flatten)]
+        rank: RankArgs,
 
-        /// Exclude folders
-        #[arg(long, short = 'e', alias = "exclude-folder")]
-        exclude: Vec<String>,
-
-        /// Ignore directories matching glob pattern
-        #[arg(long, short = 'i')]
-        ignore: Vec<String>,
-
-        /// Set minimum complexity rank (A-F)
-        #[arg(long, short = 'n', alias = "min")]
-        min_rank: Option<char>,
-
-        /// Set maximum complexity rank (A-F)
-        #[arg(long, short = 'x', alias = "max")]
-        max_rank: Option<char>,
-
-        /// Show average complexity
+        /// Show average complexity.
         #[arg(long, short = 'a')]
         average: bool,
 
-        /// Show total average complexity
+        /// Show total average complexity.
         #[arg(long)]
         total_average: bool,
 
-        /// Show complexity score with rank
+        /// Show complexity score with rank.
         #[arg(long, short = 's')]
         show_complexity: bool,
 
-        /// Ordering function (score, lines, alpha)
+        /// Ordering function (score, lines, alpha).
         #[arg(long, short = 'o')]
         order: Option<String>,
 
-        /// Do not count assert statements
+        /// Do not count assert statements.
         #[arg(long)]
         no_assert: bool,
 
-        /// Output XML
+        /// Output XML.
         #[arg(long)]
         xml: bool,
 
-        /// Exit with code 1 if any block has complexity higher than this value
+        /// Exit with code 1 if any block has complexity higher than this value.
         #[arg(long)]
         fail_threshold: Option<usize>,
-
-        /// Save output to file
-        #[arg(long, short = 'O')]
-        output_file: Option<String>,
     },
     /// Calculate Halstead Metrics
     Hal {
-        /// Path to analyze
-        path: Option<PathBuf>,
+        /// Common metric options (path, json, exclude, ignore, output_file).
+        #[command(flatten)]
+        common: MetricArgs,
 
-        /// Output JSON
-        #[arg(long, short = 'j')]
-        json: bool,
-
-        /// Exclude folders
-        #[arg(long, short = 'e', alias = "exclude-folder")]
-        exclude: Vec<String>,
-
-        /// Ignore directories matching glob pattern
-        #[arg(long, short = 'i')]
-        ignore: Vec<String>,
-
-        /// Compute metrics on function level
+        /// Compute metrics on function level.
         #[arg(long, short = 'f')]
         functions: bool,
-
-        /// Save output to file
-        #[arg(long, short = 'O')]
-        output_file: Option<String>,
     },
     /// Calculate Maintainability Index
     Mi {
-        /// Path to analyze
-        path: Option<PathBuf>,
+        /// Common metric options (path, json, exclude, ignore, output_file).
+        #[command(flatten)]
+        common: MetricArgs,
 
-        /// Output JSON
-        #[arg(long, short = 'j')]
-        json: bool,
+        /// Rank filtering options (min/max rank).
+        #[command(flatten)]
+        rank: RankArgs,
 
-        /// Exclude folders
-        #[arg(long, short = 'e', alias = "exclude-folder")]
-        exclude: Vec<String>,
-
-        /// Ignore directories matching glob pattern
-        #[arg(long, short = 'i')]
-        ignore: Vec<String>,
-
-        /// Set minimum MI rank (A-C)
-        #[arg(long, short = 'n', alias = "min")]
-        min_rank: Option<char>,
-
-        /// Set maximum MI rank (A-C)
-        #[arg(long, short = 'x', alias = "max")]
-        max_rank: Option<char>,
-
-        /// Count multiline strings as comments (enabled by default)
+        /// Count multiline strings as comments (enabled by default).
         #[arg(long, short = 'm', default_value = "true", action = clap::ArgAction::Set)]
         multi: bool,
 
-        /// Show actual MI value
+        /// Show actual MI value.
         #[arg(long, short = 's')]
         show: bool,
 
-        /// Show average MI
+        /// Show average MI.
         #[arg(long, short = 'a')]
         average: bool,
 
-        /// Exit with code 1 if any file has MI lower than this value
+        /// Exit with code 1 if any file has MI lower than this value.
         #[arg(long)]
         fail_threshold: Option<f64>,
-
-        /// Save output to file
-        #[arg(long, short = 'O')]
-        output_file: Option<String>,
     },
     /// Start MCP server for LLM integration (Claude Desktop, VS Code Copilot, etc.)
     #[command(name = "mcp-server")]
     McpServer,
     /// Generate comprehensive project statistics report
     Stats {
-        /// Path to analyze (cannot be used with --root)
+        /// Path to analyze (cannot be used with --root).
         #[arg(conflicts_with = "root")]
         path: Option<PathBuf>,
 
@@ -371,44 +339,44 @@ pub enum Commands {
         #[arg(long, conflicts_with = "path")]
         root: Option<PathBuf>,
 
-        /// Enable all analysis: secrets, danger, quality, and per-file metrics
+        /// Enable all analysis: secrets, danger, quality, and per-file metrics.
         #[arg(long, short = 'a')]
         all: bool,
 
-        /// Scan for API keys/secrets
+        /// Scan for API keys/secrets.
         #[arg(long, short = 's')]
         secrets: bool,
 
-        /// Scan for dangerous code patterns
+        /// Scan for dangerous code patterns.
         #[arg(long, short = 'd')]
         danger: bool,
 
-        /// Scan for code quality issues
+        /// Scan for code quality issues.
         #[arg(long, short = 'q')]
         quality: bool,
 
-        /// Output JSON
+        /// Output JSON.
         #[arg(long)]
         json: bool,
 
-        /// Output file path
+        /// Output file path.
         #[arg(long, short = 'o')]
         output: Option<String>,
 
-        /// Exclude folders
+        /// Exclude folders.
         #[arg(long, alias = "exclude-folder")]
         exclude: Vec<String>,
     },
     /// Show per-file metrics table
     Files {
-        /// Path to analyze
+        /// Path to analyze.
         path: Option<PathBuf>,
 
-        /// Output JSON
+        /// Output JSON.
         #[arg(long)]
         json: bool,
 
-        /// Exclude folders
+        /// Exclude folders.
         #[arg(long, alias = "exclude-folder")]
         exclude: Vec<String>,
     },

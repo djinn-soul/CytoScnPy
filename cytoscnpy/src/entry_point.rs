@@ -160,6 +160,47 @@ fn get_call_name(expr: &Expr) -> Option<String> {
     }
 }
 
+// ============================================================================
+// Subcommand Helper Functions
+// ============================================================================
+
+/// Resolves a subcommand path, defaulting to `.` if None, and checks existence.
+/// Returns `Ok(PathBuf)` if the path exists, `Err(1)` if it doesn't.
+fn resolve_subcommand_path(path: Option<std::path::PathBuf>) -> Result<std::path::PathBuf, i32> {
+    let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
+    if !path.exists() {
+        eprintln!(
+            "Error: The file or directory '{}' does not exist.",
+            path.display()
+        );
+        return Err(1);
+    }
+    Ok(path)
+}
+
+/// Validates and prepares an output file path for a subcommand.
+/// Returns the validated path string, or propagates errors.
+fn prepare_output_path(
+    output_file: Option<String>,
+    analysis_root: &std::path::Path,
+) -> Result<Option<String>> {
+    match output_file {
+        Some(out) => Ok(Some(
+            crate::utils::validate_output_path(std::path::Path::new(&out), Some(analysis_root))?
+                .to_string_lossy()
+                .to_string(),
+        )),
+        None => Ok(None),
+    }
+}
+
+/// Merges subcommand-specific excludes with global excludes from config.
+fn merge_excludes(subcommand_excludes: Vec<String>, global_excludes: &[String]) -> Vec<String> {
+    let mut merged = subcommand_excludes;
+    merged.extend(global_excludes.iter().cloned());
+    merged
+}
+
 /// Runs the analyzer (or other commands) with the given arguments.
 ///
 /// # Errors
@@ -204,11 +245,15 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
     let mut all_target_paths = cli_var.paths.clone();
     if let Some(ref command) = cli_var.command {
         match command {
-            Commands::Raw { path, .. }
-            | Commands::Cc { path, .. }
-            | Commands::Hal { path, .. }
-            | Commands::Mi { path, .. }
-            | Commands::Files { path, .. } => {
+            Commands::Raw { common, .. }
+            | Commands::Cc { common, .. }
+            | Commands::Hal { common, .. }
+            | Commands::Mi { common, .. } => {
+                if let Some(p) = &common.path {
+                    all_target_paths.push(p.clone());
+                }
+            }
+            Commands::Files { path, .. } => {
                 if let Some(p) = path {
                     all_target_paths.push(p.clone());
                 }
@@ -288,41 +333,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
     if let Some(command) = cli_var.command {
         match command {
-            Commands::Raw {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                summary,
-                output_file,
-            } => {
-                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
-                }
-                // Merge global excludes
-                exclude.extend(exclude_folders);
-                let output_file = if let Some(out) = output_file {
-                    Some(
-                        crate::utils::validate_output_path(
-                            std::path::Path::new(&out),
-                            Some(&analysis_root),
-                        )?
-                        .to_string_lossy()
-                        .to_string(),
-                    )
-                } else {
-                    None
+            Commands::Raw { common, summary } => {
+                let path = match resolve_subcommand_path(common.path) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
                 };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_raw(
                     &path,
-                    json,
+                    common.json,
                     exclude,
-                    ignore,
+                    common.ignore,
                     summary,
                     output_file,
                     cli_var.output.verbose,
@@ -330,12 +352,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 )?;
             }
             Commands::Cc {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                min_rank,
-                max_rank,
+                common,
+                rank,
                 average,
                 total_average,
                 show_complexity,
@@ -343,38 +361,21 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 no_assert,
                 xml,
                 fail_threshold,
-                output_file,
             } => {
-                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
-                }
-                // Merge global excludes
-                exclude.extend(exclude_folders.clone());
-                let output_file = if let Some(out) = output_file {
-                    Some(
-                        crate::utils::validate_output_path(
-                            std::path::Path::new(&out),
-                            Some(&analysis_root),
-                        )?
-                        .to_string_lossy()
-                        .to_string(),
-                    )
-                } else {
-                    None
+                let path = match resolve_subcommand_path(common.path) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
                 };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_cc(
                     &path,
                     crate::commands::CcOptions {
-                        json,
+                        json: common.json,
                         exclude,
-                        ignore,
-                        min_rank,
-                        max_rank,
+                        ignore: common.ignore,
+                        min_rank: rank.min_rank,
+                        max_rank: rank.max_rank,
                         average,
                         total_average,
                         show_complexity,
@@ -388,41 +389,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     writer,
                 )?;
             }
-            Commands::Hal {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                functions,
-                output_file,
-            } => {
-                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
-                }
-                // Merge global excludes
-                exclude.extend(exclude_folders.clone());
-                let output_file = if let Some(out) = output_file {
-                    Some(
-                        crate::utils::validate_output_path(
-                            std::path::Path::new(&out),
-                            Some(&analysis_root),
-                        )?
-                        .to_string_lossy()
-                        .to_string(),
-                    )
-                } else {
-                    None
+            Commands::Hal { common, functions } => {
+                let path = match resolve_subcommand_path(common.path) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
                 };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_hal(
                     &path,
-                    json,
+                    common.json,
                     exclude,
-                    ignore,
+                    common.ignore,
                     functions,
                     output_file,
                     cli_var.output.verbose,
@@ -430,48 +408,27 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 )?;
             }
             Commands::Mi {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                min_rank,
-                max_rank,
+                common,
+                rank,
                 multi,
                 show,
                 average,
                 fail_threshold,
-                output_file,
             } => {
-                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
-                }
-                // Merge global excludes
-                exclude.extend(exclude_folders);
-                let output_file = if let Some(out) = output_file {
-                    Some(
-                        crate::utils::validate_output_path(
-                            std::path::Path::new(&out),
-                            Some(&analysis_root),
-                        )?
-                        .to_string_lossy()
-                        .to_string(),
-                    )
-                } else {
-                    None
+                let path = match resolve_subcommand_path(common.path) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
                 };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_mi(
                     &path,
                     crate::commands::MiOptions {
-                        json,
+                        json: common.json,
                         exclude,
-                        ignore,
-                        min_rank,
-                        max_rank,
+                        ignore: common.ignore,
+                        min_rank: rank.min_rank,
+                        max_rank: rank.max_rank,
                         multi,
                         show,
                         average,
@@ -498,21 +455,14 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 quality,
                 json,
                 output,
-                mut exclude,
+                exclude,
             } => {
-                // Use --root if provided, otherwise use positional path, defaulting to "."
-                let effective_path = root
-                    .or(path)
-                    .unwrap_or_else(|| std::path::PathBuf::from("."));
-                if !effective_path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        effective_path.display()
-                    );
-                    return Ok(1);
-                }
-                // Merge global excludes
-                exclude.extend(exclude_folders.clone());
+                // Use --root if provided, otherwise use positional path
+                let effective_path = match resolve_subcommand_path(root.or(path)) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(exclude, &exclude_folders);
                 let quality_count = crate::commands::run_stats(
                     &analysis_root,
                     &effective_path,
@@ -538,18 +488,13 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             Commands::Files {
                 path,
                 json,
-                mut exclude,
+                exclude,
             } => {
-                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
-                }
-                // Merge global excludes
-                exclude.extend(exclude_folders);
+                let path = match resolve_subcommand_path(path) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(exclude, &exclude_folders);
                 crate::commands::run_files(&path, json, &exclude, cli_var.output.verbose, writer)?;
             }
         }

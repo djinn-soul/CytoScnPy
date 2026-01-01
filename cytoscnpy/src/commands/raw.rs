@@ -1,6 +1,6 @@
 //! Raw metrics analysis command (LOC, SLOC, etc.).
 
-use super::utils::{find_python_files, write_output};
+use super::utils::{find_python_files, merge_excludes, write_output};
 use crate::raw_metrics::analyze_raw;
 
 use anyhow::Result;
@@ -37,8 +37,7 @@ pub fn run_raw<W: Write>(
     verbose: bool,
     mut writer: W,
 ) -> Result<()> {
-    let mut all_exclude = exclude;
-    all_exclude.extend(ignore);
+    let all_exclude = merge_excludes(exclude, ignore);
     let files = find_python_files(path, &all_exclude, verbose);
 
     let results: Vec<RawResult> = files

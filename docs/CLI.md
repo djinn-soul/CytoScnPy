@@ -13,6 +13,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 ### Input & Output
 
 - `[paths]`: Paths to analyze (files or directories). Defaults to current directory (`.`) if not specified.
+- `--root <PATH>`: Project root for analysis. Use this when running from a different directory (e.g., CI/CD). Mutually exclusive with positional paths.
 - `--exclude-folder <FOLDER>`: Folders to exclude from analysis.
 - `--include-folder <FOLDER>`: Folders to force-include in analysis (overrides default exclusions).
 - `--json`: Output raw JSON.
@@ -113,6 +114,7 @@ cytoscnpy stats [OPTIONS] <PATH>
 ```
 
 - `-a`, `--all`: Enable all analysis: secrets, danger, quality, files.
+- `--root <PATH>`: Project root for analysis (use instead of positional path).
 - `-s`, `--secrets`: Scan for secrets.
 - `-d`, `--danger`: Scan for dangerous code.
 - `-q`, `--quality`: Scan for quality issues.

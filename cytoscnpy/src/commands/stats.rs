@@ -82,6 +82,7 @@ fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) 
     clippy::cast_precision_loss
 )]
 pub fn run_stats<W: Write>(
+    root: &Path,
     path: &Path,
     all: bool,
     secrets: bool,
@@ -94,7 +95,10 @@ pub fn run_stats<W: Write>(
     mut writer: W,
 ) -> Result<usize> {
     let output = if let Some(out) = output {
-        Some(crate::utils::validate_output_path(Path::new(&out))?)
+        Some(crate::utils::validate_output_path(
+            Path::new(&out),
+            Some(root),
+        )?)
     } else {
         None
     };

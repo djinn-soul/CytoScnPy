@@ -44,7 +44,7 @@ Customize behavior in VS Code Settings (`Ctrl+,`):
 
 Enable AI assistants (Claude, Cursor, Copilot) to use CytoScnPy tools.
 
-> **Note**: HTTP/SSE transport is planned for future releases to enable remote analysis. See [ROADMAP.md](../ROADMAP.md) for details.
+> **Note**: HTTP/SSE transport is planned for future releases to enable remote analysis. See [Roadmap](roadmap.md) for details.
 
 ### GitHub Copilot
 

@@ -113,8 +113,17 @@ pub struct Cli {
     /// Paths to analyze (files or directories).
     /// Can be a single directory, multiple files, or a mix of both.
     /// When no paths are provided, defaults to the current directory.
-    #[arg(default_value = ".")]
+    /// Note: Cannot be used together with --root.
+    #[arg(conflicts_with = "root")]
     pub paths: Vec<PathBuf>,
+
+    /// Project root for path containment and analysis.
+    /// Use this instead of positional paths when running from a different directory.
+    /// When specified, this path is used as both the analysis target AND the
+    /// security containment boundary for file operations.
+    /// Cannot be used together with positional path arguments.
+    #[arg(long, conflicts_with = "paths")]
+    pub root: Option<PathBuf>,
 
     /// Confidence threshold (0-100).
     /// Only findings with confidence higher than this value will be reported.
@@ -201,8 +210,7 @@ pub enum Commands {
     /// Calculate raw metrics (LOC, LLOC, SLOC, Comments, Multi, Blank)
     Raw {
         /// Path to analyze (optional, defaults to current directory)
-        #[arg(default_value = ".")]
-        path: PathBuf,
+        path: Option<PathBuf>,
 
         /// Output JSON
         #[arg(long, short = 'j')]
@@ -227,8 +235,7 @@ pub enum Commands {
     /// Calculate Cyclomatic Complexity
     Cc {
         /// Path to analyze
-        #[arg(default_value = ".")]
-        path: PathBuf,
+        path: Option<PathBuf>,
 
         /// Output JSON
         #[arg(long, short = 'j')]
@@ -285,8 +292,7 @@ pub enum Commands {
     /// Calculate Halstead Metrics
     Hal {
         /// Path to analyze
-        #[arg(default_value = ".")]
-        path: PathBuf,
+        path: Option<PathBuf>,
 
         /// Output JSON
         #[arg(long, short = 'j')]
@@ -311,8 +317,7 @@ pub enum Commands {
     /// Calculate Maintainability Index
     Mi {
         /// Path to analyze
-        #[arg(default_value = ".")]
-        path: PathBuf,
+        path: Option<PathBuf>,
 
         /// Output JSON
         #[arg(long, short = 'j')]
@@ -359,9 +364,14 @@ pub enum Commands {
     McpServer,
     /// Generate comprehensive project statistics report
     Stats {
-        /// Path to analyze
-        #[arg(default_value = ".")]
-        path: PathBuf,
+        /// Path to analyze (cannot be used with --root)
+        #[arg(conflicts_with = "root")]
+        path: Option<PathBuf>,
+
+        /// Project root for path containment and analysis.
+        /// Use this instead of positional path when running from a different directory.
+        #[arg(long, conflicts_with = "path")]
+        root: Option<PathBuf>,
 
         /// Enable all analysis: secrets, danger, quality, and per-file metrics
         #[arg(long, short = 'a')]
@@ -394,8 +404,7 @@ pub enum Commands {
     /// Show per-file metrics table
     Files {
         /// Path to analyze
-        #[arg(default_value = ".")]
-        path: PathBuf,
+        path: Option<PathBuf>,
 
         /// Output JSON
         #[arg(long)]

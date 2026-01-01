@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.2.1-green.svg)](https://github.com/djinn09/CytoScnPy)
+[![Version](https://img.shields.io/badge/version-1.2.2-green.svg)](https://github.com/djinn09/CytoScnPy)
 
 A fast static analysis tool for Python codebases, powered by Rust with hybrid Python integration. Detects dead code, security vulnerabilities (including taint analysis), and code quality issues with extreme speed. Code quality metrics are also provided.
 
@@ -115,6 +115,7 @@ cytoscnpy . --html --secrets --danger
 | Flag                     | Description                                      |
 | ------------------------ | ------------------------------------------------ |
 | `-c, --confidence <N>`   | Set confidence threshold (0-100)                 |
+| `--root <PATH>`          | Project root for analysis (CI/CD mode)           |
 | `-s, --secrets`          | Scan for API keys, tokens, credentials           |
 | `-d, --danger`           | Scan for dangerous code + taint analysis         |
 | `-q, --quality`          | Scan for code quality issues                     |
@@ -287,7 +288,7 @@ Apache-2.0 License - see [License](License) file for details.
 - **VS Code Extension**: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
 - **Rust Core Documentation**: [cytoscnpy/README.md](cytoscnpy/README.md)
 - **Benchmarks & Accuracy**: [benchmark/README.md](benchmark/README.md)
-- **Roadmap**: [ROADMAP.md](ROADMAP.md)
+- **Roadmap**: [docs/roadmap.md](docs/roadmap.md)
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## References

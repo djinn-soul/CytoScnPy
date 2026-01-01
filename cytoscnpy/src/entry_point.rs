@@ -199,9 +199,23 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
     };
 
-    // Load config from the first path or current directory
-    let config_path = cli_var
-        .paths
+    let (effective_paths, analysis_root): (Vec<std::path::PathBuf>, std::path::PathBuf) =
+        if let Some(ref root) = cli_var.root {
+            // --root was provided: use it as the analysis path AND containment boundary
+            (vec![root.clone()], root.clone())
+        } else if !cli_var.paths.is_empty() {
+            // Positional paths provided: use current dir as containment boundary
+            (cli_var.paths.clone(), std::path::PathBuf::from("."))
+        } else {
+            // Neither provided - default to current directory for both
+            (
+                vec![std::path::PathBuf::from(".")],
+                std::path::PathBuf::from("."),
+            )
+        };
+
+    // Load config from the first effective path or current directory
+    let config_path = effective_paths
         .first()
         .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
     let config = crate::config::Config::load_from_path(config_path);
@@ -229,6 +243,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 summary,
                 output_file,
             } => {
+                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
                 if !path.exists() {
                     eprintln!(
                         "Error: The file or directory '{}' does not exist.",
@@ -238,6 +253,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders);
+                let output_file = if let Some(out) = output_file {
+                    Some(
+                        crate::utils::validate_output_path(
+                            std::path::Path::new(&out),
+                            Some(&analysis_root),
+                        )?
+                        .to_string_lossy()
+                        .to_string(),
+                    )
+                } else {
+                    None
+                };
                 crate::commands::run_raw(
                     &path,
                     json,
@@ -265,6 +292,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 fail_threshold,
                 output_file,
             } => {
+                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
                 if !path.exists() {
                     eprintln!(
                         "Error: The file or directory '{}' does not exist.",
@@ -274,6 +302,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders.clone());
+                let output_file = if let Some(out) = output_file {
+                    Some(
+                        crate::utils::validate_output_path(
+                            std::path::Path::new(&out),
+                            Some(&analysis_root),
+                        )?
+                        .to_string_lossy()
+                        .to_string(),
+                    )
+                } else {
+                    None
+                };
                 crate::commands::run_cc(
                     &path,
                     crate::commands::CcOptions {
@@ -303,6 +343,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 functions,
                 output_file,
             } => {
+                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
                 if !path.exists() {
                     eprintln!(
                         "Error: The file or directory '{}' does not exist.",
@@ -312,6 +353,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders.clone());
+                let output_file = if let Some(out) = output_file {
+                    Some(
+                        crate::utils::validate_output_path(
+                            std::path::Path::new(&out),
+                            Some(&analysis_root),
+                        )?
+                        .to_string_lossy()
+                        .to_string(),
+                    )
+                } else {
+                    None
+                };
                 crate::commands::run_hal(
                     &path,
                     json,
@@ -336,6 +389,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 fail_threshold,
                 output_file,
             } => {
+                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
                 if !path.exists() {
                     eprintln!(
                         "Error: The file or directory '{}' does not exist.",
@@ -345,6 +399,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders);
+                let output_file = if let Some(out) = output_file {
+                    Some(
+                        crate::utils::validate_output_path(
+                            std::path::Path::new(&out),
+                            Some(&analysis_root),
+                        )?
+                        .to_string_lossy()
+                        .to_string(),
+                    )
+                } else {
+                    None
+                };
                 crate::commands::run_mi(
                     &path,
                     crate::commands::MiOptions {
@@ -372,6 +438,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             }
             Commands::Stats {
                 path,
+                root,
                 all,
                 secrets,
                 danger,
@@ -380,17 +447,22 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 output,
                 mut exclude,
             } => {
-                if !path.exists() {
+                // Use --root if provided, otherwise use positional path, defaulting to "."
+                let effective_path = root
+                    .or(path)
+                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                if !effective_path.exists() {
                     eprintln!(
                         "Error: The file or directory '{}' does not exist.",
-                        path.display()
+                        effective_path.display()
                     );
                     return Ok(1);
                 }
                 // Merge global excludes
                 exclude.extend(exclude_folders.clone());
                 let quality_count = crate::commands::run_stats(
-                    &path,
+                    &analysis_root,
+                    &effective_path,
                     all,
                     secrets,
                     danger,
@@ -415,6 +487,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 json,
                 mut exclude,
             } => {
+                let path = path.unwrap_or_else(|| std::path::PathBuf::from("."));
                 if !path.exists() {
                     eprintln!(
                         "Error: The file or directory '{}' does not exist.",
@@ -429,7 +502,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
         Ok(0)
     } else {
-        for path in &cli_var.paths {
+        for path in &effective_paths {
             if !path.exists() {
                 eprintln!(
                     "Error: The file or directory '{}' does not exist.",
@@ -486,7 +559,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             eprintln!("   Danger scanning: {danger}");
             eprintln!("   Quality scanning: {quality}");
             eprintln!("   Include tests: {include_tests}");
-            eprintln!("   Paths: {:?}", cli_var.paths);
+            eprintln!("   Paths: {effective_paths:?}");
             if !exclude_folders.is_empty() {
                 eprintln!("   Exclude folders: {exclude_folders:?}");
             }
@@ -506,7 +579,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             danger, // taint is now automatically enabled with --danger
             config.clone(),
         )
-        .with_verbose(cli_var.output.verbose);
+        .with_verbose(cli_var.output.verbose)
+        .with_root(analysis_root.clone());
 
         // Set debug delay if provided
         if let Some(delay_ms) = cli_var.debug_delay {
@@ -514,7 +588,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
 
         // Count files first to create progress bar with accurate total
-        let total_files = analyzer.count_files(&cli_var.paths);
+        let total_files = analyzer.count_files(&effective_paths);
 
         // Create progress bar with file count for visual feedback
         let progress: Option<indicatif::ProgressBar> = if cli_var.output.json {
@@ -532,7 +606,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
         let start_time = std::time::Instant::now();
 
-        let mut result = analyzer.analyze_paths(&cli_var.paths);
+        let mut result = analyzer.analyze_paths(&effective_paths);
 
         // If --no-dead flag is set, clear dead code detection results
         // (only show security/quality scans)
@@ -624,7 +698,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             if cli_var.clones {
                 // Run clone detection
                 let clone_findings = run_clone_detection_for_json(
-                    &cli_var.paths,
+                    &effective_paths,
                     cli_var.clone_similarity,
                     cli_var.output.verbose,
                 );
@@ -695,11 +769,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
                 let (count, findings) = if cli_var.clones {
                     // Explicit run: print to stdout
-                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut *writer)?
+                    crate::commands::run_clones(&effective_paths, &clone_options, &mut *writer)?
                 } else {
                     // Implicit run for HTML: suppress output
                     let mut sink = std::io::sink();
-                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut sink)?
+                    crate::commands::run_clones(&effective_paths, &clone_options, &mut sink)?
                 };
 
                 clone_pairs_found = count;
@@ -744,7 +818,9 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         if cli_var.output.html {
             writeln!(writer, "Generating HTML report...")?;
             let report_dir = std::path::Path::new(".cytoscnpy/report");
-            if let Err(e) = crate::report::generator::generate_report(&result, report_dir) {
+            if let Err(e) =
+                crate::report::generator::generate_report(&result, &analysis_root, report_dir)
+            {
                 eprintln!("Failed to generate HTML report: {e}");
             } else {
                 writeln!(writer, "HTML report generated at: {}", report_dir.display())?;
@@ -781,6 +857,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 fix_imports: true,
                 verbose: cli_var.output.verbose,
                 with_cst: true, // CST is always enabled by default
+                analysis_root: analysis_root.clone(),
             };
             crate::commands::run_fix_deadcode(&result, &fix_options, &mut *writer)?;
         }

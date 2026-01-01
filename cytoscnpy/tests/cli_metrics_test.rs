@@ -176,7 +176,8 @@ fn test_cli_stats_markdown_output() {
     let output_path = dir.path().join("report.md");
     let mut buffer = Vec::new();
     run_stats(
-        dir.path(),
+        dir.path(), // root
+        dir.path(), // path
         false,
         false,
         false,
@@ -206,6 +207,7 @@ fn test_cli_stats_json_output() {
 
     let mut buffer = Vec::new();
     run_stats(
+        dir.path(),
         dir.path(),
         false,
         false,
@@ -240,6 +242,7 @@ fn test_cli_stats_all_flag() {
     let mut buffer = Vec::new();
     run_stats(
         dir.path(),
+        dir.path(),
         true,
         false,
         false,
@@ -272,6 +275,7 @@ fn test_cli_stats_multiple_files() {
     let mut buffer = Vec::new();
     run_stats(
         dir.path(),
+        dir.path(),
         false,
         false,
         false,
@@ -303,6 +307,7 @@ fn test_cli_stats_with_classes() {
 
     let mut buffer = Vec::new();
     run_stats(
+        dir.path(),
         dir.path(),
         false,
         false,
@@ -447,6 +452,7 @@ fn test_cli_stats_empty_directory() {
 
     let mut buffer = Vec::new();
     run_stats(
+        dir.path(),
         dir.path(),
         false,
         false,

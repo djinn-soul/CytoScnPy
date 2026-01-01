@@ -1,12 +1,11 @@
-# Security
+# Security Policy
 
-CytoScnPy is a security tool and as such, it is important to ensure that it is secure. This document provides guidelines for ensuring the security of the tool.
+CytoScnPy is a security tool, and we take the security of our users seriously.
 
-## Security Policy
+## Reporting a Vulnerability
 
-The security policy for CytoScnPy is available in the [SECURITY.md](SECURITY.md) file.
+If you have found a security vulnerability in CytoScnPy, please **do not** create a public issue. Instead, please report it via one of the following methods:
 
-## Security Vulnerabilities
-
-If you have found a security vulnerability in CytoScnPy, please create issues.
-
+- **GitHub Security Advisory**: Use the "Report a vulnerability" button in the [Security tab](https://github.com/djinn09/CytoScnPy/security/advisories/new).
+- **Email**: Contact the maintainers (if email is provided in profile).
+- Raise an issue on GitHub.

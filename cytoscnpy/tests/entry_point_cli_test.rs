@@ -1,4 +1,4 @@
-//! Tests for entry_point.rs CLI argument handling and run_with_args function.
+//! Tests for `entry_point`.rs CLI argument handling and `run_with_args` function.
 #![allow(clippy::unwrap_used)]
 
 use cytoscnpy::entry_point::{run_with_args, run_with_args_to};

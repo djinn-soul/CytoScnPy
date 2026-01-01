@@ -68,7 +68,7 @@ impl CloneDetector {
     /// Detect clones from file paths with chunked processing (OOM-safe).
     ///
     /// This method processes files in chunks to prevent memory exhaustion:
-    /// 1. Read files in batches of CHUNK_SIZE
+    /// 1. Read files in batches of `CHUNK_SIZE`
     /// 2. Parse and extract fingerprints, then drop source content
     /// 3. Compare fingerprints (lightweight) to find candidates
     /// 4. For matched pairs, reload specific files to generate findings
@@ -99,7 +99,7 @@ impl CloneDetector {
         self.detect_from_subtrees(all_subtrees)
     }
 
-    /// Internal detection from pre-extracted subtrees (shared by detect and detect_from_paths)
+    /// Internal detection from pre-extracted subtrees (shared by detect and `detect_from_paths`)
     fn detect_from_subtrees(&self, all_subtrees: Vec<parser::Subtree>) -> CloneDetectionResult {
         // Phase 2: Create normalizers for both raw and renamed comparison
         let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1); // Preserves identifiers

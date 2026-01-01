@@ -1,29 +1,29 @@
-# Sample pre-commit configuration for CytoScnPy
-# Copy this file to your project root and run:
-#   pip install pre-commit
-#   pre-commit install
-#
-# For more information, see: https://pre-commit.com
+# CytoScnPy Pre-commit Configuration
+# Powered by prek (Rust-based pre-commit)
+# For more information, see: https://github.com/j178/prek
 
+default_stages: [commit]
+# exclude: ^(cytoscnpy/tests/|benchmark/examples/|python/tests/data/)
 repos:
-  # CytoScnPy - Python Static Analysis
-  - repo: https://github.com/djinn09/CytoScnPy
-    rev: v1.0.0 # Use the latest release tag
+  # Python: Ruff for linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
     hooks:
-      # Full analysis (recommended)
-      - id: cytoscnpy-check
-        # Uncomment to customize:
-        # args: ['--confidence', '50']
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
 
-      # Or use individual hooks:
-      # - id: cytoscnpy-danger   # Dangerous code patterns
-      # - id: cytoscnpy-secrets  # Hardcoded secrets
-      # - id: cytoscnpy-quality  # Code quality checks
-      # - id: cytoscnpy-security # High-confidence security scan
+  # Rust: Format and Clippy
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+      - id: clippy
+        args: ["--", "-D", "warnings"]
 
-  # Standard pre-commit hooks (recommended additions)
+  # Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -32,15 +32,24 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
 
-  # Python formatting (optional)
-  - repo: https://github.com/psf/black
-    rev: 24.3.0
+  - repo: local
     hooks:
-      - id: black
-
-  # Python linting (optional)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.4
-    hooks:
-      - id: ruff
-        args: [--fix]
+      - id: cytoscnpy-check
+        name: CytoScnPy Analysis (Secrets, Danger, Quality)
+        entry: cytoscnpy
+        language: system
+        types: [python]
+        pass_filenames: true
+        require_serial: true
+        args:
+          [
+            "--secrets",
+            "--danger",
+            "--quality",
+            "--fail-on-quality",
+            "--fail-threshold",
+            "0",
+            "--confidence",
+            "20",
+            "--quiet",
+          ]

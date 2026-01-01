@@ -1,7 +1,7 @@
 /target/
-**/*.rs.bk    
-.DS_Store                 
-*.dSYM/ 
+**/*.rs.bk
+.DS_Store
+*.dSYM/
 /venv/
 **/__pycache__/
 /*.py[cod]
@@ -11,7 +11,7 @@
 .dist/
 build/
 .eggs/
-/test/__pycache__/  
+/test/__pycache__/
 __pycache__
 chunks
 venvtest

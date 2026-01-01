@@ -199,19 +199,72 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
     };
 
+    // Logic to determine analysis_root if not explicitly provided via --root
+    // We look at both global paths and subcommand paths to see if any are absolute.
+    let mut all_target_paths = cli_var.paths.clone();
+    if let Some(ref command) = cli_var.command {
+        match command {
+            Commands::Raw { path, .. }
+            | Commands::Cc { path, .. }
+            | Commands::Hal { path, .. }
+            | Commands::Mi { path, .. }
+            | Commands::Files { path, .. } => {
+                if let Some(p) = path {
+                    all_target_paths.push(p.clone());
+                }
+            }
+            Commands::Stats { path, root, .. } => {
+                if let Some(r) = root {
+                    all_target_paths.push(r.clone());
+                } else if let Some(p) = path {
+                    all_target_paths.push(p.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
     let (effective_paths, analysis_root): (Vec<std::path::PathBuf>, std::path::PathBuf) =
         if let Some(ref root) = cli_var.root {
             // --root was provided: use it as the analysis path AND containment boundary
             (vec![root.clone()], root.clone())
-        } else if !cli_var.paths.is_empty() {
-            // Positional paths provided: use current dir as containment boundary
-            (cli_var.paths.clone(), std::path::PathBuf::from("."))
         } else {
-            // Neither provided - default to current directory for both
-            (
-                vec![std::path::PathBuf::from(".")],
-                std::path::PathBuf::from("."),
-            )
+            let mut root = std::path::PathBuf::from(".");
+            if let Some(first_abs) = all_target_paths.iter().find(|p| p.is_absolute()) {
+                // Determine common ancestor for absolute paths
+                let mut common = if first_abs.is_dir() {
+                    first_abs.clone()
+                } else {
+                    first_abs
+                        .parent()
+                        .map(std::path::Path::to_path_buf)
+                        .unwrap_or_else(|| first_abs.clone())
+                };
+
+                for path in all_target_paths.iter().filter(|p| p.is_absolute()) {
+                    while !path.starts_with(&common) {
+                        if let Some(parent) = common.parent() {
+                            common = parent.to_path_buf();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                root = common;
+            }
+
+            let paths = if cli_var.paths.is_empty() {
+                // If it's a subcommand call, we might not have global paths.
+                // But loading config from the first subcommand path is better than ".".
+                if let Some(first) = all_target_paths.first() {
+                    vec![first.clone()]
+                } else {
+                    vec![std::path::PathBuf::from(".")]
+                }
+            } else {
+                cli_var.paths.clone()
+            };
+            (paths, root)
         };
 
     // Load config from the first effective path or current directory

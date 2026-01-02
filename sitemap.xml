@@ -2,50 +2,58 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/CLI/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/contributing/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/dangerous-code/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
+    </url>
+    <url>
+         <loc>https://djinn09.github.io/CytoScnPy/history/</loc>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/integrations/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/migration/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
+    </url>
+    <url>
+         <loc>https://djinn09.github.io/CytoScnPy/roadmap/</loc>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/security/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/usage/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/2025/12/28/welcome-to-cytoscnpy/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/archive/2025/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/category/announcements/</loc>
-         <lastmod>2025-12-31</lastmod>
+         <lastmod>2026-01-02</lastmod>
     </url>
 </urlset>

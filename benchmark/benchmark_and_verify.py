@@ -125,7 +125,6 @@ def check_tool_availability(tools_config, env=None):
     for tool in tools_config:
         name = tool["name"]
         command = tool.get("command", "")
-        tool_env = tool.get("env", env)
         
         status = {"available": False, "reason": "Unknown"}
         
@@ -306,24 +305,41 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
     if name == "CytoScnPy (Rust)":
         try:
             data = json.loads(result.stdout)
-            issue_count = sum(len(data.get(k, [])) for k in ["unused_functions", "unused_imports", "unused_classes", "unused_variables"])
+            # Count all categories of dead code
+            categories = ["unused_functions", "unused_methods", "unused_imports", "unused_classes", "unused_variables", "unused_parameters"]
+            issue_count = sum(len(data.get(k, [])) for k in categories)
         except:
             pass
     elif name == "CytoScnPy (Python)":
         try:
             data = json.loads(result.stdout)
-            issue_count = sum(len(data.get(k, [])) for k in ["unused_functions", "unused_imports", "unused_classes", "unused_variables"])
+            # Count all categories of dead code
+            categories = ["unused_functions", "unused_methods", "unused_imports", "unused_classes", "unused_variables", "unused_parameters"]
+            issue_count = sum(len(data.get(k, [])) for k in categories)
         except:
             pass
     elif name == "Ruff":
-        # Ruff output lines usually indicate issues? Or use --json?
-        # Let's assume standard output lines = issues
-        issue_count = len(output.strip().splitlines())
+        # Attempt to parse as JSON if output format was set to JSON
+        try:
+            data = json.loads(result.stdout)
+            if isinstance(data, list):
+                issue_count = len(data)
+            elif isinstance(data, dict) and "issues" in data:
+                issue_count = len(data["issues"])
+        except:
+            # Fallback to standard output lines if JSON parsing fails
+            issue_count = len(output.strip().splitlines())
     elif name == "Flake8":
         issue_count = len(output.strip().splitlines())
     elif name == "Pylint":
-        # Pylint output is verbose. Hard to count without parsing.
-        issue_count = len([l for l in output.splitlines() if ": " in l]) # Heuristic
+        # Attempt to parse as JSON if output format was set to JSON
+        try:
+            data = json.loads(result.stdout)
+            if isinstance(data, list):
+                issue_count = len(data)
+        except:
+            # Fallback to heuristic if JSON parsing fails
+            issue_count = len([l for l in output.splitlines() if ": " in l]) # Heuristic
     elif "Vulture" in name:
         issue_count = len(output.strip().splitlines())
     elif name == "uncalled":
@@ -847,7 +863,7 @@ def main():
             try:
                 # print(f"[+] Copying extension from {ext_src} to {ext_dest}")
                 shutil.copy2(ext_src, ext_dest)
-            except Exception as e:
+            except Exception:
                 # print(f"[-] Failed to copy extension: {e}")
                 pass
 

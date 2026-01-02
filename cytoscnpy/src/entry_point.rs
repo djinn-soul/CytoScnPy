@@ -353,6 +353,17 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
     let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
     exclude_folders.extend(cli_var.exclude_folders.clone());
 
+    // Print deprecation warning if old keys are used in config
+    if config.cytoscnpy.uses_deprecated_keys() && !cli_var.output.json {
+        use colored::Colorize;
+        eprintln!(
+            "{}",
+            "WARNING: 'complexity' and 'nesting' are deprecated in configuration. Please use 'max_complexity' and 'max_nesting' instead."
+                .yellow()
+                .bold()
+        );
+    }
+
     if cli_var.output.verbose && !cli_var.output.json {
         eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
         eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
@@ -509,17 +520,26 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     Err(code) => return Ok(code),
                 };
                 let exclude = merge_excludes(exclude, &exclude_folders);
-                let quality_count = crate::commands::run_stats(
+                let include_tests = cli_var.include.include_tests
+                    || config.cytoscnpy.include_tests.unwrap_or(false);
+                let mut include_folders =
+                    config.cytoscnpy.include_folders.clone().unwrap_or_default();
+                include_folders.extend(cli_var.include_folders.clone());
+
+                let quality_count = crate::commands::run_stats_v2(
                     &analysis_root,
                     &effective_paths,
                     all,
-                    secrets,
-                    danger,
-                    quality,
+                    secrets || config.cytoscnpy.secrets.unwrap_or(false),
+                    danger || config.cytoscnpy.danger.unwrap_or(false),
+                    quality || config.cytoscnpy.quality.unwrap_or(false),
                     json,
                     output,
                     &exclude,
+                    include_tests,
+                    &include_folders,
                     cli_var.output.verbose,
+                    config.clone(),
                     writer,
                 )?;
 
@@ -582,7 +602,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             || cli_var.min_mi.is_some()
             || cli_var.max_complexity.is_some()
             || config.cytoscnpy.min_mi.is_some()
-            || config.cytoscnpy.complexity.is_some()
+            || config.cytoscnpy.max_complexity.is_some()
             || html_enabled;
 
         let include_tests =
@@ -955,7 +975,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
 
         // Complexity gate check
-        let max_complexity = cli_var.max_complexity.or(config.cytoscnpy.complexity);
+        let max_complexity = cli_var.max_complexity.or(config.cytoscnpy.max_complexity);
         if let Some(threshold) = max_complexity {
             // Find the highest complexity violation
             let complexity_violations: Vec<usize> = result

@@ -12,6 +12,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   benchmark:
     name: Performance & Regression Test
@@ -48,15 +52,55 @@ jobs:
         run: python benchmark/benchmark_and_verify.py --check
 
       - name: Run Benchmark & Compare
+        id: benchmark
         run: |
+          set -o pipefail
           # If linux baseline exists, run with comparison
           if [ -f "benchmark/baseline_linux.json" ]; then
             echo "Baseline found. Running regression test..."
-            python benchmark/benchmark_and_verify.py --compare-json benchmark/baseline_linux.json
+            # Capture exit code - regression returns 0 with "Regression detected" in output
+            python benchmark/benchmark_and_verify.py --compare-json benchmark/baseline_linux.json | tee benchmark-results.txt
+            echo "has_baseline=true" >> $GITHUB_OUTPUT
           else
             echo "No Linux baseline found. Generating initial baseline..."
-            python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_linux.json
+            python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_linux.json | tee benchmark-results.txt
+            echo "has_baseline=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Check for performance regression
+        if: steps.benchmark.outputs.has_baseline == 'true'
+        run: |
+          # Extract performance metrics and fail if regression > 10%
+          if grep -q "Regression detected" benchmark-results.txt; then
+            echo "❌ Performance regression detected!" >> $GITHUB_STEP_SUMMARY
+            grep "Regression" benchmark-results.txt >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ No significant performance regression" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Post benchmark comment on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '## Benchmark Results\n\n';
+            try {
+              const results = fs.readFileSync('benchmark-results.txt', 'utf8');
+              body += '```\n' + results + '\n```';
+            } catch (error) {
+              body += 'Failed to read benchmark results.';
+            }
+            if (context.issue.number) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
 
       - name: Save Current Run Results
         if: always()
@@ -70,3 +114,22 @@ jobs:
           path: |
             benchmark/baseline_linux.json
             benchmark/current_run_linux.json
+          retention-days: 30
+
+      - name: Post Step Summary
+        if: always()
+        run: |
+          echo "## Benchmark Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Run Date | $(date -u +%Y-%m-%d) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Has Baseline | ${{ steps.benchmark.outputs.has_baseline }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f benchmark-results.txt ]; then
+            echo "### Detailed Results" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -50 benchmark-results.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi

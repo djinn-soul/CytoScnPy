@@ -33,8 +33,18 @@ pub struct CytoScnPyConfig {
     /// Maximum allowed arguments for a function.
     pub max_args: Option<usize>,
     /// Maximum allowed cyclomatic complexity.
+    #[serde(alias = "complexity")]
+    pub max_complexity: Option<usize>,
+    /// Deprecated: use `max_complexity` instead.
+    #[deprecated(since = "1.2.0", note = "use `max_complexity` instead")]
+    #[serde(skip_deserializing)]
     pub complexity: Option<usize>,
     /// Maximum allowed indentation depth.
+    #[serde(alias = "nesting")]
+    pub max_nesting: Option<usize>,
+    /// Deprecated: use `max_nesting` instead.
+    #[deprecated(since = "1.2.0", note = "use `max_nesting` instead")]
+    #[serde(skip_deserializing)]
     pub nesting: Option<usize>,
     /// Minimum allowed Maintainability Index.
     pub min_mi: Option<f64>,
@@ -42,9 +52,25 @@ pub struct CytoScnPyConfig {
     pub ignore: Option<Vec<String>>,
     /// Fail threshold percentage (0.0-100.0).
     pub fail_threshold: Option<f64>,
+    /// Track if deprecated keys were used in the configuration.
+    #[serde(skip)]
+    _uses_deprecated_keys: bool,
     /// Advanced secrets scanning configuration.
     #[serde(default)]
     pub secrets_config: SecretsConfig,
+}
+
+impl CytoScnPyConfig {
+    /// Returns whether deprecated keys were used in the configuration.
+    #[must_use]
+    pub fn uses_deprecated_keys(&self) -> bool {
+        self._uses_deprecated_keys
+    }
+
+    /// Sets whether deprecated keys were used (internal use).
+    pub(crate) fn set_uses_deprecated_keys(&mut self, value: bool) {
+        self._uses_deprecated_keys = value;
+    }
 }
 
 /// Configuration for advanced secrets scanning (Secret Scanning).
@@ -168,7 +194,17 @@ impl Config {
             let cytoscnpy_toml = current.join(".cytoscnpy.toml");
             if cytoscnpy_toml.exists() {
                 if let Ok(content) = fs::read_to_string(&cytoscnpy_toml) {
-                    if let Ok(config) = toml::from_str::<Config>(&content) {
+                    if let Ok(mut config) = toml::from_str::<Config>(&content) {
+                        // Check for deprecated keys using Value for robustness
+                        if let Ok(value) = toml::from_str::<toml::Value>(&content) {
+                            if let Some(cytoscnpy) = value.get("cytoscnpy") {
+                                if cytoscnpy.get("complexity").is_some()
+                                    || cytoscnpy.get("nesting").is_some()
+                                {
+                                    config.cytoscnpy.set_uses_deprecated_keys(true);
+                                }
+                            }
+                        }
                         return config;
                     }
                 }
@@ -179,9 +215,22 @@ impl Config {
             if pyproject_toml.exists() {
                 if let Ok(content) = fs::read_to_string(&pyproject_toml) {
                     if let Ok(pyproject) = toml::from_str::<PyProject>(&content) {
-                        return Config {
+                        let mut config = Config {
                             cytoscnpy: pyproject.tool.cytoscnpy,
                         };
+                        // Check for deprecated keys in the tool section using Value
+                        if let Ok(value) = toml::from_str::<toml::Value>(&content) {
+                            if let Some(tool) = value.get("tool") {
+                                if let Some(cytoscnpy) = tool.get("cytoscnpy") {
+                                    if cytoscnpy.get("complexity").is_some()
+                                        || cytoscnpy.get("nesting").is_some()
+                                    {
+                                        config.cytoscnpy.set_uses_deprecated_keys(true);
+                                    }
+                                }
+                            }
+                        }
+                        return config;
                     }
                 }
             }
@@ -192,5 +241,51 @@ impl Config {
         }
 
         Config::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deprecation_detection_toml() {
+        let content = r"
+[cytoscnpy]
+complexity = 10
+";
+        let mut config = toml::from_str::<Config>(content).unwrap();
+        if let Ok(value) = toml::from_str::<toml::Value>(content) {
+            if let Some(cytoscnpy) = value.get("cytoscnpy") {
+                if cytoscnpy.get("complexity").is_some() || cytoscnpy.get("nesting").is_some() {
+                    config.cytoscnpy.set_uses_deprecated_keys(true);
+                }
+            }
+        }
+        assert!(config.cytoscnpy.uses_deprecated_keys());
+        assert_eq!(config.cytoscnpy.max_complexity, Some(10));
+    }
+
+    #[test]
+    fn test_deprecation_detection_pyproject() {
+        let content = r#"
+[tool.cytoscnpy]
+nesting = 5
+"#;
+        let pyproject = toml::from_str::<PyProject>(content).unwrap();
+        let mut config = Config {
+            cytoscnpy: pyproject.tool.cytoscnpy,
+        };
+        if let Ok(value) = toml::from_str::<toml::Value>(content) {
+            if let Some(tool) = value.get("tool") {
+                if let Some(cytoscnpy) = tool.get("cytoscnpy") {
+                    if cytoscnpy.get("complexity").is_some() || cytoscnpy.get("nesting").is_some() {
+                        config.cytoscnpy.set_uses_deprecated_keys(true);
+                    }
+                }
+            }
+        }
+        assert!(config.cytoscnpy.uses_deprecated_keys());
+        assert_eq!(config.cytoscnpy.max_nesting, Some(5));
     }
 }

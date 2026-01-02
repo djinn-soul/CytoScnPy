@@ -1,6 +1,10 @@
 # CytoScnPy - High-Performance Python Static Analysis
 
 [![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml)
+[![Coverage](https://github.com/djinn09/CytoScnPy/actions/workflows/coverage.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/coverage.yml)
+[![codecov](https://codecov.io/gh/djinn09/CytoScnPy/branch/main/graph/badge.svg)](https://codecov.io/gh/djinn09/CytoScnPy)
+[![Security Audit](https://github.com/djinn09/CytoScnPy/actions/workflows/security.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/security.yml)
+[![Docs](https://github.com/djinn09/CytoScnPy/actions/workflows/docs.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/docs.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/badge/version-1.2.2-green.svg)](https://github.com/djinn09/CytoScnPy)
 
@@ -69,6 +73,8 @@ For Claude Desktop, Cursor, or GitHub Copilot configuration, see the **[MCP Serv
 - **Cross-File Detection**: Tracks symbol usage across the entire codebase, including nested packages and complex import chains, to ensure code used in other modules is never incorrectly flagged.
 
 ## Usage
+
+> [!IMPORTANT] > **Behavioral Change**: Starting from version 1.2.2, tests are **excluded by default** across both the CLI and the library API to reduce noise in production analysis. Use the `--include-tests` flag or set `include_tests = true` in your configuration to scan test files.
 
 ### Command Line
 
@@ -202,8 +208,8 @@ fail_threshold = 10.0  # Fail if >10% of code is unused
 # Code Quality Thresholds
 max_lines = 100       # Max lines per function
 max_args = 5          # Max arguments per function
-complexity = 10       # Max cyclomatic complexity
-nesting = 4           # Max indentation depth
+max_complexity = 10   # Max cyclomatic complexity
+max_nesting = 4       # Max indentation depth
 min_mi = 65.0         # Minimum Maintainability Index
 ignore = ["R001"]     # Ignore specific rule IDs
 

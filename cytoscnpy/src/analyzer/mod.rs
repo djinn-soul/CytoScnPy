@@ -64,7 +64,7 @@ impl Default for CytoScnPy {
             enable_secrets: false,
             enable_danger: false,
             enable_quality: false,
-            include_tests: true,
+            include_tests: false,
             exclude_folders: Vec::new(),
             include_folders: Vec::new(),
             include_ipynb: false,

@@ -7,7 +7,7 @@ use std::path::Path;
 #[test]
 fn test_additional_empty_notebook() {
     let notebook_path = Path::new("tests/data/notebooks/empty_notebook.ipynb");
-    let code = cytoscnpy::ipynb::extract_notebook_code(notebook_path).unwrap();
+    let code = cytoscnpy::ipynb::extract_notebook_code(notebook_path, None).unwrap();
     assert_eq!(code, "", "Empty notebook should produce empty code");
 }
 
@@ -27,7 +27,7 @@ fn test_additional_complex_unused() {
 #[test]
 fn test_additional_notebook_with_imports() {
     let notebook_path = Path::new("tests/data/notebooks/complex_unused.ipynb");
-    let code = cytoscnpy::ipynb::extract_notebook_code(notebook_path).unwrap();
+    let code = cytoscnpy::ipynb::extract_notebook_code(notebook_path, None).unwrap();
 
     // Should contain import statements
     assert!(code.contains("import os"));

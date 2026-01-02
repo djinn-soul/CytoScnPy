@@ -69,7 +69,8 @@ nav:
   - Reference:
       - CLI Reference: CLI.md
       - Migration Guide: migration.md
-  - Changelog: HISTORY.md
+  - Changelog: history.md
+  - Roadmap: roadmap.md
   - Security:
       - Overview: security.md
       - Dangerous Code Rules: dangerous-code.md

@@ -1,6 +1,6 @@
 //! Cyclomatic Complexity analysis command.
 
-use super::utils::{find_python_files, write_output};
+use super::utils::{filter_by_rank, find_python_files, merge_excludes, write_output, HasRank};
 use crate::complexity::analyze_complexity;
 
 use anyhow::Result;
@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 
 /// Options for Cyclomatic Complexity analysis
 #[derive(Debug, Default)]
@@ -57,18 +57,23 @@ struct CcResult {
     line: usize,
 }
 
+impl HasRank for CcResult {
+    fn rank(&self) -> char {
+        self.rank
+    }
+}
+
 /// Executes the cyclomatic complexity analysis.
 ///
 /// # Errors
 ///
 /// Returns an error if file I/O fails or JSON/XML serialization fails.
 #[allow(clippy::cast_precision_loss)]
-pub fn run_cc<W: Write>(path: &Path, options: CcOptions, mut writer: W) -> Result<()> {
-    let mut all_exclude = options.exclude;
-    all_exclude.extend(options.ignore);
-    let files = find_python_files(path, &all_exclude, options.verbose);
+pub fn run_cc<W: Write>(roots: &[PathBuf], options: CcOptions, mut writer: W) -> Result<()> {
+    let all_exclude = merge_excludes(options.exclude, options.ignore);
+    let files = find_python_files(roots, &all_exclude, options.verbose);
 
-    let mut results: Vec<CcResult> = files
+    let results: Vec<CcResult> = files
         .par_iter()
         .flat_map(|file_path| {
             let code = fs::read_to_string(file_path).unwrap_or_default();
@@ -107,13 +112,8 @@ pub fn run_cc<W: Write>(path: &Path, options: CcOptions, mut writer: W) -> Resul
         }
     }
 
-    // Filter by rank
-    if let Some(min) = options.min_rank {
-        results.retain(|r| r.rank >= min);
-    }
-    if let Some(max) = options.max_rank {
-        results.retain(|r| r.rank <= max);
-    }
+    // Filter by rank using shared utility
+    let mut results = filter_by_rank(results, options.min_rank, options.max_rank);
 
     // Order results
     if let Some(ord) = options.order {

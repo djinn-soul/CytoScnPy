@@ -7,7 +7,7 @@ use cytoscnpy::report::generator::generate_report;
 use cytoscnpy::rules::Finding;
 use cytoscnpy::visitor::Definition;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -26,6 +26,7 @@ fn project_tempdir() -> TempDir {
 fn test_generate_report_full() {
     let dir = project_tempdir();
     let output_dir = dir.path();
+    let analysis_root = Path::new(".");
 
     let result = AnalysisResult {
         unused_functions: vec![Definition {
@@ -99,7 +100,7 @@ fn test_generate_report_full() {
     let test_py = PathBuf::from("test.py");
     std::fs::write(&test_py, "def unused_func():\n    pass\n").unwrap();
 
-    let res = generate_report(&result, output_dir);
+    let res = generate_report(&result, analysis_root, output_dir);
 
     // Cleanup the mock file immediately to avoid polluting the repo
     let _ = std::fs::remove_file(&test_py);
@@ -120,14 +121,9 @@ fn test_generate_report_full() {
 
 #[test]
 fn test_calculate_score_logic() {
-    // This test targets the private calculate_score indirectly via generate_report
-    // or we could just trust that generate_report calls it.
-    // Actually, report::generator::calculate_score is private, but we can test it
-    // by checking the content of index.html if we really wanted to.
-
-    // For now, let's just ensure it doesn't crash with various findings.
     let dir = project_tempdir();
     let output_dir = dir.path();
+    let analysis_root = Path::new(".");
 
     let mut result = AnalysisResult {
         unused_functions: vec![],
@@ -164,9 +160,9 @@ fn test_calculate_score_logic() {
     };
 
     // 1. Perfect score
-    generate_report(&result, output_dir).unwrap();
+    generate_report(&result, analysis_root, output_dir).unwrap();
     let html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
-    assert!(html.contains("Grade: A") || html.contains("Grade: B") || html.contains(">A<")); // Depends on template
+    assert!(html.contains("Grade: A") || html.contains("Grade: B") || html.contains(">A<"));
 
     // 2. High penalty (Unused code)
     for i in 0..50 {
@@ -193,7 +189,6 @@ fn test_calculate_score_logic() {
             fix: None,
         });
     }
-    generate_report(&result, output_dir).unwrap();
+    generate_report(&result, analysis_root, output_dir).unwrap();
     let _html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
-    // Score should be lower now
 }

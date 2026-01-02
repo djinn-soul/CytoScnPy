@@ -1,6 +1,6 @@
 //! Raw metrics analysis command (LOC, SLOC, etc.).
 
-use super::utils::{find_python_files, write_output};
+use super::utils::{find_python_files, merge_excludes, write_output};
 use crate::raw_metrics::analyze_raw;
 
 use anyhow::Result;
@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Serialize)]
 struct RawResult {
@@ -28,7 +28,7 @@ struct RawResult {
 ///
 /// Returns an error if file I/O fails or JSON serialization fails.
 pub fn run_raw<W: Write>(
-    path: &Path,
+    roots: &[PathBuf],
     json: bool,
     exclude: Vec<String>,
     ignore: Vec<String>,
@@ -37,9 +37,8 @@ pub fn run_raw<W: Write>(
     verbose: bool,
     mut writer: W,
 ) -> Result<()> {
-    let mut all_exclude = exclude;
-    all_exclude.extend(ignore);
-    let files = find_python_files(path, &all_exclude, verbose);
+    let all_exclude = merge_excludes(exclude, ignore);
+    let files = find_python_files(roots, &all_exclude, verbose);
 
     let results: Vec<RawResult> = files
         .par_iter()

@@ -23,8 +23,8 @@ use std::path::Path;
 ///
 /// Returns an error if directory creation, file I/O, or template rendering fails.
 #[allow(clippy::too_many_lines)]
-pub fn generate_report(result: &AnalysisResult, output_dir: &Path) -> Result<()> {
-    let output_dir = crate::utils::validate_output_path(output_dir)?;
+pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) -> Result<()> {
+    let output_dir = crate::utils::validate_output_path(output_dir, Some(root))?;
 
     if !output_dir.exists() {
         fs::create_dir_all(&output_dir)?;

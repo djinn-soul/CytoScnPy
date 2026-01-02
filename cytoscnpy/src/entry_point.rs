@@ -160,6 +160,70 @@ fn get_call_name(expr: &Expr) -> Option<String> {
     }
 }
 
+// ============================================================================
+// Subcommand Helper Functions
+// ============================================================================
+
+/// Resolves subcommand paths, defaulting to `.` if empty, and checks existence.
+/// Returns `Ok(Vec<PathBuf>)` if all paths exist, `Err(1)` if any doesn't.
+fn resolve_subcommand_paths(
+    paths: Vec<std::path::PathBuf>,
+    root: Option<std::path::PathBuf>,
+) -> Result<Vec<std::path::PathBuf>, i32> {
+    // If --root is provided, it's the only path we care about
+    let final_paths = if let Some(r) = root {
+        vec![r]
+    } else if paths.is_empty() {
+        vec![std::path::PathBuf::from(".")]
+    } else {
+        paths
+    };
+
+    for path in &final_paths {
+        if !path.exists() {
+            eprintln!(
+                "Error: The file or directory '{}' does not exist.",
+                path.display()
+            );
+            return Err(1);
+        }
+    }
+    Ok(final_paths)
+}
+
+/// Validates and prepares an output file path for a subcommand.
+/// Returns the validated path string, or propagates errors.
+fn prepare_output_path(
+    output_file: Option<String>,
+    analysis_root: &std::path::Path,
+) -> Result<Option<String>> {
+    match output_file {
+        Some(out) => Ok(Some(
+            crate::utils::validate_output_path(std::path::Path::new(&out), Some(analysis_root))?
+                .to_string_lossy()
+                .to_string(),
+        )),
+        None => Ok(None),
+    }
+}
+
+/// Merges subcommand-specific excludes with global excludes from config.
+fn merge_excludes(subcommand_excludes: Vec<String>, global_excludes: &[String]) -> Vec<String> {
+    let mut merged = subcommand_excludes;
+    merged.extend(global_excludes.iter().cloned());
+    merged
+}
+
+/// Validates that --root and positional paths are not used together.
+/// Returns Ok(()) if valid, Err(1) if both are provided.
+fn validate_path_args(args: &crate::cli::PathArgs) -> Result<(), i32> {
+    if args.root.is_some() && !args.paths.is_empty() {
+        eprintln!("Error: Cannot use both --root and positional path arguments");
+        return Err(1);
+    }
+    Ok(())
+}
+
 /// Runs the analyzer (or other commands) with the given arguments.
 ///
 /// # Errors
@@ -199,9 +263,89 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
     };
 
-    // Load config from the first path or current directory
-    let config_path = cli_var
-        .paths
+    // Explicit runtime validation for mutual exclusivity of --root and positional paths
+    if let Err(code) = validate_path_args(&cli_var.paths) {
+        return Ok(code);
+    }
+
+    // Logic to determine analysis_root if not explicitly provided via --root
+    // We look at both global paths and subcommand paths to see if any are absolute.
+    let mut all_target_paths = cli_var.paths.paths.clone();
+    if let Some(ref command) = cli_var.command {
+        match command {
+            Commands::Raw { common, .. }
+            | Commands::Cc { common, .. }
+            | Commands::Hal { common, .. }
+            | Commands::Mi { common, .. } => {
+                if let Some(r) = &common.paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(common.paths.paths.iter().cloned());
+                }
+            }
+            Commands::Files { args, .. } => {
+                if let Some(r) = &args.paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(args.paths.paths.iter().cloned());
+                }
+            }
+            Commands::Stats { paths, .. } => {
+                if let Some(r) = &paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(paths.paths.iter().cloned());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let (effective_paths, analysis_root): (Vec<std::path::PathBuf>, std::path::PathBuf) =
+        if let Some(ref root) = cli_var.paths.root {
+            // --root was provided: use it as the analysis path AND containment boundary
+            (vec![root.clone()], root.clone())
+        } else {
+            let mut root = std::path::PathBuf::from(".");
+            if let Some(first_abs) = all_target_paths.iter().find(|p| p.is_absolute()) {
+                // Determine common ancestor for absolute paths
+                let mut common = if first_abs.is_dir() {
+                    first_abs.clone()
+                } else {
+                    first_abs
+                        .parent()
+                        .map(std::path::Path::to_path_buf)
+                        .unwrap_or_else(|| first_abs.clone())
+                };
+
+                for path in all_target_paths.iter().filter(|p| p.is_absolute()) {
+                    while !path.starts_with(&common) {
+                        if let Some(parent) = common.parent() {
+                            common = parent.to_path_buf();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                root = common;
+            }
+
+            let paths = if cli_var.paths.paths.is_empty() {
+                // If it's a subcommand call, we might not have global paths.
+                // But loading config from the first subcommand path is better than ".".
+                if let Some(first) = all_target_paths.first() {
+                    vec![first.clone()]
+                } else {
+                    vec![std::path::PathBuf::from(".")]
+                }
+            } else {
+                cli_var.paths.paths.clone()
+            };
+            (paths, root)
+        };
+
+    // Load config from the first effective path or current directory
+    let config_path = effective_paths
         .first()
         .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
     let config = crate::config::Config::load_from_path(config_path);
@@ -221,28 +365,21 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
     if let Some(command) = cli_var.command {
         match command {
-            Commands::Raw {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                summary,
-                output_file,
-            } => {
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
+            Commands::Raw { common, summary } => {
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
                 }
-                // Merge global excludes
-                exclude.extend(exclude_folders);
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_raw(
-                    &path,
-                    json,
+                    &paths,
+                    common.json,
                     exclude,
-                    ignore,
+                    common.ignore,
                     summary,
                     output_file,
                     cli_var.output.verbose,
@@ -250,12 +387,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 )?;
             }
             Commands::Cc {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                min_rank,
-                max_rank,
+                common,
+                rank,
                 average,
                 total_average,
                 show_complexity,
@@ -263,25 +396,24 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 no_assert,
                 xml,
                 fail_threshold,
-                output_file,
             } => {
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
                 }
-                // Merge global excludes
-                exclude.extend(exclude_folders.clone());
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_cc(
-                    &path,
+                    &paths,
                     crate::commands::CcOptions {
-                        json,
+                        json: common.json,
                         exclude,
-                        ignore,
-                        min_rank,
-                        max_rank,
+                        ignore: common.ignore,
+                        min_rank: rank.min_rank,
+                        max_rank: rank.max_rank,
                         average,
                         total_average,
                         show_complexity,
@@ -295,28 +427,21 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     writer,
                 )?;
             }
-            Commands::Hal {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                functions,
-                output_file,
-            } => {
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
+            Commands::Hal { common, functions } => {
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
                 }
-                // Merge global excludes
-                exclude.extend(exclude_folders.clone());
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_hal(
-                    &path,
-                    json,
+                    &paths,
+                    common.json,
                     exclude,
-                    ignore,
+                    common.ignore,
                     functions,
                     output_file,
                     cli_var.output.verbose,
@@ -324,35 +449,30 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 )?;
             }
             Commands::Mi {
-                path,
-                json,
-                mut exclude,
-                ignore,
-                min_rank,
-                max_rank,
+                common,
+                rank,
                 multi,
                 show,
                 average,
                 fail_threshold,
-                output_file,
             } => {
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
+                if let Err(code) = validate_path_args(&common.paths) {
+                    return Ok(code);
                 }
-                // Merge global excludes
-                exclude.extend(exclude_folders);
+                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(common.exclude, &exclude_folders);
+                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
                 crate::commands::run_mi(
-                    &path,
+                    &paths,
                     crate::commands::MiOptions {
-                        json,
+                        json: common.json,
                         exclude,
-                        ignore,
-                        min_rank,
-                        max_rank,
+                        ignore: common.ignore,
+                        min_rank: rank.min_rank,
+                        max_rank: rank.max_rank,
                         multi,
                         show,
                         average,
@@ -371,26 +491,27 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 return Ok(1);
             }
             Commands::Stats {
-                path,
+                paths,
                 all,
                 secrets,
                 danger,
                 quality,
                 json,
                 output,
-                mut exclude,
+                exclude,
             } => {
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
+                if let Err(code) = validate_path_args(&paths) {
+                    return Ok(code);
                 }
-                // Merge global excludes
-                exclude.extend(exclude_folders.clone());
+                // Use --root if provided, otherwise use positional paths
+                let effective_paths = match resolve_subcommand_paths(paths.paths, paths.root) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(exclude, &exclude_folders);
                 let quality_count = crate::commands::run_stats(
-                    &path,
+                    &analysis_root,
+                    &effective_paths,
                     all,
                     secrets,
                     danger,
@@ -410,26 +531,27 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     return Ok(1);
                 }
             }
-            Commands::Files {
-                path,
-                json,
-                mut exclude,
-            } => {
-                if !path.exists() {
-                    eprintln!(
-                        "Error: The file or directory '{}' does not exist.",
-                        path.display()
-                    );
-                    return Ok(1);
+            Commands::Files { args } => {
+                if let Err(code) = validate_path_args(&args.paths) {
+                    return Ok(code);
                 }
-                // Merge global excludes
-                exclude.extend(exclude_folders);
-                crate::commands::run_files(&path, json, &exclude, cli_var.output.verbose, writer)?;
+                let paths = match resolve_subcommand_paths(args.paths.paths, args.paths.root) {
+                    Ok(p) => p,
+                    Err(code) => return Ok(code),
+                };
+                let exclude = merge_excludes(args.exclude, &exclude_folders);
+                crate::commands::run_files(
+                    &paths,
+                    args.json,
+                    &exclude,
+                    cli_var.output.verbose,
+                    writer,
+                )?;
             }
         }
         Ok(0)
     } else {
-        for path in &cli_var.paths {
+        for path in &effective_paths {
             if !path.exists() {
                 eprintln!(
                     "Error: The file or directory '{}' does not exist.",
@@ -486,7 +608,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             eprintln!("   Danger scanning: {danger}");
             eprintln!("   Quality scanning: {quality}");
             eprintln!("   Include tests: {include_tests}");
-            eprintln!("   Paths: {:?}", cli_var.paths);
+            eprintln!("   Paths: {effective_paths:?}");
             if !exclude_folders.is_empty() {
                 eprintln!("   Exclude folders: {exclude_folders:?}");
             }
@@ -506,7 +628,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             danger, // taint is now automatically enabled with --danger
             config.clone(),
         )
-        .with_verbose(cli_var.output.verbose);
+        .with_verbose(cli_var.output.verbose)
+        .with_root(analysis_root.clone());
 
         // Set debug delay if provided
         if let Some(delay_ms) = cli_var.debug_delay {
@@ -514,7 +637,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         }
 
         // Count files first to create progress bar with accurate total
-        let total_files = analyzer.count_files(&cli_var.paths);
+        let total_files = analyzer.count_files(&effective_paths);
 
         // Create progress bar with file count for visual feedback
         let progress: Option<indicatif::ProgressBar> = if cli_var.output.json {
@@ -532,7 +655,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
         let start_time = std::time::Instant::now();
 
-        let mut result = analyzer.analyze_paths(&cli_var.paths);
+        let mut result = analyzer.analyze_paths(&effective_paths);
 
         // If --no-dead flag is set, clear dead code detection results
         // (only show security/quality scans)
@@ -624,7 +747,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             if cli_var.clones {
                 // Run clone detection
                 let clone_findings = run_clone_detection_for_json(
-                    &cli_var.paths,
+                    &effective_paths,
                     cli_var.clone_similarity,
                     cli_var.output.verbose,
                 );
@@ -695,11 +818,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
                 let (count, findings) = if cli_var.clones {
                     // Explicit run: print to stdout
-                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut *writer)?
+                    crate::commands::run_clones(&effective_paths, &clone_options, &mut *writer)?
                 } else {
                     // Implicit run for HTML: suppress output
                     let mut sink = std::io::sink();
-                    crate::commands::run_clones(&cli_var.paths, &clone_options, &mut sink)?
+                    crate::commands::run_clones(&effective_paths, &clone_options, &mut sink)?
                 };
 
                 clone_pairs_found = count;
@@ -744,7 +867,9 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         if cli_var.output.html {
             writeln!(writer, "Generating HTML report...")?;
             let report_dir = std::path::Path::new(".cytoscnpy/report");
-            if let Err(e) = crate::report::generator::generate_report(&result, report_dir) {
+            if let Err(e) =
+                crate::report::generator::generate_report(&result, &analysis_root, report_dir)
+            {
                 eprintln!("Failed to generate HTML report: {e}");
             } else {
                 writeln!(writer, "HTML report generated at: {}", report_dir.display())?;
@@ -781,6 +906,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 fix_imports: true,
                 verbose: cli_var.output.verbose,
                 with_cst: true, // CST is always enabled by default
+                analysis_root: analysis_root.clone(),
             };
             crate::commands::run_fix_deadcode(&result, &fix_options, &mut *writer)?;
         }

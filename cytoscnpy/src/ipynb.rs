@@ -8,8 +8,8 @@ use std::path::Path;
 /// # Errors
 ///
 /// Returns an error if the file cannot be read or if parsing the notebook JSON fails.
-pub fn extract_notebook_code(path: &Path) -> Result<String> {
-    let path = crate::utils::validate_output_path(path)?;
+pub fn extract_notebook_code(path: &Path, root: Option<&Path>) -> Result<String> {
+    let path = crate::utils::validate_output_path(path, root)?;
     let notebook_json = fs::read_to_string(path)?;
     let notebook = parse_notebook(&notebook_json)?;
 
@@ -40,8 +40,8 @@ pub fn extract_notebook_code(path: &Path) -> Result<String> {
 /// # Errors
 ///
 /// Returns an error if the file cannot be read or if parsing the notebook JSON fails.
-pub fn extract_notebook_cells(path: &Path) -> Result<Vec<(usize, String)>> {
-    let path = crate::utils::validate_output_path(path)?;
+pub fn extract_notebook_cells(path: &Path, root: Option<&Path>) -> Result<Vec<(usize, String)>> {
+    let path = crate::utils::validate_output_path(path, root)?;
     let notebook_json = fs::read_to_string(path)?;
     let notebook = parse_notebook(&notebook_json)?;
 

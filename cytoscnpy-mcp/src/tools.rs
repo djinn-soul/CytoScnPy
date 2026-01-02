@@ -236,7 +236,7 @@ impl CytoScnPyServer {
 
         let mut output = Vec::new();
         match run_cc(
-            &path_buf,
+            &[path_buf],
             cytoscnpy::commands::CcOptions {
                 json: true,
                 output_file: None,
@@ -277,7 +277,7 @@ impl CytoScnPyServer {
 
         let mut output = Vec::new();
         match run_mi(
-            &path_buf,
+            &[path_buf],
             cytoscnpy::commands::MiOptions {
                 json: true,
                 show: true,

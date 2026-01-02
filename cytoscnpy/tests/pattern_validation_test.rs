@@ -89,5 +89,3 @@ fn test_is_framework_path_extensive() {
     assert!(!is_framework_path("preview_image.py"));
     assert!(!is_framework_path("routes_config.json"));
 }
-
-

@@ -3,7 +3,7 @@
 > **Architecture:** Hybrid PyO3 + Standalone CLI
 > **Status:** Production-ready core, active development
 
-For completed features and implementation history, see [HISTORY.md](HISTORY.md).
+For completed features and implementation history, see [Changelog](history.md).
 
 ---
 
@@ -288,6 +288,8 @@ def func():
 ### <a id="phase-8"></a>Phase 8: Advanced Framework Support ✅ DONE
 
 Django, FastAPI, Pydantic is done ✅.
+
+## Future Roadmap
 
 ### <a id="phase-9"></a>Phase 9: Developer Experience
 

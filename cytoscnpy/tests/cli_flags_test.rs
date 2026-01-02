@@ -31,7 +31,7 @@ fn test_cc_min_max() {
     let mut buffer = Vec::new();
     // Min rank B should exclude foo
     run_cc(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         cytoscnpy::commands::CcOptions {
             json: false,
             exclude: vec![],
@@ -51,7 +51,7 @@ fn test_cc_min_max() {
     let mut buffer = Vec::new();
     // Max rank A should exclude bar
     run_cc(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         cytoscnpy::commands::CcOptions {
             json: false,
             exclude: vec![],
@@ -78,7 +78,7 @@ fn test_cc_average() {
 
     let mut buffer = Vec::new();
     run_cc(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         cytoscnpy::commands::CcOptions {
             json: false,
             exclude: vec![],
@@ -104,7 +104,7 @@ fn test_mi_show() {
 
     let mut buffer = Vec::new();
     run_mi(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         cytoscnpy::commands::MiOptions {
             json: false,
             exclude: vec![],
@@ -131,7 +131,7 @@ fn test_hal_functions() {
     let mut buffer = Vec::new();
     // With functions=true
     run_hal(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         vec![],
         vec![],
@@ -157,7 +157,7 @@ fn test_raw_summary() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         vec![],
         vec![],

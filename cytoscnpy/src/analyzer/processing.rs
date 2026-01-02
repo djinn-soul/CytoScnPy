@@ -105,7 +105,7 @@ impl CytoScnPy {
         self.total_files_analyzed = total_files;
 
         // Determine root path for relative path calculation
-        let root_path = root_hint.unwrap_or_else(|| Path::new("."));
+        let root_path = root_hint.unwrap_or(&self.analysis_root);
 
         // Process files in chunks to prevent OOM on large projects.
         // Each chunk is processed in parallel, then results are merged.
@@ -174,7 +174,7 @@ impl CytoScnPy {
 
         // Get source code (from .py file or extracted from .ipynb)
         let source = if is_notebook {
-            match crate::ipynb::extract_notebook_code(file_path) {
+            match crate::ipynb::extract_notebook_code(file_path, Some(&self.analysis_root)) {
                 Ok(code) => code,
                 Err(e) => {
                     return (
@@ -646,7 +646,8 @@ impl CytoScnPy {
                 .filter_map(|file_path| {
                     let is_notebook = file_path.extension().is_some_and(|e| e == "ipynb");
                     let source = if is_notebook {
-                        crate::ipynb::extract_notebook_code(file_path).ok()
+                        crate::ipynb::extract_notebook_code(file_path, Some(&self.analysis_root))
+                            .ok()
                     } else {
                         fs::read_to_string(file_path).ok()
                     };

@@ -97,5 +97,3 @@ class A(object):
         assert_eq!(func.complexity, expected_cc, "Failed for code:\n{code}");
     }
 }
-
-

@@ -28,6 +28,8 @@ pub struct DeadCodeFixOptions {
     pub verbose: bool,
     /// Use CST for precise fixing
     pub with_cst: bool,
+    /// Analysis root for path containment
+    pub analysis_root: PathBuf,
 }
 
 /// Result of dead code fix operation
@@ -240,7 +242,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
 
-    let file_path = crate::utils::validate_output_path(file_path)?;
+    let file_path = crate::utils::validate_output_path(file_path, Some(&options.analysis_root))?;
 
     let content = match fs::read_to_string(&file_path) {
         Ok(c) => c,

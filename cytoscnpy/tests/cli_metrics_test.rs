@@ -32,7 +32,7 @@ fn test_cli_raw() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         vec![],
         Vec::new(),
@@ -59,7 +59,7 @@ fn test_cli_cc() {
 
     let mut buffer = Vec::new();
     run_cc(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         cytoscnpy::commands::CcOptions {
             json: false,
             exclude: vec![],
@@ -88,7 +88,7 @@ fn test_cli_hal() {
 
     let mut buffer = Vec::new();
     run_hal(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         vec![],
         Vec::new(),
@@ -115,7 +115,7 @@ fn test_cli_mi() {
 
     let mut buffer = Vec::new();
     run_mi(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         cytoscnpy::commands::MiOptions {
             json: false,
             exclude: vec![],
@@ -143,7 +143,7 @@ fn test_cli_json_output() {
 
     let mut buffer = Vec::new();
     run_raw(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         true,
         vec![],
         Vec::new(),
@@ -176,7 +176,8 @@ fn test_cli_stats_markdown_output() {
     let output_path = dir.path().join("report.md");
     let mut buffer = Vec::new();
     run_stats(
-        dir.path(),
+        dir.path(),                  // root
+        &[dir.path().to_path_buf()], // roots
         false,
         false,
         false,
@@ -207,6 +208,7 @@ fn test_cli_stats_json_output() {
     let mut buffer = Vec::new();
     run_stats(
         dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         false,
         false,
@@ -240,6 +242,7 @@ fn test_cli_stats_all_flag() {
     let mut buffer = Vec::new();
     run_stats(
         dir.path(),
+        &[dir.path().to_path_buf()],
         true,
         false,
         false,
@@ -272,6 +275,7 @@ fn test_cli_stats_multiple_files() {
     let mut buffer = Vec::new();
     run_stats(
         dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         false,
         false,
@@ -304,6 +308,7 @@ fn test_cli_stats_with_classes() {
     let mut buffer = Vec::new();
     run_stats(
         dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         false,
         false,
@@ -332,7 +337,7 @@ fn test_cli_files_table_output() {
     writeln!(file, "x = 1\n# comment\n\ny = 2").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), false, &[], false, &mut buffer).unwrap();
+    run_files(&[dir.path().to_path_buf()], false, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains("test.py"));
@@ -351,7 +356,7 @@ fn test_cli_files_json_output() {
     writeln!(file, "# Application\ndef run():\n    print('hello')").unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), true, &[], false, &mut buffer).unwrap();
+    run_files(&[dir.path().to_path_buf()], true, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -384,7 +389,7 @@ fn test_cli_files_multiple_files() {
     .unwrap();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), true, &[], false, &mut buffer).unwrap();
+    run_files(&[dir.path().to_path_buf()], true, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -408,7 +413,7 @@ fn test_cli_files_exclude_folder() {
 
     let mut buffer = Vec::new();
     run_files(
-        dir.path(),
+        &[dir.path().to_path_buf()],
         true,
         &["node_modules".to_string()],
         false,
@@ -434,7 +439,7 @@ fn test_cli_files_empty_directory() {
     let dir = project_tempdir();
 
     let mut buffer = Vec::new();
-    run_files(dir.path(), true, &[], false, &mut buffer).unwrap();
+    run_files(&[dir.path().to_path_buf()], true, &[], false, &mut buffer).unwrap();
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -448,6 +453,7 @@ fn test_cli_stats_empty_directory() {
     let mut buffer = Vec::new();
     run_stats(
         dir.path(),
+        &[dir.path().to_path_buf()],
         false,
         false,
         false,

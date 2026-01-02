@@ -68,7 +68,7 @@ def complex_part(x):
     // Run without multi flag
     let mut buffer_no_multi = Vec::new();
     run_mi(
-        &file_path,
+        std::slice::from_ref(&file_path),
         cytoscnpy::commands::MiOptions {
             json: true,
             exclude: vec![],
@@ -93,7 +93,7 @@ def complex_part(x):
     // Run with multi flag
     let mut buffer_multi = Vec::new();
     run_mi(
-        &file_path,
+        std::slice::from_ref(&file_path),
         cytoscnpy::commands::MiOptions {
             json: true,
             exclude: vec![],

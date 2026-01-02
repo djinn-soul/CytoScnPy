@@ -168,7 +168,7 @@ The VS Code extension automatically registers the MCP server. Just install the e
 
 ## Future: HTTP Transport
 
-HTTP/SSE transport is planned for remote LLM integrations. See [ROADMAP.md](../ROADMAP.md) for details.
+HTTP/SSE transport is planned for remote LLM integrations. See [roadmap.md](../docs/roadmap.md) for details.
 
 ## License
 

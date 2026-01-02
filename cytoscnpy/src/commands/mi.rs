@@ -1,6 +1,6 @@
 //! Maintainability Index (MI) analysis command.
 
-use super::utils::{find_python_files, write_output};
+use super::utils::{filter_by_rank, find_python_files, merge_excludes, write_output, HasRank};
 use crate::halstead::analyze_halstead;
 use crate::metrics::{mi_compute, mi_rank};
 use crate::raw_metrics::analyze_raw;
@@ -12,7 +12,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 
 /// Options for Maintainability Index analysis
 #[derive(Debug, Default)]
@@ -49,18 +49,23 @@ struct MiResult {
     rank: char,
 }
 
+impl HasRank for MiResult {
+    fn rank(&self) -> char {
+        self.rank
+    }
+}
+
 /// Executes the Maintainability Index (MI) analysis.
 ///
 /// # Errors
 ///
 /// Returns an error if file I/O fails or JSON serialization fails.
 #[allow(clippy::cast_precision_loss)]
-pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Result<()> {
-    let mut all_exclude = options.exclude;
-    all_exclude.extend(options.ignore);
-    let files = find_python_files(path, &all_exclude, options.verbose);
+pub fn run_mi<W: Write>(roots: &[PathBuf], options: MiOptions, mut writer: W) -> Result<()> {
+    let all_exclude = merge_excludes(options.exclude, options.ignore);
+    let files = find_python_files(roots, &all_exclude, options.verbose);
 
-    let mut results: Vec<MiResult> = files
+    let results: Vec<MiResult> = files
         .par_iter()
         .map(|file_path| {
             let code = fs::read_to_string(file_path).unwrap_or_default();
@@ -121,13 +126,8 @@ pub fn run_mi<W: Write>(path: &Path, options: MiOptions, mut writer: W) -> Resul
         }
     }
 
-    // Filter by rank
-    if let Some(min) = options.min_rank {
-        results.retain(|r| r.rank >= min);
-    }
-    if let Some(max) = options.max_rank {
-        results.retain(|r| r.rank <= max);
-    }
+    // Filter by rank using shared utility
+    let results = filter_by_rank(results, options.min_rank, options.max_rank);
 
     if options.json {
         write_output(

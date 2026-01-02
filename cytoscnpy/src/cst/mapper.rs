@@ -137,8 +137,11 @@ impl AstCstMapper {
             return depth;
         }
 
-        let increment = usize::from(current.kind == "function_definition"
-            || current.kind == "class_definition" || current.kind == "decorated_definition");
+        let increment = usize::from(
+            current.kind == "function_definition"
+                || current.kind == "class_definition"
+                || current.kind == "decorated_definition",
+        );
 
         for child in &current.children {
             if child.start_byte <= target.start_byte && child.end_byte >= target.end_byte {

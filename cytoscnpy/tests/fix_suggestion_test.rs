@@ -1,7 +1,6 @@
 //! Tests for `FixSuggestion` struct and related functionality.
 //! TDD: These tests are written BEFORE the implementation.
 
-
 /// Test that `FixSuggestion` struct serializes correctly to JSON.
 #[test]
 fn test_fix_suggestion_serialization() {

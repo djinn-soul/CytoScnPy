@@ -45,5 +45,3 @@ class MyClass:
     println!("References: {refs:?}");
     assert!(refs.contains(&"test_module.MyClass.my_method".to_owned()));
 }
-
-

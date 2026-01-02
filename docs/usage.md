@@ -160,6 +160,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 
 | Flag               | Description                                        |
 | ------------------ | -------------------------------------------------- |
+| `--root <PATH>`    | Project root for analysis (CI/CD mode).            |
 | `--confidence <N>` | Minimum confidence threshold (0-100). Default: 60. |
 | `--secrets` (`-s`) | Scan for API keys, tokens, credentials.            |
 | `--danger` (`-d`)  | Scan for dangerous code + taint analysis.          |

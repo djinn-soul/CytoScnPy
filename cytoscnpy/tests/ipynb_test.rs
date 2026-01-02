@@ -52,7 +52,7 @@ fn test_extract_notebook_code_single_cell() {
     let notebook_json = create_v4_notebook(&[("code", "print('hello')")]);
     fs::write(&notebook_path, notebook_json).unwrap();
 
-    let result = extract_notebook_code(&notebook_path);
+    let result = extract_notebook_code(&notebook_path, None);
     assert!(result.is_ok());
     let code = result.unwrap();
     assert!(code.contains("print('hello')"));
@@ -70,7 +70,7 @@ fn test_extract_notebook_code_multiple_cells() {
     ]);
     fs::write(&notebook_path, notebook_json).unwrap();
 
-    let result = extract_notebook_code(&notebook_path);
+    let result = extract_notebook_code(&notebook_path, None);
     assert!(result.is_ok());
     let code = result.unwrap();
     assert!(code.contains("x = 1"));
@@ -91,7 +91,7 @@ fn test_extract_notebook_code_mixed_cells() {
     ]);
     fs::write(&notebook_path, notebook_json).unwrap();
 
-    let result = extract_notebook_code(&notebook_path);
+    let result = extract_notebook_code(&notebook_path, None);
     assert!(result.is_ok());
     let code = result.unwrap();
     // Should only contain code cells
@@ -108,7 +108,7 @@ fn test_extract_notebook_code_empty_notebook() {
     let notebook_json = create_v4_notebook(&[]);
     fs::write(&notebook_path, notebook_json).unwrap();
 
-    let result = extract_notebook_code(&notebook_path);
+    let result = extract_notebook_code(&notebook_path, None);
     assert!(result.is_ok());
     let code = result.unwrap();
     assert!(code.is_empty());
@@ -116,7 +116,7 @@ fn test_extract_notebook_code_empty_notebook() {
 
 #[test]
 fn test_extract_notebook_code_nonexistent_file() {
-    let result = extract_notebook_code(std::path::Path::new("/nonexistent/path.ipynb"));
+    let result = extract_notebook_code(std::path::Path::new("/nonexistent/path.ipynb"), None);
     assert!(result.is_err());
 }
 
@@ -126,7 +126,7 @@ fn test_extract_notebook_code_invalid_json() {
     let notebook_path = dir.path().join("invalid.ipynb");
     fs::write(&notebook_path, "not valid json").unwrap();
 
-    let result = extract_notebook_code(&notebook_path);
+    let result = extract_notebook_code(&notebook_path, None);
     assert!(result.is_err());
 }
 
@@ -138,7 +138,7 @@ fn test_extract_notebook_cells_single_cell() {
     let notebook_json = create_v4_notebook(&[("code", "x = 1")]);
     fs::write(&notebook_path, notebook_json).unwrap();
 
-    let result = extract_notebook_cells(&notebook_path);
+    let result = extract_notebook_cells(&notebook_path, None);
     assert!(result.is_ok());
     let cells = result.unwrap();
     assert_eq!(cells.len(), 1);
@@ -155,7 +155,7 @@ fn test_extract_notebook_cells_multiple_cells() {
         create_v4_notebook(&[("code", "a = 1"), ("markdown", "text"), ("code", "b = 2")]);
     fs::write(&notebook_path, notebook_json).unwrap();
 
-    let result = extract_notebook_cells(&notebook_path);
+    let result = extract_notebook_cells(&notebook_path, None);
     assert!(result.is_ok());
     let cells = result.unwrap();
     // Should only return code cells with their original indices
@@ -166,7 +166,7 @@ fn test_extract_notebook_cells_multiple_cells() {
 
 #[test]
 fn test_extract_notebook_cells_nonexistent_file() {
-    let result = extract_notebook_cells(std::path::Path::new("/nonexistent/path.ipynb"));
+    let result = extract_notebook_cells(std::path::Path::new("/nonexistent/path.ipynb"), None);
     assert!(result.is_err());
 }
 
@@ -176,6 +176,6 @@ fn test_extract_notebook_cells_invalid_json() {
     let notebook_path = dir.path().join("invalid.ipynb");
     fs::write(&notebook_path, "{invalid").unwrap();
 
-    let result = extract_notebook_cells(&notebook_path);
+    let result = extract_notebook_cells(&notebook_path, None);
     assert!(result.is_err());
 }

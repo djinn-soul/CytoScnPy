@@ -101,10 +101,8 @@ pub fn run_clones<W: Write>(
     mut writer: W,
 ) -> Result<(usize, Vec<CloneFinding>)> {
     // Collect file paths (not content) for OOM-safe processing
-    let file_paths: Vec<PathBuf> = paths
-        .iter()
-        .flat_map(|p| super::utils::find_python_files(p, &options.exclude, options.verbose))
-        .collect();
+    let file_paths: Vec<PathBuf> =
+        super::utils::find_python_files(paths, &options.exclude, options.verbose);
 
     if file_paths.is_empty() {
         writeln!(writer, "No Python files found.")?;

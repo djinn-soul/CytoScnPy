@@ -348,7 +348,7 @@ For more details, see the PyO3 documentation at [pyo3.rs](https://pyo3.rs).
 
 ## Priority Areas for Contribution
 
-See [`ROADMAP.md`](ROADMAP.md) for the detailed roadmap.
+See [`docs/roadmap.md`](docs/roadmap.md) for the detailed roadmap.
 
 **High Priority:**
 

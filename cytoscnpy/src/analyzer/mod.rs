@@ -53,6 +53,8 @@ pub struct CytoScnPy {
     pub progress_bar: Option<std::sync::Arc<indicatif::ProgressBar>>,
     /// Whether to enable verbose logging.
     pub verbose: bool,
+    /// Analysis root for path containment and relative resolution.
+    pub analysis_root: std::path::PathBuf,
 }
 
 impl Default for CytoScnPy {
@@ -74,6 +76,7 @@ impl Default for CytoScnPy {
             debug_delay_ms: None,
             progress_bar: None,
             verbose: false,
+            analysis_root: std::path::PathBuf::from("."),
         }
     }
 }
@@ -112,7 +115,15 @@ impl CytoScnPy {
             debug_delay_ms: None,
             progress_bar: None,
             verbose: false,
+            analysis_root: std::path::PathBuf::from("."),
         }
+    }
+
+    /// Builder-style method to set the analysis root.
+    #[must_use]
+    pub fn with_root(mut self, root: std::path::PathBuf) -> Self {
+        self.analysis_root = root;
+        self
     }
 
     /// Builder-style method to set verbose mode.

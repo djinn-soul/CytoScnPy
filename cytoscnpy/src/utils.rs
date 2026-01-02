@@ -164,31 +164,39 @@ pub fn validate_path_within_root(
 
 /// Validates that an output path doesn't escape via traversal.
 ///
-/// This ensures that the path acts within the Current Working Directory (CWD).
+/// This ensures that the path stays within the allowed root directory.
+/// When `root` is `Some`, uses that as the containment boundary.
+/// When `root` is `None`, falls back to the current working directory (CWD).
+///
 /// It resolves the longest existing ancestor to handle symlinks and checks
 /// that the remaining path components do not contain `..` (`ParentDir`).
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The current directory cannot be determined or resolved.
-/// - The path traverses outside the current working directory.
+/// - The root directory cannot be determined or resolved.
+/// - The path traverses outside the allowed root.
 /// - The path contains `..` components in the non-existent portion.
-pub fn validate_output_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
+pub fn validate_output_path(
+    path: &std::path::Path,
+    root: Option<&std::path::Path>,
+) -> anyhow::Result<std::path::PathBuf> {
     let current_dir = std::env::current_dir()?;
-    let canonical_root = current_dir.canonicalize().map_err(|e| {
+    let root_dir = root.unwrap_or(&current_dir);
+    let canonical_root = root_dir.canonicalize().map_err(|e| {
         anyhow::anyhow!(
-            "Failed to canonicalize current directory {}: {}",
-            current_dir.display(),
+            "Failed to canonicalize root directory {}: {}",
+            root_dir.display(),
             e
         )
     })?;
 
-    // 1. Resolve to an absolute path first.
+    // 1. Resolve to an absolute path.
+    // Use the provided root (canonicalized) to resolve relative paths.
     let absolute_path = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        current_dir.join(path)
+        canonical_root.join(path)
     };
 
     // 2. Find the longest existing ancestor.
@@ -212,10 +220,19 @@ pub fn validate_output_path(path: &std::path::Path) -> anyhow::Result<std::path:
 
     // 4. Verification: check if the resolved ancestor is within the allowed root.
     if !canonical_ancestor.starts_with(&canonical_root) {
+        // Clean up Windows extended path prefix for display
+        let clean_path = canonical_ancestor
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned();
+        let clean_root = canonical_root
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned();
+
         anyhow::bail!(
-            "Error: Path '{}' is outside the project root '{}'.",
-            canonical_ancestor.display(),
-            canonical_root.display()
+            "Output path '{clean_path}' is outside the current working directory '{clean_root}'.\n\
+             Hint: Use a relative path like './report.json' or run the command from the target directory."
         );
     }
 
@@ -404,27 +421,28 @@ mod tests {
         let secret = temp_dir.path().join("secret.txt");
         fs::write(&secret, "super secret")?;
 
+        let canonical_root = root.canonicalize()?;
         run_in_dir(&root, || {
             // 1. Normal file in root
             let p1 = Path::new("report.json");
-            let res1 = validate_output_path(p1);
+            let res1 = validate_output_path(p1, None);
             assert!(res1.is_ok(), "Simple relative path should be ok");
             let path1 = res1.unwrap();
-            assert!(path1.starts_with(&root));
+            assert!(path1.starts_with(&canonical_root));
 
             // 2. File in subdir (subdir doesn't exist yet)
             let p2 = Path::new("sub/data/stats.txt");
-            let res2 = validate_output_path(p2);
+            let res2 = validate_output_path(p2, None);
             assert!(res2.is_ok(), "Path in non-existent subdir should be ok");
 
             // 3. Traversal to outside
             let p3 = Path::new("../secret.txt");
-            let res3 = validate_output_path(p3);
+            let res3 = validate_output_path(p3, None);
             assert!(res3.is_err(), "Traversal ../ should be blocked");
 
             // 4. Absolute path to outside
             let p4 = secret.as_path();
-            let res4 = validate_output_path(p4);
+            let res4 = validate_output_path(p4, None);
             assert!(
                 res4.is_err(),
                 "Absolute path outside root should be blocked"
@@ -433,7 +451,7 @@ mod tests {
             // 5. Logical traversal in non-existent part
             // root/sub/../../secret.txt (where 'sub' doesn't exist)
             let p5 = Path::new("sub/../../secret.txt");
-            let res5 = validate_output_path(p5);
+            let res5 = validate_output_path(p5, None);
             assert!(res5.is_err(), "Logical ... traversal should be blocked");
 
             Ok(())

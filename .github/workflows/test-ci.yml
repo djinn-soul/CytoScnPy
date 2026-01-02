@@ -137,6 +137,9 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
+
       - name: Install Tools
         run: pip install maturin trove-classifiers twine
 
@@ -160,6 +163,9 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
 
       - name: Install documentation dependencies
         run: pip install .[docs]

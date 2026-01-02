@@ -26,6 +26,9 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
+
       - name: Install dependencies
         run: |
           pip install --upgrade pip

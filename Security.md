@@ -7,5 +7,3 @@ CytoScnPy is a security tool, and we take the security of our users seriously.
 If you have found a security vulnerability in CytoScnPy, please **do not** create a public issue. Instead, please report it via one of the following methods:
 
 - **GitHub Security Advisory**: Use the "Report a vulnerability" button in the [Security tab](https://github.com/djinn09/CytoScnPy/security/advisories/new).
-- **Email**: Contact the maintainers (if email is provided in profile).
-- Raise an issue on GitHub.

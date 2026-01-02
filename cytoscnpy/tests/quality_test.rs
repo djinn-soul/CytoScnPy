@@ -551,7 +551,7 @@ fn test_function_too_long_with_docstring() {
     let source = r#"
 def with_docstring():
     """This is a docstring.
-    
+
     It spans multiple lines.
     """
     pass

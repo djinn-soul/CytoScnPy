@@ -74,7 +74,7 @@ For Claude Desktop, Cursor, or GitHub Copilot configuration, see the **[MCP Serv
 
 ## Usage
 
-> [!IMPORTANT] > **Behavioral Change**: Starting from version 1.2.2, tests are **excluded by default** across both the CLI and the library API to reduce noise in production analysis. Use the `--include-tests` flag or set `include_tests = true` in your configuration to scan test files.
+> [!IMPORTANT] **Behavioral Change**: Starting from version 1.2.2, tests are **excluded by default** across both the CLI and the library API to reduce noise in production analysis. Use the `--include-tests` flag or set `include_tests = true` in your configuration to scan test files.
 
 ### Command Line
 

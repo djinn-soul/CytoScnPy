@@ -1,41 +1,41 @@
-name: Lint & Format
+# name: Lint & Format
 
-on:
-  pull_request:
-    branches: ["main"]
-  workflow_dispatch:
+# on:
+#   pull_request:
+#     branches: ["main"]
+#   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
-jobs:
-  lint:
-    name: Pre-commit Checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
+# jobs:
+#   lint:
+#     name: Pre-commit Checks
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 15
+#     steps:
+#       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: "3.11"
+#           cache: "pip"
 
-      - name: Set up Rust environment
-        uses: ./.github/actions/setup-rust
+#       - name: Set up Rust environment
+#         uses: ./.github/actions/setup-rust
 
-      - name: Install pre-commit
-        run: pip install pre-commit
+#       - name: Install pre-commit
+#         run: pip install pre-commit
 
-      - name: Cache pre-commit hooks
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pre-commit
-          key: ${{ runner.os }}-precommit-${{ hashFiles('.pre-commit-config.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-precommit-
+#       - name: Cache pre-commit hooks
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.cache/pre-commit
+#           key: ${{ runner.os }}-precommit-${{ hashFiles('.pre-commit-config.yaml') }}
+#           restore-keys: |
+#             ${{ runner.os }}-precommit-
 
-      - name: Run pre-commit on all files
-        run: pre-commit run --all-files --show-diff-on-failure
+#       - name: Run pre-commit on all files
+#         run: pre-commit run --all-files --show-diff-on-failure

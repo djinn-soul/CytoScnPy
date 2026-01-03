@@ -30,7 +30,5 @@ jobs:
           comment-summary-in-pr: always
           # Deny copyleft licenses
           deny-licenses: GPL-2.0, GPL-3.0, LGPL-2.0, LGPL-3.0, AGPL-3.0
-          # Allow common permissive licenses
-          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0, Unlicense, CC0-1.0
           # Warn on low OpenSSF scorecard
           warn-on-openssf-scorecard-level: 3

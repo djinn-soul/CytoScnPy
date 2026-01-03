@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+          cache-dependency-path: |
+            benchmark/requirements.txt
+            pyproject.toml
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust

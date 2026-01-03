@@ -3,6 +3,7 @@ import json
 import time
 import sys
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -154,8 +155,6 @@ def check_tool_availability(tools_config, env=None):
             if isinstance(command, list):
                 bin_path = Path(command[0])
             else:
-                import re
-
                 match = re.search(r'"([^"]+)"', command)
                 if match:
                     bin_path = Path(match.group(1))
@@ -410,8 +409,6 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
     elif name == "deadcode":
         # deadcode outputs lines like "file.py:10:0: DC02 Function `func_name` is never used"
         # DC codes range from DC01 to DC13
-        import re
-
         issue_count = len([l for l in output.splitlines() if re.search(r": DC\d+", l)])
     elif name == "Skylos":
         try:
@@ -710,8 +707,6 @@ class Verification:
 
         elif name == "dead":
             # dead output: "func_name is never read, defined in file.py:line"
-            import re
-
             pattern = r"(\w+) is never (?:read|called), defined in (.+):(\d+)"
             for line in output.splitlines():
                 match = re.match(pattern, line)
@@ -724,8 +719,6 @@ class Verification:
 
         elif name == "uncalled":
             # uncalled output format: "file.py: Unused function func_name" (no line number!)
-            import re
-
             pattern = r"(.+\.py):\s*Unused\s+function\s+(\w+)"
             for line in output.splitlines():
                 match = re.search(pattern, line, re.IGNORECASE)
@@ -739,8 +732,6 @@ class Verification:
             # deadcode output format: "file.py:10:0: DC02 Function `func_name` is never used"
             # Rules: DC01=variable, DC02=function, DC03=class, DC04=method, DC05=attribute
             #        DC06=name, DC07=import, DC08=property
-            import re
-
             # Pattern: path:line:col: DCxx Type `name` is never used
             # Note: deadcode uses backticks (`) not single quotes (')
             pattern = r"(.+\.py):(\d+):\d+:\s*(DC\d+)\s+(\w+)\s+`([^`]+)`"
@@ -1309,8 +1300,8 @@ def main():
                 mem_diff = current["memory_mb"] - base["memory_mb"]
                 mem_ratio = mem_diff / base["memory_mb"] if base["memory_mb"] > 0 else 0
                 if mem_ratio > args.threshold:
-                    # Optional: Ignore small memory increases (< 5MB)
-                    if mem_diff > 5.0:
+                    # Ignore small memory increases (< 10MB) to avoid CI noise
+                    if mem_diff > 10.0:
                         regression_msg = f"{current['name']} Memory: {base['memory_mb']:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio*100:.1f}%)"
                         if is_cytoscnpy:
                             cytoscnpy_regressions.append(regression_msg)

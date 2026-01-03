@@ -353,6 +353,14 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
     let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
     exclude_folders.extend(cli_var.exclude_folders.clone());
 
+    // Calculate include_tests once - reused by both subcommands and main analyzer
+    let include_tests =
+        cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
+
+    // Calculate include_folders once - reused by both subcommands and main analyzer
+    let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
+    include_folders.extend(cli_var.include_folders.clone());
+
     // Print deprecation warning if old keys are used in config
     if config.cytoscnpy.uses_deprecated_keys() && !cli_var.output.json {
         use colored::Colorize;
@@ -520,11 +528,6 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     Err(code) => return Ok(code),
                 };
                 let exclude = merge_excludes(exclude, &exclude_folders);
-                let include_tests = cli_var.include.include_tests
-                    || config.cytoscnpy.include_tests.unwrap_or(false);
-                let mut include_folders =
-                    config.cytoscnpy.include_folders.clone().unwrap_or_default();
-                include_folders.extend(cli_var.include_folders.clone());
 
                 let quality_count = crate::commands::run_stats_v2(
                     &analysis_root,
@@ -605,12 +608,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             || config.cytoscnpy.max_complexity.is_some()
             || html_enabled;
 
-        let include_tests =
-            cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
-
+        // Re-declare exclude_folders for this scope (extends global with CLI args)
         let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
         exclude_folders.extend(cli_var.exclude_folders);
 
+        // Re-declare include_folders for this scope (extends global with CLI args)
         let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
         include_folders.extend(cli_var.include_folders);
 
@@ -966,6 +968,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                         "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - FAILED"
                     );
                 }
+
                 exit_code = 1;
             } else if show_gate && !cli_var.output.json {
                 writeln!(writer,

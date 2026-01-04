@@ -63,7 +63,7 @@ impl CloneDetector {
     }
 
     /// Number of files to process per chunk to prevent OOM on large projects.
-    const CHUNK_SIZE: usize = 500;
+    const CHUNK_SIZE: usize = 1000;
 
     /// Detect clones from file paths with chunked processing (OOM-safe).
     ///

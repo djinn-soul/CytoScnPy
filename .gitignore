@@ -84,3 +84,4 @@ test_repo
 
 .clavix/
 .gemini/commands/clavix
+benchmark_corpus

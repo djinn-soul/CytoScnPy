@@ -19,4 +19,6 @@ pub use fix::{run_fix_deadcode, DeadCodeFixOptions, FixResult};
 pub use hal::run_hal;
 pub use mi::{run_mi, MiOptions};
 pub use raw::run_raw;
-pub use stats::{run_files, run_stats};
+#[allow(deprecated)]
+pub use stats::run_stats;
+pub use stats::{run_files, run_stats_v2};

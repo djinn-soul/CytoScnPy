@@ -81,3 +81,6 @@ target
 /.cytoscnpy
 .a*/
 test_repo
+
+.clavix/
+.gemini/commands/clavix

@@ -7,7 +7,7 @@
     clippy::ignore_without_reason
 )]
 
-use cytoscnpy::commands::{run_cc, run_files, run_hal, run_mi, run_raw, run_stats};
+use cytoscnpy::commands::{run_cc, run_files, run_hal, run_mi, run_raw, run_stats_v2};
 use std::fs::{self, File};
 use std::io::Write;
 use tempfile::TempDir;
@@ -175,17 +175,20 @@ fn test_cli_stats_markdown_output() {
 
     let output_path = dir.path().join("report.md");
     let mut buffer = Vec::new();
-    run_stats(
+    run_stats_v2(
         dir.path(),                  // root
         &[dir.path().to_path_buf()], // roots
-        false,
-        false,
-        false,
-        false,
-        false,
+        false,                       // all
+        false,                       // secrets
+        false,                       // danger
+        false,                       // quality
+        false,                       // json
         Some(output_path.to_string_lossy().to_string()),
         &[],
+        false, // include_tests
+        &[],   // include_folders
         false,
+        cytoscnpy::config::Config::default(),
         &mut buffer,
     )
     .unwrap();
@@ -206,7 +209,7 @@ fn test_cli_stats_json_output() {
     writeln!(file, "def foo():\n    pass\n\ndef bar():\n    pass").unwrap();
 
     let mut buffer = Vec::new();
-    run_stats(
+    run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
         false,
@@ -216,7 +219,10 @@ fn test_cli_stats_json_output() {
         true,
         None,
         &[],
+        false, // include_tests
+        &[],   // include_folders
         false,
+        cytoscnpy::config::Config::default(),
         &mut buffer,
     )
     .unwrap();
@@ -240,7 +246,7 @@ fn test_cli_stats_all_flag() {
 
     let output_path = dir.path().join("full_report.md");
     let mut buffer = Vec::new();
-    run_stats(
+    run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
         true,
@@ -250,7 +256,10 @@ fn test_cli_stats_all_flag() {
         false,
         Some(output_path.to_string_lossy().to_string()),
         &[],
+        false, // include_tests
+        &[],   // include_folders
         false,
+        cytoscnpy::config::Config::default(),
         &mut buffer,
     )
     .unwrap();
@@ -273,7 +282,7 @@ fn test_cli_stats_multiple_files() {
     }
 
     let mut buffer = Vec::new();
-    run_stats(
+    run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
         false,
@@ -283,7 +292,10 @@ fn test_cli_stats_multiple_files() {
         true,
         None,
         &[],
+        false, // include_tests
+        &[],   // include_folders
         false,
+        cytoscnpy::config::Config::default(),
         &mut buffer,
     )
     .unwrap();
@@ -306,7 +318,7 @@ fn test_cli_stats_with_classes() {
     .unwrap();
 
     let mut buffer = Vec::new();
-    run_stats(
+    run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
         false,
@@ -316,7 +328,10 @@ fn test_cli_stats_with_classes() {
         true,
         None,
         &[],
+        false, // include_tests
+        &[],   // include_folders
         false,
+        cytoscnpy::config::Config::default(),
         &mut buffer,
     )
     .unwrap();
@@ -451,7 +466,7 @@ fn test_cli_stats_empty_directory() {
     let dir = project_tempdir();
 
     let mut buffer = Vec::new();
-    run_stats(
+    run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
         false,
@@ -461,7 +476,10 @@ fn test_cli_stats_empty_directory() {
         true,
         None,
         &[],
+        false, // include_tests
+        &[],   // include_folders
         false,
+        cytoscnpy::config::Config::default(),
         &mut buffer,
     )
     .unwrap();

@@ -56,8 +56,8 @@ danger = true
 quality = true
 max_lines = 500
 max_args = 10
-complexity = 15
-nesting = 5
+max_complexity = 15
+max_nesting = 5
 ignore = ["CSP-D001", "CSP-Q002"]
 "#;
     fs::write(test_dir.join(".cytoscnpy.toml"), content).unwrap();
@@ -71,8 +71,8 @@ ignore = ["CSP-D001", "CSP-Q002"]
     assert_eq!(config.cytoscnpy.quality, Some(true));
     assert_eq!(config.cytoscnpy.max_lines, Some(500));
     assert_eq!(config.cytoscnpy.max_args, Some(10));
-    assert_eq!(config.cytoscnpy.complexity, Some(15));
-    assert_eq!(config.cytoscnpy.nesting, Some(5));
+    assert_eq!(config.cytoscnpy.max_complexity, Some(15));
+    assert_eq!(config.cytoscnpy.max_nesting, Some(5));
     assert_eq!(
         config.cytoscnpy.ignore,
         Some(vec!["CSP-D001".to_owned(), "CSP-Q002".to_owned()])

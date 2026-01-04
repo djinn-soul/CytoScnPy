@@ -81,7 +81,7 @@ fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) 
     clippy::too_many_lines,
     clippy::cast_precision_loss
 )]
-pub fn run_stats<W: Write>(
+pub fn run_stats_v2<W: Write>(
     root: &Path,
     roots: &[PathBuf],
     all: bool,
@@ -91,7 +91,10 @@ pub fn run_stats<W: Write>(
     json: bool,
     output: Option<String>,
     exclude: &[String],
+    include_tests: bool,
+    include_folders: &[String],
     verbose: bool,
+    config: Config,
     mut writer: W,
 ) -> Result<usize> {
     let output = if let Some(out) = output {
@@ -111,13 +114,23 @@ pub fn run_stats<W: Write>(
         let (f, d) = crate::utils::collect_python_files_gitignore(
             path,
             exclude,
-            &[],   // No extra includes for stats command currently
+            include_folders,
             false, // include_ipynb: stats command defaults to py files only for now
             verbose,
         );
         files.extend(f);
         num_directories += d;
     }
+
+    // Filter out test files if include_tests is false
+    let files: Vec<PathBuf> = if !include_tests {
+        files
+            .into_iter()
+            .filter(|p| !crate::utils::is_test_path(&p.to_string_lossy()))
+            .collect()
+    } else {
+        files
+    };
 
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()
@@ -160,11 +173,13 @@ pub fn run_stats<W: Write>(
 
     let analysis_result = if include_secrets || include_danger || include_quality {
         let mut analyzer = CytoScnPy::default()
+            .with_tests(include_tests)
+            .with_includes(include_folders.to_vec())
             .with_secrets(include_secrets)
             .with_danger(include_danger)
             .with_quality(include_quality)
             .with_excludes(exclude.to_vec())
-            .with_config(Config::default());
+            .with_config(config);
         Some(analyzer.analyze_paths(roots))
     } else {
         None
@@ -424,4 +439,41 @@ pub fn run_files<W: Write>(
     }
 
     Ok(())
+}
+
+/// Executes the stats command (original signature for backward compatibility).
+///
+/// # Errors
+///
+/// Returns an error if file I/O fails or JSON serialization fails.
+#[deprecated(since = "1.2.2", note = "use run_stats_v2 instead")]
+pub fn run_stats<W: Write>(
+    root: &Path,
+    roots: &[PathBuf],
+    all: bool,
+    secrets: bool,
+    danger: bool,
+    quality: bool,
+    json: bool,
+    output: Option<String>,
+    exclude: &[String],
+    verbose: bool,
+    writer: W,
+) -> Result<usize> {
+    run_stats_v2(
+        root,
+        roots,
+        all,
+        secrets,
+        danger,
+        quality,
+        json,
+        output,
+        exclude,
+        false, // include_tests defaults to false
+        &[],   // include_folders defaults to empty
+        verbose,
+        Config::default(),
+        writer,
+    )
 }

@@ -26,7 +26,7 @@ use std::path::Path;
 /// Number of files to process per chunk in parallel processing.
 /// Prevents OOM on very large projects (5000+ files) by limiting concurrent memory usage.
 /// Set to 500 to balance memory safety with minimal overhead (~1-2% slower).
-const CHUNK_SIZE: usize = 500;
+const CHUNK_SIZE: usize = 1000;
 
 impl CytoScnPy {
     /// Runs the analysis on multiple paths (files or directories).

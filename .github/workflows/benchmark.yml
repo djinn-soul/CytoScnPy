@@ -32,9 +32,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: |
-            benchmark/requirements.txt
-            pyproject.toml
+          cache-dependency-path: benchmark/requirements.txt
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust
@@ -61,25 +59,13 @@ jobs:
           # If linux baseline exists, run with comparison
           if [ -f "benchmark/baseline_linux.json" ]; then
             echo "Baseline found. Running regression test..."
-            # Capture exit code - regression returns 0 with "Regression detected" in output
+            # Script exits with code 1 if CytoScnPy regression detected
             python benchmark/benchmark_and_verify.py --compare-json benchmark/baseline_linux.json | tee benchmark-results.txt
             echo "has_baseline=true" >> $GITHUB_OUTPUT
           else
             echo "No Linux baseline found. Generating initial baseline..."
             python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_linux.json | tee benchmark-results.txt
             echo "has_baseline=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Check for performance regression
-        if: steps.benchmark.outputs.has_baseline == 'true'
-        run: |
-          # Extract performance metrics and fail if regression > 10%
-          if grep -q "Regression detected" benchmark-results.txt; then
-            echo "❌ Performance regression detected!" >> $GITHUB_STEP_SUMMARY
-            grep "Regression" benchmark-results.txt >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "✅ No significant performance regression" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Post benchmark comment on PR

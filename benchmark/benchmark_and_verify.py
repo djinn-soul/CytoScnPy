@@ -129,6 +129,40 @@ def get_tool_path(tool_name):
     return None
 
 
+# Data-driven tool check configuration
+# Maps tool names to their check command info
+TOOL_CHECKS = {
+    "Vulture (0%)": {"module": "vulture", "arg": "--version"},
+    "Vulture (60%)": {"module": "vulture", "arg": "--version"},
+    "Flake8": {"module": "flake8", "arg": "--version"},
+    "Pylint": {"module": "pylint", "arg": "--version"},
+    "Ruff": {"module": "ruff", "arg": "--version"},
+    "uncalled": {"module": "uncalled", "arg": "--help"},
+    "dead": {"module": "dead", "arg": "--help"},
+    "deadcode": {"module": "deadcode", "arg": "--help"},
+}
+
+
+def _check_python_module(module, arg):
+    """Check if a Python module is installed and callable."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", module, arg],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return {"available": True, "reason": "Installed"}
+        else:
+            return {
+                "available": False,
+                "reason": f"Not installed (pip install {module})",
+            }
+    except Exception:
+        return {"available": False, "reason": f"Not installed (pip install {module})"}
+
+
 def check_tool_availability(tools_config, env=None):
     """
     Pre-check all tools to verify they are installed and available.
@@ -148,8 +182,13 @@ def check_tool_availability(tools_config, env=None):
             results[name] = status
             continue
 
-        # Special checks for each tool type
-        if name == "CytoScnPy (Rust)":
+        # Check if this tool is in our data-driven config
+        if name in TOOL_CHECKS:
+            check_info = TOOL_CHECKS[name]
+            status = _check_python_module(check_info["module"], check_info["arg"])
+
+        # Special cases that need custom logic
+        elif name == "CytoScnPy (Rust)":
             # Check if binary exists
             bin_path = None
             if isinstance(command, list):
@@ -204,95 +243,6 @@ def check_tool_availability(tools_config, env=None):
                 except Exception:
                     status["reason"] = "Not installed (pip install skylos)"
 
-        elif "Vulture" in name:
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "vulture", "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if result.returncode == 0:
-                    status = {"available": True, "reason": "Installed"}
-                else:
-                    status["reason"] = "Not installed (pip install vulture)"
-            except Exception:
-                status["reason"] = "Not installed (pip install vulture)"
-
-        elif name == "Flake8":
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "flake8", "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if result.returncode == 0:
-                    status = {"available": True, "reason": "Installed"}
-                else:
-                    status["reason"] = "Not installed (pip install flake8)"
-            except Exception:
-                status["reason"] = "Not installed (pip install flake8)"
-
-        elif name == "Pylint":
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "pylint", "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if result.returncode == 0:
-                    status = {"available": True, "reason": "Installed"}
-                else:
-                    status["reason"] = "Not installed (pip install pylint)"
-            except Exception:
-                status["reason"] = "Not installed (pip install pylint)"
-
-        elif name == "Ruff":
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "ruff", "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if result.returncode == 0:
-                    status = {"available": True, "reason": "Installed"}
-                else:
-                    status["reason"] = "Not installed (pip install ruff)"
-            except Exception:
-                status["reason"] = "Not installed (pip install ruff)"
-
-        elif name == "uncalled":
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "uncalled", "--help"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if result.returncode == 0:
-                    status = {"available": True, "reason": "Installed"}
-                else:
-                    status["reason"] = "Not installed (pip install uncalled)"
-            except Exception:
-                status["reason"] = "Not installed (pip install uncalled)"
-
-        elif name == "dead":
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "dead", "--help"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if result.returncode == 0:
-                    status = {"available": True, "reason": "Installed"}
-                else:
-                    status["reason"] = "Not installed (pip install dead)"
-            except Exception:
-                status["reason"] = "Not installed (pip install dead)"
         else:
             # Generic check - assume available if command is set
             status = {"available": True, "reason": "Command configured"}
@@ -352,7 +302,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                 "unused_parameters",
             ]
             issue_count = sum(len(data.get(k, [])) for k in categories)
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             pass
     elif name == "CytoScnPy (Python)":
         try:
@@ -367,7 +317,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                 "unused_parameters",
             ]
             issue_count = sum(len(data.get(k, [])) for k in categories)
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             pass
     elif name == "Ruff":
         # Attempt to parse as JSON if output format was set to JSON
@@ -377,7 +327,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                 issue_count = len(data)
             elif isinstance(data, dict) and "issues" in data:
                 issue_count = len(data["issues"])
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             # Fallback to standard output lines if JSON parsing fails
             issue_count = len(output.strip().splitlines())
     elif name == "Flake8":
@@ -388,28 +338,32 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
             data = json.loads(result.stdout)
             if isinstance(data, list):
                 issue_count = len(data)
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             # Fallback to heuristic if JSON parsing fails
             issue_count = len(
-                [l for l in output.splitlines() if ": " in l]
+                [line for line in output.splitlines() if ": " in line]
             )  # Heuristic
     elif "Vulture" in name:
         issue_count = len(output.strip().splitlines())
     elif name == "uncalled":
-        issue_count = len([l for l in output.splitlines() if "unused" in l.lower()])
+        issue_count = len(
+            [line for line in output.splitlines() if "unused" in line.lower()]
+        )
     elif name == "dead":
         # dead outputs lines like "func is never read, defined in file.py:line"
         issue_count = len(
             [
-                l
-                for l in output.splitlines()
-                if "is never" in l.lower() or "never read" in l.lower()
+                line
+                for line in output.splitlines()
+                if "is never" in line.lower() or "never read" in line.lower()
             ]
         )
     elif name == "deadcode":
         # deadcode outputs lines like "file.py:10:0: DC02 Function `func_name` is never used"
         # DC codes range from DC01 to DC13
-        issue_count = len([l for l in output.splitlines() if re.search(r": DC\d+", l)])
+        issue_count = len(
+            [line for line in output.splitlines() if re.search(r": DC\d+", line)]
+        )
     elif name == "Skylos":
         try:
             data = json.loads(result.stdout)
@@ -422,7 +376,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                     "unused_variables",
                 ]
             )
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             pass
 
     return {
@@ -1290,7 +1244,7 @@ def main():
                 if time_ratio > args.threshold:
                     # Ignore small time increases (< 1.0s) to avoid noise
                     if time_diff > 1.0:
-                        regression_msg = f"{current['name']} Time: {base['time']:.3f}s -> {current['time']:.3f}s (+{time_ratio*100:.1f}%)"
+                        regression_msg = f"{current['name']} Time: {base['time']:.3f}s -> {current['time']:.3f}s (+{time_ratio * 100:.1f}%)"
                         if is_cytoscnpy:
                             cytoscnpy_regressions.append(regression_msg)
                         else:
@@ -1302,7 +1256,7 @@ def main():
                 if mem_ratio > args.threshold:
                     # Ignore small memory increases (< 10MB) to avoid CI noise
                     if mem_diff > 10.0:
-                        regression_msg = f"{current['name']} Memory: {base['memory_mb']:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio*100:.1f}%)"
+                        regression_msg = f"{current['name']} Memory: {base['memory_mb']:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio * 100:.1f}%)"
                         if is_cytoscnpy:
                             cytoscnpy_regressions.append(regression_msg)
                         else:

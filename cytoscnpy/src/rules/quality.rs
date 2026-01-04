@@ -17,9 +17,9 @@ pub fn get_quality_rules(config: &Config) -> Vec<Box<dyn Rule>> {
             config.cytoscnpy.max_lines.unwrap_or(50),
         )),
         Box::new(ComplexityRule::new(
-            config.cytoscnpy.complexity.unwrap_or(10),
+            config.cytoscnpy.max_complexity.unwrap_or(10),
         )),
-        Box::new(NestingRule::new(config.cytoscnpy.nesting.unwrap_or(3))),
+        Box::new(NestingRule::new(config.cytoscnpy.max_nesting.unwrap_or(3))),
     ]
 }
 

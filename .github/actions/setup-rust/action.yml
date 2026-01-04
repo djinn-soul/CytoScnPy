@@ -44,3 +44,6 @@ runs:
         shared-key: ${{ inputs.cache-key }}
         workspaces: ${{ inputs.workspaces }}
         cache-on-failure: true
+        save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        cache-all-crates: true
+        prefix-key: ${{ runner.os }}-rust

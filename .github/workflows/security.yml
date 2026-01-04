@@ -33,6 +33,14 @@ jobs:
       - name: Run security audit
         run: cargo audit
 
+      - name: Post Security Summary
+        if: always()
+        run: |
+          echo "## Security Audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tool**: cargo-audit" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
   # License compliance check
   deny:
     name: License & Dependency Check
@@ -46,6 +54,14 @@ jobs:
 
       - name: Check licenses and dependencies
         run: cargo deny check
+
+      - name: Post License Summary
+        if: always()
+        run: |
+          echo "## License & Dependency Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tool**: cargo-deny" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
 
   # Unused dependencies detection
   machete:
@@ -63,3 +79,11 @@ jobs:
 
       - name: Check for unused dependencies
         run: cargo machete
+
+      - name: Post Machete Summary
+        if: always()
+        run: |
+          echo "## Unused Dependencies Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tool**: cargo-machete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY

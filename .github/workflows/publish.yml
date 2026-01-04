@@ -121,11 +121,19 @@ jobs:
             mv target/${{ matrix.target }}/release/cytoscnpy-cli ${{ matrix.name }}
           fi
 
+      - name: Smoke test binary
+        shell: bash
+        run: |
+          chmod +x ${{ matrix.name }}
+          ./${{ matrix.name }} --version
+          ./${{ matrix.name }} --help
+
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.target }}
           path: ${{ matrix.name }}
+          retention-days: 90
 
   # =============================================================================
   # Publish to TestPyPI (for -test tags)
@@ -157,11 +165,44 @@ jobs:
           skip-existing: true
 
   # =============================================================================
+  # Validate SBOM (runs before publishing to block on failure)
+  # =============================================================================
+  validate-sbom:
+    name: Validate SBOM Generation
+    needs: [build-wheels, build-cli]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            Cargo.toml
+            Cargo.lock
+            cytoscnpy/Cargo.toml
+            cytoscnpy-cli/Cargo.toml
+            cytoscnpy-mcp/Cargo.toml
+            pyproject.toml
+
+      - name: Generate Rust SBOM
+        uses: anchore/sbom-action@v0.17.9
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom-rust.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom-rust.spdx.json
+          retention-days: 90
+
+  # =============================================================================
   # Publish to PyPI (for clean version tags)
   # =============================================================================
   publish-pypi:
     name: Publish to PyPI
-    needs: build-wheels
+    needs: [build-wheels, validate-sbom]
     runs-on: ubuntu-latest
     # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
     if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
@@ -190,7 +231,13 @@ jobs:
   github-release-prod:
     name: Create GitHub Release (Production)
     needs:
-      [build-cli, publish-pypi, build-vscode-extension, build-vscode-cli-macos]
+      [
+        build-cli,
+        publish-pypi,
+        build-vscode-extension,
+        build-vscode-cli-macos,
+        validate-sbom,
+      ]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
     steps:
@@ -218,6 +265,12 @@ jobs:
           name: vscode-extension
           path: release-assets/
 
+      # Download SBOM (already validated)
+      - uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: release-assets/
+
       # Download macOS binaries for VS Code
       - uses: actions/download-artifact@v4
         with:
@@ -234,8 +287,14 @@ jobs:
           # Handle the ARM64 binary (it may be in a different location)
           find macos-assets -name "cytoscnpy-cli" -exec mv {} release-assets/cytoscnpy-cli-darwin-arm64 \; 2>/dev/null || true
 
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
           generate_release_notes: true
@@ -293,6 +352,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: editors/vscode/cytoscnpy/package-lock.json
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust

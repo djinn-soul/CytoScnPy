@@ -19,7 +19,7 @@ use tempfile::TempDir;
 fn project_tempdir() -> TempDir {
     let mut target_dir = std::env::current_dir().unwrap();
     target_dir.push("target");
-    target_dir.push("test-multipath-tmp");
+    target_dir.push("tmp-multipath");
     fs::create_dir_all(&target_dir).unwrap();
     tempfile::Builder::new()
         .prefix("multipath_test_")

@@ -36,7 +36,7 @@ user = User("John")
 "#;
 
     let analyzer = CytoScnPy::default();
-    let result = analyzer.analyze_code(code, &PathBuf::from("test_models.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("models_code.py"));
 
     // Get class names from unused_classes
     let unused_class_names: Vec<&str> = result
@@ -90,7 +90,7 @@ class ProductSchema(BaseModel):
 "#;
 
     let analyzer = CytoScnPy::default();
-    let result = analyzer.analyze_code(code, &PathBuf::from("test_pydantic.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("pydantic_code.py"));
 
     // Get class names from unused_classes
     let unused_class_names: Vec<&str> = result
@@ -124,7 +124,7 @@ class Product(models.Model):
 "#;
 
     let analyzer = CytoScnPy::default();
-    let result = analyzer.analyze_code(code, &PathBuf::from("test_django.py"));
+    let result = analyzer.analyze_code(code, &PathBuf::from("django_code.py"));
 
     // Get class names from unused_classes
     let unused_class_names: Vec<&str> = result

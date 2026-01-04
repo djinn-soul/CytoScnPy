@@ -16,8 +16,8 @@ CONFIGURATION FILE (.cytoscnpy.toml):
   include_ipynb = false      # Include Jupyter notebooks
 
   # Quality thresholds
-  complexity = 10            # Max cyclomatic complexity
-  nesting = 3                # Max nesting depth
+  max_complexity = 10        # Max cyclomatic complexity
+  max_nesting = 3            # Max nesting depth
   max_args = 5               # Max function arguments
   max_lines = 50             # Max function lines
   min_mi = 40.0              # Min Maintainability Index
@@ -268,7 +268,7 @@ pub struct Cli {
 pub enum Commands {
     /// Calculate raw metrics (LOC, LLOC, SLOC, Comments, Multi, Blank)
     Raw {
-        /// Common metric options (path, json, exclude, ignore, output_file).
+        /// Common metric options (path, json, exclude, ignore, `output_file`).
         #[command(flatten)]
         common: MetricArgs,
 
@@ -278,7 +278,7 @@ pub enum Commands {
     },
     /// Calculate Cyclomatic Complexity
     Cc {
-        /// Common metric options (path, json, exclude, ignore, output_file).
+        /// Common metric options (path, json, exclude, ignore, `output_file`).
         #[command(flatten)]
         common: MetricArgs,
 
@@ -316,7 +316,7 @@ pub enum Commands {
     },
     /// Calculate Halstead Metrics
     Hal {
-        /// Common metric options (path, json, exclude, ignore, output_file).
+        /// Common metric options (path, json, exclude, ignore, `output_file`).
         #[command(flatten)]
         common: MetricArgs,
 

@@ -193,7 +193,7 @@ def complex_function(x):
                 pass
 ";
     let mut config = Config::default();
-    config.cytoscnpy.complexity = Some(5); // Set low limit
+    config.cytoscnpy.max_complexity = Some(5); // Set low limit
     let linter = run_linter(source, config);
 
     let findings: Vec<_> = linter
@@ -551,7 +551,7 @@ fn test_function_too_long_with_docstring() {
     let source = r#"
 def with_docstring():
     """This is a docstring.
-    
+
     It spans multiple lines.
     """
     pass

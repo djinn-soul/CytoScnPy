@@ -140,7 +140,7 @@ jobs:
   # =============================================================================
   publish-testpypi:
     name: Publish to TestPyPI
-    needs: build-wheels
+    needs: [build-wheels, validate-sbom]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')
     steps:
@@ -171,7 +171,7 @@ jobs:
     name: Validate SBOM Generation
     needs: [build-wheels, build-cli]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -307,7 +307,7 @@ jobs:
   # =============================================================================
   github-release-test:
     name: Create GitHub Release (Test)
-    needs: [build-cli, publish-testpypi]
+    needs: [build-cli, publish-testpypi, validate-sbom]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')
     steps:
@@ -326,6 +326,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cli-x86_64-apple-darwin
+          path: release-assets/
+
+      # Download SBOM
+      - uses: actions/download-artifact@v4
+        with:
+          name: sbom
           path: release-assets/
 
       - name: Create Release

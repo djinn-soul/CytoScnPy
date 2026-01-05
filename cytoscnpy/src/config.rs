@@ -247,6 +247,8 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use tempfile::TempDir;
 
     #[test]
     fn test_deprecation_detection_toml() {
@@ -287,5 +289,98 @@ nesting = 5
         }
         assert!(config.cytoscnpy.uses_deprecated_keys());
         assert_eq!(config.cytoscnpy.max_nesting, Some(5));
+    }
+
+    #[test]
+    fn test_load_from_path_no_config() {
+        // Create an empty temp directory with no config files
+        let dir = TempDir::new().unwrap();
+        let config = Config::load_from_path(dir.path());
+        // Should return default config
+        assert!(config.cytoscnpy.confidence.is_none());
+        assert!(config.cytoscnpy.max_complexity.is_none());
+    }
+
+    #[test]
+    fn test_load_from_path_cytoscnpy_toml() {
+        let dir = TempDir::new().unwrap();
+        let config_path = dir.path().join(".cytoscnpy.toml");
+        let mut file = std::fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"[cytoscnpy]
+confidence = 80
+max_complexity = 15
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(dir.path());
+        assert_eq!(config.cytoscnpy.confidence, Some(80));
+        assert_eq!(config.cytoscnpy.max_complexity, Some(15));
+    }
+
+    #[test]
+    fn test_load_from_path_pyproject_toml() {
+        let dir = TempDir::new().unwrap();
+        let config_path = dir.path().join("pyproject.toml");
+        let mut file = std::fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"[tool.cytoscnpy]
+max_lines = 200
+max_args = 8
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(dir.path());
+        assert_eq!(config.cytoscnpy.max_lines, Some(200));
+        assert_eq!(config.cytoscnpy.max_args, Some(8));
+    }
+
+    #[test]
+    fn test_load_from_path_traverses_up() {
+        // Create nested directory structure
+        let dir = TempDir::new().unwrap();
+        let nested = dir.path().join("src").join("lib");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        // Put config in root
+        let config_path = dir.path().join(".cytoscnpy.toml");
+        let mut file = std::fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"[cytoscnpy]
+confidence = 90
+"#
+        )
+        .unwrap();
+
+        // Load from nested path - should find config in parent
+        let config = Config::load_from_path(&nested);
+        assert_eq!(config.cytoscnpy.confidence, Some(90));
+    }
+
+    #[test]
+    fn test_load_from_file_path() {
+        let dir = TempDir::new().unwrap();
+        let config_path = dir.path().join(".cytoscnpy.toml");
+        let mut file = std::fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"[cytoscnpy]
+min_mi = 65.0
+"#
+        )
+        .unwrap();
+
+        // Create a file in the directory
+        let py_file = dir.path().join("test.py");
+        std::fs::write(&py_file, "x = 1").unwrap();
+
+        // Load from file path (not directory)
+        let config = Config::load_from_path(&py_file);
+        assert_eq!(config.cytoscnpy.min_mi, Some(65.0));
     }
 }

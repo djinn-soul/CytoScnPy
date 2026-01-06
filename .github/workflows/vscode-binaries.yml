@@ -30,7 +30,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-20.04
             binary_name: cytoscnpy-cli-linux
           - target: x86_64-pc-windows-msvc
             os: windows-latest
@@ -58,9 +58,11 @@ jobs:
 
       - name: Build Binary with PGO
         shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh auto
-          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+          cargo build --release --features cst --target ${{ matrix.target }} -p cytoscnpy-cli
 
       - name: Rename Binary
         shell: bash

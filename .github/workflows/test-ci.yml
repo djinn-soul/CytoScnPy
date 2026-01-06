@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
             binary_name: cytoscnpy-cli-linux-x64
             executable: cytoscnpy-cli
@@ -99,7 +99,9 @@ jobs:
           cache-key: "vscode-cli-${{ matrix.os }}"
 
       - name: Build CLI for Extension
-        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
+        run: cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
 
       - name: Prepare Extension Binaries
         shell: bash

@@ -340,7 +340,23 @@ pub fn generate_clone_findings(
         }
     }
 
-    best_by_location.into_values().collect()
+    // Filter out suppressed findings (pragma/noqa comments)
+    let suppression_patterns = crate::constants::SUPPRESSION_PATTERNS();
+    best_by_location
+        .into_values()
+        .filter(|finding| {
+            // Check if the line containing this finding has a suppression comment
+            if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &finding.file) {
+                if let Some(line) = content.lines().nth(finding.line.saturating_sub(1)) {
+                    // If line contains any suppression pattern, filter it out
+                    if suppression_patterns.iter().any(|p| line.contains(p)) {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+        .collect()
 }
 
 fn apply_clone_fixes_internal<W: Write>(

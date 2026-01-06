@@ -19,6 +19,17 @@
   - Dedicated support for Django, FastAPI, and Pydantic patterns.
   - Reduced false positives for framework-specific constructs.
 
+### Phase 8.4: Multi-Phase Progress Reporting
+
+**Status: Done**
+
+**Features:**
+
+- **Sequential Analysis Pipeline:**
+  - Distinct progress bars for **Scan**, **Taint Analysis**, and **Clone Detection**.
+  - Dynamic ETA and file counting across all phases.
+  - Improved visibility for long-running deep analysis.
+
 ### Phase 7.6: Accuracy Improvements (In Progress/Partial)
 
 **Status: In Progress**

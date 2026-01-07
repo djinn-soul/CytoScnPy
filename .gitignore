@@ -84,3 +84,6 @@ test_repo
 
 .clavix/
 .gemini/commands/clavix
+.index_cache
+htmlcov/
+.vscode-test/

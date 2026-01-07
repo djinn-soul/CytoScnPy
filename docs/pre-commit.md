@@ -89,4 +89,4 @@ def legacy_function():  # pragma: no cytoscnpy
 ```
 
 > [!NOTE]
-> Pragmas currently apply to dead code detection. Security and quality findings should be ignored via the `.cytoscnpy.toml` configuration file.
+> Inline suppression comments (`# noqa: CSP` or `# pragma: no cytoscnpy`) apply to dead code, security, quality, and clone findings on a specific line. For ignoring rules across the entire project, use the `ignore` list in your `.cytoscnpy.toml` configuration file.

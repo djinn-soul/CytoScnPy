@@ -98,8 +98,26 @@ jobs:
           targets: ${{ matrix.target }}
           cache-key: "vscode-cli-${{ matrix.os }}"
 
+      - name: Setup Zig (Linux)
+        if: runner.os == 'Linux'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild (Linux)
+        if: runner.os == 'Linux'
+        run: pip install cargo-zigbuild
+
       - name: Build CLI for Extension
-        run: cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --all-features --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Prepare Extension Binaries
         shell: bash

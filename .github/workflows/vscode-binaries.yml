@@ -56,11 +56,27 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Setup Zig (Linux)
+        if: runner.os == 'Linux'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild (Linux)
+        if: runner.os == 'Linux'
+        run: pip install cargo-zigbuild
+
       - name: Build Binary with PGO
         shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh auto
-          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --features cst --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --features cst --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Rename Binary
         shell: bash

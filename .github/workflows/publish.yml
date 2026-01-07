@@ -50,7 +50,7 @@ jobs:
         shell: pwsh
         run: |
           . scripts/load-pgo-profile.ps1 -Platform windows
-          maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
+          maturin build --release --all-features --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
 
       - name: Build wheel with PGO (Linux)
         if: runner.os == 'Linux'
@@ -106,11 +106,27 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Setup Zig (Linux)
+        if: runner.os == 'Linux'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild (Linux)
+        if: runner.os == 'Linux'
+        run: pip install cargo-zigbuild
+
       - name: Build Binary with PGO
         shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh auto
-          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --all-features --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Rename Binary
         shell: bash
@@ -372,15 +388,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64
 
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild
+        run: pip install cargo-zigbuild
+
       - name: Build CLI for Linux x64 with PGO
         run: |
           source scripts/load-pgo-profile.sh linux
-          cargo build --release --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
+          cargo zigbuild --release --all-features --target x86_64-unknown-linux-gnu.2.27 -p cytoscnpy-cli
 
       - name: Build CLI for Windows x64 with PGO
         run: |
           source scripts/load-pgo-profile.sh windows
-          cargo build --release --target x86_64-pc-windows-gnu -p cytoscnpy-cli
+          cargo build --release --all-features --target x86_64-pc-windows-gnu -p cytoscnpy-cli
 
       - name: Create bin directory
         run: mkdir -p editors/vscode/cytoscnpy/bin
@@ -428,14 +452,18 @@ jobs:
           shared-key: "vscode-cli-macos"
 
       - name: Build CLI for macOS x64 with PGO
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh macos
-          cargo build --release --target x86_64-apple-darwin -p cytoscnpy-cli
+          cargo build --release --all-features --target x86_64-apple-darwin -p cytoscnpy-cli
 
       - name: Build CLI for macOS ARM64 with PGO
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh macos
-          cargo build --release --target aarch64-apple-darwin -p cytoscnpy-cli
+          cargo build --release --all-features --target aarch64-apple-darwin -p cytoscnpy-cli
 
       - name: Upload macOS x64 binary
         uses: actions/upload-artifact@v4

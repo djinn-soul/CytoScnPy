@@ -43,8 +43,10 @@ If data flows from a **Source** to a **Sink** without passing through a **Saniti
 
 ### Supported Analysis Levels
 
-| Level               | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| **Intraprocedural** | Checks flows within single functions.           |
-| **Interprocedural** | Checks flows across functions in the same file. |
-| **Cross-file**      | Checks flows across module boundaries.          |
+| Level               | Description                                     | Implementation                    |
+| ------------------- | ----------------------------------------------- | --------------------------------- |
+| **Intraprocedural** | Checks flows within single functions.           | Fast, catches local bugs          |
+| **Interprocedural** | Checks flows across functions in the same file. | Tracks cross-function data flow   |
+| **Cross-file**      | Checks flows across module boundaries.          | Deep analysis (highest precision) |
+
+CytoScnPy uses a multi-layered approach to track taint across your entire project, identifying vulnerabilities where untrusted input reaches critical system sinks.

@@ -13,7 +13,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 ### Input & Output
 
 - `[paths]`: Paths to analyze (files or directories). Defaults to current directory (`.`) if not specified.
-- `--root <PATH>`: Project root for analysis. Use this when running from a different directory (e.g., CI/CD). Mutually exclusive with positional paths.
+- `--root <PATH>`: Project root for analysis. Recommended for CI/CD to ensure consistent path resolution and security containment. Mutually exclusive with positional paths.
 - `--exclude-folder <FOLDER>`: Folders to exclude from analysis.
 - `--include-folder <FOLDER>`: Folders to force-include in analysis (overrides default exclusions).
 - `--json`: Output raw JSON.
@@ -60,8 +60,10 @@ cytoscnpy raw [OPTIONS] <PATH>
 ```
 
 - `-j`, `--json`: Output JSON.
-- `-s`, `--summary`: Show summary.
+- `-s`, `--summary`: Show summary metrics.
 - `-O`, `--output-file <FILE>`: Save output to file.
+- `-e`, `--exclude <DIR>`: Folders to exclude.
+- `-i`, `--ignore <PATTERN>`: Glob patterns to ignore.
 
 ### `cc`
 
@@ -79,6 +81,11 @@ cytoscnpy cc [OPTIONS] <PATH>
 - `-o`, `--order <ORDER>`: Ordering function (score, lines, alpha).
 - `--no-assert`: Do not count assert statements.
 - `--xml`: Output XML.
+- `--fail-threshold <N>`: Exit 1 if any block has complexity > N.
+- `-j`, `--json`: Output JSON.
+- `-e`, `--exclude <DIR>`: Folders to exclude.
+- `-i`, `--ignore <PATTERN>`: Glob patterns to ignore.
+- `-O`, `--output-file <FILE>`: Save output to file.
 
 ### `hal`
 
@@ -90,6 +97,9 @@ cytoscnpy hal [OPTIONS] <PATH>
 
 - `-f`, `--functions`: Compute metrics on function level.
 - `-j`, `--json`: Output JSON.
+- `-e`, `--exclude <DIR>`: Folders to exclude.
+- `-i`, `--ignore <PATTERN>`: Glob patterns to ignore.
+- `-O`, `--output-file <FILE>`: Save output to file.
 
 ### `mi`
 
@@ -104,6 +114,11 @@ cytoscnpy mi [OPTIONS] <PATH>
 - `-n`, `--min <RANK>`: Set minimum MI rank (A-C).
 - `-x`, `--max <RANK>`: Set maximum MI rank (A-C).
 - `--multi`: Count multiline strings as comments (default: true).
+- `--fail-threshold <N>`: Exit 1 if any file has MI < N.
+- `-j`, `--json`: Output JSON.
+- `-e`, `--exclude <DIR>`: Folders to exclude.
+- `-i`, `--ignore <PATTERN>`: Glob patterns to ignore.
+- `-O`, `--output-file <FILE>`: Save output to file.
 
 ### `stats`
 
@@ -156,11 +171,11 @@ include_tests = false
 # Note: include_ipynb and ipynb_cells are CLI-only options
 
 # Quality thresholds
-complexity = 10
-nesting = 3
-max_args = 5
-max_lines = 50
-min_mi = 40.0
+max_complexity = 10        # Max cyclomatic complexity
+max_nesting = 3            # Max nesting depth
+max_args = 5               # Max function arguments
+max_lines = 50             # Max function lines
+min_mi = 40.0              # Min Maintainability Index
 
 # Path filters
 exclude_folders = ["build", "dist", ".venv"]

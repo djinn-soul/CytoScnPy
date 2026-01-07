@@ -4,8 +4,36 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// Maximum recursion depth for AST visitor to prevent stack overflow on deeply nested code.
-/// A depth of 50 is sufficient for any reasonable Python code while providing a safety margin.
-pub const MAX_RECURSION_DEPTH: usize = 50;
+/// A depth of 400 is sufficient for any reasonable Python code while providing a safety margin.
+pub const MAX_RECURSION_DEPTH: usize = 400;
+
+/// Number of files to process per chunk in parallel processing.
+/// Prevents OOM on very large projects by limiting concurrent memory usage.
+pub const CHUNK_SIZE: usize = 500;
+
+/// Default configuration filename.
+pub const CONFIG_FILENAME: &str = ".cytoscnpy.toml";
+
+/// Python project configuration filename.
+pub const PYPROJECT_FILENAME: &str = "pyproject.toml";
+
+/// Rule ID for configuration-related errors.
+pub const RULE_ID_CONFIG_ERROR: &str = "CSP-CONFIG-ERROR";
+
+/// Suppression comment patterns that disable findings on a line.
+/// Supports both pragma format and noqa format.
+/// - `# pragma: no cytoscnpy` - Legacy format
+/// - `# noqa: CSP` - Standard Python linter format (with or without space after colon)
+pub fn get_suppression_patterns() -> &'static [&'static str] {
+    static PATTERNS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    PATTERNS.get_or_init(|| {
+        vec![
+            "pragma: no cytoscnpy", // Legacy format
+            "noqa: CSP",            // New format (with space)
+            "noqa:CSP",             // New format (no space)
+        ]
+    })
+}
 
 /// Confidence adjustment penalties for various code patterns.
 pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
@@ -188,6 +216,7 @@ pub use get_auto_called as AUTO_CALLED;
 pub use get_default_exclude_folders as DEFAULT_EXCLUDE_FOLDERS;
 pub use get_framework_file_re as FRAMEWORK_FILE_RE;
 pub use get_penalties as PENALTIES;
+pub use get_suppression_patterns as SUPPRESSION_PATTERNS;
 pub use get_test_decor_re as TEST_DECOR_RE;
 pub use get_test_file_re as TEST_FILE_RE;
 pub use get_test_import_re as TEST_IMPORT_RE;

@@ -23,6 +23,7 @@ pub use recognizers::{
 pub use scoring::{ContextScorer, ScoringAdjustments, ScoringContext};
 
 use crate::config::SecretsConfig;
+use crate::constants::RULE_ID_CONFIG_ERROR;
 use crate::utils::LineIndex;
 use ruff_python_ast::Stmt;
 use rustc_hash::FxHashSet;
@@ -166,15 +167,14 @@ impl SecretScanner {
                 continue;
             }
 
-            // Skip pragma lines
-            if line_content.contains("pragma: no cytoscnpy") {
+            // Skip suppressed lines (pragma or noqa comments)
+            let patterns = crate::constants::SUPPRESSION_PATTERNS();
+            if patterns.iter().any(|p| line_content.contains(p)) {
                 continue;
             }
 
             // Check if in docstring
-            let is_docstring = docstring_lines
-                .map(|lines| lines.contains(&finding.line))
-                .unwrap_or(false);
+            let is_docstring = docstring_lines.is_some_and(|lines| lines.contains(&finding.line));
 
             // Create scoring context
             let ctx = ScoringContext {
@@ -232,6 +232,35 @@ impl SecretScanner {
 // ============================================================================
 // Backward-Compatible Functions
 // ============================================================================
+
+/// Validates custom regex patterns in the secrets configuration.
+/// Returns a list of `SecretFinding` for any invalid patterns.
+/// This should be called once at the start of analysis, not per-file.
+#[must_use]
+pub fn validate_secrets_config(
+    config: &SecretsConfig,
+    config_file_path: &PathBuf,
+) -> Vec<SecretFinding> {
+    let mut findings = Vec::new();
+    for p in &config.patterns {
+        if let Err(e) = regex::Regex::new(&p.regex) {
+            findings.push(SecretFinding {
+                message: format!(
+                    "Invalid regex for custom secret pattern '{}': {}",
+                    p.name, e
+                ),
+                rule_id: RULE_ID_CONFIG_ERROR.to_owned(),
+                file: config_file_path.clone(),
+                line: 1,
+                severity: "CRITICAL".to_owned(),
+                matched_value: None,
+                entropy: None,
+                confidence: 100,
+            });
+        }
+    }
+    findings
+}
 
 /// Scans the content of a file for secrets using regex patterns and entropy analysis.
 ///
@@ -406,5 +435,28 @@ mod tests {
         let findings = scan_secrets_compat(content, &PathBuf::from("test.py"));
 
         assert!(!findings.is_empty());
+    }
+    #[test]
+    fn test_invalid_custom_regex_reporting() {
+        use crate::config::{CustomSecretPattern, SecretsConfig};
+
+        let mut secrets_config = SecretsConfig::default();
+        secrets_config.patterns = vec![CustomSecretPattern {
+            name: "Invalid Regex".to_owned(),
+            regex: "[".to_owned(), // Invalid regex
+            rule_id: None,
+            severity: "CRITICAL".to_owned(),
+        }];
+
+        let config_file = PathBuf::from(".cytoscnpy.toml");
+        let findings = validate_secrets_config(&secrets_config, &config_file);
+
+        // Should report a finding for invalid regex configuration
+        assert!(
+            !findings.is_empty(),
+            "Should report a finding for invalid regex configuration"
+        );
+        assert_eq!(findings[0].rule_id, RULE_ID_CONFIG_ERROR);
+        assert_eq!(findings[0].file, config_file);
     }
 }

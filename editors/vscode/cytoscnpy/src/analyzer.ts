@@ -280,9 +280,6 @@ export function runCytoScnPyAnalysis(
     if (config.enableDangerScan) {
       args.push("--danger");
     }
-    if (config.enableQualityScan) {
-      args.push("--quality");
-    }
     if (config.enableCloneScan) {
       args.push("--clones");
     }
@@ -306,34 +303,32 @@ export function runCytoScnPyAnalysis(
     if (config.includeIpynb) {
       args.push("--include-ipynb");
     }
-    if (config.maxComplexity) {
-      args.push("--max-complexity", config.maxComplexity.toString());
-    }
-    if (config.minMaintainabilityIndex) {
-      args.push("--min-mi", config.minMaintainabilityIndex.toString());
-    }
-    if (config.maxNesting) {
-      args.push("--max-nesting", config.maxNesting.toString());
-    }
-    if (config.maxArguments) {
-      args.push("--max-args", config.maxArguments.toString());
-    }
-    if (config.maxLines) {
-      args.push("--max-lines", config.maxLines.toString());
+
+    if (config.enableQualityScan) {
+      args.push("--quality");
+      if (config.maxComplexity) {
+        args.push("--max-complexity", config.maxComplexity.toString());
+      }
+      if (config.minMaintainabilityIndex) {
+        args.push("--min-mi", config.minMaintainabilityIndex.toString());
+      }
+      if (config.maxNesting) {
+        args.push("--max-nesting", config.maxNesting.toString());
+      }
+      if (config.maxArguments) {
+        args.push("--max-args", config.maxArguments.toString());
+      }
+      if (config.maxLines) {
+        args.push("--max-lines", config.maxLines.toString());
+      }
     }
 
     const { execFile } = require("child_process");
 
-    // const startTime = Date.now();
     execFile(
       config.path,
       args,
       (error: Error | null, stdout: string, stderr: string) => {
-        // const duration = (Date.now() - startTime) / 1000;
-        // console.log(
-        //   `[CytoScnPy] Analysis completed in ${duration.toFixed(3)}s`
-        // );
-
         if (error) {
           // CLI exited with non-zero code, but might still have valid JSON
           // (e.g., gate thresholds failed but analysis succeeded)
@@ -397,9 +392,6 @@ export function runWorkspaceAnalysis(
     if (config.enableDangerScan) {
       args.push("--danger");
     }
-    if (config.enableQualityScan) {
-      args.push("--quality");
-    }
     if (config.enableCloneScan) {
       args.push("--clones");
     }
@@ -422,20 +414,24 @@ export function runWorkspaceAnalysis(
     if (config.includeIpynb) {
       args.push("--include-ipynb");
     }
-    if (config.maxComplexity) {
-      args.push("--max-complexity", config.maxComplexity.toString());
-    }
-    if (config.minMaintainabilityIndex) {
-      args.push("--min-mi", config.minMaintainabilityIndex.toString());
-    }
-    if (config.maxNesting) {
-      args.push("--max-nesting", config.maxNesting.toString());
-    }
-    if (config.maxArguments) {
-      args.push("--max-args", config.maxArguments.toString());
-    }
-    if (config.maxLines) {
-      args.push("--max-lines", config.maxLines.toString());
+
+    if (config.enableQualityScan) {
+      args.push("--quality");
+      if (config.maxComplexity) {
+        args.push("--max-complexity", config.maxComplexity.toString());
+      }
+      if (config.minMaintainabilityIndex) {
+        args.push("--min-mi", config.minMaintainabilityIndex.toString());
+      }
+      if (config.maxNesting) {
+        args.push("--max-nesting", config.maxNesting.toString());
+      }
+      if (config.maxArguments) {
+        args.push("--max-args", config.maxArguments.toString());
+      }
+      if (config.maxLines) {
+        args.push("--max-lines", config.maxLines.toString());
+      }
     }
 
     const { execFile } = require("child_process");
@@ -469,8 +465,9 @@ export function runWorkspaceAnalysis(
             if (!path.isAbsolute(filePath)) {
               filePath = path.resolve(workspacePath, filePath);
             }
-            // Normalize path separators for Windows
-            filePath = path.normalize(filePath);
+            if (process.platform === "win32") {
+              filePath = filePath.toLowerCase();
+            }
 
             if (!findingsByFile.has(filePath)) {
               findingsByFile.set(filePath, []);

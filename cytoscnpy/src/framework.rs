@@ -189,15 +189,11 @@ impl<'a> FrameworkAwareVisitor<'a> {
                         // This prevents user-defined classes (like a custom BaseModel) from
                         // incorrectly triggering framework detection
                         if self.is_framework_file {
-                            // Django views, schemas (serializers), etc.
-                            if id_lower.contains("view") || id_lower.contains("schema") {
-                                is_framework_class = true;
-                                // Use name line to match visitor.rs Definition.line
-                                let line = self.line_index.line_index(node.name.range().start());
-                                self.framework_decorated_lines.insert(line);
-                            }
-                            // Django Model (exact match, not just contains "model")
-                            if id == "Model" {
+                            // Django views, schemas (serializers), and Model (exact match)
+                            if id_lower.contains("view")
+                                || id_lower.contains("schema")
+                                || id == "Model"
+                            {
                                 is_framework_class = true;
                                 // Use name line to match visitor.rs Definition.line
                                 let line = self.line_index.line_index(node.name.range().start());

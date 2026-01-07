@@ -313,14 +313,13 @@ nesting = 5
     #[test]
     fn test_load_from_path_cytoscnpy_toml() {
         let dir = TempDir::new().unwrap();
-        let config_path = dir.path().join(".cytoscnpy.toml");
-        let mut file = std::fs::File::create(&config_path).unwrap();
+        let mut file = std::fs::File::create(dir.path().join(".cytoscnpy.toml")).unwrap();
         writeln!(
             file,
-            r#"[cytoscnpy]
+            r"[cytoscnpy]
 confidence = 80
 max_complexity = 15
-"#
+"
         )
         .unwrap();
 
@@ -332,14 +331,13 @@ max_complexity = 15
     #[test]
     fn test_load_from_path_pyproject_toml() {
         let dir = TempDir::new().unwrap();
-        let config_path = dir.path().join("pyproject.toml");
-        let mut file = std::fs::File::create(&config_path).unwrap();
+        let mut file = std::fs::File::create(dir.path().join("pyproject.toml")).unwrap();
         writeln!(
             file,
-            r#"[tool.cytoscnpy]
+            r"[tool.cytoscnpy]
 max_lines = 200
 max_args = 8
-"#
+"
         )
         .unwrap();
 
@@ -356,13 +354,12 @@ max_args = 8
         std::fs::create_dir_all(&nested).unwrap();
 
         // Put config in root
-        let config_path = dir.path().join(".cytoscnpy.toml");
-        let mut file = std::fs::File::create(&config_path).unwrap();
+        let mut file = std::fs::File::create(dir.path().join(".cytoscnpy.toml")).unwrap();
         writeln!(
             file,
-            r#"[cytoscnpy]
+            r"[cytoscnpy]
 confidence = 90
-"#
+"
         )
         .unwrap();
 
@@ -374,13 +371,12 @@ confidence = 90
     #[test]
     fn test_load_from_file_path() {
         let dir = TempDir::new().unwrap();
-        let config_path = dir.path().join(".cytoscnpy.toml");
-        let mut file = std::fs::File::create(&config_path).unwrap();
+        let mut file = std::fs::File::create(dir.path().join(".cytoscnpy.toml")).unwrap();
         writeln!(
             file,
-            r#"[cytoscnpy]
+            r"[cytoscnpy]
 min_mi = 65.0
-"#
+"
         )
         .unwrap();
 

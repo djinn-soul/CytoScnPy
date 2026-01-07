@@ -243,7 +243,6 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // Track time for performance logging
-    // let lastAnalysisTime = Date.now();
 
     // Helper function to convert findings to diagnostics for a document
     function findingsToDiagnostics(
@@ -547,13 +546,15 @@ export function activate(context: vscode.ExtensionContext) {
         return; // Only analyze Python files
       }
 
-      const filePath = document.uri.fsPath;
+      const fsPath = document.uri.fsPath;
+      const filePath =
+        process.platform === "win32" ? fsPath.toLowerCase() : fsPath;
       const config = getCytoScnPyConfiguration(context);
 
       // FILE MODE: Single file analysis (faster, but may have false positives)
       if (config.analysisMode === "file") {
         try {
-          const result = await runCytoScnPyAnalysis(filePath, config);
+          const result = await runCytoScnPyAnalysis(fsPath, config);
           const diagnostics = findingsToDiagnostics(document, result.findings);
           cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
@@ -593,21 +594,22 @@ export function activate(context: vscode.ExtensionContext) {
         const diagnostics = findingsToDiagnostics(document, findings);
         cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
-        // Populate fileCache for CST-precise quick-fixes and diagnostics reuse
         const contentHash = computeHash(document.getText());
+        const cacheKey =
+          process.platform === "win32" ? filePath.toLowerCase() : filePath;
         const cacheEntry: CacheEntry = {
           hash: contentHash,
           diagnostics: diagnostics,
           findings: findings,
           timestamp: Date.now(),
         };
-        const history = fileCache.get(filePath) || [];
+        const history = fileCache.get(cacheKey) || [];
         // Prepend new entry, cap at MAX_CACHE_HISTORY
         history.unshift(cacheEntry);
         if (history.length > MAX_CACHE_HISTORY) {
           history.pop();
         }
-        fileCache.set(filePath, history);
+        fileCache.set(cacheKey, history);
 
         const editor = vscode.window.activeTextEditor;
         if (
@@ -960,9 +962,6 @@ export function activate(context: vscode.ExtensionContext) {
                 );
                 fixAction.edit = edit;
                 actions.push(fixAction);
-
-                // Also provide comment out option? Maybe useful still.
-                // But skip "Remove line" fallback.
               } else {
                 // Fallback to line-based removal
                 const removeAction = new vscode.CodeAction(
@@ -980,27 +979,6 @@ export function activate(context: vscode.ExtensionContext) {
                 removeAction.edit = edit;
                 actions.push(removeAction);
               }
-
-              // Always offer "Comment out" action
-              const commentAction = new vscode.CodeAction(
-                `Comment out ${ruleId.replace("unused-", "")}`,
-                vscode.CodeActionKind.QuickFix
-              );
-              commentAction.diagnostics = [diagnostic];
-
-              const commentEdit = new vscode.WorkspaceEdit();
-              const lineText = document.lineAt(
-                diagnostic.range.start.line
-              ).text;
-              const leadingWhitespace = lineText.match(/^\s*/)?.[0] || "";
-              commentEdit.replace(
-                document.uri,
-                document.lineAt(diagnostic.range.start.line).range,
-                `${leadingWhitespace}# ${lineText.trimStart()}`
-              );
-              commentAction.edit = commentEdit;
-
-              actions.push(commentAction);
             }
 
             return actions;

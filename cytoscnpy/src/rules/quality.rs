@@ -159,8 +159,8 @@ impl Rule for ArgumentCountRule {
         "CSP-C303"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        let parameters = match stmt {
-            Stmt::FunctionDef(f) => &f.parameters,
+        let (parameters, name_start) = match stmt {
+            Stmt::FunctionDef(f) => (&f.parameters, f.name.range().start()),
             _ => return None,
         };
 
@@ -172,10 +172,10 @@ impl Rule for ArgumentCountRule {
 
         if total_args > self.max_args {
             return Some(vec![create_finding(
-                &format!("Too many arguments ({} > {})", total_args, self.max_args),
+                &format!("Too many arguments ({total_args} > {})", self.max_args),
                 self.code(),
                 context,
-                stmt.range().start(),
+                name_start,
                 "LOW",
             )]);
         }
@@ -199,17 +199,19 @@ impl Rule for FunctionLengthRule {
         "CSP-C304"
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
-        if let Stmt::FunctionDef(_) = stmt {
-            let start_line = context.line_index.line_index(stmt.range().start());
+        if let Stmt::FunctionDef(f) = stmt {
+            // Use name start for finding line (skips decorators)
+            let name_start = f.name.range().start();
+            let start_line = context.line_index.line_index(name_start);
             let end_line = context.line_index.line_index(stmt.range().end());
             let length = end_line - start_line + 1;
 
             if length > self.max_lines {
                 return Some(vec![create_finding(
-                    &format!("Function too long ({} > {} lines)", length, self.max_lines),
+                    &format!("Function too long ({length} > {} lines)", self.max_lines),
                     self.code(),
                     context,
-                    stmt.range().start(),
+                    name_start,
                     "LOW",
                 )]);
             }
@@ -235,7 +237,7 @@ impl Rule for ComplexityRule {
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
-            Stmt::FunctionDef(f) => self.check_complexity(&f.body, stmt, context),
+            Stmt::FunctionDef(f) => self.check_complexity(&f.body, f.name.range().start(), context),
             _ => None,
         }
     }
@@ -245,7 +247,7 @@ impl ComplexityRule {
     fn check_complexity(
         &self,
         body: &[Stmt],
-        stmt: &Stmt,
+        name_start: ruff_text_size::TextSize,
         context: &Context,
     ) -> Option<Vec<Finding>> {
         let complexity = 1 + calculate_complexity(body);
@@ -261,7 +263,7 @@ impl ComplexityRule {
                 &format!("Function is too complex (McCabe={complexity})"),
                 self.code(),
                 context,
-                stmt.range().start(),
+                name_start,
                 severity,
             )])
         } else {

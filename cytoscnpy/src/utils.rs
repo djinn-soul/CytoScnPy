@@ -40,16 +40,21 @@ impl LineIndex {
     }
 }
 
-/// Detects lines with `# pragma: no cytoscnpy` comment.
+/// Detects lines with suppression comments.
+///
+/// Supports multiple formats:
+/// - `# pragma: no cytoscnpy` - Legacy format
+/// - `# noqa: CSP` - Standard Python linter format
 ///
 /// Returns a set of line numbers (1-indexed) that should be ignored by the analyzer.
 /// This allows users to suppress false positives or intentionally ignore specific lines.
 #[must_use]
 pub fn get_ignored_lines(source: &str) -> FxHashSet<usize> {
+    let patterns = crate::constants::SUPPRESSION_PATTERNS();
     source
         .lines()
         .enumerate()
-        .filter(|(_, line)| line.contains("pragma: no cytoscnpy"))
+        .filter(|(_, line)| patterns.iter().any(|pattern| line.contains(pattern)))
         .map(|(i, _)| i + 1)
         .collect()
 }

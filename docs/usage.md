@@ -107,6 +107,12 @@ cytoscnpy . --html --secrets --danger
 
 ---
 
+### ⚓ Pre-commit Hooks
+
+Automate your analysis on every commit. See the [Pre-commit Guide](pre-commit.md) for installation and configuration.
+
+---
+
 ## ⚙️ Configuration
 
 CytoScnPy supports configuration via:
@@ -126,7 +132,7 @@ quality = true
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code
-complexity = 15        # Function CC > 15
+max_complexity = 15    # Function CC > 15
 min_mi = 40.0         # MI < 40
 ```
 
@@ -142,7 +148,7 @@ quality = true
 
 # CI/CD Gates
 fail_threshold = 5.0
-complexity = 15
+max_complexity = 15
 min_mi = 40.0
 ```
 
@@ -295,10 +301,12 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
 - Limit parallelization or exclude large directories (`node_modules`, `.git`).
 
-**2. False Positives in Dead Code**
+**2. False Positives**
 
-- Use `# pragma: no cytoscnpy` comment to suppress findings on a specific line.
-- Ensure all entry points are properly identified (e.g. dynamic dispatch).
+- Use **inline comments** to suppress findings on a specific line:
+  - `# pragma: no cytoscnpy` - Legacy format
+  - `# noqa: CSP` - Standard Python linter format
+- For bulk ignores, use the `.cytoscnpy.toml` configuration file's ignore list.
 
 **3. Performance is slow**
 

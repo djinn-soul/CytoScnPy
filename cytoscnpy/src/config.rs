@@ -2,12 +2,18 @@ use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
+use crate::constants::{CONFIG_FILENAME, PYPROJECT_FILENAME};
+
 #[derive(Debug, Deserialize, Default, Clone)]
 /// Top-level configuration struct.
 pub struct Config {
     #[serde(default)]
     /// The main configuration section for CytoScnPy.
     pub cytoscnpy: CytoScnPyConfig,
+    /// The path to the configuration file this was loaded from.
+    /// Set during `load_from_path`, `None` if using defaults or programmatic config.
+    #[serde(skip)]
+    pub config_file_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]
@@ -190,11 +196,12 @@ impl Config {
         }
 
         loop {
-            // 1. Try .cytoscnpy.toml
-            let cytoscnpy_toml = current.join(".cytoscnpy.toml");
+            // 1. Try CONFIG_FILENAME
+            let cytoscnpy_toml = current.join(CONFIG_FILENAME);
             if cytoscnpy_toml.exists() {
                 if let Ok(content) = fs::read_to_string(&cytoscnpy_toml) {
                     if let Ok(mut config) = toml::from_str::<Config>(&content) {
+                        config.config_file_path = Some(cytoscnpy_toml.clone());
                         // Check for deprecated keys using Value for robustness
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
                             if let Some(cytoscnpy) = value.get("cytoscnpy") {
@@ -210,13 +217,14 @@ impl Config {
                 }
             }
 
-            // 2. Try pyproject.toml
-            let pyproject_toml = current.join("pyproject.toml");
+            // 2. Try PYPROJECT_FILENAME
+            let pyproject_toml = current.join(PYPROJECT_FILENAME);
             if pyproject_toml.exists() {
                 if let Ok(content) = fs::read_to_string(&pyproject_toml) {
                     if let Ok(pyproject) = toml::from_str::<PyProject>(&content) {
                         let mut config = Config {
                             cytoscnpy: pyproject.tool.cytoscnpy,
+                            config_file_path: Some(pyproject_toml.clone()),
                         };
                         // Check for deprecated keys in the tool section using Value
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
@@ -277,6 +285,7 @@ nesting = 5
         let pyproject = toml::from_str::<PyProject>(content).unwrap();
         let mut config = Config {
             cytoscnpy: pyproject.tool.cytoscnpy,
+            config_file_path: None,
         };
         if let Ok(value) = toml::from_str::<toml::Value>(content) {
             if let Some(tool) = value.get("tool") {

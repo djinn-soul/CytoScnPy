@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
             name: cytoscnpy-nightly-linux-x64
           - os: windows-latest
@@ -97,6 +97,8 @@ jobs:
 
       - name: Build Binary
         shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
 

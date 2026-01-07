@@ -9,7 +9,7 @@ use crate::framework::FrameworkAwareVisitor;
 use crate::halstead::{analyze_halstead, HalsteadMetrics};
 use crate::metrics::mi_compute;
 use crate::raw_metrics::{analyze_raw, RawMetrics};
-use crate::rules::secrets::{scan_secrets, SecretFinding};
+use crate::rules::secrets::{scan_secrets, validate_secrets_config, SecretFinding};
 use crate::rules::Finding;
 use crate::test_utils::TestAwareVisitor;
 use crate::utils::LineIndex;
@@ -23,10 +23,7 @@ use rustc_hash::FxHashMap;
 use std::fs;
 use std::path::Path;
 
-/// Number of files to process per chunk in parallel processing.
-/// Prevents OOM on very large projects (5000+ files) by limiting concurrent memory usage.
-/// Set to 500 to balance memory safety with minimal overhead (~1-2% slower).
-const CHUNK_SIZE: usize = 500;
+use crate::constants::{CHUNK_SIZE, CONFIG_FILENAME, MAX_RECURSION_DEPTH};
 
 impl CytoScnPy {
     /// Runs the analysis on multiple paths (files or directories).
@@ -107,6 +104,18 @@ impl CytoScnPy {
         // Determine root path for relative path calculation
         let root_path = root_hint.unwrap_or(&self.analysis_root);
 
+        // Validate secrets config once (not per-file)
+        let mut config_errors: Vec<SecretFinding> = Vec::new();
+        if self.enable_secrets {
+            let config_file = self
+                .config
+                .config_file_path
+                .clone()
+                .unwrap_or_else(|| self.analysis_root.join(CONFIG_FILENAME));
+            config_errors =
+                validate_secrets_config(&self.config.cytoscnpy.secrets_config, &config_file);
+        }
+
         // Process files in chunks to prevent OOM on large projects.
         // Each chunk is processed in parallel, then results are merged.
         let mut all_results = Vec::with_capacity(total_files);
@@ -133,7 +142,15 @@ impl CytoScnPy {
         }
 
         // Aggregate and return results (same as analyze method)
-        self.aggregate_results(all_results, files, total_files, total_directories)
+        let mut result = self.aggregate_results(all_results, files, total_files, total_directories);
+
+        // Prepend config validation errors to secrets (reported once, not per-file)
+        if !config_errors.is_empty() {
+            config_errors.extend(result.secrets);
+            result.secrets = config_errors;
+        }
+
+        result
     }
 
     /// Processes a single file and returns its analysis results.
@@ -265,7 +282,7 @@ impl CytoScnPy {
                 // If skip_docstrings is enabled, we need to identify lines that are part of docstrings.
                 let mut docstring_lines = rustc_hash::FxHashSet::default();
                 if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
-                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines);
+                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines, 0);
                 }
 
                 if self.enable_secrets {
@@ -337,6 +354,10 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
+                        // Skip findings on pragma lines (# pragma: no cytoscnpy)
+                        if ignored_lines.contains(&finding.line) {
+                            continue;
+                        }
                         if finding.rule_id.starts_with("CSP-D") {
                             danger.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
@@ -763,7 +784,7 @@ impl CytoScnPy {
                 // Docstring extraction
                 let mut docstring_lines = rustc_hash::FxHashSet::default();
                 if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
-                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines);
+                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines, 0);
                 }
 
                 if self.enable_secrets {
@@ -828,6 +849,10 @@ impl CytoScnPy {
 
                     // Separate findings
                     for finding in linter.findings {
+                        // Skip findings on pragma lines (# pragma: no cytoscnpy)
+                        if ignored_lines.contains(&finding.line) {
+                            continue;
+                        }
                         if finding.rule_id.starts_with("CSP-D") {
                             danger.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
@@ -995,7 +1020,12 @@ fn collect_docstring_lines(
     body: &[Stmt],
     line_index: &LineIndex,
     docstrings: &mut rustc_hash::FxHashSet<usize>,
+    depth: usize,
 ) {
+    if depth > MAX_RECURSION_DEPTH {
+        return;
+    }
+
     if let Some(Stmt::Expr(expr_stmt)) = body.first() {
         if let Expr::StringLiteral(string_lit) = &*expr_stmt.value {
             let start_line = line_index.line_index(string_lit.range.start());
@@ -1008,10 +1038,47 @@ fn collect_docstring_lines(
 
     for stmt in body {
         match stmt {
-            Stmt::FunctionDef(f) => collect_docstring_lines(&f.body, line_index, docstrings),
-            Stmt::ClassDef(c) => collect_docstring_lines(&c.body, line_index, docstrings),
+            Stmt::FunctionDef(f) => {
+                collect_docstring_lines(&f.body, line_index, docstrings, depth + 1);
+            }
+            Stmt::ClassDef(c) => {
+                collect_docstring_lines(&c.body, line_index, docstrings, depth + 1);
+            }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::LineIndex;
+    use ruff_python_parser::parse_module;
+
+    #[test]
+    fn test_stack_overflow_protection() {
+        // Generate a deeply nested Python file
+        let depth = 500; // Well above MAX_RECURSION_DEPTH
+        let mut code = String::new();
+        for i in 1..=depth {
+            let indent = " ".repeat((i - 1) * 2);
+            code.push_str(&format!("{}def f{}():\n", indent, i));
+            code.push_str(&format!("{}  \"\"\"Docstring {}\"\"\"\n", indent, i));
+        }
+        code.push_str(&" ".repeat(depth * 2));
+        code.push_str("pass\n");
+
+        let parsed = parse_module(&code).expect("Failed to parse deeply nested code");
+        let line_index = LineIndex::new(&code);
+        let mut docstrings = rustc_hash::FxHashSet::default();
+
+        // Should not crash due to MAX_RECURSION_DEPTH
+        collect_docstring_lines(&parsed.into_syntax().body, &line_index, &mut docstrings, 0);
+
+        // Should have collected some docstrings (up to limit)
+        assert!(!docstrings.is_empty());
+        // Specifically, it should stop at 400 + some (since first expression is checked)
+        // But the main goal is no crash.
     }
 }
 

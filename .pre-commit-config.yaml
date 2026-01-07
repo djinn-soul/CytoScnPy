@@ -3,7 +3,7 @@
 # For more information, see: https://github.com/j178/prek
 
 default_stages: [commit]
-# exclude: ^(cytoscnpy/tests/|benchmark/examples/|python/tests/data/)
+exclude: ^(cytoscnpy/tests/|benchmark/examples/|python/tests/data/)
 repos:
   # Python: Ruff for linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit

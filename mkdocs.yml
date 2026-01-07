@@ -65,7 +65,9 @@ markdown_extensions:
 
 nav:
   - Overview: index.md
-  - User Guide: usage.md
+  - User Guide:
+      - Overview: usage.md
+      - Pre-commit Hooks: pre-commit.md
   - Reference:
       - CLI Reference: CLI.md
       - Migration Guide: migration.md

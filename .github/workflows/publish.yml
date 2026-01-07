@@ -81,7 +81,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-20.04
+            os: ubuntu-latest
             name: cytoscnpy-linux-x64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
@@ -106,13 +106,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install cargo-zigbuild and zig (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zig
+          pip install cargo-zigbuild
+
       - name: Build Binary with PGO
         shell: bash
         env:
           MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh auto
-          cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --all-features --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Rename Binary
         shell: bash
@@ -374,10 +384,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64
 
+      - name: Install zig and cargo-zigbuild
+        run: |
+          sudo apt-get update && sudo apt-get install -y zig
+          pip install cargo-zigbuild
+
       - name: Build CLI for Linux x64 with PGO
         run: |
           source scripts/load-pgo-profile.sh linux
-          cargo build --release --all-features --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
+          cargo zigbuild --release --all-features --target x86_64-unknown-linux-gnu.2.27 -p cytoscnpy-cli
 
       - name: Build CLI for Windows x64 with PGO
         run: |

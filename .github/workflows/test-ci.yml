@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary_name: cytoscnpy-cli-linux-x64
             executable: cytoscnpy-cli
@@ -98,10 +98,22 @@ jobs:
           targets: ${{ matrix.target }}
           cache-key: "vscode-cli-${{ matrix.os }}"
 
+      - name: Install cargo-zigbuild and zig (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zig
+          pip install cargo-zigbuild
+
       - name: Build CLI for Extension
         env:
           MACOSX_DEPLOYMENT_TARGET: "13.0"
-        run: cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --all-features --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Prepare Extension Binaries
         shell: bash

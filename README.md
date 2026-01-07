@@ -119,29 +119,19 @@ cytoscnpy . --html --secrets --danger
 # See https://djinn09.github.io/CytoScnPy/pre-commit/ for setup
 ```
 
-**Options:**
+**Common Options:**
 
-| Flag                     | Description                                      |
-| ------------------------ | ------------------------------------------------ |
-| `-c, --confidence <N>`   | Set confidence threshold (0-100)                 |
-| `--root <PATH>`          | Project root for analysis (CI/CD mode)           |
-| `-s, --secrets`          | Scan for API keys, tokens, credentials           |
-| `-d, --danger`           | Scan for dangerous code + taint analysis         |
-| `-q, --quality`          | Scan for code quality issues                     |
-| `-n, --no-dead`          | Skip dead code detection (security/quality only) |
-| `--html`                 | Generate HTML report (auto-enables quality)      |
-| `--json`                 | Output results as JSON                           |
-| `-v, --verbose`          | Enable verbose output for debugging              |
-| `--quiet`                | Quiet mode: summary only, no tables              |
-| `--include-tests`        | Include test files in analysis                   |
-| `--exclude-folder <DIR>` | Exclude specific folders                         |
-| `--include-folder <DIR>` | Force include folders                            |
-| `--include-ipynb`        | Include Jupyter notebooks                        |
-| `--ipynb-cells`          | Report findings per notebook cell                |
-| `--clones`               | Detect duplicate code                            |
-| `--clone-similarity <N>` | Clone similarity threshold (0.0-1.0)             |
-| `--fix`                  | Preview dead code removal (dry-run by default)   |
-| `-a, --apply`            | Apply --fix changes to files                     |
+| Flag            | Description                                     |
+| --------------- | ----------------------------------------------- |
+| `-s, --secrets` | Scan for API keys and hardcoded credentials     |
+| `-d, --danger`  | Scan for dangerous code + taint analysis        |
+| `-q, --quality` | Scan for code quality issues (complexity, etc.) |
+| `--clones`      | Activate duplicate code detection               |
+| `--fix`         | Preview/dry-run dead code removal               |
+| `-a, --apply`   | Apply fixes to files (use with `--fix`)         |
+| `--json`        | Output results in machine-readable JSON         |
+
+> [!TIP] > **[View the Full CLI Reference](docs/CLI.md)** for detailed usage, advanced configuration, and quality gate options.
 
 **CI/CD Gate Options:**
 

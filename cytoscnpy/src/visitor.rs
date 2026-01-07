@@ -633,12 +633,15 @@ impl<'a> CytoScnPyVisitor<'a> {
                 if let Some(returns) = &node.returns {
                     self.visit_expr(returns);
                 }
-                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                // Use the name's range for the finding line (skips decorators)
+                let name_line = self.line_index.line_index(node.name.range().start());
+                // Use full node range for end_line and fix ranges (includes decorators)
+                let (_, end_line, start_byte, end_byte) = self.get_range_info(node);
                 self.visit_function_def(
                     &node.name,
                     &node.parameters,
                     &node.body,
-                    line,
+                    name_line,
                     end_line,
                     start_byte,
                     end_byte,
@@ -674,7 +677,10 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 let name = &node.name;
                 let qualified_name = self.get_qualified_name(name.as_str());
-                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                // Use the name's range for the finding line (skips decorators)
+                let name_line = self.line_index.line_index(name.range().start());
+                // Use full node range for end_line and fix ranges (includes decorators)
+                let (_, end_line, start_byte, end_byte) = self.get_range_info(node);
 
                 // Extract base class names to check for inheritance patterns later.
                 // In ruff, node.bases() returns an iterator over base class expressions
@@ -695,7 +701,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.add_def_with_bases(
                     qualified_name.clone(),
                     "class",
-                    line,
+                    name_line,
                     end_line,
                     start_byte,
                     end_byte,

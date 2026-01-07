@@ -1,5 +1,6 @@
 use crate::utils::LineIndex;
 use ruff_python_ast::{Expr, Stmt};
+use ruff_text_size::Ranged;
 use rustc_hash::FxHashSet;
 use std::sync::OnceLock;
 
@@ -159,7 +160,8 @@ impl<'a> FrameworkAwareVisitor<'a> {
             }
             // Check function definitions for decorators.
             Stmt::FunctionDef(node) => {
-                let line = self.line_index.line_index(node.range.start());
+                // Use name line to match visitor.rs Definition.line
+                let line = self.line_index.line_index(node.name.range().start());
                 self.check_decorators(&node.decorator_list, line);
                 // Check for FastAPI Depends() in parameters
                 self.extract_fastapi_depends(&node.parameters);
@@ -190,13 +192,15 @@ impl<'a> FrameworkAwareVisitor<'a> {
                             // Django views, schemas (serializers), etc.
                             if id_lower.contains("view") || id_lower.contains("schema") {
                                 is_framework_class = true;
-                                let line = self.line_index.line_index(node.range.start());
+                                // Use name line to match visitor.rs Definition.line
+                                let line = self.line_index.line_index(node.name.range().start());
                                 self.framework_decorated_lines.insert(line);
                             }
                             // Django Model (exact match, not just contains "model")
                             if id == "Model" {
                                 is_framework_class = true;
-                                let line = self.line_index.line_index(node.range.start());
+                                // Use name line to match visitor.rs Definition.line
+                                let line = self.line_index.line_index(node.name.range().start());
                                 self.framework_decorated_lines.insert(line);
                             }
                         }
@@ -218,7 +222,8 @@ impl<'a> FrameworkAwareVisitor<'a> {
                     // If it's a framework class, mark its methods.
                     if is_framework_class {
                         if let Stmt::FunctionDef(f) = stmt {
-                            let line = self.line_index.line_index(f.range.start());
+                            // Use name line to match visitor.rs Definition.line
+                            let line = self.line_index.line_index(f.name.range().start());
                             self.framework_decorated_lines.insert(line);
                         }
                     }

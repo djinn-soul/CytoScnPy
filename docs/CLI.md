@@ -45,11 +45,11 @@ cytoscnpy [OPTIONS] [COMMAND]
 These flags allow you to set strict "gates" for your code. If any part of the codebase exceeds these numbers, CytoScnPy will exit with code `1`.
 
 - `--fail-threshold <N>`: Exit with 1 if the total percentage of unused code exceeds `N`.
-- `--max-complexity <N>`: Set the maximum allowed Cyclomatic Complexity (standard is often `10`).
-- `--min-mi <N>`: Set the minimum allowed Maintainability Index (usually `40-65`).
-- `--max-nesting <N>`: Set the maximum allowed indentation/nesting level (e.g., `3` or `4`).
-- `--max-args <N>`: Flag functions that take more than `N` arguments.
-- `--max-lines <N>`: Flag functions longer than `N` lines of code.
+- `--max-complexity <N>`: Sets the maximum allowed Cyclomatic Complexity (standard is often `10`).
+- `--min-mi <N>`: Sets the minimum allowed Maintainability Index (usually `40-65`).
+- `--max-nesting <N>`: Sets the maximum allowed indentation/nesting level (e.g., `3` or `4`).
+- `--max-args <N>`: Sets the maximum number of arguments a function can have.
+- `--max-lines <N>`: Sets the maximum number of lines a function can have.
 
 ## Subcommands
 

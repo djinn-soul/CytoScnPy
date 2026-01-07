@@ -106,11 +106,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install cargo-zigbuild and zig (Linux)
+      - name: Setup Zig (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update && sudo apt-get install -y zig
-          pip install cargo-zigbuild
+        uses: mlugg/setup-zig@v1
+
+      - name: Install cargo-zigbuild (Linux)
+        if: runner.os == 'Linux'
+        run: pip install cargo-zigbuild
 
       - name: Build Binary with PGO
         shell: bash
@@ -384,10 +386,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64
 
-      - name: Install zig and cargo-zigbuild
-        run: |
-          sudo apt-get update && sudo apt-get install -y zig
-          pip install cargo-zigbuild
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+
+      - name: Install cargo-zigbuild
+        run: pip install cargo-zigbuild
 
       - name: Build CLI for Linux x64 with PGO
         run: |

@@ -98,11 +98,13 @@ jobs:
           targets: ${{ matrix.target }}
           cache-key: "vscode-cli-${{ matrix.os }}"
 
-      - name: Install cargo-zigbuild and zig (Linux)
+      - name: Setup Zig (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update && sudo apt-get install -y zig
-          pip install cargo-zigbuild
+        uses: mlugg/setup-zig@v1
+
+      - name: Install cargo-zigbuild (Linux)
+        if: runner.os == 'Linux'
+        run: pip install cargo-zigbuild
 
       - name: Build CLI for Extension
         env:

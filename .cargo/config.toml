@@ -60,6 +60,14 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 # [target.x86_64-apple-darwin]
 # rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
 
+# macOS linker flags for PyO3 extension modules
+# Required to allow undefined symbols which are provided by the Python interpreter at runtime.
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
+
 
 
 

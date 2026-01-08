@@ -199,8 +199,8 @@ pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) 
 
             CloneItem {
                 similarity: c.similarity,
-                clone_type: c.clone_type.display_name().to_string(),
-                name: c.name.clone().unwrap_or_else(|| "<anonymous>".to_string()),
+                clone_type: c.clone_type.display_name().to_owned(),
+                name: c.name.clone().unwrap_or_else(|| "<anonymous>".to_owned()),
                 file: c.file.to_string_lossy().to_string(),
                 line: c.line,
                 link: format!("files/{}#L{}", safe_file, c.line),

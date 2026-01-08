@@ -3,7 +3,9 @@
 //! Verifies that `if __name__ == "__main__":` blocks and similar patterns are correctly detected.
 
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
+
 use cytoscnpy::entry_point::detect_entry_point_calls;
 use ruff_python_parser::parse_module;
 

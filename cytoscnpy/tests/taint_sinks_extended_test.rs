@@ -1,5 +1,6 @@
 //! Extended tests for `taint/sinks.rs` - Dangerous sink detection.
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::panic)]
 
 use cytoscnpy::taint::sinks::{check_sink, SINK_PATTERNS};
 use cytoscnpy::taint::types::{Severity, VulnType};

@@ -1,7 +1,9 @@
 //! Tests for `FixSuggestion` struct and related functionality.
 //! TDD: These tests are written BEFORE the implementation.
 
-/// Test that `FixSuggestion` struct serializes correctly to JSON.
+// Test-specific lint suppressions
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 #[test]
 fn test_fix_suggestion_serialization() {
     // This test will fail until we implement FixSuggestion

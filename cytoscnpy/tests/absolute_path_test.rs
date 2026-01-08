@@ -1,5 +1,10 @@
 //! Regression test for absolute positional paths from different CWD.
 
+// Test-specific lint suppressions
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
 use cytoscnpy::entry_point::run_with_args_to;
 use std::fs;
 use tempfile::tempdir;
@@ -35,7 +40,7 @@ fn test_absolute_path_from_different_cwd() -> anyhow::Result<()> {
     // Provide absolute path to the notebook
     let args = vec![
         notebook_path.to_string_lossy().to_string(),
-        "--include-ipynb".to_string(),
+        "--include-ipynb".to_owned(),
     ];
 
     // This should NOT fail with "Path traversal detected" or similar
@@ -48,11 +53,11 @@ fn test_absolute_path_from_different_cwd() -> anyhow::Result<()> {
         Ok(code) => {
             if code != 0 {
                 let output = String::from_utf8_lossy(&buffer);
-                panic!("Command failed with code {}. Output:\n{}", code, output);
+                panic!("Command failed with code {code}. Output:\n{output}");
             }
         }
         Err(e) => {
-            panic!("Command returned error: {:?}", e);
+            panic!("Command returned error: {e:?}");
         }
     }
 

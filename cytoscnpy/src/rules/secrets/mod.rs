@@ -440,13 +440,15 @@ mod tests {
     fn test_invalid_custom_regex_reporting() {
         use crate::config::{CustomSecretPattern, SecretsConfig};
 
-        let mut secrets_config = SecretsConfig::default();
-        secrets_config.patterns = vec![CustomSecretPattern {
-            name: "Invalid Regex".to_owned(),
-            regex: "[".to_owned(), // Invalid regex
-            rule_id: None,
-            severity: "CRITICAL".to_owned(),
-        }];
+        let secrets_config = SecretsConfig {
+            patterns: vec![CustomSecretPattern {
+                name: "Invalid Regex".to_owned(),
+                regex: "[".to_owned(), // Invalid regex
+                rule_id: None,
+                severity: "CRITICAL".to_owned(),
+            }],
+            ..SecretsConfig::default()
+        };
 
         let config_file = PathBuf::from(".cytoscnpy.toml");
         let findings = validate_secrets_config(&secrets_config, &config_file);

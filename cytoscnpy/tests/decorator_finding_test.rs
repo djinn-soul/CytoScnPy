@@ -2,7 +2,11 @@
 //! TDD: These tests define the expected behavior - findings should point to
 //! the `def`/`class` line, not the decorator line.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::field_reassign_with_default
+)]
 
 use cytoscnpy::analyzer::CytoScnPy;
 use std::path::Path;

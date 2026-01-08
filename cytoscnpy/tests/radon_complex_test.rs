@@ -1,5 +1,9 @@
 //! Tests for complexity metrics using Radon test cases.
 
+// Test-specific lint suppressions
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use cytoscnpy::complexity::analyze_complexity;
 use cytoscnpy::halstead::analyze_halstead;
 use cytoscnpy::metrics::{mi_compute, mi_rank};

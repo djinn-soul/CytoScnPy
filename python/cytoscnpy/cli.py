@@ -3,6 +3,7 @@ from cytoscnpy import run
 
 
 def main():
+    """Main entry point for CLI."""
     args = sys.argv[1:]
     try:
         rc = run(args)
@@ -10,6 +11,7 @@ def main():
     except Exception as e:
         print(f"cytoscnpy error: {e}", file=sys.stderr)
         raise SystemExit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,9 @@
 //! specific Radon ported complexity tests.
 
+// Test-specific lint suppressions
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use cytoscnpy::complexity::analyze_complexity;
 use std::path::PathBuf;
 

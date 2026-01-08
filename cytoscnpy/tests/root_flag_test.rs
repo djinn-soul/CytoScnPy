@@ -9,6 +9,14 @@
 //! - --root serves as BOTH analysis target AND containment boundary
 //! - This is useful for CI/scripts that invoke from different directories
 
+// Test-specific lint suppressions - these patterns are idiomatic in tests
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::inefficient_to_string)]
+#![allow(clippy::uninlined_format_args)]
+
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;

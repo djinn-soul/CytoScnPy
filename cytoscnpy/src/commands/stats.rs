@@ -123,14 +123,9 @@ pub fn run_stats_v2<W: Write>(
     }
 
     // Filter out test files if include_tests is false
-    let files: Vec<PathBuf> = if !include_tests {
-        files
-            .into_iter()
-            .filter(|p| !crate::utils::is_test_path(&p.to_string_lossy()))
-            .collect()
-    } else {
-        files
-    };
+    if !include_tests {
+        files.retain(|p| !crate::utils::is_test_path(&p.to_string_lossy()));
+    }
 
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()
@@ -447,6 +442,7 @@ pub fn run_files<W: Write>(
 ///
 /// Returns an error if file I/O fails or JSON serialization fails.
 #[deprecated(since = "1.2.2", note = "use run_stats_v2 instead")]
+#[allow(clippy::fn_params_excessive_bools)]
 pub fn run_stats<W: Write>(
     root: &Path,
     roots: &[PathBuf],

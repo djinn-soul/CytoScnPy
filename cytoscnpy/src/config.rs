@@ -60,7 +60,7 @@ pub struct CytoScnPyConfig {
     pub fail_threshold: Option<f64>,
     /// Track if deprecated keys were used in the configuration.
     #[serde(skip)]
-    _uses_deprecated_keys: bool,
+    deprecated_keys_used: bool,
     /// Advanced secrets scanning configuration.
     #[serde(default)]
     pub secrets_config: SecretsConfig,
@@ -70,12 +70,12 @@ impl CytoScnPyConfig {
     /// Returns whether deprecated keys were used in the configuration.
     #[must_use]
     pub fn uses_deprecated_keys(&self) -> bool {
-        self._uses_deprecated_keys
+        self.deprecated_keys_used
     }
 
     /// Sets whether deprecated keys were used (internal use).
     pub(crate) fn set_uses_deprecated_keys(&mut self, value: bool) {
-        self._uses_deprecated_keys = value;
+        self.deprecated_keys_used = value;
     }
 }
 
@@ -201,7 +201,7 @@ impl Config {
             if cytoscnpy_toml.exists() {
                 if let Ok(content) = fs::read_to_string(&cytoscnpy_toml) {
                     if let Ok(mut config) = toml::from_str::<Config>(&content) {
-                        config.config_file_path = Some(cytoscnpy_toml.clone());
+                        config.config_file_path = Some(cytoscnpy_toml);
                         // Check for deprecated keys using Value for robustness
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
                             if let Some(cytoscnpy) = value.get("cytoscnpy") {
@@ -224,7 +224,7 @@ impl Config {
                     if let Ok(pyproject) = toml::from_str::<PyProject>(&content) {
                         let mut config = Config {
                             cytoscnpy: pyproject.tool.cytoscnpy,
-                            config_file_path: Some(pyproject_toml.clone()),
+                            config_file_path: Some(pyproject_toml),
                         };
                         // Check for deprecated keys in the tool section using Value
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
@@ -278,10 +278,10 @@ complexity = 10
 
     #[test]
     fn test_deprecation_detection_pyproject() {
-        let content = r#"
+        let content = r"
 [tool.cytoscnpy]
 nesting = 5
-"#;
+";
         let pyproject = toml::from_str::<PyProject>(content).unwrap();
         let mut config = Config {
             cytoscnpy: pyproject.tool.cytoscnpy,

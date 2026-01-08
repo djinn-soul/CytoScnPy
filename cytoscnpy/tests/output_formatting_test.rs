@@ -1,5 +1,6 @@
 //! Tests for output.rs - CLI output formatting functions.
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::default_trait_access)]
 
 use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary, ParseError};
 use cytoscnpy::output::{

@@ -29,7 +29,7 @@ avoid-breaking-exported-api = false
 doc-valid-idents = ["CytoScnPy", "PyO3", "AST"]
 
 # Allowlist of wildcard-import patterns (use sparingly)
-allowed-wildcard-imports = ["tests::*", "bench::*"] 
+allowed-wildcard-imports = ["tests::*", "bench::*"]
 
 # Allow certain test-only unwrap/expect patterns by name (keeps test ergonomics)
 # This isn't a builtin Clippy option in all versions — keep as documentation for the team

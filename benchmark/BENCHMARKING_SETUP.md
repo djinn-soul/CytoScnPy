@@ -25,7 +25,7 @@ Measured on: 2025-12-12 | Tool: hyperfine 1.20.0 | Platform: Windows 11
 | large_django       | 2,886        | 506,403   | **1.606s** | 0.415  | 0.984 | 2.370 |
 | massive_tensorflow | 3,147        | 1,216,986 | **4.050s** | 0.632  | 2.832 | 5.216 |
 
-**Total:** 7,431 files, 1.87M lines  
+**Total:** 7,431 files, 1.87M lines
 **Average Throughput:** ~289,000 lines/second
 
 ---

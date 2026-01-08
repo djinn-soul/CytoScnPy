@@ -167,6 +167,7 @@ impl CfgBuilder {
         }
     }
 
+    #[allow(clippy::match_same_arms)] // Nested defs and other statements intentionally map to Simple
     fn visit_stmt(&mut self, stmt: &Stmt) {
         use ruff_text_size::Ranged;
 
@@ -237,7 +238,10 @@ impl CfgBuilder {
             }
 
             // Nested definitions and all other statements are "simple"
-            Stmt::FunctionDef(_) | Stmt::ClassDef(_) | _ => {
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {
+                self.add_stmt(StmtKind::Simple, line);
+            }
+            _ => {
                 self.add_stmt(StmtKind::Simple, line);
             }
         }

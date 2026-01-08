@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Clone detection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)] // Configuration flags for clone detection features
 pub struct CloneConfig {
     /// Minimum similarity threshold (0.0 - 1.0)
     pub min_similarity: f64,

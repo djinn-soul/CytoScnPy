@@ -599,7 +599,7 @@ fn test_cli_stats_markdown_with_quality_findings() {
     // Code with high cyclomatic complexity
     writeln!(
         file,
-        r#"def complex_func(a, b, c, d, e, f, g, h, i, j, k):
+        r"def complex_func(a, b, c, d, e, f, g, h, i, j, k):
     if a:
         if b:
             if c:
@@ -612,7 +612,7 @@ fn test_cli_stats_markdown_with_quality_findings() {
                                         if j:
                                             return k
     return None
-"#
+"
     )
     .unwrap();
 

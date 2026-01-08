@@ -23,6 +23,11 @@ pub struct BuiltinPattern {
 /// Returns the list of built-in secret patterns.
 ///
 /// Patterns are compiled once and cached for the lifetime of the program.
+///
+/// # Panics
+///
+/// Panics if any of the built-in regex patterns fail to compile. This should
+/// never happen in practice as all patterns are statically validated by tests.
 #[allow(clippy::too_many_lines)]
 pub fn get_builtin_patterns() -> &'static Vec<BuiltinPattern> {
     static PATTERNS: OnceLock<Vec<BuiltinPattern>> = OnceLock::new();

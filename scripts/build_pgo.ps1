@@ -43,7 +43,7 @@ if (-not (Test-Path $binary)) {
 }
 
 # Set LLVM_PROFILE_FILE to control where profile data is written
-# %p = process ID, %m = unique merge pool ID (avoids conflicts)  
+# %p = process ID, %m = unique merge pool ID (avoids conflicts)
 # Use forward slashes for LLVM compatibility on Windows
 $env:LLVM_PROFILE_FILE = "$pgoDataDirUnix/cytoscnpy-%p-%m.profraw"
 Write-Host "   Profile output: $($env:LLVM_PROFILE_FILE)"
@@ -58,7 +58,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "     (Analysis completed with findings - this is expected)"
 }
 
-# Run on benchmark folder specifically  
+# Run on benchmark folder specifically
 Write-Host "   - Analyzing benchmark/examples..."
 & $binary benchmark/examples --quiet --clones --secrets
 if ($LASTEXITCODE -ne 0) {

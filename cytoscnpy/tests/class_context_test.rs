@@ -1,5 +1,9 @@
 //! Tests for class method context analysis.
 
+// Test-specific lint suppressions
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use cytoscnpy::utils::LineIndex;
 use cytoscnpy::visitor::CytoScnPyVisitor;
 use ruff_python_parser::{parse, Mode};

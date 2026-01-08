@@ -10,15 +10,16 @@ from pathlib import Path
 try:
     import psutil
 except ImportError:
-    psutil = None
+    psutil = None  # type: ignore
+
+from typing import Any, Dict, List, cast
+
 
 import threading
 
 
 def run_command(command, cwd=None, env=None, timeout=300):
-    """
-    Runs a command and returns (result, duration, max_rss_mb).
-    """
+    """Runs a command and returns (result, duration, max_rss_mb)."""
     start_time = time.time()
 
     # Determine if we should use shell=True
@@ -104,10 +105,12 @@ def run_command(command, cwd=None, env=None, timeout=300):
 
 
 def normalize_path(p):
+    """Normalize path separator to forward slashes."""
     return str(Path(p).as_posix()).strip("/")
 
 
 def get_tool_path(tool_name):
+    """Locate tool executable in PATH or specific locations."""
     # Check PATH first
     path = shutil.which(tool_name)
     if path:
@@ -130,8 +133,8 @@ def get_tool_path(tool_name):
 
 
 def check_tool_availability(tools_config, env=None):
-    """
-    Pre-check all tools to verify they are installed and available.
+    """Pre-check all tools to verify they are installed and available.
+
     Returns a dict with tool status: {name: {"available": bool, "reason": str}}
     """
     print("\n[+] Checking tool availability...")
@@ -312,6 +315,7 @@ def check_tool_availability(tools_config, env=None):
 
 
 def run_benchmark_tool(name, command, cwd=None, env=None):
+    """Run a specific benchmark tool command."""
     print(f"\n[+] Running {name}...")
     print(f"    Command: {command}")
     if not command:
@@ -352,7 +356,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                 "unused_parameters",
             ]
             issue_count = sum(len(data.get(k, [])) for k in categories)
-        except:
+        except Exception:
             pass
     elif name == "CytoScnPy (Python)":
         try:
@@ -367,7 +371,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                 "unused_parameters",
             ]
             issue_count = sum(len(data.get(k, [])) for k in categories)
-        except:
+        except Exception:
             pass
     elif name == "Ruff":
         # Attempt to parse as JSON if output format was set to JSON
@@ -377,7 +381,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                 issue_count = len(data)
             elif isinstance(data, dict) and "issues" in data:
                 issue_count = len(data["issues"])
-        except:
+        except Exception:
             # Fallback to standard output lines if JSON parsing fails
             issue_count = len(output.strip().splitlines())
     elif name == "Flake8":
@@ -388,28 +392,32 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
             data = json.loads(result.stdout)
             if isinstance(data, list):
                 issue_count = len(data)
-        except:
+        except Exception:
             # Fallback to heuristic if JSON parsing fails
             issue_count = len(
-                [l for l in output.splitlines() if ": " in l]
+                [line for line in output.splitlines() if ": " in line]
             )  # Heuristic
     elif "Vulture" in name:
         issue_count = len(output.strip().splitlines())
     elif name == "uncalled":
-        issue_count = len([l for l in output.splitlines() if "unused" in l.lower()])
+        issue_count = len(
+            [line for line in output.splitlines() if "unused" in line.lower()]
+        )
     elif name == "dead":
         # dead outputs lines like "func is never read, defined in file.py:line"
         issue_count = len(
             [
-                l
-                for l in output.splitlines()
-                if "is never" in l.lower() or "never read" in l.lower()
+                line
+                for line in output.splitlines()
+                if "is never" in line.lower() or "never read" in line.lower()
             ]
         )
     elif name == "deadcode":
         # deadcode outputs lines like "file.py:10:0: DC02 Function `func_name` is never used"
         # DC codes range from DC01 to DC13
-        issue_count = len([l for l in output.splitlines() if re.search(r": DC\d+", l)])
+        issue_count = len(
+            [line for line in output.splitlines() if re.search(r": DC\d+", line)]
+        )
     elif name == "Skylos":
         try:
             data = json.loads(result.stdout)
@@ -422,7 +430,7 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
                     "unused_variables",
                 ]
             )
-        except:
+        except Exception:
             pass
 
     return {
@@ -436,10 +444,14 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
 
 
 class Verification:
+    """Handles verification of tool output against ground truth."""
+
     def __init__(self, ground_truth_path):
+        """Initialize verification with ground truth data."""
         self.ground_truth = self.load_ground_truth(ground_truth_path)
 
     def load_ground_truth(self, path):
+        """Load ground truth assertions from file."""
         path_obj = Path(path)
         truth_set = set()
         self.covered_files = set()
@@ -497,6 +509,7 @@ class Verification:
         return truth_set
 
     def parse_tool_output(self, name, output):
+        """Parse raw output from a tool into structured findings."""
         findings = set()
 
         if name in ["CytoScnPy (Rust)", "CytoScnPy (Python)"]:
@@ -769,6 +782,7 @@ class Verification:
         return findings
 
     def compare(self, tool_name, tool_output):
+        """Compare tool output against ground truth."""
         findings = self.parse_tool_output(tool_name, tool_output)
 
         # Initialize stats per type
@@ -899,6 +913,7 @@ class Verification:
 
 
 def main():
+    """Main entry point."""
     print("CytoScnPy Benchmark & Verification Utility")
     print("==========================================")
 
@@ -1135,7 +1150,9 @@ def main():
     # Filter Tools
     tools_to_run = []
     for tool in all_tools:
-        name_lower = tool["name"].lower()
+        # Cast tool to Dict[str, Any] to satisfy type checker
+        tool_dict = cast(Dict[str, Any], tool)
+        name_lower = str(tool_dict["name"]).lower()
 
         # Check Exclude
         if args.exclude:
@@ -1247,7 +1264,8 @@ def main():
             "f1_score": v_res["overall"]["F1"] if v_res else 0.0,  # Use overall F1
             "stats": v_res if v_res else {},
         }
-        final_report["results"].append(entry)
+        # Cast results list to append
+        cast(List[Dict[str, Any]], final_report["results"]).append(entry)
 
     # Save JSON if requested
     if args.save_json:
@@ -1263,7 +1281,7 @@ def main():
         print(f"\n[+] Comparing against baseline: {args.compare_json}")
         try:
             with open(args.compare_json, "r") as f:
-                baseline = json.load(f)
+                baseline = json.load(f)  # type: ignore
 
             if "platform" in baseline and baseline["platform"] != sys.platform:
                 print(
@@ -1272,7 +1290,11 @@ def main():
 
             cytoscnpy_regressions = []
             other_regressions = []
-            for current in final_report["results"]:
+            # Cast to List[Dict] to help type checker know elements are dicts
+            results_list = cast(List[Dict[str, Any]], final_report["results"])
+            for current_item in results_list:
+                # Ensure current is treated as a dict
+                current = current_item
                 # specific tool matching
                 base = next(
                     (b for b in baseline["results"] if b["name"] == current["name"]),
@@ -1290,7 +1312,7 @@ def main():
                 if time_ratio > args.threshold:
                     # Ignore small time increases (< 1.0s) to avoid noise
                     if time_diff > 1.0:
-                        regression_msg = f"{current['name']} Time: {base['time']:.3f}s -> {current['time']:.3f}s (+{time_ratio*100:.1f}%)"
+                        regression_msg = f"{current['name']} Time: {base['time']:.3f}s -> {current['time']:.3f}s (+{time_ratio * 100:.1f}%)"
                         if is_cytoscnpy:
                             cytoscnpy_regressions.append(regression_msg)
                         else:
@@ -1302,7 +1324,7 @@ def main():
                 if mem_ratio > args.threshold:
                     # Ignore small memory increases (< 10MB) to avoid CI noise
                     if mem_diff > 10.0:
-                        regression_msg = f"{current['name']} Memory: {base['memory_mb']:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio*100:.1f}%)"
+                        regression_msg = f"{current['name']} Memory: {base['memory_mb']:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio * 100:.1f}%)"
                         if is_cytoscnpy:
                             cytoscnpy_regressions.append(regression_msg)
                         else:

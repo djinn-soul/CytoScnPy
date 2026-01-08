@@ -297,7 +297,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     all_target_paths.extend(paths.paths.iter().cloned());
                 }
             }
-            _ => {}
+            Commands::McpServer => {}
         }
     }
 
@@ -542,7 +542,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     include_tests,
                     &include_folders,
                     cli_var.output.verbose,
-                    config.clone(),
+                    config,
                     writer,
                 )?;
 

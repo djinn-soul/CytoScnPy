@@ -96,11 +96,11 @@ impl CloneDetector {
         }
 
         // Phase 2-5: Use existing detection logic on extracted subtrees
-        self.detect_from_subtrees(all_subtrees)
+        self.detect_from_subtrees(&all_subtrees)
     }
 
     /// Internal detection from pre-extracted subtrees (shared by detect and `detect_from_paths`)
-    fn detect_from_subtrees(&self, all_subtrees: Vec<parser::Subtree>) -> CloneDetectionResult {
+    fn detect_from_subtrees(&self, all_subtrees: &[parser::Subtree]) -> CloneDetectionResult {
         // Phase 2: Create normalizers for both raw and renamed comparison
         let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1); // Preserves identifiers
         let renamed_normalizer = Normalizer::for_clone_type(CloneType::Type2); // Renames identifiers
@@ -160,7 +160,7 @@ impl CloneDetector {
         // When enabled, filters out clone pairs where the control flow differs significantly
         #[cfg(feature = "cfg")]
         let pairs = if self.config.cfg_validation {
-            self.validate_with_cfg(pairs, &all_subtrees)
+            self.validate_with_cfg(pairs, all_subtrees)
         } else {
             pairs
         };
@@ -188,13 +188,13 @@ impl CloneDetector {
             match parser::extract_subtrees(source, path) {
                 Ok(subtrees) => all_subtrees.extend(subtrees),
                 Err(_e) => {
-                    // Skip unparseable files silently - they'll be reported in the main analysis
+                    // Skip unparsable files silently - they'll be reported in the main analysis
                 }
             }
         }
 
         // Delegate to shared detection logic
-        self.detect_from_subtrees(all_subtrees)
+        self.detect_from_subtrees(&all_subtrees)
     }
 
     /// Group related clone pairs into clone groups

@@ -32,6 +32,7 @@ CONFIGURATION FILE (.cytoscnpy.toml):
 
 /// Options for scan types (secrets, danger, quality).
 #[derive(Args, Debug, Default, Clone)]
+#[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
 pub struct ScanOptions {
     /// Scan for API keys/secrets.
     #[arg(short = 's', long)]
@@ -326,7 +327,7 @@ pub enum Commands {
     },
     /// Calculate Maintainability Index
     Mi {
-        /// Common metric options (path, json, exclude, ignore, output_file).
+        /// Common metric options (path, json, exclude, ignore, `output_file`).
         #[command(flatten)]
         common: MetricArgs,
 

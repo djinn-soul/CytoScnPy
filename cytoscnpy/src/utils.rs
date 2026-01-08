@@ -284,7 +284,7 @@ pub fn validate_output_path(
 /// * `verbose` - Whether to print walk errors to stderr
 ///
 /// # Returns
-/// Tuple of (Vector of PathBuf for all Python files found, directory count)
+/// Tuple of (Vector of `PathBuf` for all Python files found, directory count)
 #[must_use]
 pub fn collect_python_files_gitignore(
     root: &std::path::Path,
@@ -365,7 +365,9 @@ pub fn collect_python_files_gitignore(
             files.push(path.to_path_buf());
         } else if verbose {
             // Ignore walk errors silently unless verbose
-            eprintln!("Walk error: {}", result.unwrap_err());
+            if let Err(e) = result {
+                eprintln!("Walk error: {e}");
+            }
         }
     }
 
@@ -531,7 +533,7 @@ mod tests {
 
         // "a.py" (in "widget") should be found in new logic, but was missing in old logic
         assert!(
-            file_names2.contains(&"a.py".to_string()),
+            file_names2.contains(&"a.py".to_owned()),
             "widget/a.py should be found even if 'git' is excluded"
         );
 
@@ -552,6 +554,7 @@ mod tests {
         assert!(files.is_empty(), "venv should be excluded by default");
 
         // Test with "venv" force-included
+        #[allow(clippy::str_to_string)]
         let (files2, _) =
             collect_python_files_gitignore(root, &[], &["venv".to_string()], false, false);
         assert_eq!(
@@ -582,7 +585,7 @@ mod tests {
         // 1. naive include="env" should NOT un-exclude ".venv"
         //    because "env" != ".venv"
         let (files_1, _) =
-            collect_python_files_gitignore(root, &[], &["env".to_string()], false, false);
+            collect_python_files_gitignore(root, &[], &["env".to_owned()], false, false);
         // files_1 should be empty because .venv remains excluded
         assert!(
             files_1.is_empty(),
@@ -591,7 +594,7 @@ mod tests {
 
         // 2. include="git" should NOT un-exclude ".git"
         let (files_2, _) =
-            collect_python_files_gitignore(root, &[], &["git".to_string()], false, false);
+            collect_python_files_gitignore(root, &[], &["git".to_owned()], false, false);
         assert!(
             files_2.is_empty(),
             "include='git' should NOT un-exclude '.git'"
@@ -599,13 +602,13 @@ mod tests {
 
         // 3. include=".venv" SHOULD un-exclude ".venv" (exact match)
         let (files_3, _) =
-            collect_python_files_gitignore(root, &[], &[".venv".to_string()], false, false);
+            collect_python_files_gitignore(root, &[], &[".venv".to_owned()], false, false);
         let names_3: Vec<String> = files_3
             .iter()
             .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
             .collect();
         assert!(
-            names_3.contains(&"lib.py".to_string()),
+            names_3.contains(&"lib.py".to_owned()),
             "Exact include='.venv' MUST un-exclude .venv"
         );
 

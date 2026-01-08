@@ -603,8 +603,10 @@ impl CytoScnPy {
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
                 def.references = *count;
-            } else if let Some(count) = ref_counts.get(&def.simple_name) {
-                def.references = *count;
+            } else if def.def_type != "variable" {
+                if let Some(count) = ref_counts.get(&def.simple_name) {
+                    def.references = *count;
+                }
             }
 
             apply_heuristics(&mut def);
@@ -683,6 +685,28 @@ impl CytoScnPy {
         } else {
             Vec::new()
         };
+
+        // Update file_metrics to include unused items count
+        let mut unused_counts: FxHashMap<std::path::PathBuf, usize> = FxHashMap::default();
+        let all_unused_slices: [&[Definition]; 6] = [
+            &unused_functions,
+            &unused_methods,
+            &unused_imports,
+            &unused_classes,
+            &unused_variables,
+            &unused_parameters,
+        ];
+        let all_unused = all_unused_slices.into_iter().flatten();
+
+        for def in all_unused {
+            *unused_counts.entry(def.file.as_ref().clone()).or_insert(0) += 1;
+        }
+
+        for metric in &mut file_metrics {
+            if let Some(count) = unused_counts.get(&metric.file) {
+                metric.total_issues += count;
+            }
+        }
 
         let taint_count = taint_findings.len();
 

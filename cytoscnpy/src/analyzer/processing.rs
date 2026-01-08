@@ -688,13 +688,15 @@ impl CytoScnPy {
 
         // Update file_metrics to include unused items count
         let mut unused_counts: FxHashMap<std::path::PathBuf, usize> = FxHashMap::default();
-        let all_unused = unused_functions
-            .iter()
-            .chain(unused_methods.iter())
-            .chain(unused_imports.iter())
-            .chain(unused_classes.iter())
-            .chain(unused_variables.iter())
-            .chain(unused_parameters.iter());
+        let all_unused_slices: [&[Definition]; 6] = [
+            &unused_functions,
+            &unused_methods,
+            &unused_imports,
+            &unused_classes,
+            &unused_variables,
+            &unused_parameters,
+        ];
+        let all_unused = all_unused_slices.into_iter().flatten();
 
         for def in all_unused {
             *unused_counts.entry(def.file.as_ref().clone()).or_insert(0) += 1;

@@ -3,7 +3,7 @@ uncalled==0.1.8
 vulture==2.14
 flake8==7.3.0
 pylint==4.0.4
-ruff==0.14.7
+ruff==0.14.11
 dead==2.1.0
 skylos==2.5.3
 deadcode==2.4.1

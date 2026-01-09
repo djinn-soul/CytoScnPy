@@ -30,17 +30,24 @@ def run_command(command, cwd=None, env=None, timeout=300):
         # Securely split the string command
         command = shlex.split(command)
 
-    # We need to use Popen to track memory usage with psutil
-    process = subprocess.Popen(
-        command,
-        cwd=cwd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL,  # Prevent interactive prompts
-        text=True,
-        shell=use_shell,
-    )
+    try:
+        # We need to use Popen to track memory usage with psutil
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,  # Prevent interactive prompts
+            text=True,
+            shell=use_shell,
+        )
+    except FileNotFoundError:
+        return (
+            subprocess.CompletedProcess(command, 2, "", f"File not found: {command}"),
+            0,
+            0,
+        )
 
     max_rss = [0]  # Use list for mutable closure
     stop_monitoring = threading.Event()
@@ -1120,7 +1127,8 @@ def main():
         {
             "name": "dead",
             # dead uses --files regex, not positional path. It runs from CWD.
-            "command": f'cd "{target_dir_str}" && "{sys.executable}" -m dead --files ".*\\.py$"',
+            "command": [sys.executable, "-m", "dead", "--files", ".*\\.py$"],
+            "cwd": target_dir_str,
         },
         {
             "name": "deadcode",
@@ -1173,6 +1181,18 @@ def main():
         print("[-] No tools selected to run.")
         return
 
+    # Check tool availability and filter
+    availability = check_tool_availability(tools_to_run, env)
+    tools_to_run = [
+        t
+        for t in tools_to_run
+        if availability.get(t["name"], {}).get("available", False)
+    ]
+
+    if not tools_to_run:
+        print("[-] No available tools to run.")
+        return
+
     # Build Rust project ONLY if we are running CytoScnPy (Rust)
     run_rust_build = any("CytoScnPy (Rust)" in t["name"] for t in tools_to_run)
 
@@ -1201,7 +1221,12 @@ def main():
 
     for tool in tools_to_run:
         if tool["command"]:
-            res = run_benchmark_tool(tool["name"], tool["command"], env=tool.get("env"))
+            res = run_benchmark_tool(
+                tool["name"],
+                tool["command"],
+                cwd=tool.get("cwd"),
+                env=tool.get("env"),
+            )
             if res:
                 results.append(res)
                 # Verify

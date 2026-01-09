@@ -5,6 +5,7 @@ import sys
 import os
 import re
 import shutil
+import shlex
 from pathlib import Path
 
 try:
@@ -23,9 +24,11 @@ def run_command(command, cwd=None, env=None, timeout=300):
     start_time = time.time()
 
     # Determine if we should use shell=True
-    use_shell = True
-    if isinstance(command, list):
-        use_shell = False
+    use_shell = False
+
+    if isinstance(command, str):
+        # Securely split the string command
+        command = shlex.split(command)
 
     # We need to use Popen to track memory usage with psutil
     process = subprocess.Popen(
@@ -1180,8 +1183,8 @@ def main():
             print(f"[-] Cargo.toml not found at {cargo_toml}")
             return
 
-        build_cmd = f'cargo build --release --manifest-path "{cargo_toml}"'
-        subprocess.run(build_cmd, shell=True, check=True)
+        build_cmd = ["cargo", "build", "--release", "--manifest-path", str(cargo_toml)]
+        subprocess.run(build_cmd, shell=False, check=True)
         print("[+] Rust build successful.")
 
         # Check binary again after build

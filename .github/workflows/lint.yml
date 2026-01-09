@@ -10,4 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Mold Linker
+        uses: rui314/setup-mold@v1
       - uses: j178/prek-action@v1

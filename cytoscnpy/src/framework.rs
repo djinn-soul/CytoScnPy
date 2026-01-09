@@ -435,7 +435,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     /// Checks if any of the decorators are framework-related.
     fn check_decorators(&mut self, decorators: &[ruff_python_ast::Decorator], line: usize) {
         for decorator in decorators {
-            let name = self.get_decorator_name(&decorator.expression);
+            let name = Self::get_decorator_name(&decorator.expression);
             if Self::is_framework_decorator(&name) {
                 // If a framework decorator is found, mark the line and the file.
                 self.framework_decorated_lines.insert(line);
@@ -445,8 +445,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     }
 
     /// Extracts the name of a decorator.
-    #[allow(clippy::only_used_in_recursion)]
-    fn get_decorator_name(&self, decorator: &Expr) -> String {
+    fn get_decorator_name(decorator: &Expr) -> String {
         match decorator {
             Expr::Name(node) => node.id.to_string(),
             Expr::Attribute(node) => {
@@ -455,7 +454,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
             }
             Expr::Call(node) => {
                 // For decorators with arguments like @app.route("/path")
-                self.get_decorator_name(&node.func)
+                Self::get_decorator_name(&node.func)
             }
             _ => String::new(),
         }

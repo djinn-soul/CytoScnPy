@@ -29,11 +29,14 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
+    "prek",
+    "psutil",
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff",
     "tomli; python_version < '3.11'",
     "trove-classifiers",
+    "ty",
 ]
 docs = ["mkdocs-material>=9.5.0", "mkdocs-minify-plugin>=0.8.0"]
 
@@ -52,3 +55,72 @@ cytoscnpy = "cytoscnpy.cli:main"
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
 addopts = "--basetemp=.pytest_tmp"
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    # Project specific excludes
+    "benchmark/examples",
+    "cytoscnpy/tests/data",
+    "cytoscnpy/tests/python_files",
+    "cytoscnpy/tests/reproduce_type_error.py",
+]
+line-length = 88
+indent-width = 4
+target-version = "py38"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`), subset of pycodestyle (`E`), and pydocstyle (`D`) codes.
+select = ["E4", "E7", "E9", "F", "D"]
+ignore = [
+    "D100",
+    "D104",
+] # Optional: Ignore missing docstring in public module/package
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ty.src]
+# Exclude test data directories that contain intentionally broken code
+exclude = [
+    "benchmark/examples",
+    "cytoscnpy/tests/data",
+    "cytoscnpy/tests/python_files",
+    "cytoscnpy/tests/reproduce_type_error.py",
+]

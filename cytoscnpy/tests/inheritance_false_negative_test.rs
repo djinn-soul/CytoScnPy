@@ -45,7 +45,7 @@ user = User("John")
         .map(|d| d.simple_name.as_str())
         .collect();
 
-    println!("Unused classes: {:?}", unused_class_names);
+    println!("Unused classes: {unused_class_names:?}");
 
     // Order should be detected as unused (it's never instantiated)
     assert!(

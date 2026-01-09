@@ -1073,39 +1073,6 @@ fn collect_docstring_lines(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::utils::LineIndex;
-    use ruff_python_parser::parse_module;
-
-    #[test]
-    fn test_stack_overflow_protection() {
-        // Generate a deeply nested Python file
-        let depth = 500; // Well above MAX_RECURSION_DEPTH
-        let mut code = String::new();
-        for i in 1..=depth {
-            let indent = " ".repeat((i - 1) * 2);
-            code.push_str(&format!("{}def f{}():\n", indent, i));
-            code.push_str(&format!("{}  \"\"\"Docstring {}\"\"\"\n", indent, i));
-        }
-        code.push_str(&" ".repeat(depth * 2));
-        code.push_str("pass\n");
-
-        let parsed = parse_module(&code).expect("Failed to parse deeply nested code");
-        let line_index = LineIndex::new(&code);
-        let mut docstrings = rustc_hash::FxHashSet::default();
-
-        // Should not crash due to MAX_RECURSION_DEPTH
-        collect_docstring_lines(&parsed.into_syntax().body, &line_index, &mut docstrings, 0);
-
-        // Should have collected some docstrings (up to limit)
-        assert!(!docstrings.is_empty());
-        // Specifically, it should stop at 400 + some (since first expression is checked)
-        // But the main goal is no crash.
-    }
-}
-
 /// Converts byte range references in error messages to line numbers.
 ///
 /// Ruff parser errors include "at byte range X..Y" which is not user-friendly.
@@ -1128,4 +1095,37 @@ fn convert_byte_range_to_line(error_msg: &str, source: &str) -> String {
         }
     })
     .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::LineIndex;
+    use ruff_python_parser::parse_module;
+
+    #[test]
+    fn test_stack_overflow_protection() {
+        // Generate a deeply nested Python file
+        let depth = 500; // Well above MAX_RECURSION_DEPTH
+        let mut code = String::new();
+        for i in 1..=depth {
+            let indent = " ".repeat((i - 1) * 2);
+            code.push_str(&format!("{indent}def f{i}():\n"));
+            code.push_str(&format!("{indent}  \"\"\"Docstring {i}\"\"\"\n"));
+        }
+        code.push_str(&" ".repeat(depth * 2));
+        code.push_str("pass\n");
+
+        let parsed = parse_module(&code).expect("Failed to parse deeply nested code");
+        let line_index = LineIndex::new(&code);
+        let mut docstrings = rustc_hash::FxHashSet::default();
+
+        // Should not crash due to MAX_RECURSION_DEPTH
+        collect_docstring_lines(&parsed.into_syntax().body, &line_index, &mut docstrings, 0);
+
+        // Should have collected some docstrings (up to limit)
+        assert!(!docstrings.is_empty());
+        // Specifically, it should stop at 400 + some (since first expression is checked)
+        // But the main goal is no crash.
+    }
 }

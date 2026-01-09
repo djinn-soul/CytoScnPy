@@ -121,6 +121,7 @@ pub struct TaintInfo {
 
 impl TaintInfo {
     /// Creates a new taint info from a source.
+    #[must_use]
     pub fn new(source: TaintSource, line: usize) -> Self {
         Self {
             source,
@@ -169,6 +170,7 @@ pub struct TaintFinding {
 
 impl TaintFinding {
     /// Creates a formatted flow path string.
+    #[must_use]
     pub fn flow_path_str(&self) -> String {
         if self.flow_path.is_empty() {
             format!("{} → {}", self.source, self.sink)
@@ -196,6 +198,7 @@ pub struct FunctionSummary {
 
 impl FunctionSummary {
     /// Creates an empty summary for a function.
+    #[must_use]
     pub fn new(name: &str, param_count: usize) -> Self {
         Self {
             name: name.to_owned(),

@@ -1,13 +1,9 @@
-"""
-Tests for CI/CD quality gate features (--fail-threshold, --max-complexity, --min-mi flags).
+"""Tests for CI/CD quality gate features (--fail-threshold, --max-complexity, --min-mi flags).
 
 These tests use the Python library directly instead of subprocess calls,
 making them faster and more portable than binary-based tests.
 """
-import pytest
-import tempfile
-import os
-from pathlib import Path
+
 from cytoscnpy import run
 
 

@@ -6,18 +6,18 @@ pub const STYLE_CSS: &str = r"
     --bg-card: rgba(24, 24, 27, 0.6);
     --bg-card-hover: rgba(39, 39, 42, 0.8);
     --border: rgba(255, 255, 255, 0.1);
-    
+
     --primary: #6366f1;
     --primary-glow: rgba(99, 102, 241, 0.2);
-    
+
     --text-main: #fafafa;
     --text-muted: #a1a1aa;
-    
+
     --severity-critical: #ef4444; /* Red-500 */
     --severity-high: #f97316;     /* Orange-500 */
     --severity-medium: #eab308;   /* Yellow-500 */
     --severity-low: #3b82f6;      /* Blue-500 */
-    
+
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
@@ -29,7 +29,7 @@ body {
     line-height: 1.6;
     margin: 0;
     padding: 0;
-    background-image: 
+    background-image:
         radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%),
         radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.08), transparent 25%);
     min-height: 100vh;
@@ -98,8 +98,8 @@ nav {
 /* Issue specific styles */
 .issue-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem; }
 .issue-title { font-weight: 600; font-size: 1.1rem; color: var(--text-main); }
-.issue-location { 
-    display: flex; align-items: center; gap: 0.5rem; 
+.issue-location {
+    display: flex; align-items: center; gap: 0.5rem;
     color: var(--text-muted); font-size: 0.9rem; font-family: var(--font-mono);
     margin-top: 0.5rem;
     background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.5rem;
@@ -121,7 +121,7 @@ code { font-family: var(--font-mono) !important; font-size: 0.9em; }
 
 /// Basic `JavaScript` for charts and simple interactions.
 pub const CHARTS_JS: &str = r#"
-// Charts logic will be handled by inline script in templates for now, 
+// Charts logic will be handled by inline script in templates for now,
 // This file is reserved for complex interaction logic if needed.
 console.log("CytoScnPy Report Loaded");
 "#;

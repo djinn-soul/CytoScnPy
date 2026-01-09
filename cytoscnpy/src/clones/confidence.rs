@@ -52,6 +52,7 @@ pub struct FixConfidence {
 
 /// Context for confidence scoring
 #[derive(Debug, Clone, Default)]
+#[allow(clippy::struct_excessive_bools)] // Booleans represent distinct semantic contexts
 pub struct FixContext {
     /// Is either file a test file?
     pub is_test_file: bool,

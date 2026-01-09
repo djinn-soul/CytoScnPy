@@ -1,0 +1,21 @@
+name: Semgrep
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: "0 0 */15 * *" # Run on the 1st, 16th, and 31st of every month
+
+jobs:
+  semgrep:
+    name: semgrep/ci
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep
+    if: (github.actor != 'dependabot[bot]')
+    steps:
+      - uses: actions/checkout@v3
+      - run: semgrep scan --config=p/python --error --skip-unknown-extensions --exclude='benchmark/examples/**'

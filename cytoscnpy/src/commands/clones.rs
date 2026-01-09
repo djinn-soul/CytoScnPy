@@ -234,7 +234,7 @@ fn print_clone_stats_simple<W: Write>(
     pairs: &[ClonePair],
 ) -> Result<()> {
     writeln!(writer, "[VERBOSE] Clone Detection Statistics:")?;
-    writeln!(writer, "   Files scanned: {}", file_count)?;
+    writeln!(writer, "   Files scanned: {file_count}")?;
     writeln!(writer, "   Clone pairs found: {}", pairs.len())?;
 
     let mut type1_count = 0;

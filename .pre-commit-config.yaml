@@ -27,29 +27,32 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+      - id: check-toml
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: debug-statements
 
-  - repo: local
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.28.4
     hooks:
-      - id: cytoscnpy-check
-        name: CytoScnPy Analysis (Secrets, Danger, Quality)
-        entry: cytoscnpy
-        language: system
-        types: [python]
-        pass_filenames: true
-        require_serial: true
+      - id: typos
+
+  # UV: Lock file and requirements export
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.6.6
+    hooks:
+      - id: uv-lock
+      - id: uv-export
+        name: Export requirements.txt
+        args: ["--output-file", "requirements.txt", "--no-hashes"]
+      - id: uv-export
+        name: Export requirements-dev.txt
         args:
           [
-            "--secrets",
-            "--danger",
-            "--quality",
-            "--fail-on-quality",
-            "--fail-threshold",
-            "0",
-            "--confidence",
-            "20",
-            "--quiet",
+            "--extra",
+            "dev",
+            "--output-file",
+            "requirements-dev.txt",
+            "--no-hashes",
           ]

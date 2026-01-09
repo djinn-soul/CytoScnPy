@@ -60,13 +60,13 @@ if ($Summary) {
     # Generate HTML report
     Write-Host "📊 Generating HTML coverage report..." -ForegroundColor Yellow
     cargo llvm-cov --all-features --html
-    
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host ""
         Write-Host "✅ Coverage report generated successfully!" -ForegroundColor Green
         Write-Host ""
         Write-Host "📁 Report location: cytoscnpy\target\llvm-cov\html\index.html" -ForegroundColor Cyan
-        
+
         if ($Open) {
             Write-Host "🌐 Opening coverage report in browser..." -ForegroundColor Yellow
             Start-Process (Resolve-Path "target\llvm-cov\html\index.html")

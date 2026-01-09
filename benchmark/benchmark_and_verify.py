@@ -9,7 +9,7 @@ import shlex
 from pathlib import Path
 
 try:
-    import psutil
+    import psutil  # ty: ignore[unresolved-import]
 except ImportError:
     psutil = None  # type: ignore
 

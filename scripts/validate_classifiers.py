@@ -1,9 +1,9 @@
 try:
     import tomllib  # ty: ignore[unresolved-import]
 except ImportError:
-    import tomli as tomllib
+    import tomli as tomllib  # ty: ignore[unresolved-import]
 import sys
-from trove_classifiers import classifiers
+from trove_classifiers import classifiers  # ty: ignore[unresolved-import]
 
 
 def validate_classifiers():

@@ -2,8 +2,8 @@ name: Nightly Build
 
 on:
   schedule:
-    # Run at 2 AM UTC daily
-    - cron: "0 2 * * *"
+    # Run at 2 AM UTC on the 1st of every month
+    - cron: "0 2 1 * *"
   workflow_dispatch:
 
 concurrency:

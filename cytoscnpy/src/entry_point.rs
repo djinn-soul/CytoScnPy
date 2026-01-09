@@ -643,7 +643,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             danger,
             quality,
             include_tests,
-            exclude_folders,
+            exclude_folders.clone(),
             include_folders,
             cli_var.include.include_ipynb,
             cli_var.include.ipynb_cells,
@@ -771,6 +771,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 let clone_findings = run_clone_detection_for_json(
                     &effective_paths,
                     cli_var.clone_similarity,
+                    &exclude_folders,
                     cli_var.output.verbose,
                 );
 
@@ -833,7 +834,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                     json: cli_var.output.json,
                     fix: false, // Clones are report-only, never auto-fixed
                     dry_run: !cli_var.apply,
-                    exclude: vec![], // Use empty - files already filtered by analyzer
+                    exclude: exclude_folders.clone().into_iter().collect(),
                     verbose: cli_var.output.verbose,
                     with_cst: true, // CST is always enabled by default
                 };
@@ -1057,6 +1058,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 fn run_clone_detection_for_json(
     paths: &[std::path::PathBuf],
     similarity: f64,
+    excludes: &[String],
     verbose: bool,
 ) -> Vec<crate::clones::CloneFinding> {
     use crate::clones::{CloneConfig, CloneDetector};
@@ -1068,7 +1070,7 @@ fn run_clone_detection_for_json(
             if path.is_file() {
                 vec![path.clone()]
             } else if path.is_dir() {
-                crate::utils::collect_python_files_gitignore(path, &[], &[], false, verbose).0
+                crate::utils::collect_python_files_gitignore(path, excludes, &[], false, verbose).0
             } else {
                 vec![]
             }

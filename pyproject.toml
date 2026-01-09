@@ -115,7 +115,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.ty.src]
-# Exclude specific directories or files
+# Exclude test data directories that contain intentionally broken code
 exclude = [
     "benchmark/examples",
     "cytoscnpy/tests/data",

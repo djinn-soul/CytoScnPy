@@ -37,3 +37,22 @@ repos:
     rev: v1.28.4
     hooks:
       - id: typos
+
+  # UV: Lock file and requirements export
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.6.6
+    hooks:
+      - id: uv-lock
+      - id: uv-export
+        name: Export requirements.txt
+        args: ["--output-file", "requirements.txt", "--no-hashes"]
+      - id: uv-export
+        name: Export requirements-dev.txt
+        args:
+          [
+            "--extra",
+            "dev",
+            "--output-file",
+            "requirements-dev.txt",
+            "--no-hashes",
+          ]

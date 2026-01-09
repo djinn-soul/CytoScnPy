@@ -29,6 +29,8 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
+    "prek",
+    "psutil",
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff",
@@ -122,8 +124,3 @@ exclude = [
     "cytoscnpy/tests/python_files",
     "cytoscnpy/tests/reproduce_type_error.py",
 ]
-
-[tool.ty.rules]
-# Disable unresolved-import since ty runs as an isolated tool in CI
-# without access to the project's virtual environment dependencies
-unresolved-import = "ignore"

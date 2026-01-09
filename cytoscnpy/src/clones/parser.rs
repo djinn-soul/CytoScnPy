@@ -121,13 +121,19 @@ pub fn extract_subtrees(source: &str, path: &PathBuf) -> Result<Vec<Subtree>, Cl
     let module = AstParser::parse(source)?;
     let mut subtrees = Vec::new();
 
-    extract_from_body(&module.body, path, source, &mut subtrees);
+    extract_from_body(&module.body, path, source, &mut subtrees, false);
 
     Ok(subtrees)
 }
 
 /// Recursively extract subtrees from a statement body
-fn extract_from_body(body: &[Stmt], path: &PathBuf, source: &str, subtrees: &mut Vec<Subtree>) {
+fn extract_from_body(
+    body: &[Stmt],
+    path: &PathBuf,
+    source: &str,
+    subtrees: &mut Vec<Subtree>,
+    in_class: bool,
+) {
     for stmt in body {
         match stmt {
             Stmt::FunctionDef(f) => {
@@ -136,7 +142,9 @@ fn extract_from_body(body: &[Stmt], path: &PathBuf, source: &str, subtrees: &mut
                 let (start_line, end_line) = byte_to_lines(start_byte, end_byte, source);
 
                 // ruff uses is_async flag instead of separate AsyncFunctionDef
-                let node_type = if f.is_async {
+                let node_type = if in_class {
+                    SubtreeType::Method
+                } else if f.is_async {
                     SubtreeType::AsyncFunction
                 } else {
                     SubtreeType::Function
@@ -154,8 +162,8 @@ fn extract_from_body(body: &[Stmt], path: &PathBuf, source: &str, subtrees: &mut
                     children: extract_stmt_nodes(&f.body),
                 });
 
-                // Recurse into nested functions
-                extract_from_body(&f.body, path, source, subtrees);
+                // Recurse into nested functions (reset in_class to false)
+                extract_from_body(&f.body, path, source, subtrees, false);
             }
             Stmt::ClassDef(c) => {
                 let start_byte = c.range().start().to_usize();
@@ -174,8 +182,8 @@ fn extract_from_body(body: &[Stmt], path: &PathBuf, source: &str, subtrees: &mut
                     children: extract_stmt_nodes(&c.body),
                 });
 
-                // Recurse into class body for methods
-                extract_from_body(&c.body, path, source, subtrees);
+                // Recurse into class body for methods (set in_class to true)
+                extract_from_body(&c.body, path, source, subtrees, true);
             }
             _ => {}
         }

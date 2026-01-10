@@ -228,9 +228,9 @@ pub struct CytoScnPyVisitor<'a> {
     pub function_stack: SmallVec<[String; 4]>,
     /// Map of function qualified name -> set of parameter names for that function.
     pub function_params: FxHashMap<String, FxHashSet<String>>,
-    /// Stack to track if we are inside a dataclass.
-    /// Uses `SmallVec` - most code has < 4 nested dataclasses.
-    pub dataclass_stack: SmallVec<[bool; 4]>,
+    /// Stack to track if we are inside a model class (dataclass, Pydantic, etc.).
+    /// Uses `SmallVec` - most code has < 4 nested classes.
+    pub model_class_stack: SmallVec<[bool; 4]>,
     /// Whether we are currently inside an `if TYPE_CHECKING:` block.
     pub in_type_checking_block: bool,
     /// Stack of scopes for variable resolution.
@@ -271,7 +271,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             alias_map: FxHashMap::default(),
             function_stack: SmallVec::new(),
             function_params: FxHashMap::default(),
-            dataclass_stack: SmallVec::new(),
+            model_class_stack: SmallVec::new(),
             in_type_checking_block: false,
             scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
             is_dynamic: false,
@@ -648,28 +648,28 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             // Handle class definitions
             Stmt::ClassDef(node) => {
-                // Check for @dataclass decorator (ruff uses Decorator type)
-                let mut is_dataclass = false;
+                // Check if this class is a "Model Class" (Pydantic, Dataclass, TypedDict, etc.)
+                let mut is_model_class = false;
                 for decorator in &node.decorator_list {
                     self.visit_expr(&decorator.expression);
                     // Check the inner expression for dataclass decorator
                     if let Expr::Name(name) = &decorator.expression {
                         if name.id.as_str() == "dataclass" {
-                            is_dataclass = true;
+                            is_model_class = true;
                         }
                     } else if let Expr::Call(call) = &decorator.expression {
                         if let Expr::Name(func_name) = &*call.func {
                             if func_name.id.as_str() == "dataclass" {
-                                is_dataclass = true;
+                                is_model_class = true;
                             }
                         } else if let Expr::Attribute(attr) = &*call.func {
                             if attr.attr.as_str() == "dataclass" {
-                                is_dataclass = true;
+                                is_model_class = true;
                             }
                         }
                     } else if let Expr::Attribute(attr) = &decorator.expression {
                         if attr.attr.as_str() == "dataclass" {
-                            is_dataclass = true;
+                            is_model_class = true;
                         }
                     }
                 }
@@ -688,10 +688,26 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for base in bases {
                     match base {
                         Expr::Name(base_name) => {
-                            base_classes.push(base_name.id.to_string());
+                            let b_name = base_name.id.as_str();
+                            base_classes.push(b_name.to_owned());
+                            // Check base classes for Model behaviors
+                            if matches!(
+                                b_name,
+                                "BaseModel" | "TypedDict" | "NamedTuple" | "Protocol" | "Struct"
+                            ) {
+                                is_model_class = true;
+                            }
                         }
                         Expr::Attribute(attr) => {
-                            base_classes.push(attr.attr.to_string());
+                            let b_name = attr.attr.as_str();
+                            base_classes.push(b_name.to_owned());
+                            // Check base classes for Model behaviors
+                            if matches!(
+                                b_name,
+                                "BaseModel" | "TypedDict" | "NamedTuple" | "Protocol" | "Struct"
+                            ) {
+                                is_model_class = true;
+                            }
                         }
                         _ => {}
                     }
@@ -768,7 +784,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 // Push class name to stack for nested definitions (methods/inner classes).
                 self.class_stack.push(name.to_string());
-                self.dataclass_stack.push(is_dataclass);
+                self.model_class_stack.push(is_model_class);
 
                 // Enter class scope
                 self.enter_scope(ScopeType::Class(CompactString::from(name.as_str())));
@@ -779,7 +795,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
                 // Pop class name after visiting body.
                 self.class_stack.pop();
-                self.dataclass_stack.pop();
+                self.model_class_stack.pop();
 
                 // Exit class scope
                 self.exit_scope();
@@ -880,7 +896,16 @@ impl<'a> CytoScnPyVisitor<'a> {
                                 end_byte,
                                 base_classes: SmallVec::new(),
                             });
-                            self.add_local_def(name_node.id.to_string(), qualified_name);
+                            self.add_local_def(name_node.id.to_string(), qualified_name.clone());
+
+                            // Fix for unannotated class attributes in Model Classes (Dataclasses, Pydantic)
+                            // If we are in a Model Class and not in a method, treat this assignment as a field definition
+                            // and mark it as implicitly used.
+                            if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                                if let Some(true) = self.model_class_stack.last() {
+                                    self.add_ref(qualified_name);
+                                }
+                            }
                         }
                     } else {
                         // For non-name targets, visit for references
@@ -910,11 +935,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     });
                     self.add_local_def(name_node.id.to_string(), qualified_name.clone());
 
-                    // If inside a dataclass, mark as implicitly used (field)
-                    if let Some(true) = self.dataclass_stack.last() {
-                        // Only if we are in a class (which we should be if dataclass_stack is true)
-                        // and NOT in a function (class fields are at class level)
-                        if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                    // If we are in a Model Class (Dataclasses, Pydantic) and not in a method,
+                    // treat this assignment as a field definition and mark it as implicitly used.
+                    if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                        if let Some(true) = self.model_class_stack.last() {
                             self.add_ref(qualified_name);
                         }
                     }

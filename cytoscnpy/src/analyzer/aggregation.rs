@@ -151,7 +151,7 @@ impl CytoScnPy {
 
             apply_heuristics(&mut def);
 
-            if def.confidence < self.confidence_threshold {
+            if def.confidence == 0 || def.confidence < self.confidence_threshold {
                 continue;
             }
 
@@ -218,10 +218,17 @@ impl CytoScnPy {
                 })
                 .collect();
 
-            file_sources
+            let file_taint = file_sources
                 .iter()
-                .flat_map(|(path, source)| taint_analyzer.analyze_file(source, path))
-                .collect()
+                .flat_map(|(path, source)| {
+                    let path_ignored = crate::utils::get_ignored_lines(source);
+                    let findings = taint_analyzer.analyze_file(source, path);
+                    findings
+                        .into_iter()
+                        .filter(move |f| !path_ignored.contains(&f.sink_line))
+                })
+                .collect::<Vec<_>>();
+            file_taint
         } else {
             Vec::new()
         };

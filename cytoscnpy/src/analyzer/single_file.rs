@@ -515,7 +515,7 @@ impl CytoScnPy {
 
             apply_heuristics(&mut def);
 
-            if def.confidence < self.confidence_threshold {
+            if def.confidence == 0 || def.confidence < self.confidence_threshold {
                 continue;
             }
 

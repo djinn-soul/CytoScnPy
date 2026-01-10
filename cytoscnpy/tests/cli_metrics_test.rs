@@ -8,7 +8,9 @@
 )]
 
 #[allow(deprecated)]
-use cytoscnpy::commands::{run_cc, run_files, run_hal, run_mi, run_raw, run_stats, run_stats_v2};
+use cytoscnpy::commands::{
+    run_cc, run_files, run_hal, run_mi, run_raw, run_stats, run_stats_v2, Inspections, ScanOptions,
+};
 use std::fs::{self, File};
 use std::io::Write;
 use tempfile::TempDir;
@@ -179,11 +181,15 @@ fn test_cli_stats_markdown_output() {
     run_stats_v2(
         dir.path(),                  // root
         &[dir.path().to_path_buf()], // roots
-        false,                       // all
-        false,                       // secrets
-        false,                       // danger
-        false,                       // quality
-        false,                       // json
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: false,
+        },
         Some(output_path.to_string_lossy().to_string()),
         &[],
         false, // include_tests
@@ -213,11 +219,15 @@ fn test_cli_stats_json_output() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false,
-        false,
-        false,
-        false,
-        true,
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: true,
+        },
         None,
         &[],
         false, // include_tests
@@ -250,11 +260,15 @@ fn test_cli_stats_all_flag() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        true,
-        false,
-        false,
-        false,
-        false,
+        ScanOptions {
+            all: true,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: false,
+        },
         Some(output_path.to_string_lossy().to_string()),
         &[],
         false, // include_tests
@@ -286,11 +300,15 @@ fn test_cli_stats_multiple_files() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false,
-        false,
-        false,
-        false,
-        true,
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: true,
+        },
         None,
         &[],
         false, // include_tests
@@ -322,11 +340,15 @@ fn test_cli_stats_with_classes() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false,
-        false,
-        false,
-        false,
-        true,
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: true,
+        },
         None,
         &[],
         false, // include_tests
@@ -470,11 +492,15 @@ fn test_cli_stats_empty_directory() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false,
-        false,
-        false,
-        false,
-        true,
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: true,
+        },
         None,
         &[],
         false, // include_tests
@@ -541,11 +567,15 @@ fn test_cli_stats_markdown_with_secrets_findings() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false, // all
-        true,  // secrets - enable secrets scanning
-        false, // danger
-        false, // quality
-        false, // json (use markdown output)
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: true,
+                danger: false,
+                quality: false,
+            },
+            json: false,
+        },
         None,
         &[],
         false,
@@ -572,11 +602,15 @@ fn test_cli_stats_markdown_with_danger_findings() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false, // all
-        false, // secrets
-        true,  // danger - enable danger scanning
-        false, // quality
-        false, // json (use markdown output)
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: true,
+                quality: false,
+            },
+            json: false,
+        },
         None,
         &[],
         false,
@@ -620,11 +654,15 @@ fn test_cli_stats_markdown_with_quality_findings() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false, // all
-        false, // secrets
-        false, // danger
-        true,  // quality - enable quality scanning
-        false, // json (use markdown output)
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: true,
+            },
+            json: false,
+        },
         None,
         &[],
         false,
@@ -651,11 +689,15 @@ fn test_cli_stats_json_with_output_file() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false,
-        false,
-        false,
-        false,
-        true, // json
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: true,
+        },
         Some(output_path.to_string_lossy().to_string()),
         &[],
         false,
@@ -696,11 +738,15 @@ fn test_cli_stats_include_tests_flag() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false,
-        false,
-        false,
-        false,
-        true,
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: true,
+        },
         None,
         &[],
         false, // include_tests = false
@@ -720,11 +766,15 @@ fn test_cli_stats_include_tests_flag() {
     run_stats_v2(
         dir.path(),
         &[dir.path().to_path_buf()],
-        false,
-        false,
-        false,
-        false,
-        true,
+        ScanOptions {
+            all: false,
+            inspections: Inspections {
+                secrets: false,
+                danger: false,
+                quality: false,
+            },
+            json: true,
+        },
         None,
         &[],
         true, // include_tests = true

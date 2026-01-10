@@ -241,76 +241,31 @@ impl HalsteadVisitor {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
-    fn visit_stmt(&mut self, stmt: &Stmt) {
+    fn visit_function_def(&mut self, node: &ast::StmtFunctionDef) {
+        if node.is_async {
+            self.add_operator("async def");
+        } else {
+            self.add_operator("def");
+        }
+        self.add_operand(&node.name);
+        for arg in &node.parameters.args {
+            self.add_operand(&arg.parameter.name);
+        }
+        for stmt in &node.body {
+            self.visit_stmt(stmt);
+        }
+    }
+
+    fn visit_class_def(&mut self, node: &ast::StmtClassDef) {
+        self.add_operator("class");
+        self.add_operand(&node.name);
+        for stmt in &node.body {
+            self.visit_stmt(stmt);
+        }
+    }
+
+    fn visit_control_flow(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::FunctionDef(node) => {
-                if node.is_async {
-                    self.add_operator("async def");
-                } else {
-                    self.add_operator("def");
-                }
-                self.add_operand(&node.name);
-                for arg in &node.parameters.args {
-                    self.add_operand(&arg.parameter.name);
-                }
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-            }
-            Stmt::ClassDef(node) => {
-                self.add_operator("class");
-                self.add_operand(&node.name);
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-            }
-            Stmt::Return(node) => {
-                self.add_operator("return");
-                if let Some(value) = &node.value {
-                    self.visit_expr(value);
-                }
-            }
-            Stmt::Delete(node) => {
-                self.add_operator("del");
-                for target in &node.targets {
-                    self.visit_expr(target);
-                }
-            }
-            Stmt::Assign(node) => {
-                self.add_operator("=");
-                for target in &node.targets {
-                    self.visit_expr(target);
-                }
-                self.visit_expr(&node.value);
-            }
-            Stmt::AugAssign(node) => {
-                self.add_operator(match node.op {
-                    ast::Operator::Add => "+=",
-                    ast::Operator::Sub => "-=",
-                    ast::Operator::Mult => "*=",
-                    ast::Operator::MatMult => "@=",
-                    ast::Operator::Div => "/=",
-                    ast::Operator::Mod => "%=",
-                    ast::Operator::Pow => "**=",
-                    ast::Operator::LShift => "<<=",
-                    ast::Operator::RShift => ">>=",
-                    ast::Operator::BitOr => "|=",
-                    ast::Operator::BitXor => "^=",
-                    ast::Operator::BitAnd => "&=",
-                    ast::Operator::FloorDiv => "//=",
-                });
-                self.visit_expr(&node.target);
-                self.visit_expr(&node.value);
-            }
-            Stmt::AnnAssign(node) => {
-                self.add_operator(":");
-                self.add_operator("=");
-                self.visit_expr(&node.target);
-                if let Some(value) = &node.value {
-                    self.visit_expr(value);
-                }
-            }
             Stmt::For(node) => {
                 if node.is_async {
                     self.add_operator("async for");
@@ -338,7 +293,7 @@ impl HalsteadVisitor {
                     self.visit_stmt(stmt);
                 }
                 for clause in &node.elif_else_clauses {
-                    self.add_operator("else"); // counting elif as else + if usually, or just branches
+                    self.add_operator("else");
                     for stmt in &clause.body {
                         self.visit_stmt(stmt);
                     }
@@ -357,75 +312,149 @@ impl HalsteadVisitor {
                     self.visit_stmt(stmt);
                 }
             }
-            Stmt::Raise(node) => {
-                self.add_operator("raise");
-                if let Some(exc) = &node.exc {
-                    self.visit_expr(exc);
-                }
-                if let Some(cause) = &node.cause {
-                    self.add_operator("from");
-                    self.visit_expr(cause);
+            _ => {}
+        }
+    }
+
+    fn visit_try_stmt(&mut self, node: &ast::StmtTry) {
+        self.add_operator("try");
+        for stmt in &node.body {
+            self.visit_stmt(stmt);
+        }
+        for handler in &node.handlers {
+            self.add_operator("except");
+            let ast::ExceptHandler::ExceptHandler(h) = handler;
+            if let Some(type_) = &h.type_ {
+                self.visit_expr(type_);
+            }
+            for stmt in &h.body {
+                self.visit_stmt(stmt);
+            }
+        }
+        if !node.orelse.is_empty() {
+            self.add_operator("else");
+            for stmt in &node.orelse {
+                self.visit_stmt(stmt);
+            }
+        }
+        if !node.finalbody.is_empty() {
+            self.add_operator("finally");
+            for stmt in &node.finalbody {
+                self.visit_stmt(stmt);
+            }
+        }
+    }
+
+    fn visit_import(&mut self, node: &ast::StmtImport) {
+        self.add_operator("import");
+        for alias in &node.names {
+            self.add_operand(&alias.name);
+            if let Some(asname) = &alias.asname {
+                self.add_operator("as");
+                self.add_operand(asname);
+            }
+        }
+    }
+
+    fn visit_import_from(&mut self, node: &ast::StmtImportFrom) {
+        self.add_operator("from");
+        self.add_operator("import");
+        if let Some(module) = &node.module {
+            self.add_operand(module);
+        }
+        for alias in &node.names {
+            self.add_operand(&alias.name);
+            if let Some(asname) = &alias.asname {
+                self.add_operator("as");
+                self.add_operand(asname);
+            }
+        }
+    }
+
+    fn visit_assign(&mut self, node: &ast::StmtAssign) {
+        self.add_operator("=");
+        for target in &node.targets {
+            self.visit_expr(target);
+        }
+        self.visit_expr(&node.value);
+    }
+
+    fn visit_aug_assign(&mut self, node: &ast::StmtAugAssign) {
+        self.add_operator(match node.op {
+            ast::Operator::Add => "+=",
+            ast::Operator::Sub => "-=",
+            ast::Operator::Mult => "*=",
+            ast::Operator::MatMult => "@=",
+            ast::Operator::Div => "/=",
+            ast::Operator::Mod => "%=",
+            ast::Operator::Pow => "**=",
+            ast::Operator::LShift => "<<=",
+            ast::Operator::RShift => ">>=",
+            ast::Operator::BitOr => "|=",
+            ast::Operator::BitXor => "^=",
+            ast::Operator::BitAnd => "&=",
+            ast::Operator::FloorDiv => "//=",
+        });
+        self.visit_expr(&node.target);
+        self.visit_expr(&node.value);
+    }
+
+    fn visit_ann_assign(&mut self, node: &ast::StmtAnnAssign) {
+        self.add_operator(":");
+        self.add_operator("=");
+        self.visit_expr(&node.target);
+        if let Some(value) = &node.value {
+            self.visit_expr(value);
+        }
+    }
+
+    fn visit_raise(&mut self, node: &ast::StmtRaise) {
+        self.add_operator("raise");
+        if let Some(exc) = &node.exc {
+            self.visit_expr(exc);
+        }
+        if let Some(cause) = &node.cause {
+            self.add_operator("from");
+            self.visit_expr(cause);
+        }
+    }
+
+    fn visit_assert(&mut self, node: &ast::StmtAssert) {
+        self.add_operator("assert");
+        self.visit_expr(&node.test);
+        if let Some(msg) = &node.msg {
+            self.visit_expr(msg);
+        }
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn visit_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::FunctionDef(node) => self.visit_function_def(node),
+            Stmt::ClassDef(node) => self.visit_class_def(node),
+            Stmt::Return(node) => {
+                self.add_operator("return");
+                if let Some(value) = &node.value {
+                    self.visit_expr(value);
                 }
             }
-            Stmt::Try(node) => {
-                self.add_operator("try");
-                for stmt in &node.body {
-                    self.visit_stmt(stmt);
-                }
-                for handler in &node.handlers {
-                    self.add_operator("except");
-                    let ast::ExceptHandler::ExceptHandler(h) = handler;
-                    if let Some(type_) = &h.type_ {
-                        self.visit_expr(type_);
-                    }
-                    for stmt in &h.body {
-                        self.visit_stmt(stmt);
-                    }
-                }
-                if !node.orelse.is_empty() {
-                    self.add_operator("else");
-                    for stmt in &node.orelse {
-                        self.visit_stmt(stmt);
-                    }
-                }
-                if !node.finalbody.is_empty() {
-                    self.add_operator("finally");
-                    for stmt in &node.finalbody {
-                        self.visit_stmt(stmt);
-                    }
+            Stmt::Delete(node) => {
+                self.add_operator("del");
+                for target in &node.targets {
+                    self.visit_expr(target);
                 }
             }
-            Stmt::Assert(node) => {
-                self.add_operator("assert");
-                self.visit_expr(&node.test);
-                if let Some(msg) = &node.msg {
-                    self.visit_expr(msg);
-                }
+            Stmt::Assign(node) => self.visit_assign(node),
+            Stmt::AugAssign(node) => self.visit_aug_assign(node),
+            Stmt::AnnAssign(node) => self.visit_ann_assign(node),
+            Stmt::If(_) | Stmt::For(_) | Stmt::While(_) | Stmt::With(_) => {
+                self.visit_control_flow(stmt);
             }
-            Stmt::Import(node) => {
-                self.add_operator("import");
-                for alias in &node.names {
-                    self.add_operand(&alias.name);
-                    if let Some(asname) = &alias.asname {
-                        self.add_operator("as");
-                        self.add_operand(asname);
-                    }
-                }
-            }
-            Stmt::ImportFrom(node) => {
-                self.add_operator("from");
-                self.add_operator("import");
-                if let Some(module) = &node.module {
-                    self.add_operand(module);
-                }
-                for alias in &node.names {
-                    self.add_operand(&alias.name);
-                    if let Some(asname) = &alias.asname {
-                        self.add_operator("as");
-                        self.add_operand(asname);
-                    }
-                }
-            }
+            Stmt::Raise(node) => self.visit_raise(node),
+            Stmt::Try(node) => self.visit_try_stmt(node),
+            Stmt::Assert(node) => self.visit_assert(node),
+            Stmt::Import(node) => self.visit_import(node),
+            Stmt::ImportFrom(node) => self.visit_import_from(node),
             Stmt::Global(node) => {
                 self.add_operator("global");
                 for name in &node.names {
@@ -454,191 +483,82 @@ impl HalsteadVisitor {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
-    fn visit_expr(&mut self, expr: &Expr) {
-        match expr {
-            Expr::BoolOp(node) => {
-                self.add_operator(match node.op {
-                    ast::BoolOp::And => "and",
-                    ast::BoolOp::Or => "or",
-                });
-                for value in &node.values {
-                    self.visit_expr(value);
-                }
-            }
-            Expr::Named(node) => {
-                self.add_operator(":=");
-                self.visit_expr(&node.target);
-                self.visit_expr(&node.value);
-            }
-            Expr::BinOp(node) => {
-                self.add_operator(match node.op {
-                    ast::Operator::Add => "+",
-                    ast::Operator::Sub => "-",
-                    ast::Operator::Mult => "*",
-                    ast::Operator::MatMult => "@",
-                    ast::Operator::Div => "/",
-                    ast::Operator::Mod => "%",
-                    ast::Operator::Pow => "**",
-                    ast::Operator::LShift => "<<",
-                    ast::Operator::RShift => ">>",
-                    ast::Operator::BitOr => "|",
-                    ast::Operator::BitXor => "^",
-                    ast::Operator::BitAnd => "&",
-                    ast::Operator::FloorDiv => "//",
-                });
-                self.visit_expr(&node.left);
-                self.visit_expr(&node.right);
-            }
-            Expr::UnaryOp(node) => {
-                self.add_operator(match node.op {
-                    ast::UnaryOp::Invert => "~",
-                    ast::UnaryOp::Not => "not",
-                    ast::UnaryOp::UAdd => "+",
-                    ast::UnaryOp::USub => "-",
-                });
-                self.visit_expr(&node.operand);
-            }
-            Expr::Lambda(node) => {
-                self.add_operator("lambda");
-                if let Some(parameters) = &node.parameters {
-                    for arg in &parameters.args {
-                        self.add_operand(arg.parameter.name.as_str());
-                    }
-                }
-                self.visit_expr(&node.body);
-            }
-            Expr::If(node) => {
+    fn visit_bool_op(&mut self, node: &ast::ExprBoolOp) {
+        self.add_operator(match node.op {
+            ast::BoolOp::And => "and",
+            ast::BoolOp::Or => "or",
+        });
+        for value in &node.values {
+            self.visit_expr(value);
+        }
+    }
+
+    fn visit_bin_op(&mut self, node: &ast::ExprBinOp) {
+        self.add_operator(match node.op {
+            ast::Operator::Add => "+",
+            ast::Operator::Sub => "-",
+            ast::Operator::Mult => "*",
+            ast::Operator::MatMult => "@",
+            ast::Operator::Div => "/",
+            ast::Operator::Mod => "%",
+            ast::Operator::Pow => "**",
+            ast::Operator::LShift => "<<",
+            ast::Operator::RShift => ">>",
+            ast::Operator::BitOr => "|",
+            ast::Operator::BitXor => "^",
+            ast::Operator::BitAnd => "&",
+            ast::Operator::FloorDiv => "//",
+        });
+        self.visit_expr(&node.left);
+        self.visit_expr(&node.right);
+    }
+
+    fn visit_unary_op(&mut self, node: &ast::ExprUnaryOp) {
+        self.add_operator(match node.op {
+            ast::UnaryOp::Invert => "~",
+            ast::UnaryOp::Not => "not",
+            ast::UnaryOp::UAdd => "+",
+            ast::UnaryOp::USub => "-",
+        });
+        self.visit_expr(&node.operand);
+    }
+
+    fn visit_compare(&mut self, node: &ast::ExprCompare) {
+        for op in &node.ops {
+            self.add_operator(match op {
+                ast::CmpOp::Eq => "==",
+                ast::CmpOp::NotEq => "!=",
+                ast::CmpOp::Lt => "<",
+                ast::CmpOp::LtE => "<=",
+                ast::CmpOp::Gt => ">",
+                ast::CmpOp::GtE => ">=",
+                ast::CmpOp::Is => "is",
+                ast::CmpOp::IsNot => "is not",
+                ast::CmpOp::In => "in",
+                ast::CmpOp::NotIn => "not in",
+            });
+        }
+        self.visit_expr(&node.left);
+        for comparator in &node.comparators {
+            self.visit_expr(comparator);
+        }
+    }
+
+    fn visit_generators(&mut self, generators: &[ast::Comprehension]) {
+        for gen in generators {
+            self.add_operator("for");
+            self.add_operator("in");
+            self.visit_expr(&gen.target);
+            self.visit_expr(&gen.iter);
+            for if_ in &gen.ifs {
                 self.add_operator("if");
-                self.add_operator("else");
-                self.visit_expr(&node.test);
-                self.visit_expr(&node.body);
-                self.visit_expr(&node.orelse);
+                self.visit_expr(if_);
             }
-            Expr::Dict(node) => {
-                self.add_operator("{}");
-                for item in &node.items {
-                    if let Some(key) = &item.key {
-                        self.visit_expr(key);
-                    }
-                    self.visit_expr(&item.value);
-                }
-            }
-            Expr::Set(node) => {
-                self.add_operator("{}");
-                for elt in &node.elts {
-                    self.visit_expr(elt);
-                }
-            }
-            Expr::ListComp(node) => {
-                self.add_operator("[]");
-                self.visit_expr(&node.elt);
-                for gen in &node.generators {
-                    self.add_operator("for");
-                    self.add_operator("in");
-                    self.visit_expr(&gen.target);
-                    self.visit_expr(&gen.iter);
-                    for if_ in &gen.ifs {
-                        self.add_operator("if");
-                        self.visit_expr(if_);
-                    }
-                }
-            }
-            Expr::SetComp(node) => {
-                self.add_operator("{}");
-                self.visit_expr(&node.elt);
-                for gen in &node.generators {
-                    self.add_operator("for");
-                    self.add_operator("in");
-                    self.visit_expr(&gen.target);
-                    self.visit_expr(&gen.iter);
-                    for if_ in &gen.ifs {
-                        self.add_operator("if");
-                        self.visit_expr(if_);
-                    }
-                }
-            }
-            Expr::DictComp(node) => {
-                self.add_operator("{}");
-                self.visit_expr(&node.key);
-                self.visit_expr(&node.value);
-                for gen in &node.generators {
-                    self.add_operator("for");
-                    self.add_operator("in");
-                    self.visit_expr(&gen.target);
-                    self.visit_expr(&gen.iter);
-                    for if_ in &gen.ifs {
-                        self.add_operator("if");
-                        self.visit_expr(if_);
-                    }
-                }
-            }
-            Expr::Generator(node) => {
-                self.add_operator("()");
-                self.visit_expr(&node.elt);
-                for gen in &node.generators {
-                    self.add_operator("for");
-                    self.add_operator("in");
-                    self.visit_expr(&gen.target);
-                    self.visit_expr(&gen.iter);
-                    for if_ in &gen.ifs {
-                        self.add_operator("if");
-                        self.visit_expr(if_);
-                    }
-                }
-            }
-            Expr::Await(node) => {
-                self.add_operator("await");
-                self.visit_expr(&node.value);
-            }
-            Expr::Yield(node) => {
-                self.add_operator("yield");
-                if let Some(value) = &node.value {
-                    self.visit_expr(value);
-                }
-            }
-            Expr::YieldFrom(node) => {
-                self.add_operator("yield from");
-                self.visit_expr(&node.value);
-            }
-            Expr::Compare(node) => {
-                for op in &node.ops {
-                    self.add_operator(match op {
-                        ast::CmpOp::Eq => "==",
-                        ast::CmpOp::NotEq => "!=",
-                        ast::CmpOp::Lt => "<",
-                        ast::CmpOp::LtE => "<=",
-                        ast::CmpOp::Gt => ">",
-                        ast::CmpOp::GtE => ">=",
-                        ast::CmpOp::Is => "is",
-                        ast::CmpOp::IsNot => "is not",
-                        ast::CmpOp::In => "in",
-                        ast::CmpOp::NotIn => "not in",
-                    });
-                }
-                self.visit_expr(&node.left);
-                for comparator in &node.comparators {
-                    self.visit_expr(comparator);
-                }
-            }
-            Expr::Call(node) => {
-                self.add_operator("()");
-                self.visit_expr(&node.func);
-                for arg in &node.arguments.args {
-                    self.visit_expr(arg);
-                }
-                for keyword in &node.arguments.keywords {
-                    self.visit_expr(&keyword.value);
-                }
-            }
-            Expr::FString(node) => {
-                for part in &node.value {
-                    if let ast::FStringPart::Literal(s) = part {
-                        self.add_operand(s);
-                    }
-                    // Note: FStringPart::FString is not handled intentionally
-                }
-            }
+        }
+    }
+
+    fn visit_literal_expr(&mut self, expr: &Expr) {
+        match expr {
             Expr::StringLiteral(node) => {
                 self.add_operand(&node.value.to_string());
             }
@@ -657,23 +577,33 @@ impl HalsteadVisitor {
             Expr::EllipsisLiteral(_) => {
                 self.add_operand("...");
             }
+            Expr::FString(node) => {
+                for part in &node.value {
+                    if let ast::FStringPart::Literal(s) = part {
+                        self.add_operand(s);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 
-            Expr::Attribute(node) => {
-                self.add_operator(".");
-                self.visit_expr(&node.value);
-                self.add_operand(&node.attr);
+    fn visit_structure_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Dict(node) => {
+                self.add_operator("{}");
+                for item in &node.items {
+                    if let Some(key) = &item.key {
+                        self.visit_expr(key);
+                    }
+                    self.visit_expr(&item.value);
+                }
             }
-            Expr::Subscript(node) => {
-                self.add_operator("[]");
-                self.visit_expr(&node.value);
-                self.visit_expr(&node.slice);
-            }
-            Expr::Starred(node) => {
-                self.add_operator("*");
-                self.visit_expr(&node.value);
-            }
-            Expr::Name(node) => {
-                self.add_operand(&node.id);
+            Expr::Set(node) => {
+                self.add_operator("{}");
+                for elt in &node.elts {
+                    self.visit_expr(elt);
+                }
             }
             Expr::List(node) => {
                 self.add_operator("[]");
@@ -687,18 +617,147 @@ impl HalsteadVisitor {
                     self.visit_expr(elt);
                 }
             }
-            Expr::Slice(node) => {
-                self.add_operator(":");
-                if let Some(lower) = &node.lower {
-                    self.visit_expr(lower);
-                }
-                if let Some(upper) = &node.upper {
-                    self.visit_expr(upper);
-                }
-                if let Some(step) = &node.step {
-                    self.visit_expr(step);
+            _ => {}
+        }
+    }
+
+    fn visit_lambda(&mut self, node: &ast::ExprLambda) {
+        self.add_operator("lambda");
+        if let Some(parameters) = &node.parameters {
+            for arg in &parameters.args {
+                self.add_operand(arg.parameter.name.as_str());
+            }
+        }
+        self.visit_expr(&node.body);
+    }
+
+    fn visit_comprehension_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::ListComp(node) => {
+                self.add_operator("[]");
+                self.visit_expr(&node.elt);
+                self.visit_generators(&node.generators);
+            }
+            Expr::SetComp(node) => {
+                self.add_operator("{}");
+                self.visit_expr(&node.elt);
+                self.visit_generators(&node.generators);
+            }
+            Expr::DictComp(node) => {
+                self.add_operator("{}");
+                self.visit_expr(&node.key);
+                self.visit_expr(&node.value);
+                self.visit_generators(&node.generators);
+            }
+            Expr::Generator(node) => {
+                self.add_operator("()");
+                self.visit_expr(&node.elt);
+                self.visit_generators(&node.generators);
+            }
+            _ => {}
+        }
+    }
+
+    fn visit_yield_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Yield(node) => {
+                self.add_operator("yield");
+                if let Some(value) = &node.value {
+                    self.visit_expr(value);
                 }
             }
+            Expr::YieldFrom(node) => {
+                self.add_operator("yield from");
+                self.visit_expr(&node.value);
+            }
+            _ => {}
+        }
+    }
+
+    fn visit_attribute(&mut self, node: &ast::ExprAttribute) {
+        self.add_operator(".");
+        self.visit_expr(&node.value);
+        self.add_operand(&node.attr);
+    }
+
+    fn visit_subscript(&mut self, node: &ast::ExprSubscript) {
+        self.add_operator("[]");
+        self.visit_expr(&node.value);
+        self.visit_expr(&node.slice);
+    }
+
+    fn visit_starred(&mut self, node: &ast::ExprStarred) {
+        self.add_operator("*");
+        self.visit_expr(&node.value);
+    }
+
+    fn visit_slice(&mut self, node: &ast::ExprSlice) {
+        self.add_operator(":");
+        if let Some(lower) = &node.lower {
+            self.visit_expr(lower);
+        }
+        if let Some(upper) = &node.upper {
+            self.visit_expr(upper);
+        }
+        if let Some(step) = &node.step {
+            self.visit_expr(step);
+        }
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn visit_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::BoolOp(node) => self.visit_bool_op(node),
+            Expr::Named(node) => {
+                self.add_operator(":=");
+                self.visit_expr(&node.target);
+                self.visit_expr(&node.value);
+            }
+            Expr::BinOp(node) => self.visit_bin_op(node),
+            Expr::UnaryOp(node) => self.visit_unary_op(node),
+            Expr::Lambda(node) => self.visit_lambda(node),
+            Expr::If(node) => {
+                self.add_operator("if");
+                self.add_operator("else");
+                self.visit_expr(&node.test);
+                self.visit_expr(&node.body);
+                self.visit_expr(&node.orelse);
+            }
+            Expr::Dict(_) | Expr::Set(_) | Expr::List(_) | Expr::Tuple(_) => {
+                self.visit_structure_expr(expr);
+            }
+            Expr::ListComp(_) | Expr::SetComp(_) | Expr::DictComp(_) | Expr::Generator(_) => {
+                self.visit_comprehension_expr(expr);
+            }
+            Expr::Await(node) => {
+                self.add_operator("await");
+                self.visit_expr(&node.value);
+            }
+            Expr::Yield(_) | Expr::YieldFrom(_) => self.visit_yield_expr(expr),
+            Expr::Compare(node) => self.visit_compare(node),
+            Expr::Call(node) => {
+                self.add_operator("()");
+                self.visit_expr(&node.func);
+                for arg in &node.arguments.args {
+                    self.visit_expr(arg);
+                }
+                for keyword in &node.arguments.keywords {
+                    self.visit_expr(&keyword.value);
+                }
+            }
+            Expr::FString(_)
+            | Expr::StringLiteral(_)
+            | Expr::BytesLiteral(_)
+            | Expr::NumberLiteral(_)
+            | Expr::BooleanLiteral(_)
+            | Expr::NoneLiteral(_)
+            | Expr::EllipsisLiteral(_) => self.visit_literal_expr(expr),
+
+            Expr::Attribute(node) => self.visit_attribute(node),
+            Expr::Subscript(node) => self.visit_subscript(node),
+            Expr::Starred(node) => self.visit_starred(node),
+            Expr::Name(node) => self.add_operand(&node.id),
+            Expr::Slice(node) => self.visit_slice(node),
             Expr::TString(_) | Expr::IpyEscapeCommand(_) => {}
         }
     }

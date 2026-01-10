@@ -74,7 +74,7 @@ impl CloneDetector {
     /// 4. For matched pairs, reload specific files to generate findings
     #[must_use]
     pub fn detect_from_paths(&self, paths: &[PathBuf]) -> CloneDetectionResult {
-        use rayon::prelude::*;
+        use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
         // Phase 1: Chunked fingerprint extraction
         // Process files in chunks to limit peak memory usage

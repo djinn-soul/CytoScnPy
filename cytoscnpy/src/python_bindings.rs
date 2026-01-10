@@ -3,7 +3,8 @@
 //! This module provides PyO3 bindings that expose Rust functionality to Python.
 //! It creates the `cytoscnpy` Python module with a `run` function.
 
-use pyo3::prelude::*;
+use pyo3::types::PyModuleMethods;
+use pyo3::{pyfunction, types::PyModule, wrap_pyfunction, Bound, PyErr, PyResult, Python};
 
 /// Python-callable wrapper for the analyzer.
 ///

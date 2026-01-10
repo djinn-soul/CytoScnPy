@@ -1,6 +1,7 @@
 use crate::cli::{Cli, Commands};
 use anyhow::Result;
 use clap::Parser;
+
 use ruff_python_ast::{Expr, Stmt};
 use rustc_hash::FxHashSet;
 /// Detects if `__name__ == "__main__"` blocks exist and extracts function calls from them.
@@ -224,12 +225,127 @@ fn validate_path_args(args: &crate::cli::PathArgs) -> Result<(), i32> {
     Ok(())
 }
 
-/// Runs the analyzer (or other commands) with the given arguments.
+/// Collects all target paths from global and subcommand arguments.
+fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
+    let mut all_target_paths = cli.paths.paths.clone();
+    if let Some(ref command) = cli.command {
+        match command {
+            Commands::Raw { common, .. }
+            | Commands::Cc { common, .. }
+            | Commands::Hal { common, .. }
+            | Commands::Mi { common, .. } => {
+                if let Some(r) = &common.paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(common.paths.paths.iter().cloned());
+                }
+            }
+            Commands::Files { args, .. } => {
+                if let Some(r) = &args.paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(args.paths.paths.iter().cloned());
+                }
+            }
+            Commands::Stats { paths, .. } => {
+                if let Some(r) = &paths.root {
+                    all_target_paths.push(r.clone());
+                } else {
+                    all_target_paths.extend(paths.paths.iter().cloned());
+                }
+            }
+            Commands::McpServer => {}
+        }
+    }
+    all_target_paths
+}
+
+/// Resolves effective paths and analysis root based on CLI arguments.
+fn resolve_analysis_context(
+    cli: &Cli,
+    all_target_paths: &[std::path::PathBuf],
+) -> (Vec<std::path::PathBuf>, std::path::PathBuf) {
+    if let Some(ref root) = cli.paths.root {
+        // --root was provided: use it as the analysis path AND containment boundary
+        return (vec![root.clone()], root.clone());
+    }
+
+    let mut root = std::path::PathBuf::from(".");
+    if let Some(first_abs) = all_target_paths.iter().find(|p| p.is_absolute()) {
+        // Determine common ancestor for absolute paths
+        let mut common = if first_abs.is_dir() {
+            first_abs.clone()
+        } else {
+            first_abs
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .unwrap_or_else(|| first_abs.clone())
+        };
+
+        for path in all_target_paths.iter().filter(|p| p.is_absolute()) {
+            while !path.starts_with(&common) {
+                if let Some(parent) = common.parent() {
+                    common = parent.to_path_buf();
+                } else {
+                    break;
+                }
+            }
+        }
+        root = common;
+    }
+
+    let paths = if cli.paths.paths.is_empty() {
+        // If it's a subcommand call, we might not have global paths.
+        // But loading config from the first subcommand path is better than ".".
+        if let Some(first) = all_target_paths.first() {
+            vec![first.clone()]
+        } else {
+            vec![std::path::PathBuf::from(".")]
+        }
+    } else {
+        cli.paths.paths.clone()
+    };
+
+    (paths, root)
+}
+
+struct AppConfig {
+    config: crate::config::Config,
+    exclude_folders: Vec<String>,
+    include_folders: Vec<String>,
+    include_tests: bool,
+}
+
+/// Loads project configuration and merges it with CLI flags.
+fn setup_configuration(effective_paths: &[std::path::PathBuf], cli: &Cli) -> AppConfig {
+    let config_path = effective_paths
+        .first()
+        .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
+    let config = crate::config::Config::load_from_path(config_path);
+
+    let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
+    exclude_folders.extend(cli.exclude_folders.clone());
+
+    let include_tests =
+        cli.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
+
+    let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
+    include_folders.extend(cli.include_folders.clone());
+
+    AppConfig {
+        config,
+        exclude_folders,
+        include_folders,
+        include_tests,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+/// Runs the analyzer with the given arguments using stdout as the writer.
 ///
 /// # Errors
 ///
 /// Returns an error if argument parsing fails, or if the command execution fails.
-#[allow(clippy::too_many_lines)]
 pub fn run_with_args(args: Vec<String>) -> Result<i32> {
     run_with_args_to(args, &mut std::io::stdout())
 }
@@ -268,98 +384,14 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         return Ok(code);
     }
 
-    // Logic to determine analysis_root if not explicitly provided via --root
-    // We look at both global paths and subcommand paths to see if any are absolute.
-    let mut all_target_paths = cli_var.paths.paths.clone();
-    if let Some(ref command) = cli_var.command {
-        match command {
-            Commands::Raw { common, .. }
-            | Commands::Cc { common, .. }
-            | Commands::Hal { common, .. }
-            | Commands::Mi { common, .. } => {
-                if let Some(r) = &common.paths.root {
-                    all_target_paths.push(r.clone());
-                } else {
-                    all_target_paths.extend(common.paths.paths.iter().cloned());
-                }
-            }
-            Commands::Files { args, .. } => {
-                if let Some(r) = &args.paths.root {
-                    all_target_paths.push(r.clone());
-                } else {
-                    all_target_paths.extend(args.paths.paths.iter().cloned());
-                }
-            }
-            Commands::Stats { paths, .. } => {
-                if let Some(r) = &paths.root {
-                    all_target_paths.push(r.clone());
-                } else {
-                    all_target_paths.extend(paths.paths.iter().cloned());
-                }
-            }
-            Commands::McpServer => {}
-        }
-    }
+    let all_target_paths = collect_all_target_paths(&cli_var);
+    let (effective_paths, analysis_root) = resolve_analysis_context(&cli_var, &all_target_paths);
 
-    let (effective_paths, analysis_root): (Vec<std::path::PathBuf>, std::path::PathBuf) =
-        if let Some(ref root) = cli_var.paths.root {
-            // --root was provided: use it as the analysis path AND containment boundary
-            (vec![root.clone()], root.clone())
-        } else {
-            let mut root = std::path::PathBuf::from(".");
-            if let Some(first_abs) = all_target_paths.iter().find(|p| p.is_absolute()) {
-                // Determine common ancestor for absolute paths
-                let mut common = if first_abs.is_dir() {
-                    first_abs.clone()
-                } else {
-                    first_abs
-                        .parent()
-                        .map(std::path::Path::to_path_buf)
-                        .unwrap_or_else(|| first_abs.clone())
-                };
-
-                for path in all_target_paths.iter().filter(|p| p.is_absolute()) {
-                    while !path.starts_with(&common) {
-                        if let Some(parent) = common.parent() {
-                            common = parent.to_path_buf();
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                root = common;
-            }
-
-            let paths = if cli_var.paths.paths.is_empty() {
-                // If it's a subcommand call, we might not have global paths.
-                // But loading config from the first subcommand path is better than ".".
-                if let Some(first) = all_target_paths.first() {
-                    vec![first.clone()]
-                } else {
-                    vec![std::path::PathBuf::from(".")]
-                }
-            } else {
-                cli_var.paths.paths.clone()
-            };
-            (paths, root)
-        };
-
-    // Load config from the first effective path or current directory
-    let config_path = effective_paths
-        .first()
-        .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
-    let config = crate::config::Config::load_from_path(config_path);
-
-    let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
-    exclude_folders.extend(cli_var.exclude_folders.clone());
-
-    // Calculate include_tests once - reused by both subcommands and main analyzer
-    let include_tests =
-        cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
-
-    // Calculate include_folders once - reused by both subcommands and main analyzer
-    let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
-    include_folders.extend(cli_var.include_folders.clone());
+    let app_config = setup_configuration(&effective_paths, &cli_var);
+    let config = app_config.config;
+    let exclude_folders = app_config.exclude_folders;
+    let include_folders = app_config.include_folders;
+    let include_tests = app_config.include_tests;
 
     // Print deprecation warning if old keys are used in config
     if config.cytoscnpy.uses_deprecated_keys() && !cli_var.output.json {
@@ -384,27 +416,14 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
     if let Some(command) = cli_var.command {
         match command {
-            Commands::Raw { common, summary } => {
-                if let Err(code) = validate_path_args(&common.paths) {
-                    return Ok(code);
-                }
-                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
-                    Ok(p) => p,
-                    Err(code) => return Ok(code),
-                };
-                let exclude = merge_excludes(common.exclude, &exclude_folders);
-                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
-                crate::commands::run_raw(
-                    &paths,
-                    common.json,
-                    exclude,
-                    common.ignore,
-                    summary,
-                    output_file,
-                    cli_var.output.verbose,
-                    writer,
-                )?;
-            }
+            Commands::Raw { common, summary } => handle_raw(
+                common,
+                summary,
+                &exclude_folders,
+                &analysis_root,
+                cli_var.output.verbose,
+                writer,
+            ),
             Commands::Cc {
                 common,
                 rank,
@@ -415,58 +434,31 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 no_assert,
                 xml,
                 fail_threshold,
-            } => {
-                if let Err(code) = validate_path_args(&common.paths) {
-                    return Ok(code);
-                }
-                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
-                    Ok(p) => p,
-                    Err(code) => return Ok(code),
-                };
-                let exclude = merge_excludes(common.exclude, &exclude_folders);
-                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
-                crate::commands::run_cc(
-                    &paths,
-                    crate::commands::CcOptions {
-                        json: common.json,
-                        exclude,
-                        ignore: common.ignore,
-                        min_rank: rank.min_rank,
-                        max_rank: rank.max_rank,
-                        average,
-                        total_average,
-                        show_complexity,
-                        order,
-                        no_assert,
-                        xml,
-                        fail_threshold,
-                        output_file,
-                        verbose: cli_var.output.verbose,
-                    },
-                    writer,
-                )?;
-            }
-            Commands::Hal { common, functions } => {
-                if let Err(code) = validate_path_args(&common.paths) {
-                    return Ok(code);
-                }
-                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
-                    Ok(p) => p,
-                    Err(code) => return Ok(code),
-                };
-                let exclude = merge_excludes(common.exclude, &exclude_folders);
-                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
-                crate::commands::run_hal(
-                    &paths,
-                    common.json,
-                    exclude,
-                    common.ignore,
-                    functions,
-                    output_file,
-                    cli_var.output.verbose,
-                    writer,
-                )?;
-            }
+            } => handle_cc(
+                common,
+                rank,
+                CcFlags {
+                    average,
+                    total_average,
+                    show_complexity,
+                    order,
+                    no_assert,
+                    xml,
+                    fail_threshold,
+                },
+                &exclude_folders,
+                &analysis_root,
+                cli_var.output.verbose,
+                writer,
+            ),
+            Commands::Hal { common, functions } => handle_hal(
+                common,
+                functions,
+                &exclude_folders,
+                &analysis_root,
+                cli_var.output.verbose,
+                writer,
+            ),
             Commands::Mi {
                 common,
                 rank,
@@ -474,40 +466,24 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 show,
                 average,
                 fail_threshold,
-            } => {
-                if let Err(code) = validate_path_args(&common.paths) {
-                    return Ok(code);
-                }
-                let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
-                    Ok(p) => p,
-                    Err(code) => return Ok(code),
-                };
-                let exclude = merge_excludes(common.exclude, &exclude_folders);
-                let output_file = prepare_output_path(common.output_file, &analysis_root)?;
-                crate::commands::run_mi(
-                    &paths,
-                    crate::commands::MiOptions {
-                        json: common.json,
-                        exclude,
-                        ignore: common.ignore,
-                        min_rank: rank.min_rank,
-                        max_rank: rank.max_rank,
-                        multi,
-                        show,
-                        average,
-                        fail_threshold,
-                        output_file,
-                        verbose: cli_var.output.verbose,
-                    },
-                    writer,
-                )?;
-            }
+            } => handle_mi(
+                common,
+                rank,
+                MiFlags {
+                    multi,
+                    show_hooks: show,
+                    average,
+                    fail_threshold,
+                },
+                &exclude_folders,
+                &analysis_root,
+                cli_var.output.verbose,
+                writer,
+            ),
             Commands::McpServer => {
-                // MCP server is handled in cytoscnpy-cli main.rs before calling entry_point
-                // This should never be reached, but we need the match arm for exhaustiveness
                 eprintln!("Error: mcp-server command should be handled by cytoscnpy-cli directly.");
                 eprintln!("If you're seeing this, please use the cytoscnpy-cli binary.");
-                return Ok(1);
+                Ok(1)
             }
             Commands::Stats {
                 paths,
@@ -518,539 +494,767 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 json,
                 output,
                 exclude,
-            } => {
-                if let Err(code) = validate_path_args(&paths) {
-                    return Ok(code);
-                }
-                // Use --root if provided, otherwise use positional paths
-                let effective_paths = match resolve_subcommand_paths(paths.paths, paths.root) {
-                    Ok(p) => p,
-                    Err(code) => return Ok(code),
-                };
-                let exclude = merge_excludes(exclude, &exclude_folders);
-
-                let quality_count = crate::commands::run_stats_v2(
-                    &analysis_root,
-                    &effective_paths,
+            } => handle_stats(
+                &paths,
+                crate::commands::ScanOptions {
                     all,
-                    secrets || config.cytoscnpy.secrets.unwrap_or(false),
-                    danger || config.cytoscnpy.danger.unwrap_or(false),
-                    quality || config.cytoscnpy.quality.unwrap_or(false),
+                    inspections: crate::commands::Inspections {
+                        secrets: secrets || config.cytoscnpy.secrets.unwrap_or(false),
+                        danger: danger || config.cytoscnpy.danger.unwrap_or(false),
+                        quality: quality || config.cytoscnpy.quality.unwrap_or(false),
+                    },
                     json,
-                    output,
-                    &exclude,
-                    include_tests,
-                    &include_folders,
-                    cli_var.output.verbose,
-                    config,
-                    writer,
-                )?;
-
-                // Quality gate check (--fail-on-quality) for stats subcommand
-                if cli_var.output.fail_on_quality && quality_count > 0 {
-                    if !cli_var.output.json {
-                        eprintln!("\n[GATE] Quality issues: {quality_count} found - FAILED");
-                    }
-                    return Ok(1);
-                }
-            }
+                },
+                output,
+                exclude,
+                &exclude_folders,
+                &include_folders,
+                &analysis_root,
+                include_tests,
+                cli_var.output.verbose,
+                cli_var.output.fail_on_quality,
+                config,
+                writer,
+            ),
             Commands::Files { args } => {
-                if let Err(code) = validate_path_args(&args.paths) {
-                    return Ok(code);
-                }
-                let paths = match resolve_subcommand_paths(args.paths.paths, args.paths.root) {
-                    Ok(p) => p,
-                    Err(code) => return Ok(code),
-                };
-                let exclude = merge_excludes(args.exclude, &exclude_folders);
-                crate::commands::run_files(
-                    &paths,
-                    args.json,
-                    &exclude,
-                    cli_var.output.verbose,
-                    writer,
-                )?;
+                handle_files(args, &exclude_folders, cli_var.output.verbose, writer)
             }
         }
-        Ok(0)
     } else {
-        for path in &effective_paths {
-            if !path.exists() {
-                eprintln!(
-                    "Error: The file or directory '{}' does not exist.",
-                    path.display()
-                );
-                return Ok(1);
-            }
-        }
-        let confidence = cli_var
-            .confidence
-            .or(config.cytoscnpy.confidence)
-            .unwrap_or(60);
-        let secrets = cli_var.scan.secrets || config.cytoscnpy.secrets.unwrap_or(false);
-        let danger = cli_var.scan.danger || config.cytoscnpy.danger.unwrap_or(false);
-
-        // Auto-enable quality mode when:
-        // - --quality flag is passed
-        // - quality is enabled in config
-        // - --min-mi or --max-complexity thresholds are set
-        // - --html flag is passed (for dashboard metrics)
-        #[cfg(feature = "html_report")]
-        let html_enabled = cli_var.output.html;
-        #[cfg(not(feature = "html_report"))]
-        let html_enabled = false;
-
-        let quality = cli_var.scan.quality
-            || config.cytoscnpy.quality.unwrap_or(false)
-            || cli_var.min_mi.is_some()
-            || cli_var.max_complexity.is_some()
-            || config.cytoscnpy.min_mi.is_some()
-            || config.cytoscnpy.max_complexity.is_some()
-            || html_enabled;
-
-        // Re-declare exclude_folders for this scope (extends global with CLI args)
-        let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
-        exclude_folders.extend(cli_var.exclude_folders);
-
-        // Re-declare include_folders for this scope (extends global with CLI args)
-        let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
-        include_folders.extend(cli_var.include_folders);
-
-        if !cli_var.output.json {
-            crate::output::print_exclusion_list(writer, &exclude_folders).ok();
-        }
-
-        // Print verbose configuration info (before progress bar)
-        if cli_var.output.verbose && !cli_var.output.json {
-            eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
-            eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
-            eprintln!("[VERBOSE] Configuration:");
-            eprintln!("   Confidence threshold: {confidence}");
-            eprintln!("   Secrets scanning: {secrets}");
-            eprintln!("   Danger scanning: {danger}");
-            eprintln!("   Quality scanning: {quality}");
-            eprintln!("   Include tests: {include_tests}");
-            eprintln!("   Paths: {effective_paths:?}");
-            if !exclude_folders.is_empty() {
-                eprintln!("   Exclude folders: {exclude_folders:?}");
-            }
-            eprintln!();
-        }
-
-        let mut analyzer = crate::analyzer::CytoScnPy::new(
-            confidence,
-            secrets,
-            danger,
-            quality,
-            include_tests,
-            exclude_folders.clone(),
-            include_folders,
-            cli_var.include.include_ipynb,
-            cli_var.include.ipynb_cells,
-            danger, // taint is now automatically enabled with --danger
-            config.clone(),
+        handle_analysis(
+            &effective_paths,
+            &analysis_root,
+            &cli_var,
+            &config,
+            &exclude_folders,
+            &include_folders,
+            writer,
         )
-        .with_verbose(cli_var.output.verbose)
-        .with_root(analysis_root.clone());
+    }
+}
 
-        // Set debug delay if provided
-        if let Some(delay_ms) = cli_var.debug_delay {
-            analyzer.debug_delay_ms = Some(delay_ms);
-        }
+fn handle_raw<W: std::io::Write>(
+    common: crate::cli::MetricArgs,
+    summary: bool,
+    exclude_folders: &[String],
+    analysis_root: &std::path::Path,
+    verbose: bool,
+    writer: &mut W,
+) -> Result<i32> {
+    if let Err(code) = validate_path_args(&common.paths) {
+        return Ok(code);
+    }
+    let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+        Ok(p) => p,
+        Err(code) => return Ok(code),
+    };
+    let exclude = merge_excludes(common.exclude, exclude_folders);
+    let output_file = prepare_output_path(common.output_file, analysis_root)?;
+    crate::commands::run_raw(
+        &paths,
+        common.json,
+        exclude,
+        common.ignore,
+        summary,
+        output_file,
+        verbose,
+        writer,
+    )?;
+    Ok(0)
+}
 
-        // Count files first to create progress bar with accurate total
-        let total_files = analyzer.count_files(&effective_paths);
+#[derive(Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+struct CcFlags {
+    average: bool,
+    total_average: bool,
+    show_complexity: bool,
+    order: Option<String>,
+    no_assert: bool,
+    xml: bool,
+    fail_threshold: Option<usize>,
+}
 
-        // Create progress bar with file count for visual feedback
-        let progress: Option<indicatif::ProgressBar> = if cli_var.output.json {
-            None
-        } else if total_files > 0 {
-            Some(crate::output::create_progress_bar(total_files as u64))
+fn handle_cc<W: std::io::Write>(
+    common: crate::cli::MetricArgs,
+    rank: crate::cli::RankArgs,
+    flags: CcFlags,
+    exclude_folders: &[String],
+    analysis_root: &std::path::Path,
+    verbose: bool,
+    writer: &mut W,
+) -> Result<i32> {
+    if let Err(code) = validate_path_args(&common.paths) {
+        return Ok(code);
+    }
+    let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+        Ok(p) => p,
+        Err(code) => return Ok(code),
+    };
+    let exclude = merge_excludes(common.exclude, exclude_folders);
+    let output_file = prepare_output_path(common.output_file, analysis_root)?;
+    crate::commands::run_cc(
+        &paths,
+        crate::commands::CcOptions {
+            json: common.json,
+            exclude,
+            ignore: common.ignore,
+            min_rank: rank.min_rank,
+            max_rank: rank.max_rank,
+            average: flags.average,
+            total_average: flags.total_average,
+            show_complexity: flags.show_complexity,
+            order: flags.order,
+            no_assert: flags.no_assert,
+            xml: flags.xml,
+            fail_threshold: flags.fail_threshold,
+            output_file,
+            verbose,
+        },
+        writer,
+    )?;
+    Ok(0)
+}
+
+fn handle_hal<W: std::io::Write>(
+    common: crate::cli::MetricArgs,
+    functions: bool,
+    exclude_folders: &[String],
+    analysis_root: &std::path::Path,
+    verbose: bool,
+    writer: &mut W,
+) -> Result<i32> {
+    if let Err(code) = validate_path_args(&common.paths) {
+        return Ok(code);
+    }
+    let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+        Ok(p) => p,
+        Err(code) => return Ok(code),
+    };
+    let exclude = merge_excludes(common.exclude, exclude_folders);
+    let output_file = prepare_output_path(common.output_file, analysis_root)?;
+    crate::commands::run_hal(
+        &paths,
+        common.json,
+        exclude,
+        common.ignore,
+        functions,
+        output_file,
+        verbose,
+        writer,
+    )?;
+    Ok(0)
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MiFlags {
+    multi: bool,
+    show_hooks: bool,
+    average: bool,
+    fail_threshold: Option<f64>,
+}
+
+fn handle_mi<W: std::io::Write>(
+    common: crate::cli::MetricArgs,
+    rank: crate::cli::RankArgs,
+    flags: MiFlags,
+    exclude_folders: &[String],
+    analysis_root: &std::path::Path,
+    verbose: bool,
+    writer: &mut W,
+) -> Result<i32> {
+    if let Err(code) = validate_path_args(&common.paths) {
+        return Ok(code);
+    }
+    let paths = match resolve_subcommand_paths(common.paths.paths, common.paths.root) {
+        Ok(p) => p,
+        Err(code) => return Ok(code),
+    };
+    let exclude = merge_excludes(common.exclude, exclude_folders);
+    let output_file = prepare_output_path(common.output_file, analysis_root)?;
+    crate::commands::run_mi(
+        &paths,
+        crate::commands::MiOptions {
+            json: common.json,
+            exclude,
+            ignore: common.ignore,
+            min_rank: rank.min_rank,
+            max_rank: rank.max_rank,
+            multi: flags.multi,
+            show: flags.show_hooks,
+            average: flags.average,
+            fail_threshold: flags.fail_threshold,
+            output_file,
+            verbose,
+        },
+        writer,
+    )?;
+    Ok(0)
+}
+
+fn handle_stats<W: std::io::Write>(
+    paths: &crate::cli::PathArgs,
+    options: crate::commands::ScanOptions,
+    output: Option<String>,
+    exclude: Vec<String>,
+    exclude_folders: &[String],
+    include_folders: &[String],
+    analysis_root: &std::path::Path,
+    include_tests: bool,
+    verbose: bool,
+    fail_on_quality: bool,
+    config: crate::config::Config,
+    writer: &mut W,
+) -> Result<i32> {
+    if let Err(code) = validate_path_args(paths) {
+        return Ok(code);
+    }
+    // Use --root if provided, otherwise use positional paths
+    let effective_paths = match resolve_subcommand_paths(paths.paths.clone(), paths.root.clone()) {
+        Ok(p) => p,
+        Err(code) => return Ok(code),
+    };
+    let excludes = merge_excludes(exclude, exclude_folders);
+    let output_file = prepare_output_path(output, analysis_root)?;
+
+    let quality_count = crate::commands::run_stats_v2(
+        if paths.paths.is_empty() {
+            match paths.root {
+                Some(ref p) => p,
+                None => analysis_root,
+            }
         } else {
-            Some(crate::output::create_spinner())
-        };
+            &paths.paths[0]
+        },
+        &effective_paths,
+        options,
+        output_file,
+        &excludes,
+        include_tests,
+        include_folders,
+        verbose,
+        config,
+        writer,
+    )?;
 
-        // Pass progress bar to analyzer for real-time updates
-        if let Some(ref pb) = progress {
-            analyzer.progress_bar = Some(std::sync::Arc::new(pb.clone()));
+    // Quality gate check (--fail-on-quality) for stats subcommand
+    if fail_on_quality && quality_count > 0 {
+        if !options.json {
+            eprintln!("\n[GATE] Quality issues: {quality_count} found - FAILED");
         }
+        return Ok(1);
+    }
+    Ok(0)
+}
 
-        let start_time = std::time::Instant::now();
+fn handle_files<W: std::io::Write>(
+    args: crate::cli::FilesArgs,
+    exclude_folders: &[String],
+    verbose: bool,
+    writer: &mut W,
+) -> Result<i32> {
+    if let Err(code) = validate_path_args(&args.paths) {
+        return Ok(code);
+    }
+    let paths = match resolve_subcommand_paths(args.paths.paths, args.paths.root) {
+        Ok(p) => p,
+        Err(code) => return Ok(code),
+    };
+    let exclude = merge_excludes(args.exclude, exclude_folders);
+    crate::commands::run_files(&paths, args.json, &exclude, verbose, writer)?;
+    Ok(0)
+}
 
-        let mut result = analyzer.analyze_paths(&effective_paths);
-
-        // If --no-dead flag is set, clear dead code detection results
-        // (only show security/quality scans)
-        if cli_var.scan.no_dead {
-            result.unused_functions.clear();
-            result.unused_methods.clear();
-            result.unused_classes.clear();
-            result.unused_imports.clear();
-            result.unused_variables.clear();
-            result.unused_parameters.clear();
-        }
-
-        if let Some(p) = progress {
-            p.finish_and_clear();
-        }
-
-        // Print verbose timing info
-        if cli_var.output.verbose && !cli_var.output.json {
-            let elapsed = start_time.elapsed();
-            eprintln!(
-                "[VERBOSE] Analysis completed in {:.2}s",
-                elapsed.as_secs_f64()
-            );
-            eprintln!("   Files analyzed: {}", result.analysis_summary.total_files);
-            eprintln!(
-                "   Lines analyzed: {}",
-                result.analysis_summary.total_lines_analyzed
-            );
-            eprintln!("[VERBOSE] Findings breakdown:");
-            eprintln!(
-                "   Unreachable functions: {}",
-                result.unused_functions.len()
-            );
-            eprintln!("   Unreachable methods: {}", result.unused_methods.len());
-            eprintln!("   Unused classes: {}", result.unused_classes.len());
-            eprintln!("   Unused imports: {}", result.unused_imports.len());
-            eprintln!("   Unused variables: {}", result.unused_variables.len());
-            eprintln!("   Unused parameters: {}", result.unused_parameters.len());
-            eprintln!("   Parse errors: {}", result.parse_errors.len());
-
-            // Show files with most issues
-            let mut file_counts: std::collections::HashMap<String, usize> =
-                std::collections::HashMap::new();
-            for item in &result.unused_functions {
-                *file_counts
-                    .entry(crate::utils::normalize_display_path(&item.file))
-                    .or_insert(0) += 1;
-            }
-            for item in &result.unused_methods {
-                *file_counts
-                    .entry(crate::utils::normalize_display_path(&item.file))
-                    .or_insert(0) += 1;
-            }
-            for item in &result.unused_classes {
-                *file_counts
-                    .entry(crate::utils::normalize_display_path(&item.file))
-                    .or_insert(0) += 1;
-            }
-            for item in &result.unused_imports {
-                *file_counts
-                    .entry(crate::utils::normalize_display_path(&item.file))
-                    .or_insert(0) += 1;
-            }
-            for item in &result.unused_variables {
-                *file_counts
-                    .entry(crate::utils::normalize_display_path(&item.file))
-                    .or_insert(0) += 1;
-            }
-            for item in &result.unused_parameters {
-                *file_counts
-                    .entry(crate::utils::normalize_display_path(&item.file))
-                    .or_insert(0) += 1;
-            }
-
-            if !file_counts.is_empty() {
-                let mut sorted: Vec<_> = file_counts.into_iter().collect();
-                sorted.sort_by(|a, b| b.1.cmp(&a.1));
-                eprintln!("[VERBOSE] Files with most issues:");
-                for (file, count) in sorted.iter().take(5) {
-                    eprintln!("   {count:3} issues: {file}");
-                }
-            }
-            eprintln!();
-        }
-
-        // Print JSON or report (but defer the summary and time for combined output later)
-        if cli_var.output.json {
-            // If clones are enabled, include clone_findings in the JSON output
-            if cli_var.clones {
-                // Run clone detection
-                let clone_findings = run_clone_detection_for_json(
-                    &effective_paths,
-                    cli_var.clone_similarity,
-                    &exclude_folders,
-                    cli_var.output.verbose,
-                );
-
-                // Create combined output with clone_findings
-                #[derive(serde::Serialize)]
-                struct CombinedOutput<'a> {
-                    #[serde(flatten)]
-                    analysis: &'a crate::analyzer::AnalysisResult,
-                    clone_findings: Vec<crate::clones::CloneFinding>,
-                }
-
-                let combined = CombinedOutput {
-                    analysis: &result,
-                    clone_findings,
-                };
-                writeln!(writer, "{}", serde_json::to_string_pretty(&combined)?)?;
-            } else {
-                writeln!(writer, "{}", serde_json::to_string_pretty(&result)?)?;
-            }
-        } else {
-            // Determine if we should show standard CLI output
-            #[cfg(feature = "html_report")]
-            let show_cli = !cli_var.output.html;
-            #[cfg(not(feature = "html_report"))]
-            let show_cli = true;
-
-            if show_cli {
-                if cli_var.output.quiet {
-                    crate::output::print_report_quiet(writer, &result)?;
-                } else {
-                    crate::output::print_report(writer, &result)?;
-                }
-            }
-
-            // Track clone count for combined summary
-            let mut clone_pairs_found = 0usize;
-
-            // Handle --clones flag (or implicit execution for HTML report)
-            if cli_var.clones || cli_var.output.html {
-                if cli_var.output.verbose && !cli_var.output.json {
-                    eprintln!("[VERBOSE] Clone detection enabled");
-                    eprintln!(
-                        "   Similarity threshold: {:.0}%",
-                        cli_var.clone_similarity * 100.0
-                    );
-                    if cli_var.fix {
-                        eprintln!(
-                            "   Fix mode: {} (confidence >= 90%)",
-                            if cli_var.apply {
-                                "apply"
-                            } else {
-                                "dry-run (preview)"
-                            }
-                        );
-                    }
-                    eprintln!();
-                }
-                let clone_options = crate::commands::CloneOptions {
-                    similarity: cli_var.clone_similarity,
-                    json: cli_var.output.json,
-                    fix: false, // Clones are report-only, never auto-fixed
-                    dry_run: !cli_var.apply,
-                    exclude: exclude_folders.clone().into_iter().collect(),
-                    verbose: cli_var.output.verbose,
-                    with_cst: true, // CST is always enabled by default
-                };
-
-                let (count, findings) = if cli_var.clones {
-                    // Explicit run: print to stdout
-                    crate::commands::run_clones(&effective_paths, &clone_options, &mut *writer)?
-                } else {
-                    // Implicit run for HTML: suppress output
-                    let mut sink = std::io::sink();
-                    crate::commands::run_clones(&effective_paths, &clone_options, &mut sink)?
-                };
-
-                clone_pairs_found = count;
-                result.clones = findings;
-            }
-
-            // Print summary and time (only for non-JSON output)
-            // Note: In quiet mode, print_report_quiet already prints the summary,
-            // so we only print here if clone pairs were found (to add the clone count)
+#[allow(clippy::too_many_lines)]
+fn handle_analysis<W: std::io::Write>(
+    effective_paths: &[std::path::PathBuf],
+    analysis_root: &std::path::Path,
+    cli_var: &crate::cli::Cli,
+    config: &crate::config::Config,
+    base_exclude_folders: &[String],
+    base_include_folders: &[String],
+    writer: &mut W,
+) -> Result<i32> {
+    // Check for non-existent paths early
+    for path in effective_paths {
+        if !path.exists() {
             if !cli_var.output.json {
-                let total = result.unused_functions.len()
-                    + result.unused_methods.len()
-                    + result.unused_imports.len()
-                    + result.unused_parameters.len()
-                    + result.unused_classes.len()
-                    + result.unused_variables.len();
-                let security = result.danger.len() + result.secrets.len() + result.quality.len();
-
-                // Only print summary if either:
-                // 1. Not in quiet mode (print_report doesn't include summary)
-                // 2. Clone pairs were found (need to add clone count to summary)
-                if clone_pairs_found > 0 {
-                    writeln!(writer,
-                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {clone_pairs_found} clone pairs"
-                )?;
-                } else if !cli_var.output.quiet {
-                    writeln!(writer,
-                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
-                )?;
-                }
-
-                let elapsed = start_time.elapsed();
-                writeln!(
-                    writer,
-                    "\n[TIME] Completed in {:.2}s",
-                    elapsed.as_secs_f64()
-                )?;
+                eprintln!("Error: Path does not exist: {}", path.display());
             }
+            return Ok(1);
+        }
+    }
+
+    let include_tests = cli_var.include.include_tests;
+    let confidence = cli_var
+        .confidence
+        .or(config.cytoscnpy.confidence)
+        .unwrap_or(60);
+    let secrets = cli_var.scan.secrets || config.cytoscnpy.secrets.unwrap_or(false);
+    let danger = cli_var.scan.danger || config.cytoscnpy.danger.unwrap_or(false);
+
+    // Auto-enable quality mode when:
+    // - --quality flag is passed
+    // - quality is enabled in config
+    // - --min-mi or --max-complexity thresholds are set
+    // - --html flag is passed (for dashboard metrics)
+    #[cfg(feature = "html_report")]
+    let html_enabled = cli_var.output.html;
+    #[cfg(not(feature = "html_report"))]
+    let html_enabled = false;
+
+    let quality = cli_var.scan.quality
+        || config.cytoscnpy.quality.unwrap_or(false)
+        || cli_var.min_mi.is_some()
+        || cli_var.max_complexity.is_some()
+        || config.cytoscnpy.min_mi.is_some()
+        || config.cytoscnpy.max_complexity.is_some()
+        || html_enabled;
+
+    // Re-declare exclude_folders for this scope (extends global with CLI args)
+    // Use the exclusion list provided by the caller (already merges defaults, config, and CLI)
+    let exclude_folders = base_exclude_folders.to_vec();
+
+    // Use the inclusion list provided by the caller
+    let include_folders = base_include_folders.to_vec();
+
+    if !cli_var.output.json {
+        crate::output::print_exclusion_list(writer, &exclude_folders).ok();
+    }
+
+    // Print verbose configuration info (before progress bar)
+    if cli_var.output.verbose && !cli_var.output.json {
+        eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
+        eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
+        eprintln!("[VERBOSE] Configuration:");
+        eprintln!("   Confidence threshold: {confidence}");
+        eprintln!("   Secrets scanning: {secrets}");
+        eprintln!("   Danger scanning: {danger}");
+        eprintln!("   Quality scanning: {quality}");
+        eprintln!("   Include tests: {include_tests}");
+        eprintln!("   Paths: {effective_paths:?}");
+        if !exclude_folders.is_empty() {
+            eprintln!("   Exclude folders: {exclude_folders:?}");
+        }
+        eprintln!();
+    }
+
+    let mut analyzer = crate::analyzer::CytoScnPy::new(
+        confidence,
+        secrets,
+        danger,
+        quality,
+        include_tests,
+        exclude_folders.clone(),
+        include_folders,
+        cli_var.include.include_ipynb,
+        cli_var.include.ipynb_cells,
+        danger, // taint is now automatically enabled with --danger
+        config.clone(),
+    )
+    .with_verbose(cli_var.output.verbose)
+    .with_root(analysis_root.to_path_buf());
+
+    // Set debug delay if provided
+    if let Some(delay_ms) = cli_var.debug_delay {
+        analyzer.debug_delay_ms = Some(delay_ms);
+    }
+
+    // Count files first to create progress bar with accurate total
+    let total_files = analyzer.count_files(effective_paths);
+
+    // Create progress bar with file count for visual feedback
+    let progress: Option<indicatif::ProgressBar> = if cli_var.output.json {
+        None
+    } else if total_files > 0 {
+        Some(crate::output::create_progress_bar(total_files as u64))
+    } else {
+        Some(crate::output::create_spinner())
+    };
+
+    // Pass progress bar to analyzer for real-time updates
+    if let Some(ref pb) = progress {
+        analyzer.progress_bar = Some(std::sync::Arc::new(pb.clone()));
+    }
+
+    let start_time = std::time::Instant::now();
+
+    let mut result = analyzer.analyze_paths(effective_paths);
+
+    // If --no-dead flag is set, clear dead code detection results
+    // (only show security/quality scans)
+    if cli_var.scan.no_dead {
+        result.unused_functions.clear();
+        result.unused_methods.clear();
+        result.unused_classes.clear();
+        result.unused_imports.clear();
+        result.unused_variables.clear();
+        result.unused_parameters.clear();
+    }
+
+    if let Some(p) = progress {
+        p.finish_and_clear();
+    }
+
+    // Print verbose timing info
+    if cli_var.output.verbose && !cli_var.output.json {
+        let elapsed = start_time.elapsed();
+        eprintln!(
+            "[VERBOSE] Analysis completed in {:.2}s",
+            elapsed.as_secs_f64()
+        );
+        eprintln!("   Files analyzed: {}", result.analysis_summary.total_files);
+        eprintln!(
+            "   Lines analyzed: {}",
+            result.analysis_summary.total_lines_analyzed
+        );
+        eprintln!("[VERBOSE] Findings breakdown:");
+        eprintln!(
+            "   Unreachable functions: {}",
+            result.unused_functions.len()
+        );
+        eprintln!("   Unreachable methods: {}", result.unused_methods.len());
+        eprintln!("   Unused classes: {}", result.unused_classes.len());
+        eprintln!("   Unused imports: {}", result.unused_imports.len());
+        eprintln!("   Unused variables: {}", result.unused_variables.len());
+        eprintln!("   Unused parameters: {}", result.unused_parameters.len());
+        eprintln!("   Parse errors: {}", result.parse_errors.len());
+
+        // Show files with most issues
+        let mut file_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+        for item in &result.unused_functions {
+            *file_counts
+                .entry(crate::utils::normalize_display_path(&item.file))
+                .or_insert(0) += 1;
+        }
+        for item in &result.unused_methods {
+            *file_counts
+                .entry(crate::utils::normalize_display_path(&item.file))
+                .or_insert(0) += 1;
+        }
+        for item in &result.unused_classes {
+            *file_counts
+                .entry(crate::utils::normalize_display_path(&item.file))
+                .or_insert(0) += 1;
+        }
+        for item in &result.unused_imports {
+            *file_counts
+                .entry(crate::utils::normalize_display_path(&item.file))
+                .or_insert(0) += 1;
+        }
+        for item in &result.unused_variables {
+            *file_counts
+                .entry(crate::utils::normalize_display_path(&item.file))
+                .or_insert(0) += 1;
+        }
+        for item in &result.unused_parameters {
+            *file_counts
+                .entry(crate::utils::normalize_display_path(&item.file))
+                .or_insert(0) += 1;
         }
 
+        if !file_counts.is_empty() {
+            let mut sorted: Vec<_> = file_counts.into_iter().collect();
+            sorted.sort_by(|a, b| b.1.cmp(&a.1));
+            eprintln!("[VERBOSE] Files with most issues:");
+            for (file, count) in sorted.iter().take(5) {
+                eprintln!("   {count:3} issues: {file}");
+            }
+        }
+        eprintln!();
+    }
+
+    // Print JSON or report (but defer the summary and time for combined output later)
+    if cli_var.output.json {
+        // If clones are enabled, include clone_findings in the JSON output
+        if cli_var.clones {
+            // Run clone detection
+            let clone_findings = run_clone_detection_for_json(
+                effective_paths,
+                cli_var.clone_similarity,
+                &exclude_folders,
+                cli_var.output.verbose,
+            );
+
+            // Create combined output with clone_findings
+            #[derive(serde::Serialize)]
+            struct CombinedOutput<'a> {
+                #[serde(flatten)]
+                analysis: &'a crate::analyzer::AnalysisResult,
+                clone_findings: Vec<crate::clones::CloneFinding>,
+            }
+
+            let combined = CombinedOutput {
+                analysis: &result,
+                clone_findings,
+            };
+            writeln!(writer, "{}", serde_json::to_string_pretty(&combined)?)?;
+        } else {
+            writeln!(writer, "{}", serde_json::to_string_pretty(&result)?)?;
+        }
+    } else {
+        // Determine if we should show standard CLI output
         #[cfg(feature = "html_report")]
-        if cli_var.output.html {
-            writeln!(writer, "Generating HTML report...")?;
-            let report_dir = std::path::Path::new(".cytoscnpy/report");
-            if let Err(e) =
-                crate::report::generator::generate_report(&result, &analysis_root, report_dir)
-            {
-                eprintln!("Failed to generate HTML report: {e}");
+        let show_cli = !cli_var.output.html;
+        #[cfg(not(feature = "html_report"))]
+        let show_cli = true;
+
+        if show_cli {
+            if cli_var.output.quiet {
+                crate::output::print_report_quiet(writer, &result)?;
             } else {
-                writeln!(writer, "HTML report generated at: {}", report_dir.display())?;
-                // Try to open in browser
-                if let Err(e) = open::that(report_dir.join("index.html")) {
-                    eprintln!("Failed to open report in browser: {e}");
-                }
+                crate::output::print_report(writer, &result)?;
             }
         }
 
-        // Handle --fix flag for dead code removal
-        // Only run if we didn't also run clones (clones are report-only)
-        if cli_var.fix && !cli_var.clones {
+        // Track clone count for combined summary
+        let mut clone_pairs_found = 0usize;
+
+        // Handle --clones flag (or implicit execution for HTML report)
+        if cli_var.clones || cli_var.output.html {
             if cli_var.output.verbose && !cli_var.output.json {
-                eprintln!("[VERBOSE] Dead code fix mode enabled");
+                eprintln!("[VERBOSE] Clone detection enabled");
                 eprintln!(
-                    "   Mode: {}",
-                    if cli_var.apply {
-                        "apply changes"
-                    } else {
-                        "dry-run (preview)"
-                    }
+                    "   Similarity threshold: {:.0}%",
+                    cli_var.clone_similarity * 100.0
                 );
-                eprintln!("   Min confidence: 90%");
-                eprintln!("   Targets: functions, classes, imports");
-                eprintln!("   CST mode: enabled (precise byte ranges)");
+                if cli_var.fix {
+                    eprintln!(
+                        "   Fix mode: {} (confidence >= 90%)",
+                        if cli_var.apply {
+                            "apply"
+                        } else {
+                            "dry-run (preview)"
+                        }
+                    );
+                }
                 eprintln!();
             }
-            let fix_options = crate::commands::DeadCodeFixOptions {
-                min_confidence: 90, // Only fix high-confidence items
+            let clone_options = crate::commands::CloneOptions {
+                similarity: cli_var.clone_similarity,
+                json: cli_var.output.json,
+                fix: false, // Clones are report-only, never auto-fixed
                 dry_run: !cli_var.apply,
-                fix_functions: true,
-                fix_classes: true,
-                fix_imports: true,
+                exclude: exclude_folders.clone().into_iter().collect(),
                 verbose: cli_var.output.verbose,
                 with_cst: true, // CST is always enabled by default
-                analysis_root: analysis_root.clone(),
             };
-            crate::commands::run_fix_deadcode(&result, &fix_options, &mut *writer)?;
+
+            let (count, findings) = if cli_var.clones {
+                // Explicit run: print to stdout
+                crate::commands::run_clones(effective_paths, &clone_options, &mut *writer)?
+            } else {
+                // Implicit run for HTML: suppress output
+                let mut sink = std::io::sink();
+                crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?
+            };
+
+            clone_pairs_found = count;
+            result.clones = findings;
         }
 
-        // Check for fail threshold (CLI > config > env var > default)
-        let fail_threshold = cli_var
-            .fail_threshold
-            .or(config.cytoscnpy.fail_threshold)
-            .or_else(|| {
-                std::env::var("CYTOSCNPY_FAIL_THRESHOLD")
-                    .ok()
-                    .and_then(|v| v.parse::<f64>().ok())
-            })
-            .unwrap_or(100.0); // Default to 100% (never fail unless explicitly set)
-
-        let mut exit_code = 0;
-
-        // Calculate unused percentage and show gate status
-        if result.analysis_summary.total_definitions > 0 {
-            let total_unused = result.unused_functions.len()
+        // Print summary and time (only for non-JSON output)
+        // Note: In quiet mode, print_report_quiet already prints the summary,
+        // so we only print here if clone pairs were found (to add the clone count)
+        if !cli_var.output.json {
+            let total = result.unused_functions.len()
                 + result.unused_methods.len()
-                + result.unused_classes.len()
                 + result.unused_imports.len()
-                + result.unused_variables.len()
-                + result.unused_parameters.len();
+                + result.unused_parameters.len()
+                + result.unused_classes.len()
+                + result.unused_variables.len();
+            let security = result.danger.len() + result.secrets.len() + result.quality.len();
 
-            #[allow(clippy::cast_precision_loss)] // Counts are far below 2^52
-            let percentage =
-                (total_unused as f64 / result.analysis_summary.total_definitions as f64) * 100.0;
-
-            // Only show gate banner if threshold is configured (not default 100%)
-            let show_gate = fail_threshold < 100.0;
-
-            if percentage > fail_threshold {
-                if !cli_var.output.json {
-                    eprintln!(
-                        "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - FAILED"
-                    );
-                }
-
-                exit_code = 1;
-            } else if show_gate && !cli_var.output.json {
+            // Only print summary if either:
+            // 1. Not in quiet mode (print_report doesn't include summary)
+            // 2. Clone pairs were found (need to add clone count to summary)
+            if clone_pairs_found > 0 {
                 writeln!(writer,
-                    "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - PASSED"
+                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {clone_pairs_found} clone pairs"
                 )?;
-            }
-        }
-
-        // Complexity gate check
-        let max_complexity = cli_var.max_complexity.or(config.cytoscnpy.max_complexity);
-        if let Some(threshold) = max_complexity {
-            // Find the highest complexity violation
-            let complexity_violations: Vec<usize> = result
-                .quality
-                .iter()
-                .filter(|f| f.rule_id == "CSP-Q301")
-                .filter_map(|f| {
-                    // Extract complexity value from message like "Function is too complex (McCabe=15)"
-                    f.message
-                        .split("McCabe=")
-                        .nth(1)
-                        .and_then(|s| s.trim_end_matches(')').parse::<usize>().ok())
-                })
-                .collect();
-
-            if let Some(&max_found) = complexity_violations.iter().max() {
-                if max_found > threshold {
-                    if !cli_var.output.json {
-                        eprintln!(
-                            "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - FAILED"
-                        );
-                    }
-                    exit_code = 1;
-                } else if !cli_var.output.json {
-                    writeln!(
-                        writer,
-                        "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - PASSED"
-                    )?;
-                }
-            } else if !cli_var.output.json && !result.quality.is_empty() {
-                // No complexity violations found, all functions are below threshold
+            } else if !cli_var.output.quiet {
                 writeln!(
                     writer,
-                    "\n[GATE] Max complexity: OK (threshold: {threshold}) - PASSED"
+                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
+                )?;
+            }
+
+            let elapsed = start_time.elapsed();
+            writeln!(
+                writer,
+                "\n[TIME] Completed in {:.2}s",
+                elapsed.as_secs_f64()
+            )?;
+        }
+    }
+
+    #[cfg(feature = "html_report")]
+    if cli_var.output.html {
+        writeln!(writer, "Generating HTML report...")?;
+        let report_dir = std::path::Path::new(".cytoscnpy/report");
+        if let Err(e) =
+            crate::report::generator::generate_report(&result, analysis_root, report_dir)
+        {
+            eprintln!("Failed to generate HTML report: {e}");
+        } else {
+            writeln!(writer, "HTML report generated at: {}", report_dir.display())?;
+            // Try to open in browser
+            if let Err(e) = open::that(report_dir.join("index.html")) {
+                eprintln!("Failed to open report in browser: {e}");
+            }
+        }
+    }
+
+    // Handle --fix flag for dead code removal
+    // Only run if we didn't also run clones (clones are report-only)
+    if cli_var.fix && !cli_var.clones {
+        if cli_var.output.verbose && !cli_var.output.json {
+            eprintln!("[VERBOSE] Dead code fix mode enabled");
+            eprintln!(
+                "   Mode: {}",
+                if cli_var.apply {
+                    "apply changes"
+                } else {
+                    "dry-run (preview)"
+                }
+            );
+            eprintln!("   Min confidence: 90%");
+            eprintln!("   Targets: functions, classes, imports");
+            eprintln!("   CST mode: enabled (precise byte ranges)");
+            eprintln!();
+        }
+        let fix_options = crate::commands::DeadCodeFixOptions {
+            min_confidence: 90, // Only fix high-confidence items
+            dry_run: !cli_var.apply,
+            fix_functions: true,
+            fix_classes: true,
+            fix_imports: true,
+            verbose: cli_var.output.verbose,
+            with_cst: true, // CST is always enabled by default
+            analysis_root: analysis_root.to_path_buf(),
+        };
+        crate::commands::run_fix_deadcode(&result, &fix_options, &mut *writer)?;
+    }
+
+    // Check for fail threshold (CLI > config > env var > default)
+    let fail_threshold = cli_var
+        .fail_threshold
+        .or(config.cytoscnpy.fail_threshold)
+        .or_else(|| {
+            std::env::var("CYTOSCNPY_FAIL_THRESHOLD")
+                .ok()
+                .and_then(|v| v.parse::<f64>().ok())
+        })
+        .unwrap_or(100.0); // Default to 100% (never fail unless explicitly set)
+
+    let mut exit_code = 0;
+
+    // Calculate unused percentage and show gate status
+    if result.analysis_summary.total_definitions > 0 {
+        let total_unused = result.unused_functions.len()
+            + result.unused_methods.len()
+            + result.unused_classes.len()
+            + result.unused_imports.len()
+            + result.unused_variables.len()
+            + result.unused_parameters.len();
+
+        #[allow(clippy::cast_precision_loss)] // Counts are far below 2^52
+        let percentage =
+            (total_unused as f64 / result.analysis_summary.total_definitions as f64) * 100.0;
+
+        // Only show gate banner if threshold is configured (not default 100%)
+        let show_gate = fail_threshold < 100.0;
+
+        if percentage > fail_threshold {
+            if !cli_var.output.json {
+                eprintln!(
+                        "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - FAILED"
+                    );
+            }
+
+            exit_code = 1;
+        } else if show_gate && !cli_var.output.json {
+            writeln!(
+                writer,
+                "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - PASSED"
+            )?;
+        }
+    }
+
+    // Complexity gate check
+    let max_complexity = cli_var.max_complexity.or(config.cytoscnpy.max_complexity);
+    if let Some(threshold) = max_complexity {
+        // Find the highest complexity violation
+        let complexity_violations: Vec<usize> = result
+            .quality
+            .iter()
+            .filter(|f| f.rule_id == "CSP-Q301")
+            .filter_map(|f| {
+                // Extract complexity value from message like "Function is too complex (McCabe=15)"
+                f.message
+                    .split("McCabe=")
+                    .nth(1)
+                    .and_then(|s| s.trim_end_matches(')').parse::<usize>().ok())
+            })
+            .collect();
+
+        if let Some(&max_found) = complexity_violations.iter().max() {
+            if max_found > threshold {
+                if !cli_var.output.json {
+                    eprintln!(
+                        "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - FAILED"
+                    );
+                }
+                exit_code = 1;
+            } else if !cli_var.output.json {
+                writeln!(
+                    writer,
+                    "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - PASSED"
+                )?;
+            }
+        } else if !cli_var.output.json && !result.quality.is_empty() {
+            // No complexity violations found, all functions are below threshold
+            writeln!(
+                writer,
+                "\n[GATE] Max complexity: OK (threshold: {threshold}) - PASSED"
+            )?;
+        }
+    }
+
+    // Maintainability Index gate check
+    let min_mi = cli_var.min_mi.or(config.cytoscnpy.min_mi);
+    if let Some(threshold) = min_mi {
+        let mi = result.analysis_summary.average_mi;
+        if mi > 0.0 {
+            if mi < threshold {
+                if !cli_var.output.json {
+                    eprintln!(
+                            "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - FAILED"
+                        );
+                }
+                exit_code = 1;
+            } else if !cli_var.output.json {
+                writeln!(
+                    writer,
+                    "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - PASSED"
                 )?;
             }
         }
-
-        // Maintainability Index gate check
-        let min_mi = cli_var.min_mi.or(config.cytoscnpy.min_mi);
-        if let Some(threshold) = min_mi {
-            let mi = result.analysis_summary.average_mi;
-            if mi > 0.0 {
-                if mi < threshold {
-                    if !cli_var.output.json {
-                        eprintln!(
-                            "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - FAILED"
-                        );
-                    }
-                    exit_code = 1;
-                } else if !cli_var.output.json {
-                    writeln!(writer,
-                        "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - PASSED"
-                    )?;
-                }
-            }
-        }
-
-        // Quality gate check (--fail-on-quality)
-        if cli_var.output.fail_on_quality && !result.quality.is_empty() {
-            if !cli_var.output.json {
-                eprintln!(
-                    "\n[GATE] Quality issues: {} found - FAILED",
-                    result.quality.len()
-                );
-            }
-            exit_code = 1;
-        }
-
-        Ok(exit_code)
     }
+
+    // Quality gate check (--fail-on-quality)
+    if cli_var.output.fail_on_quality && !result.quality.is_empty() {
+        if !cli_var.output.json {
+            eprintln!(
+                "\n[GATE] Quality issues: {} found - FAILED",
+                result.quality.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    Ok(exit_code)
 }
 
 /// Run clone detection and return findings for JSON output.

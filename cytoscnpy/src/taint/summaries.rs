@@ -4,16 +4,16 @@
 
 use super::intraprocedural;
 use super::propagation::TaintState;
-use super::types::{FunctionSummary, TaintSource};
+use crate::taint::types::{FunctionSummary, TaintSource};
 use ruff_python_ast::{self as ast, Stmt};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::Path;
 
-/// Database of function summaries.
-#[derive(Debug, Default)]
+/// Database of function summaries for taint analysis
+#[derive(Debug, Clone, Default)]
 pub struct SummaryDatabase {
     /// Map from qualified function name to summary
-    pub summaries: HashMap<String, FunctionSummary>,
+    pub summaries: FxHashMap<String, FunctionSummary>,
 }
 
 impl SummaryDatabase {
@@ -135,8 +135,8 @@ fn contains_taint_source(expr: &ast::Expr) -> bool {
 
 /// Prebuilt summaries for common library functions.
 #[must_use]
-pub fn get_builtin_summaries() -> HashMap<String, FunctionSummary> {
-    let mut summaries = HashMap::new();
+pub fn get_builtin_summaries() -> FxHashMap<String, FunctionSummary> {
+    let mut summaries = FxHashMap::default();
 
     // input() returns tainted data
     let mut input_summary = FunctionSummary::new("input", 0);

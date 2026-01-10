@@ -5,18 +5,18 @@
 use super::interprocedural;
 use super::summaries::{get_builtin_summaries, SummaryDatabase};
 use super::types::TaintFinding;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 
 /// Cross-file taint analysis database.
 #[derive(Debug, Default)]
 pub struct CrossFileAnalyzer {
     /// Summaries per module
-    module_summaries: HashMap<String, SummaryDatabase>,
-    /// Import mappings: (`importing_module`, alias) -> (`actual_module`, `actual_name`)
-    import_map: HashMap<(String, String), (String, String)>,
-    /// Cached findings per file
-    findings_cache: HashMap<PathBuf, Vec<TaintFinding>>,
+    module_summaries: FxHashMap<String, SummaryDatabase>,
+    /// Import mappings: (`importing_module`, `alias`) -> (`actual_module`, `actual_name`)
+    import_map: FxHashMap<(String, String), (String, String)>,
+    /// Cache of taint findings by file
+    findings_cache: FxHashMap<PathBuf, Vec<TaintFinding>>,
 }
 
 impl CrossFileAnalyzer {

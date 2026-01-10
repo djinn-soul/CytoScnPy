@@ -35,6 +35,25 @@ pub fn get_suppression_patterns() -> &'static [&'static str] {
     })
 }
 
+/// Regex for identifying suppression comments.
+///
+/// Supports:
+/// - `# pragma: no cytoscnpy`
+/// - `# noqa`, `# ignore`
+/// - `# noqa: code1, code2` (and variants)
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
+pub fn get_suppression_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)#\s*(?:pragma:\s*no\s*cytoscnpy|(?:noqa|ignore)(?::\s*([^#\n]+))?)")
+            .expect("Invalid suppression regex pattern")
+    })
+}
+
 /// Confidence adjustment penalties for various code patterns.
 pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
     static PENALTIES: OnceLock<HashMap<&'static str, u8>> = OnceLock::new();
@@ -217,6 +236,7 @@ pub use get_default_exclude_folders as DEFAULT_EXCLUDE_FOLDERS;
 pub use get_framework_file_re as FRAMEWORK_FILE_RE;
 pub use get_penalties as PENALTIES;
 pub use get_suppression_patterns as SUPPRESSION_PATTERNS;
+pub use get_suppression_re as SUPPRESSION_RE;
 pub use get_test_decor_re as TEST_DECOR_RE;
 pub use get_test_file_re as TEST_FILE_RE;
 pub use get_test_import_re as TEST_IMPORT_RE;

@@ -52,22 +52,54 @@ impl LineIndex {
     }
 }
 
-/// Detects lines with suppression comments.
+/// Detects if a line should be ignored based on suppression comments.
 ///
 /// Supports multiple formats:
 /// - `# pragma: no cytoscnpy` - Legacy format
-/// - `# noqa: CSP` - Standard Python linter format
+/// - `# noqa` or `# ignore` - Bare ignore (ignores all)
+/// - `# noqa: CSP, E501` - Specific codes (ignores if CSP is present)
+#[must_use]
+pub fn is_line_suppressed(line: &str) -> bool {
+    let re = crate::constants::SUPPRESSION_RE();
+
+    if let Some(caps) = re.captures(line) {
+        // Case 1: # pragma: no cytoscnpy -> Always ignore
+        if line.to_lowercase().contains("pragma: no cytoscnpy") {
+            return true;
+        }
+
+        // Case 2: Specific codes
+        if let Some(codes_match) = caps.get(1) {
+            let codes_str = codes_match.as_str();
+            // If it's something like # noqa: E501, we only ignore if CSP is in the list
+            return codes_str.split(',').map(str::trim).any(|code| {
+                let c = code.to_uppercase();
+                c == "CSP" || c.starts_with("CSP")
+            });
+        }
+
+        // Case 3: Bare ignore (no colon/codes) -> Always ignore
+        return true;
+    }
+
+    false
+}
+
+/// Detects lines with suppression comments in a source file.
 ///
 /// Returns a set of line numbers (1-indexed) that should be ignored by the analyzer.
-/// This allows users to suppress false positives or intentionally ignore specific lines.
 #[must_use]
 pub fn get_ignored_lines(source: &str) -> FxHashSet<usize> {
-    let patterns = crate::constants::SUPPRESSION_PATTERNS();
     source
         .lines()
         .enumerate()
-        .filter(|(_, line)| patterns.iter().any(|pattern| line.contains(pattern)))
-        .map(|(i, _)| i + 1)
+        .filter_map(|(i, line)| {
+            if is_line_suppressed(line) {
+                Some(i + 1)
+            } else {
+                None
+            }
+        })
         .collect()
 }
 

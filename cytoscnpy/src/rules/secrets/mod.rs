@@ -167,9 +167,8 @@ impl SecretScanner {
                 continue;
             }
 
-            // Skip suppressed lines (pragma or noqa comments)
-            let patterns = crate::constants::SUPPRESSION_PATTERNS();
-            if patterns.iter().any(|p| line_content.contains(p)) {
+            // Skip suppressed lines (pragma, noqa, ignore comments)
+            if crate::utils::is_line_suppressed(line_content) {
                 continue;
             }
 

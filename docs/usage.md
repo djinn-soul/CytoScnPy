@@ -304,8 +304,25 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 **2. False Positives**
 
 - Use **inline comments** to suppress findings on a specific line:
-  - `# pragma: no cytoscnpy` - Legacy format
-  - `# noqa: CSP` - Standard Python linter format
+
+  | Comment                  | Effect                                                    |
+  | ------------------------ | --------------------------------------------------------- |
+  | `# pragma: no cytoscnpy` | Legacy format (suppresses all CytoScnPy findings)         |
+  | `# noqa`                 | Bare noqa (suppresses all CytoScnPy findings)             |
+  | `# ignore`               | Bare ignore (suppresses all CytoScnPy findings)           |
+  | `# noqa: CSP`            | Specific (suppresses only CytoScnPy)                      |
+  | `# noqa: E501, CSP`      | Mixed (suppresses CytoScnPy because `CSP` is in the list) |
+
+  **Examples:**
+
+  ```python
+  def unused_func():  # noqa
+      pass
+
+  x = value  # noqa: CSP, E501 -- suppress cytoscnpy and pycodestyle
+  y = api_key  # pragma: no cytoscnpy
+  ```
+
 - For bulk ignores, use the `.cytoscnpy.toml` configuration file's ignore list.
 
 **3. Performance is slow**

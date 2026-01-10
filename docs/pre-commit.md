@@ -81,12 +81,21 @@ hooks:
 
 ### Suppression
 
-To ignore a specific finding on a line, use:
+To ignore a specific finding on a line, use any of these formats:
 
 ```python
-def legacy_function():  # pragma: no cytoscnpy
-    pass
+def legacy_function():  # noqa
+    pass  # bare noqa suppresses all
+
+unused_var = 1  # ignore
+    # bare ignore also suppresses all
+
+secret_key = "..."  # pragma: no cytoscnpy
+    # legacy format, still supported
+
+other_var = value  # noqa: E501, CSP
+    # mixed codes: suppresses CytoScnPy because CSP is in the list
 ```
 
 > [!NOTE]
-> Inline suppression comments (`# noqa: CSP` or `# pragma: no cytoscnpy`) apply to dead code, security, quality, and clone findings on a specific line. For ignoring rules across the entire project, use the `ignore` list in your `.cytoscnpy.toml` configuration file.
+> Inline suppression comments (`# noqa`, `# ignore`, `# pragma: no cytoscnpy`) apply to dead code, security, quality, and clone findings on a specific line. For ignoring rules across the entire project, use the `ignore` list in your `.cytoscnpy.toml` configuration file.

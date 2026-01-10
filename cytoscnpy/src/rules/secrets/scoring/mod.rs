@@ -105,8 +105,8 @@ impl ContextScorer {
             score += self.adjustments.in_comment; // Same penalty as comments
         }
 
-        // Check for pragma
-        if ctx.line_content.contains("pragma: no cytoscnpy") {
+        // Check for suppression comments
+        if crate::utils::is_line_suppressed(ctx.line_content) {
             score += self.adjustments.has_pragma;
         }
 

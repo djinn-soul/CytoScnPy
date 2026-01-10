@@ -3,16 +3,16 @@ Code Quality Issues Example
 Run with: cytoscnpy examples/quality_issues.py --quality
 """
 
-# SKY-L001: Mutable default argument
+# CSP-L001: Mutable default argument
 def append_to(element, to=[]):
     to.append(element)
     return to
 
-# SKY-C303: Too many arguments (default max is 5)
+# CSP-C303: Too many arguments (default max is 5)
 def too_many_args(a, b, c, d, e, f):
     return a + b + c + d + e + f
 
-# SKY-Q302: Deep nesting (default max depth is 3)
+# CSP-Q302: Deep nesting (default max depth is 3)
 def deep_nesting():
     if True:
         if True:
@@ -20,21 +20,21 @@ def deep_nesting():
                 if True:
                     print("Too deep!")
 
-# SKY-L002: Bare except
+# CSP-L002: Bare except
 def bare_except():
     try:
         1 / 0
     except:
         print("Caught something")
 
-# SKY-L003: Dangerous comparison
+# CSP-L003: Dangerous comparison
 def dangerous_comparison(x):
     if x == True:
         print("Use 'is True'")
     if x == None:
         print("Use 'is None'")
 
-# SKY-Q301: High Cyclomatic Complexity
+# CSP-Q301: High Cyclomatic Complexity
 def complex_function(x):
     if x == 1:
         return 1

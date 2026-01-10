@@ -53,11 +53,10 @@ pub fn create_spinner() -> ProgressBar {
 
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
-        #[allow(clippy::expect_used)]
         ProgressStyle::default_spinner()
             .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
             .template("{spinner:.cyan} {msg}")
-            .expect("Invalid progress style template"),
+            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
     );
     spinner.set_message("CytoScnPy analyzing your code…");
     spinner.enable_steady_tick(Duration::from_millis(100));
@@ -80,10 +79,9 @@ pub fn create_progress_bar(total_files: u64) -> ProgressBar {
 
     let pb = ProgressBar::new(total_files);
     pb.set_style(
-        #[allow(clippy::expect_used)]
         ProgressStyle::default_bar()
             .template("{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}")
-            .expect("Invalid progress style template")
+            .unwrap_or_else(|_| ProgressStyle::default_bar())
             .progress_chars("█▓░"),
     );
     pb.set_message("analyzing...");

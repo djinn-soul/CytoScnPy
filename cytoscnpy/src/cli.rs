@@ -138,7 +138,7 @@ pub struct MetricArgs {
 }
 
 /// Rank filtering options (A-F grades) for complexity/MI commands.
-#[derive(Args, Debug, Default, Clone)]
+#[derive(Args, Debug, Default, Clone, Copy)]
 pub struct RankArgs {
     /// Set minimum rank (A-F or A-C depending on command).
     #[arg(long, short = 'n', alias = "min")]

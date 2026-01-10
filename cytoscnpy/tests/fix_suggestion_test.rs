@@ -61,7 +61,7 @@ fn test_definition_with_fix() {
         cell_number: None,
         is_self_referential: false,
         message: Some("unused function".to_owned()),
-        fix: Some(FixSuggestion::deletion(50, 100)),
+        fix: Some(Box::new(FixSuggestion::deletion(50, 100))),
     };
 
     assert!(def.fix.is_some());
@@ -131,11 +131,11 @@ fn test_definition_with_fix_serializes() {
         cell_number: None,
         is_self_referential: false,
         message: Some("unused function".to_owned()),
-        fix: Some(FixSuggestion {
+        fix: Some(Box::new(FixSuggestion {
             start_byte: 200,
             end_byte: 350,
             replacement: String::new(),
-        }),
+        })),
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");

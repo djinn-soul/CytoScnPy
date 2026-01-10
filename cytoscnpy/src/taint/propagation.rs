@@ -2,15 +2,15 @@
 //!
 //! Defines how taint flows through expressions and statements.
 
-use super::types::TaintInfo;
+use crate::taint::types::TaintInfo;
 use ruff_python_ast::{self as ast, Expr};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
-/// Taint state for tracking tainted variables.
+/// Taint propagation state during analysis
 #[derive(Debug, Clone, Default)]
 pub struct TaintState {
     /// Map from variable name to taint info
-    pub tainted: HashMap<String, TaintInfo>,
+    pub tainted: FxHashMap<String, TaintInfo>,
 }
 
 impl TaintState {

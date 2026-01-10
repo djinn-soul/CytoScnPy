@@ -8,6 +8,7 @@ use super::sources::check_fastapi_param;
 use super::summaries::SummaryDatabase;
 use super::types::{TaintFinding, TaintInfo, TaintSource};
 use ruff_python_ast::{self as ast, Stmt};
+use rustc_hash::FxHashMap;
 
 use std::path::Path;
 
@@ -74,8 +75,8 @@ enum FunctionDef<'a> {
 }
 
 /// Collects all function definitions from statements.
-fn collect_functions(stmts: &[Stmt]) -> std::collections::HashMap<String, FunctionDef<'_>> {
-    let mut functions = std::collections::HashMap::new();
+fn collect_functions(stmts: &[Stmt]) -> FxHashMap<String, FunctionDef<'_>> {
+    let mut functions = FxHashMap::default();
 
     for stmt in stmts {
         match stmt {

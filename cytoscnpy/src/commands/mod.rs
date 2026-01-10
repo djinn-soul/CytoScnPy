@@ -21,4 +21,4 @@ pub use mi::{run_mi, MiOptions};
 pub use raw::run_raw;
 #[allow(deprecated)]
 pub use stats::run_stats;
-pub use stats::{run_files, run_stats_v2};
+pub use stats::{run_files, run_stats_v2, Inspections, ScanOptions};

@@ -961,11 +961,23 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       const cachedHistory = fileCache.get(cacheKey) || [];
       const cachedEntry = cachedHistory.find((e) => e.hash === currentHash);
 
-      const finding = cachedEntry?.findings.find(
+      const diagnosticLine = diagnostic.range.start.line + 1;
+
+      // First try fileCache
+      let finding = cachedEntry?.findings.find(
         (f) =>
-          f.rule_id === ruleId &&
-          f.line_number === diagnostic.range.start.line + 1
+          f.rule_id === ruleId && Math.abs(f.line_number - diagnosticLine) <= 2
       );
+
+      // Fallback to workspaceCache if fileCache doesn't have it
+      if (!finding && workspaceCache) {
+        const wsFindings = workspaceCache.get(cacheKey) || [];
+        finding = wsFindings.find(
+          (f) =>
+            f.rule_id === ruleId &&
+            Math.abs(f.line_number - diagnosticLine) <= 2
+        );
+      }
 
       if (finding && finding.fix) {
         // Precise CST-based fix available (e.g., Remove unused function)

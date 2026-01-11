@@ -101,7 +101,7 @@ pub struct DefinitionInfo {
     pub base_classes: SmallVec<[String; 2]>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[allow(clippy::struct_excessive_bools)]
 /// A fully resolved definition found during analysis.
 ///

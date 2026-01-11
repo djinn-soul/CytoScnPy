@@ -78,6 +78,7 @@ def nested_func_scope():
 # Call Graph
 def a():
     b()
+    process_data()
 
 def b():
     c()
@@ -87,6 +88,9 @@ def c():
     d()
 
 def d():
+    pass
+
+def process_data():
     pass
 
 class MyClass:
@@ -99,3 +103,15 @@ class MyClass:
 # Sinks (fake)
 def sink(arg):
     pass
+
+# Direct flows at module level
+eval(input())
+os.system(sys.argv[0])
+
+# Interprocedural flow (if summary works for return input())
+def get_user_data():
+    return input()
+
+def flask_endpoint():
+    data = get_user_data()
+    eval(data)

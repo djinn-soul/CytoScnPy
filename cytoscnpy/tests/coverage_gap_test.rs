@@ -1,3 +1,4 @@
+//! Miscellaneous coverage gap tests.
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::halstead::analyze_halstead;
 use ruff_python_ast as ast;
@@ -5,9 +6,9 @@ use ruff_python_parser::parse_module;
 use std::path::PathBuf;
 
 #[test]
-fn test_halstead_corpus_coverage() {
+fn test_halstead_corpus_coverage() -> Result<(), Box<dyn std::error::Error>> {
     let source = include_str!("coverage_corpus.py");
-    let parsed = parse_module(source).expect("Failed to parse corpus");
+    let parsed = parse_module(source).map_err(|e| format!("Parsing failed: {e:?}"))?;
     let module = parsed.into_syntax();
 
     // Wrap in Mod::Module
@@ -19,6 +20,7 @@ fn test_halstead_corpus_coverage() {
     assert!(metrics.h1 > 0, "Should have operators");
     assert!(metrics.h2 > 0, "Should have operands");
     assert!(metrics.vocabulary > 0.0);
+    Ok(())
 }
 
 #[test]

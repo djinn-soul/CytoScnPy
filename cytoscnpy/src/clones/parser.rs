@@ -577,10 +577,11 @@ async def fetch_data():
         let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
 
         assert_eq!(subtrees.len(), 1);
-        match subtrees[0].node_type {
-            SubtreeType::AsyncFunction => {}
-            _ => panic!("Expected AsyncFunction, got {:?}", subtrees[0].node_type),
-        }
+        assert!(
+            matches!(subtrees[0].node_type, SubtreeType::AsyncFunction),
+            "Expected AsyncFunction, got {:?}",
+            subtrees[0].node_type
+        );
         assert_eq!(subtrees[0].name.as_deref(), Some("fetch_data"));
     }
 

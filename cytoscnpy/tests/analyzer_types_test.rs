@@ -20,22 +20,24 @@ fn test_fix_suggestion_constructor_replacement() {
 }
 
 #[test]
-fn test_fix_suggestion_serialization() {
+fn test_fix_suggestion_serialization() -> Result<(), Box<dyn std::error::Error>> {
     let fix = FixSuggestion::replacement(0, 5, "bar".to_owned());
-    let json = serde_json::to_string(&fix).unwrap();
+    let json = serde_json::to_string(&fix)?;
 
     assert!(json.contains("\"start_byte\":0"));
     assert!(json.contains("\"end_byte\":5"));
     assert!(json.contains("\"replacement\":\"bar\""));
+    Ok(())
 }
 
 #[test]
-fn test_parse_error_serialization() {
+fn test_parse_error_serialization() -> Result<(), Box<dyn std::error::Error>> {
     let error = ParseError {
         file: PathBuf::from("foo.py"),
         error: "syntax error".to_owned(),
     };
-    let json = serde_json::to_string(&error).unwrap();
+    let json = serde_json::to_string(&error)?;
     assert!(json.contains("\"file\":"));
     assert!(json.contains("\"error\":\"syntax error\""));
+    Ok(())
 }

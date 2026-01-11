@@ -401,8 +401,8 @@ mod tests {
                 total_size: 0.0,
                 functions_count: 0,
                 classes_count: 0,
-                raw_metrics: Default::default(),
-                halstead_metrics: Default::default(),
+                raw_metrics: crate::raw_metrics::RawMetrics::default(),
+                halstead_metrics: crate::halstead::HalsteadMetrics::default(),
             },
         }
     }

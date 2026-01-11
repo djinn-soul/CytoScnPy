@@ -51,11 +51,6 @@ impl CytoScnPy {
             std::thread::sleep(std::time::Duration::from_millis(delay_ms));
         }
 
-        // Update progress bar (thread-safe)
-        if let Some(ref pb) = self.progress_bar {
-            pb.inc(1);
-        }
-
         let mut file_complexity = 0.0;
         let mut file_mi = 0.0;
 
@@ -309,6 +304,11 @@ impl CytoScnPy {
         }
 
         let has_parse_errors = !parse_errors.is_empty();
+
+        // Update progress bar AFTER file processing completes (thread-safe)
+        if let Some(ref pb) = self.progress_bar {
+            pb.inc(1);
+        }
 
         (
             visitor.definitions,

@@ -31,3 +31,55 @@ pub fn check_fastapi_param(func_def: &ast::StmtFunctionDef) -> Vec<(String, Tain
 
     tainted_params
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ruff_python_parser::parse_module;
+
+    #[test]
+    fn test_fastapi_params_detected() {
+        let source = "
+def api_handler(
+    q: str = Query(None),
+    p: int = Path(1),
+    b: dict = Body(...),
+    f: str = Form(),
+    h: str = Header(None),
+    c: str = Cookie(None),
+    ignored: str = SomethingElse()
+):
+    pass
+";
+        let parsed = parse_module(source).expect("Failed to parse");
+        let body = parsed.into_syntax().body;
+        let func_def = body[0].as_function_def_stmt().expect("Not a function");
+
+        let findings = check_fastapi_param(func_def);
+
+        assert_eq!(findings.len(), 6);
+
+        let names: Vec<&str> = findings.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"q"));
+        assert!(names.contains(&"p"));
+        assert!(names.contains(&"b"));
+        assert!(names.contains(&"f"));
+        assert!(names.contains(&"h"));
+        assert!(names.contains(&"c"));
+        assert!(!names.contains(&"ignored"));
+    }
+
+    #[test]
+    fn test_fastapi_no_defaults() {
+        let source = "
+def basic_func(a, b: int):
+    pass
+";
+        let parsed = parse_module(source).expect("Failed to parse");
+        let body = parsed.into_syntax().body;
+        let func_def = body[0].as_function_def_stmt().expect("Not a function");
+
+        let findings = check_fastapi_param(func_def);
+        assert!(findings.is_empty());
+    }
+}

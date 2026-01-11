@@ -23,7 +23,9 @@ use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
 #[must_use]
 pub fn normalize_display_path(path: &std::path::Path) -> String {
     let s = path.to_string_lossy();
-    let normalized = s.replace('\\', "/");
+    // Strip Windows extended path prefix if present
+    let clean = s.trim_start_matches(r"\\?\");
+    let normalized = clean.replace('\\', "/");
     normalized
         .strip_prefix("./")
         .unwrap_or(&normalized)

@@ -251,7 +251,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                 writer,
                 "  {} {}: {}",
                 "Skip:".yellow(),
-                file_path.display(),
+                crate::utils::normalize_display_path(&file_path),
                 e
             )?;
             return Ok(None);
@@ -265,7 +265,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                 writer,
                 "  {} {}: {}",
                 "Parse error:".red(),
-                file_path.display(),
+                crate::utils::normalize_display_path(&file_path),
                 e
             )?;
             return Ok(None);
@@ -304,7 +304,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                     "  Would remove {} '{}' at {}:{}",
                     item_type,
                     def.simple_name,
-                    file_path.display(),
+                    crate::utils::normalize_display_path(&file_path),
                     def.line
                 )?;
             } else {
@@ -324,7 +324,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                 writer,
                 "  {} {} ({} removed)",
                 "Fixed:".green(),
-                file_path.display(),
+                crate::utils::normalize_display_path(&file_path),
                 count
             )?;
             return Ok(Some(FixResult {

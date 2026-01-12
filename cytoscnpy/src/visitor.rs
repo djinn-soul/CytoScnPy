@@ -150,6 +150,8 @@ pub struct Definition {
     pub base_classes: SmallVec<[String; 2]>,
     /// Whether this definition is inside an `if TYPE_CHECKING:` block.
     pub is_type_checking: bool,
+    /// Whether this definition is captured by a nested scope (closure).
+    pub is_captured: bool,
     /// The cell number if this definition is from a Jupyter notebook (0-indexed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cell_number: Option<usize>,
@@ -238,6 +240,8 @@ pub struct CytoScnPyVisitor<'a> {
     pub scope_stack: SmallVec<[Scope; 8]>,
     /// Whether the current file is considered dynamic (e.g., uses eval/exec).
     pub is_dynamic: bool,
+    /// Variables that are captured by nested scopes (closures).
+    pub captured_definitions: FxHashSet<String>,
     /// Set of class names that have a metaclass (used to detect metaclass inheritance).
     pub metaclass_classes: FxHashSet<String>,
     /// Set of method qualified names that are self-referential (recursive).
@@ -275,6 +279,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             in_type_checking_block: false,
             scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
             is_dynamic: false,
+            captured_definitions: FxHashSet::default(),
             metaclass_classes: FxHashSet::default(),
             self_referential_methods: FxHashSet::default(),
             cached_scope_prefix: cached_prefix,
@@ -320,11 +325,18 @@ impl<'a> CytoScnPyVisitor<'a> {
         // 3. Standard Entry Points: Common names for script execution.
         let is_standard_entry = matches!(simple_name.as_str(), "main" | "run" | "execute");
 
+        // 5. Public API: Symbols not starting with '_' are considered exported/public API.
+        //    This is crucial for library analysis where entry points aren't explicit.
+        let is_public_api = !simple_name.starts_with('_') && info.def_type != "method";
+
         // 4. Dunder Methods: Python's magic methods (__str__, __init__, etc.) are implicitly used.
         let is_dunder = simple_name.starts_with("__") && simple_name.ends_with("__");
 
-        // Decision: Is this implicitly used/exported?
+        // Decision: Is this implicitly used? (For reference counting/suppression)
         let is_implicitly_used = is_test || is_dynamic_pattern || is_standard_entry || is_dunder;
+
+        // Decision: Is this exported? (For Semantic Graph roots)
+        let is_exported = is_implicitly_used || is_public_api;
 
         // Set reference count to 1 if implicitly used to prevent false positives.
         // This treats the definition as "used".
@@ -363,10 +375,11 @@ impl<'a> CytoScnPyVisitor<'a> {
             end_byte: info.end_byte,
             confidence: 100,
             references,
-            is_exported: is_implicitly_used,
+            is_exported,
             in_init,
             base_classes: info.base_classes,
             is_type_checking: self.in_type_checking_block,
+            is_captured: false,
             cell_number: None,
             is_self_referential: false,
             message: Some(message),
@@ -423,9 +436,9 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
     }
 
-    /// Looks up a variable in the scope stack and returns its fully qualified name if found.
+    /// Looks up a variable in the scope stack and returns its fully qualified name and scope index if found.
     /// Optimized: uses `cached_scope_prefix` for innermost scope to avoid rebuilding.
-    fn resolve_name(&self, name: &str) -> Option<String> {
+    fn resolve_name_with_info(&self, name: &str) -> Option<(String, usize)> {
         let innermost_idx = self.scope_stack.len() - 1;
 
         for (i, scope) in self.scope_stack.iter().enumerate().rev() {
@@ -439,7 +452,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             // Check local_var_map first (for function scopes with local variables)
             if let Some(qualified) = scope.local_var_map.get(name) {
-                return Some(qualified.clone());
+                return Some((qualified.clone(), i));
             }
 
             // Fallback: construct qualified name if variable exists in scope
@@ -447,14 +460,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Fast path: if this is the innermost scope, use cached prefix
                 if i == innermost_idx {
                     if self.cached_scope_prefix.is_empty() {
-                        return Some(name.to_owned());
+                        return Some((name.to_owned(), i));
                     }
                     let mut result =
                         String::with_capacity(self.cached_scope_prefix.len() + 1 + name.len());
                     result.push_str(&self.cached_scope_prefix);
                     result.push('.');
                     result.push_str(name);
-                    return Some(result);
+                    return Some((result, i));
                 }
 
                 // Slow path: build prefix up to scope at index i
@@ -490,10 +503,15 @@ impl<'a> CytoScnPyVisitor<'a> {
                     result.push('.');
                 }
                 result.push_str(name);
-                return Some(result);
+                return Some((result, i));
             }
         }
         None
+    }
+
+    /// Optimized: uses `cached_scope_prefix` for innermost scope to avoid rebuilding.
+    fn resolve_name(&self, name: &str) -> Option<String> {
+        self.resolve_name_with_info(name).map(|(q, _)| q)
     }
 
     /// Records a reference to a name by incrementing its count.
@@ -1065,11 +1083,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                         if name_node.ctx.is_load() {
                             let name = name_node.id.to_string();
                             // Try to resolve to qualified name first
+                            // 1. Try to resolve to qualified name first
                             if let Some(qualified) = self.resolve_name(&name) {
                                 self.add_ref(qualified);
                             }
-                            // Always add simple name reference for imports/globals
-                            self.add_ref(name);
                         }
                     }
                     self.visit_expr(value);
@@ -1306,7 +1323,11 @@ impl<'a> CytoScnPyVisitor<'a> {
             let name = node.id.to_string();
 
             // Try to resolve using scope stack first
-            if let Some(qualified) = self.resolve_name(&name) {
+            if let Some((qualified, scope_idx)) = self.resolve_name_with_info(&name) {
+                // Mark as captured if found in a parent scope
+                if scope_idx < self.scope_stack.len() - 1 {
+                    self.captured_definitions.insert(qualified.clone());
+                }
                 self.add_ref(qualified);
             } else {
                 // If not found in local scope, assume it's a global or builtin.

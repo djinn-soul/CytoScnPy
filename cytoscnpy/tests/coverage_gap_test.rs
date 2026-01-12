@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 #[test]
 fn test_halstead_corpus_coverage() -> Result<(), Box<dyn std::error::Error>> {
-    let source = include_str!("coverage_corpus.py");
+    let source = include_str!("python_files/coverage_corpus.py");
     let parsed = parse_module(source).map_err(|e| format!("Parsing failed: {e:?}"))?;
     let module = parsed.into_syntax();
 
@@ -25,11 +25,11 @@ fn test_halstead_corpus_coverage() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_visitor_corpus_coverage() {
-    let source = include_str!("coverage_corpus.py");
+    let source = include_str!("python_files/coverage_corpus.py");
     let analyzer = CytoScnPy::default();
 
     // Test analyze_code (uses visitor)
-    let results = analyzer.analyze_code(source, &PathBuf::from("coverage_corpus.py"));
+    let results = analyzer.analyze_code(source, &PathBuf::from("python_files/coverage_corpus.py"));
 
     // We expect some findings or at least execution without panic
     // The corpus has some "unused" variables like global G (if unchecked),

@@ -29,6 +29,7 @@ fn test_print_report_formatting() {
             in_init: false,
             base_classes: smallvec::smallvec![],
             is_type_checking: false,
+            is_captured: false,
             cell_number: None,
             is_self_referential: false,
             message: Some("'unused_func' is defined but never used".to_owned()),

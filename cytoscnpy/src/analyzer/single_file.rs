@@ -218,7 +218,7 @@ impl CytoScnPy {
                 // 3. Flow-sensitive refinement
                 #[cfg(feature = "cfg")]
                 if !visitor.is_dynamic {
-                    self.refine_flow_sensitive(&source, &mut visitor.definitions);
+                    Self::refine_flow_sensitive(&source, &mut visitor.definitions);
                 }
 
                 // 3. Apply penalties and heuristics
@@ -342,6 +342,7 @@ impl CytoScnPy {
 
     /// Analyzes a single string of code (mostly for testing).
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+    #[must_use]
     pub fn analyze_code(&self, code: &str, file_path: &Path) -> AnalysisResult {
         let source = code.to_owned();
         let line_index = LineIndex::new(&source);
@@ -401,7 +402,7 @@ impl CytoScnPy {
 
                 #[cfg(feature = "cfg")]
                 if !visitor.is_dynamic {
-                    self.refine_flow_sensitive(&source, &mut visitor.definitions);
+                    Self::refine_flow_sensitive(&source, &mut visitor.definitions);
                 }
 
                 for def in &mut visitor.definitions {
@@ -526,7 +527,7 @@ impl CytoScnPy {
     }
 
     #[cfg(feature = "cfg")]
-    fn refine_flow_sensitive(&self, source: &str, definitions: &mut [Definition]) {
+    fn refine_flow_sensitive(source: &str, definitions: &mut [Definition]) {
         let mut function_scopes: FxHashMap<String, (usize, usize)> = FxHashMap::default();
         for def in definitions.iter() {
             if def.def_type == "function" || def.def_type == "method" {

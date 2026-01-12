@@ -18,6 +18,11 @@ pub struct BlockFlow {
 }
 
 /// Reaching Definitions algorithm
+///
+/// # Panics
+///
+/// Panics if a block ID in the CFG is not found in the initialized results (should not happen).
+#[must_use]
 pub fn analyze_reaching_definitions(cfg: &Cfg) -> FlowResult {
     let mut results = FlowResult::default();
 
@@ -61,11 +66,12 @@ pub fn analyze_reaching_definitions(cfg: &Cfg) -> FlowResult {
                 }
             }
 
-            let flow = results.block_results.get_mut(&block_id).unwrap();
-            if flow.in_set != new_in || flow.out_set != new_out {
-                flow.in_set = new_in;
-                flow.out_set = new_out;
-                changed = true;
+            if let Some(flow) = results.block_results.get_mut(&block_id) {
+                if flow.in_set != new_in || flow.out_set != new_out {
+                    flow.in_set = new_in;
+                    flow.out_set = new_out;
+                    changed = true;
+                }
             }
         }
     }
@@ -76,6 +82,7 @@ pub fn analyze_reaching_definitions(cfg: &Cfg) -> FlowResult {
 impl FlowResult {
     /// Returns true if a definition at (name, line) reaches any usage.
     /// This is a simplified check: does the definition reach any block that uses this name?
+    #[must_use]
     pub fn is_def_used(&self, cfg: &Cfg, name: &str, line: usize) -> bool {
         let def_tuple = (name.to_owned(), line);
 
@@ -88,15 +95,16 @@ impl FlowResult {
                     .uses
                     .iter()
                     .any(|(u_name, u_line)| u_name == name && *u_line > line)
-                {
-                    return true;
-                }
+            {
+                return true;
+            }
 
             // Case 2: Use in a subsequent block reachable by this definition
             if flow.in_set.contains(&def_tuple)
-                && block.uses.iter().any(|(u_name, _)| u_name == name) {
-                    return true;
-                }
+                && block.uses.iter().any(|(u_name, _)| u_name == name)
+            {
+                return true;
+            }
         }
         false
     }
@@ -144,14 +152,14 @@ def test_func(command):
 
     #[test]
     fn test_dead_def_in_match_arm() {
-        let source = r#"
+        let source = r"
 def f(x):
     match x:
         case [a, b]:
             print(a)
         case [a, c]:
             print(c)
-"#;
+";
         let cfg = Cfg::from_source(source, "f").unwrap();
         let results = analyze_reaching_definitions(&cfg);
 

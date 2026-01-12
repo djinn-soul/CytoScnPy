@@ -655,6 +655,7 @@ impl Cfg {
     }
 
     /// Constructs a CFG from a function's source code and its name.
+    #[must_use]
     pub fn from_source(source: &str, function_name: &str) -> Option<Self> {
         let parsed = parse_module(source).ok()?;
         let module = parsed.into_syntax();
@@ -670,6 +671,7 @@ impl Cfg {
     }
 
     /// Generates a fingerprint representing the control flow of this graph.
+    #[must_use]
     pub fn fingerprint(&self) -> CfgFingerprint {
         let mut stmt_histogram = HashMap::new();
         let mut max_loop_depth = 0;
@@ -697,6 +699,7 @@ impl Cfg {
     }
 
     /// Checks if two fingerprints are behaviorally similar.
+    #[must_use]
     pub fn is_behaviorally_similar(&self, other: &Self) -> bool {
         let fp1 = self.fingerprint();
         let fp2 = other.fingerprint();
@@ -708,6 +711,7 @@ impl Cfg {
 
     #[allow(clippy::cast_precision_loss)]
     /// Calculates the similarity score between two fingerprints (0.0 to 1.0).
+    #[must_use]
     pub fn similarity_score(&self, other: &Self) -> f64 {
         let fp1 = self.fingerprint();
         let fp2 = other.fingerprint();

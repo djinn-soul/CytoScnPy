@@ -166,7 +166,7 @@ impl CytoScnPy {
 
             if def.references == 0 {
                 // Only filter by confidence if it's actually unused and we are about to report it.
-                // Sugestions (confidence < threshold) are often still valuable in JSON, but benchmark usually focuses on thresholded items.
+                // Suggestions (confidence < threshold) are often still valuable in JSON, but benchmark usually focuses on thresholded items.
                 if def.confidence >= self.confidence_threshold {
                     match def.def_type.as_str() {
                         "function" => unused_functions.push(def),

@@ -27,6 +27,7 @@ fn test_print_report_formatting() {
             references: 0,
             is_exported: false,
             in_init: false,
+            is_framework_managed: false,
             base_classes: smallvec::smallvec![],
             is_type_checking: false,
             is_captured: false,

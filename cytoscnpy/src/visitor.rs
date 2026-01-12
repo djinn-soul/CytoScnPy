@@ -65,6 +65,10 @@ pub struct Scope {
     /// Maps simple variable names to their fully qualified names in this scope.
     /// This allows us to differentiate between `x` in `func_a` and `x` in `func_b`.
     pub local_var_map: FxHashMap<String, String>,
+    /// Set of variables declared as global in this scope.
+    pub global_declarations: FxHashSet<String>,
+    /// Whether this scope is managed by a framework (e.g. decorated with @app.route)
+    pub is_framework: bool,
 }
 
 impl Scope {
@@ -76,6 +80,8 @@ impl Scope {
             kind,
             variables: FxHashSet::default(),
             local_var_map: FxHashMap::default(),
+            global_declarations: FxHashSet::default(),
+            is_framework: false,
         }
     }
 }
@@ -141,6 +147,9 @@ pub struct Definition {
     pub is_exported: bool,
     /// Whether this definition is inside an `__init__.py` file.
     pub in_init: bool,
+    /// Whether this definition is inside a framework-managed scope.
+    #[serde(skip)]
+    pub is_framework_managed: bool,
     /// List of base classes if this is a class definition.
     /// Uses `SmallVec<[String; 2]>` - most classes have 0-2 base classes.
     #[serde(
@@ -332,8 +341,32 @@ impl<'a> CytoScnPyVisitor<'a> {
         // 4. Dunder Methods: Python's magic methods (__str__, __init__, etc.) are implicitly used.
         let is_dunder = simple_name.starts_with("__") && simple_name.ends_with("__");
 
+        // 5. Constants: Module-level UPPER_CASE variables are treated as configuration/constants
+        let is_module_scope = self.scope_stack.len() == 1
+            && matches!(self.scope_stack.last(), Some(s) if matches!(s.kind, ScopeType::Module));
+
+        let is_constant = is_module_scope
+            && info.def_type == "variable"
+            && simple_name
+                .chars()
+                .all(|c| !c.is_alphabetic() || c.is_uppercase())
+            && simple_name.chars().any(char::is_uppercase);
+
+        // 6. Public Class Attributes: Public fields in classes are considered part of the API.
+        let is_class_scope = self
+            .scope_stack
+            .last()
+            .is_some_and(|s| matches!(s.kind, ScopeType::Class(_)));
+        let is_public_class_attr =
+            is_class_scope && info.def_type == "variable" && !simple_name.starts_with('_');
+
         // Decision: Is this implicitly used? (For reference counting/suppression)
-        let is_implicitly_used = is_test || is_dynamic_pattern || is_standard_entry || is_dunder;
+        let is_implicitly_used = is_test
+            || is_dynamic_pattern
+            || is_standard_entry
+            || is_dunder
+            || is_constant
+            || is_public_class_attr;
 
         // Decision: Is this exported? (For Semantic Graph roots)
         let is_exported = is_implicitly_used || is_public_api;
@@ -377,6 +410,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             references,
             is_exported,
             in_init,
+            is_framework_managed: self.scope_stack.last().is_some_and(|s| s.is_framework),
             base_classes: info.base_classes,
             is_type_checking: self.in_type_checking_block,
             is_captured: false,
@@ -656,6 +690,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 let (_, end_line, start_byte, end_byte) = self.get_range_info(node);
                 self.visit_function_def(
                     &node.name,
+                    &node.decorator_list,
                     &node.parameters,
                     &node.body,
                     name_line,
@@ -901,27 +936,46 @@ impl<'a> CytoScnPyVisitor<'a> {
                     if let Expr::Name(name_node) = target {
                         // Skip __all__ as it was already handled above
                         if name_node.id.as_str() != "__all__" {
-                            let qualified_name = self.get_qualified_name(&name_node.id);
-                            let (line, end_line, start_byte, end_byte) =
-                                self.get_range_info(name_node);
-                            // Clone for add_def, move to add_local_def (last use)
-                            self.add_definition(DefinitionInfo {
-                                name: qualified_name.clone(),
-                                def_type: "variable".to_owned(),
-                                line,
-                                end_line,
-                                start_byte,
-                                end_byte,
-                                base_classes: SmallVec::new(),
+                            // Check if this variable is declared global in the current scope
+                            let is_global = self.scope_stack.last().is_some_and(|s| {
+                                s.global_declarations.contains(name_node.id.as_str())
                             });
-                            self.add_local_def(name_node.id.to_string(), qualified_name.clone());
 
-                            // Fix for unannotated class attributes in Model Classes (Dataclasses, Pydantic)
-                            // If we are in a Model Class and not in a method, treat this assignment as a field definition
-                            // and mark it as implicitly used.
-                            if !self.class_stack.is_empty() && self.function_stack.is_empty() {
-                                if let Some(true) = self.model_class_stack.last() {
-                                    self.add_ref(qualified_name);
+                            if is_global {
+                                // It's a write to a global variable. Mark the global as referenced.
+                                // We don't create a new definition here.
+                                self.add_ref(name_node.id.to_string());
+                                if !self.module_name.is_empty() {
+                                    let qualified =
+                                        format!("{}.{}", self.module_name, name_node.id);
+                                    self.add_ref(qualified);
+                                }
+                            } else {
+                                let qualified_name = self.get_qualified_name(&name_node.id);
+                                let (line, end_line, start_byte, end_byte) =
+                                    self.get_range_info(name_node);
+                                // Clone for add_def, move to add_local_def (last use)
+                                self.add_definition(DefinitionInfo {
+                                    name: qualified_name.clone(),
+                                    def_type: "variable".to_owned(),
+                                    line,
+                                    end_line,
+                                    start_byte,
+                                    end_byte,
+                                    base_classes: SmallVec::new(),
+                                });
+                                self.add_local_def(
+                                    name_node.id.to_string(),
+                                    qualified_name.clone(),
+                                );
+
+                                // Fix for unannotated class attributes in Model Classes (Dataclasses, Pydantic)
+                                // If we are in a Model Class and not in a method, treat this assignment as a field definition
+                                // and mark it as implicitly used.
+                                if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                                    if let Some(true) = self.model_class_stack.last() {
+                                        self.add_ref(qualified_name);
+                                    }
                                 }
                             }
                         }
@@ -940,24 +994,39 @@ impl<'a> CytoScnPyVisitor<'a> {
             Stmt::AnnAssign(node) => {
                 // Track variable definition
                 if let Expr::Name(name_node) = &*node.target {
-                    let qualified_name = self.get_qualified_name(&name_node.id);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(name_node);
-                    self.add_definition(DefinitionInfo {
-                        name: qualified_name.clone(),
-                        def_type: "variable".to_owned(),
-                        line,
-                        end_line,
-                        start_byte,
-                        end_byte,
-                        base_classes: SmallVec::new(),
-                    });
-                    self.add_local_def(name_node.id.to_string(), qualified_name.clone());
+                    // Check if this variable is declared global in the current scope
+                    let is_global = self
+                        .scope_stack
+                        .last()
+                        .is_some_and(|s| s.global_declarations.contains(name_node.id.as_str()));
 
-                    // If we are in a Model Class (Dataclasses, Pydantic) and not in a method,
-                    // treat this assignment as a field definition and mark it as implicitly used.
-                    if !self.class_stack.is_empty() && self.function_stack.is_empty() {
-                        if let Some(true) = self.model_class_stack.last() {
-                            self.add_ref(qualified_name);
+                    if is_global {
+                        // It's a write to a global variable. Mark the global as referenced.
+                        self.add_ref(name_node.id.to_string());
+                        if !self.module_name.is_empty() {
+                            let qualified = format!("{}.{}", self.module_name, name_node.id);
+                            self.add_ref(qualified);
+                        }
+                    } else {
+                        let qualified_name = self.get_qualified_name(&name_node.id);
+                        let (line, end_line, start_byte, end_byte) = self.get_range_info(name_node);
+                        self.add_definition(DefinitionInfo {
+                            name: qualified_name.clone(),
+                            def_type: "variable".to_owned(),
+                            line,
+                            end_line,
+                            start_byte,
+                            end_byte,
+                            base_classes: SmallVec::new(),
+                        });
+                        self.add_local_def(name_node.id.to_string(), qualified_name.clone());
+
+                        // If we are in a Model Class (Dataclasses, Pydantic) and not in a method,
+                        // treat this assignment as a field definition and mark it as implicitly used.
+                        if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                            if let Some(true) = self.model_class_stack.last() {
+                                self.add_ref(qualified_name);
+                            }
                         }
                     }
                 } else {
@@ -1124,6 +1193,24 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
             }
+            // Handle global statement - mark global variables as used
+            Stmt::Global(node) => {
+                // Register names as global in current scope
+                if let Some(scope) = self.scope_stack.last_mut() {
+                    for name in &node.names {
+                        scope.global_declarations.insert(name.id.to_string());
+                    }
+                }
+
+                for name in &node.names {
+                    // Mark the global variable as referenced
+                    self.add_ref(name.id.to_string());
+                    if !self.module_name.is_empty() {
+                        let qualified = format!("{}.{}", self.module_name, name.id);
+                        self.add_ref(qualified);
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -1131,9 +1218,11 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     // Helper function to handle shared logic between FunctionDef and AsyncFunctionDef
+    #[allow(clippy::too_many_lines)]
     fn visit_function_def(
         &mut self,
         name: &str,
+        decorators: &[ast::Decorator],
         args: &ast::Parameters,
         body: &[Stmt],
         line: usize,
@@ -1167,6 +1256,34 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         // Enter function scope
         self.enter_scope(ScopeType::Function(CompactString::from(name)));
+
+        // Detect Framework Decorators to mark scope as framework-managed
+        // This helps reduce false positives for unused variables in framework hooks
+        for decorator in decorators {
+            let expr = &decorator.expression;
+            // Handle @app.route, @app.get, etc.
+            if let Expr::Call(call) = expr {
+                if let Expr::Attribute(attr) = &*call.func {
+                    if let Expr::Name(val) = &*attr.value {
+                        if matches!(val.id.as_str(), "app" | "router" | "celery") {
+                            if let Some(scope) = self.scope_stack.last_mut() {
+                                scope.is_framework = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+            } else if let Expr::Attribute(attr) = expr {
+                if let Expr::Name(val) = &*attr.value {
+                    if matches!(val.id.as_str(), "app" | "router" | "celery") {
+                        if let Some(scope) = self.scope_stack.last_mut() {
+                            scope.is_framework = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
 
         // Track parameters
         let mut param_names = FxHashSet::default();

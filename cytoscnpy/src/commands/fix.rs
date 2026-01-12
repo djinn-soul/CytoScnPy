@@ -362,6 +362,7 @@ mod tests {
             references: 0,
             is_exported: false,
             in_init: false,
+            is_framework_managed: false,
             base_classes: SmallVec::new(),
             is_type_checking: false,
             is_captured: false,

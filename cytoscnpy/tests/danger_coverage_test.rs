@@ -4,14 +4,14 @@ use std::path::PathBuf;
 
 #[test]
 fn test_danger_rules_full_coverage() {
-    let source = include_str!("danger_corpus.py");
+    let source = include_str!("python_files/danger_corpus.py");
     let analyzer = CytoScnPy {
         enable_danger: true,
         ..CytoScnPy::default()
     };
 
     // Run analysis
-    let result = analyzer.analyze_code(source, &PathBuf::from("danger_corpus.py"));
+    let result = analyzer.analyze_code(source, &PathBuf::from("python_files/danger_corpus.py"));
 
     // Assert that we found findings (we expect many)
     assert!(!result.danger.is_empty(), "Expected danger findings");

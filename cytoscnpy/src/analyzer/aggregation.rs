@@ -142,7 +142,15 @@ impl CytoScnPy {
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
-                def.references = *count;
+                // For variables and parameters, if they were already marked as unused
+                // (e.g. by flow-sensitive analysis), we respect that 0 count.
+                if (def.def_type == "variable" || def.def_type == "parameter")
+                    && def.references == 0
+                {
+                    // Stay at 0
+                } else {
+                    def.references = *count;
+                }
             } else if def.def_type != "variable" {
                 if let Some(count) = ref_counts.get(&def.simple_name) {
                     def.references = *count;
@@ -151,37 +159,35 @@ impl CytoScnPy {
 
             apply_heuristics(&mut def);
 
-            if def.confidence == 0 || def.confidence < self.confidence_threshold {
-                continue;
-            }
-
             // Collect methods with references for class-method linking
             if def.def_type == "method" && def.references > 0 {
                 methods_with_refs.push(def.clone());
             }
 
             if def.references == 0 {
-                match def.def_type.as_str() {
-                    "function" => unused_functions.push(def),
-                    "method" => unused_methods.push(def),
-                    "class" => unused_classes.push(def),
-                    "import" => unused_imports.push(def),
-                    "variable" => unused_variables.push(def),
-                    "parameter" => unused_parameters.push(def),
-                    _ => {}
+                // Only filter by confidence if it's actually unused and we are about to report it.
+                // Sugestions (confidence < threshold) are often still valuable in JSON, but benchmark usually focuses on thresholded items.
+                if def.confidence >= self.confidence_threshold {
+                    match def.def_type.as_str() {
+                        "function" => unused_functions.push(def),
+                        "method" => unused_methods.push(def),
+                        "class" => unused_classes.push(def),
+                        "import" => unused_imports.push(def),
+                        "variable" => unused_variables.push(def),
+                        "parameter" => unused_parameters.push(def),
+                        _ => {}
+                    }
                 }
             }
         }
 
         // Class-method linking: ALL methods of unused classes should be flagged as unused.
-        // This implements "cascading deadness" - if a class is unreachable, all its methods are too.
-        // EXCEPTION: Skip methods protected by heuristics (visitor pattern, etc.)
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
 
         for def in &methods_with_refs {
             if def.confidence >= self.confidence_threshold {
-                // Skip visitor pattern methods - they have heuristic protection
+                // Skip visitor pattern methods
                 if def.simple_name.starts_with("visit_")
                     || def.simple_name.starts_with("leave_")
                     || def.simple_name.starts_with("transform_")
@@ -189,7 +195,6 @@ impl CytoScnPy {
                     continue;
                 }
 
-                // Extract parent class from full_name (e.g., "module.ClassName.method_name" -> "module.ClassName")
                 if let Some(last_dot) = def.full_name.rfind('.') {
                     let parent_class = &def.full_name[..last_dot];
                     if unused_class_names.contains(parent_class) {
@@ -233,7 +238,7 @@ impl CytoScnPy {
             Vec::new()
         };
 
-        // Update file_metrics to include unused items count
+        // Update file_metrics
         let mut unused_counts: FxHashMap<std::path::PathBuf, usize> = FxHashMap::default();
         let all_unused_slices: [&[Definition]; 6] = [
             &unused_functions,

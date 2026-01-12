@@ -1,6 +1,10 @@
 //! Single file analysis logic.
 
 use super::{AnalysisResult, AnalysisSummary, CytoScnPy, ParseError};
+#[cfg(feature = "cfg")]
+use crate::cfg::flow::analyze_reaching_definitions;
+#[cfg(feature = "cfg")]
+use crate::cfg::Cfg;
 use crate::framework::FrameworkAwareVisitor;
 use crate::halstead::{analyze_halstead, HalsteadMetrics};
 use crate::metrics::mi_compute;
@@ -16,15 +20,13 @@ use rustc_hash::FxHashMap;
 use std::fs;
 use std::path::Path;
 
-// use crate::constants::CHUNK_SIZE;
-
-use super::{apply_heuristics, apply_penalties};
-// Helper functions (these should be in a common place or in this file)
 use super::traversal::{collect_docstring_lines, convert_byte_range_to_line};
+use super::{apply_heuristics, apply_penalties};
 
 impl CytoScnPy {
-    /// Processes a single file and returns its analysis results.
-    #[allow(clippy::too_many_lines)]
+    /// Processes a single file (from disk or notebook) and returns analysis results.
+    /// Used by the directory traversal for high-performance scanning.
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     pub(crate) fn process_single_file(
         &self,
         file_path: &Path,
@@ -43,10 +45,8 @@ impl CytoScnPy {
         f64,
         usize, // File size in bytes
     ) {
-        // Check if this is a notebook file
         let is_notebook = file_path.extension().is_some_and(|e| e == "ipynb");
 
-        // Debug delay for testing progress bar visibility
         if let Some(delay_ms) = self.debug_delay_ms {
             std::thread::sleep(std::time::Duration::from_millis(delay_ms));
         }
@@ -54,7 +54,6 @@ impl CytoScnPy {
         let mut file_complexity = 0.0;
         let mut file_mi = 0.0;
 
-        // Get source code (from .py file or extracted from .ipynb)
         let source = if is_notebook {
             match crate::ipynb::extract_notebook_code(file_path, Some(&self.analysis_root)) {
                 Ok(code) => code,
@@ -107,7 +106,6 @@ impl CytoScnPy {
         let line_index = LineIndex::new(&source);
         let ignored_lines = crate::utils::get_ignored_lines(&source);
 
-        // Determine the module name from the file path
         let relative_path = file_path.strip_prefix(root_path).unwrap_or(file_path);
         let components: Vec<&str> = relative_path
             .components()
@@ -143,8 +141,6 @@ impl CytoScnPy {
             Ok(parsed) => {
                 let module = parsed.into_syntax();
 
-                // Advanced Secrets Scanning:
-                // If skip_docstrings is enabled, we need to identify lines that are part of docstrings.
                 let mut docstring_lines = rustc_hash::FxHashSet::default();
                 if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
                     collect_docstring_lines(&module.body, &line_index, &mut docstring_lines, 0);
@@ -175,12 +171,6 @@ impl CytoScnPy {
                     }
                 }
 
-                if visitor.is_dynamic {
-                    for def in &mut visitor.definitions {
-                        def.references += 1;
-                    }
-                }
-
                 for fw_ref in &framework_visitor.framework_references {
                     visitor.add_ref(fw_ref.clone());
                     if !module_name.is_empty() {
@@ -189,13 +179,63 @@ impl CytoScnPy {
                     }
                 }
 
-                // Mark names in __all__ as used (explicitly exported)
                 let exports = visitor.exports.clone();
                 for export_name in &exports {
                     visitor.add_ref(export_name.clone());
                     if !module_name.is_empty() {
                         let qualified = format!("{module_name}.{export_name}");
                         visitor.add_ref(qualified);
+                    }
+                }
+
+                // 1. Synchronize reference counts from visitor's bag before refinement
+                let ref_counts = visitor.references.clone();
+                for def in &mut visitor.definitions {
+                    if let Some(count) = ref_counts.get(&def.full_name) {
+                        def.references = *count;
+                    } else if def.def_type != "variable" && def.def_type != "parameter" {
+                        if let Some(count) = ref_counts.get(&def.simple_name) {
+                            def.references = *count;
+                        }
+                    }
+                }
+
+                // 1.5. Populate is_captured and mark as used if captured
+                for def in &mut visitor.definitions {
+                    if visitor.captured_definitions.contains(&def.full_name) {
+                        def.is_captured = true;
+                        def.references += 1;
+                    }
+                }
+
+                // 2. Dynamic code handling
+                if visitor.is_dynamic {
+                    for def in &mut visitor.definitions {
+                        def.references += 1;
+                    }
+                }
+
+                // 3. Flow-sensitive refinement
+                #[cfg(feature = "cfg")]
+                if !visitor.is_dynamic {
+                    self.refine_flow_sensitive(&source, &mut visitor.definitions);
+                }
+
+                // 3. Apply penalties and heuristics
+                for def in &mut visitor.definitions {
+                    apply_penalties(
+                        def,
+                        &framework_visitor,
+                        &test_visitor,
+                        &ignored_lines,
+                        self.include_tests,
+                    );
+                    apply_heuristics(def);
+
+                    if def.def_type == "method"
+                        && visitor.self_referential_methods.contains(&def.full_name)
+                    {
+                        def.is_self_referential = true;
                     }
                 }
 
@@ -219,7 +259,6 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
-                        // Skip findings on pragma lines (# pragma: no cytoscnpy)
                         if ignored_lines.contains(&finding.line) {
                             continue;
                         }
@@ -234,18 +273,13 @@ impl CytoScnPy {
                     }
                 }
 
-                // Calculate metrics if quality is enabled
                 if self.enable_quality {
                     let raw = analyze_raw(&source);
                     let h_metrics = analyze_halstead(&ruff_python_ast::Mod::Module(module.clone()));
                     let volume = h_metrics.volume;
                     let complexity =
                         crate::complexity::calculate_module_complexity(&source).unwrap_or(1);
-
-                    #[allow(clippy::cast_precision_loss)]
-                    {
-                        file_complexity = complexity as f64;
-                    }
+                    file_complexity = complexity as f64;
                     file_mi = mi_compute(volume, complexity, raw.sloc, raw.comments);
 
                     if let Some(min_mi) = self.config.cytoscnpy.min_mi {
@@ -265,8 +299,6 @@ impl CytoScnPy {
                 }
             }
             Err(e) => {
-                // If we have a parse error but secrets scanning is enabled,
-                // we should still try to scan for secrets (without docstring skipping).
                 if self.enable_secrets {
                     secrets = scan_secrets(
                         &source,
@@ -275,11 +307,8 @@ impl CytoScnPy {
                         None,
                     );
                 }
-
-                // Convert byte-based error to line-based for readability
                 let error_msg = format!("{e}");
                 let readable_error = convert_byte_range_to_line(&error_msg, &source);
-
                 parse_errors.push(ParseError {
                     file: file_path.to_path_buf(),
                     error: readable_error,
@@ -287,25 +316,6 @@ impl CytoScnPy {
             }
         }
 
-        for def in &mut visitor.definitions {
-            apply_penalties(
-                def,
-                &framework_visitor,
-                &test_visitor,
-                &ignored_lines,
-                self.include_tests,
-            );
-
-            // Mark self-referential methods (recursive methods)
-            if def.def_type == "method" && visitor.self_referential_methods.contains(&def.full_name)
-            {
-                def.is_self_referential = true;
-            }
-        }
-
-        let has_parse_errors = !parse_errors.is_empty();
-
-        // Update progress bar AFTER file processing completes (thread-safe)
         if let Some(ref pb) = self.progress_bar {
             pb.inc(1);
         }
@@ -323,17 +333,7 @@ impl CytoScnPy {
             } else {
                 RawMetrics::default()
             },
-            if self.enable_quality && has_parse_errors {
-                HalsteadMetrics::default() // Cannot compute halstead if parse error
-            } else if self.enable_quality {
-                if let Ok(parsed) = parse_module(&source) {
-                    analyze_halstead(&ruff_python_ast::Mod::Module(parsed.into_syntax()))
-                } else {
-                    HalsteadMetrics::default()
-                }
-            } else {
-                HalsteadMetrics::default()
-            },
+            HalsteadMetrics::default(), // Computed later if needed
             file_complexity,
             file_mi,
             file_size,
@@ -342,49 +342,29 @@ impl CytoScnPy {
 
     /// Analyzes a single string of code (mostly for testing).
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
-    #[must_use]
     pub fn analyze_code(&self, code: &str, file_path: &Path) -> AnalysisResult {
         let source = code.to_owned();
         let line_index = LineIndex::new(&source);
         let ignored_lines = crate::utils::get_ignored_lines(&source);
 
-        // Mock module name
         let module_name = file_path
             .file_stem()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
 
-        let mut visitor =
-            CytoScnPyVisitor::new(file_path.to_path_buf(), module_name.clone(), &line_index);
+        let mut visitor = CytoScnPyVisitor::new(file_path.to_path_buf(), module_name, &line_index);
         let mut framework_visitor = FrameworkAwareVisitor::new(&line_index);
         let mut test_visitor = TestAwareVisitor::new(file_path, &line_index);
 
-        let mut secrets = Vec::new();
-        let mut danger = Vec::new();
-
-        let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
+        let mut secrets_res = Vec::new();
+        let mut danger_res = Vec::new();
+        let mut quality_res = Vec::new();
 
-        // Parse using ruff
-        match ruff_python_parser::parse_module(&source) {
+        match parse_module(&source) {
             Ok(parsed) => {
                 let module = parsed.into_syntax();
-
-                // Docstring extraction
-                let mut docstring_lines = rustc_hash::FxHashSet::default();
-                if self.enable_secrets && self.config.cytoscnpy.secrets_config.skip_docstrings {
-                    collect_docstring_lines(&module.body, &line_index, &mut docstring_lines, 0);
-                }
-
-                if self.enable_secrets {
-                    secrets = scan_secrets(
-                        &source,
-                        &file_path.to_path_buf(),
-                        &self.config.cytoscnpy.secrets_config,
-                        Some(&docstring_lines),
-                    );
-                }
 
                 for stmt in &module.body {
                     framework_visitor.visit_stmt(stmt);
@@ -392,29 +372,60 @@ impl CytoScnPy {
                     visitor.visit_stmt(stmt);
                 }
 
+                // Sync and Refine
+                let ref_counts = visitor.references.clone();
+                for def in &mut visitor.definitions {
+                    if let Some(count) = ref_counts.get(&def.full_name) {
+                        def.references = *count;
+                    } else if def.def_type != "variable" && def.def_type != "parameter" {
+                        if let Some(count) = ref_counts.get(&def.simple_name) {
+                            def.references = *count;
+                        }
+                    }
+                }
+
+                // 1.5. Populate is_captured and mark as used if captured
+                for def in &mut visitor.definitions {
+                    if visitor.captured_definitions.contains(&def.full_name) {
+                        def.is_captured = true;
+                        def.references += 1;
+                    }
+                }
+
+                // 1.5. Dynamic code handling
                 if visitor.is_dynamic {
                     for def in &mut visitor.definitions {
                         def.references += 1;
                     }
                 }
 
-                // Add framework-referenced functions/classes as used.
-                for fw_ref in &framework_visitor.framework_references {
-                    visitor.add_ref(fw_ref.clone());
-                    if !module_name.is_empty() {
-                        let qualified = format!("{module_name}.{fw_ref}");
-                        visitor.add_ref(qualified);
-                    }
+                #[cfg(feature = "cfg")]
+                if !visitor.is_dynamic {
+                    self.refine_flow_sensitive(&source, &mut visitor.definitions);
                 }
 
-                // Mark names in __all__ as used (explicitly exported)
-                let exports = visitor.exports.clone();
-                for export_name in &exports {
-                    visitor.add_ref(export_name.clone());
-                    if !module_name.is_empty() {
-                        let qualified = format!("{module_name}.{export_name}");
-                        visitor.add_ref(qualified);
+                for def in &mut visitor.definitions {
+                    apply_penalties(
+                        def,
+                        &framework_visitor,
+                        &test_visitor,
+                        &ignored_lines,
+                        self.include_tests,
+                    );
+                    apply_heuristics(def);
+                }
+
+                if self.enable_secrets {
+                    let mut docstring_lines = rustc_hash::FxHashSet::default();
+                    if self.config.cytoscnpy.secrets_config.skip_docstrings {
+                        collect_docstring_lines(&module.body, &line_index, &mut docstring_lines, 0);
                     }
+                    secrets_res = scan_secrets(
+                        &source,
+                        &file_path.to_path_buf(),
+                        &self.config.cytoscnpy.secrets_config,
+                        Some(&docstring_lines),
+                    );
                 }
 
                 // Run LinterVisitor with enabled rules.
@@ -437,26 +448,24 @@ impl CytoScnPy {
                         linter.visit_stmt(stmt);
                     }
 
-                    // Separate findings
                     for finding in linter.findings {
-                        // Skip findings on pragma lines (# pragma: no cytoscnpy)
                         if ignored_lines.contains(&finding.line) {
                             continue;
                         }
                         if finding.rule_id.starts_with("CSP-D") {
-                            danger.push(finding);
+                            danger_res.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
                         {
-                            quality.push(finding);
+                            quality_res.push(finding);
                         }
                     }
                 }
             }
             Err(e) => {
                 if self.enable_secrets {
-                    secrets = scan_secrets(
+                    secrets_res = scan_secrets(
                         &source,
                         &file_path.to_path_buf(),
                         &self.config.cytoscnpy.secrets_config,
@@ -470,61 +479,17 @@ impl CytoScnPy {
             }
         }
 
-        for def in &mut visitor.definitions {
-            apply_penalties(
-                def,
-                &framework_visitor,
-                &test_visitor,
-                &ignored_lines,
-                self.include_tests,
-            );
-        }
-
-        // Aggregate (single file)
+        // Final aggregation
         let total_definitions = visitor.definitions.len();
-
-        let functions_count = visitor
-            .definitions
-            .iter()
-            .filter(|d| d.def_type == "function" || d.def_type == "method")
-            .count();
-        let classes_count = visitor
-            .definitions
-            .iter()
-            .filter(|d| d.def_type == "class")
-            .count();
-
-        let all_defs = visitor.definitions;
-        // References are already counted by the visitor
-        let ref_counts = visitor.references;
-
         let mut unused_functions = Vec::new();
         let mut unused_methods = Vec::new();
         let mut unused_classes = Vec::new();
         let mut unused_imports = Vec::new();
         let mut unused_variables = Vec::new();
         let mut unused_parameters = Vec::new();
-        let mut methods_with_refs: Vec<Definition> = Vec::new();
 
-        for mut def in all_defs {
-            if let Some(count) = ref_counts.get(&def.full_name) {
-                def.references = *count;
-            } else if let Some(count) = ref_counts.get(&def.simple_name) {
-                def.references = *count;
-            }
-
-            apply_heuristics(&mut def);
-
-            if def.confidence == 0 || def.confidence < self.confidence_threshold {
-                continue;
-            }
-
-            // Collect methods with references for class-method linking
-            if def.def_type == "method" && def.references > 0 {
-                methods_with_refs.push(def.clone());
-            }
-
-            if def.references == 0 {
+        for def in visitor.definitions {
+            if def.confidence >= self.confidence_threshold && def.references == 0 {
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
                     "method" => unused_methods.push(def),
@@ -537,31 +502,6 @@ impl CytoScnPy {
             }
         }
 
-        // Class-method linking: ALL methods of unused classes should be flagged as unused.
-        // This implements "cascading deadness" - if a class is unreachable, all its methods are too.
-        // EXCEPTION: Skip methods protected by heuristics (visitor pattern, etc.)
-        let unused_class_names: std::collections::HashSet<_> =
-            unused_classes.iter().map(|c| c.full_name.clone()).collect();
-
-        for def in &methods_with_refs {
-            if def.confidence >= self.confidence_threshold {
-                // Skip visitor pattern methods - they have heuristic protection
-                if def.simple_name.starts_with("visit_")
-                    || def.simple_name.starts_with("leave_")
-                    || def.simple_name.starts_with("transform_")
-                {
-                    continue;
-                }
-
-                if let Some(last_dot) = def.full_name.rfind('.') {
-                    let parent_class = &def.full_name[..last_dot];
-                    if unused_class_names.contains(parent_class) {
-                        unused_methods.push(def.clone());
-                    }
-                }
-            }
-        }
-
         AnalysisResult {
             unused_functions,
             unused_methods,
@@ -569,38 +509,59 @@ impl CytoScnPy {
             unused_classes,
             unused_variables,
             unused_parameters,
-            secrets: secrets.clone(),
-            danger: danger.clone(),
-            quality: quality.clone(),
+            secrets: secrets_res,
+            danger: danger_res,
+            quality: quality_res,
             taint_findings: Vec::new(),
-            parse_errors: parse_errors.clone(),
+            parse_errors,
             clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files: 1,
-                secrets_count: secrets.len(),
-                danger_count: danger.len(),
-                quality_count: quality.len(),
-                taint_count: 0,
-                parse_errors_count: parse_errors.len(),
                 total_lines_analyzed: source.lines().count(),
                 total_definitions,
-                average_complexity: 0.0,
-                average_mi: 0.0,
-                total_directories: 0,
-                total_size: source.len() as f64 / 1024.0,
-                functions_count,
-                classes_count,
-                raw_metrics: RawMetrics::default(),
-                halstead_metrics: HalsteadMetrics::default(),
+                ..AnalysisSummary::default()
             },
-            file_metrics: vec![crate::analyzer::types::FileMetrics {
-                file: file_path.to_path_buf(),
-                loc: source.lines().count(),
-                sloc: source.lines().count(),
-                complexity: 0.0,
-                mi: 0.0,
-                total_issues: danger.len() + quality.len() + secrets.len(),
-            }],
+            file_metrics: Vec::new(),
+        }
+    }
+
+    #[cfg(feature = "cfg")]
+    fn refine_flow_sensitive(&self, source: &str, definitions: &mut [Definition]) {
+        let mut function_scopes: FxHashMap<String, (usize, usize)> = FxHashMap::default();
+        for def in definitions.iter() {
+            if def.def_type == "function" || def.def_type == "method" {
+                function_scopes.insert(def.full_name.clone(), (def.line, def.end_line));
+            }
+        }
+
+        for (func_name, (start_line, end_line)) in function_scopes {
+            let lines: Vec<&str> = source
+                .lines()
+                .skip(start_line.saturating_sub(1))
+                .take(end_line.saturating_sub(start_line) + 1)
+                .collect();
+            let func_source = lines.join("\n");
+            let simple_name = func_name.split('.').next_back().unwrap_or(&func_name);
+
+            if let Some(cfg) = Cfg::from_source(&func_source, simple_name) {
+                let flow_results = analyze_reaching_definitions(&cfg);
+                for def in definitions.iter_mut() {
+                    if (def.def_type == "variable" || def.def_type == "parameter")
+                        && def.full_name.starts_with(&func_name)
+                    {
+                        let relative_name = &def.full_name[func_name.len()..];
+                        if let Some(var_name) = relative_name.strip_prefix('.') {
+                            let rel_line = def.line.saturating_sub(start_line) + 1;
+                            if !flow_results.is_def_used(&cfg, var_name, rel_line)
+                                && def.references > 0
+                                && !def.is_captured
+                            {
+                                def.references = 0;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -364,6 +364,7 @@ mod tests {
             in_init: false,
             base_classes: SmallVec::new(),
             is_type_checking: false,
+            is_captured: false,
             cell_number: None,
             is_self_referential: false,
             message: None,

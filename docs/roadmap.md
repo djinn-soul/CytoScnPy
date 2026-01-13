@@ -3,7 +3,7 @@
 > **Architecture:** Hybrid PyO3 + Standalone CLI
 > **Status:** Production-ready core, active development
 
-For completed features and implementation history, see [Changelog](history.md).
+For completed features and implementation history, see [GitHub Releases](https://github.com/djinn09/CytoScnPy/releases).
 
 ---
 

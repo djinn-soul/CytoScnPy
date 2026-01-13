@@ -71,7 +71,7 @@ nav:
   - Reference:
       - CLI Reference: CLI.md
       - Migration Guide: migration.md
-  - Changelog: history.md
+
   - Roadmap: roadmap.md
   - Security:
       - Overview: security.md

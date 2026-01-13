@@ -32,7 +32,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 ### Analysis Configuration
 
 - `--confidence <N>`: Sets a minimum confidence threshold (0-100). CytoScnPy uses a scoring system for dead code; setting this to `80`, for example, will suppress "noisy" findings where the tool isn't certain the code is unused.
-- `--include-tests`: By default, CytoScnPy ignores files in folders like `tests/` or `test/`. Use this flag to include them in the analysis.
+- `--include-tests`: By default, CytoScnPy ignores files in folders like `tests/` or `test/` starting from version 1.2.2. Use this flag to include them in the analysis.
 - `--include-ipynb`: Enables scanning of Jupyter Notebook files. CytoScnPy extracts the Python code from cells and analyzes it as a virtual module.
 - `--ipynb-cells`: When combined with `--include-ipynb`, this reports findings with cell numbers instead of just line numbers, making it easier to locate issues in the Notebook UI.
 - `--clones`: Activates **duplicate code detection**. It uses AST-based hashing to find code blocks that are identical or nearly identical across your codebase.

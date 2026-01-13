@@ -63,7 +63,7 @@ pub struct CytoScnPyConfig {
     deprecated_keys_used: bool,
     /// Advanced secrets scanning configuration.
     #[serde(default)]
-    pub secrets_config: SecretsConfig,
+    pub secrets_config: Box<SecretsConfig>,
 }
 
 impl CytoScnPyConfig {

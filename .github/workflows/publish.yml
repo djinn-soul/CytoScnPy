@@ -20,23 +20,25 @@ jobs:
   # Build Python Wheels for PyPI
   # =============================================================================
   build-wheels:
-    name: Build wheels (${{ matrix.os }})
+    name: Build wheels (${{ matrix.os }} - ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: ${{ matrix.python-version }}
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust
         with:
-          cache-key: "wheels-${{ matrix.os }}"
+          cache-key: "wheels-${{ matrix.os }}-${{ matrix.python-version }}"
 
       - name: Disable Windows Defender (CI only)
         if: runner.os == 'Windows'
@@ -45,29 +47,29 @@ jobs:
       - name: Install maturin
         run: pip install maturin
 
-      - name: Build wheel with PGO (Windows)
+      - name: Build wheel (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           . scripts/load-pgo-profile.ps1 -Platform windows
-          maturin build --release --all-features --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
+          maturin build --release --all-features --out dist --find-interpreter
 
-      - name: Build wheel with PGO (Linux)
+      - name: Build wheel (Linux)
         if: runner.os == 'Linux'
         run: |
           source scripts/load-pgo-profile.sh linux
-          maturin build --release --out dist --find-interpreter
+          maturin build --release --all-features --out dist --find-interpreter
 
-      - name: Build wheel with PGO (macOS)
+      - name: Build wheel (macOS)
         if: runner.os == 'macOS'
         run: |
           source scripts/load-pgo-profile.sh macos
-          maturin build --release --out dist --find-interpreter
+          maturin build --release --all-features --out dist --find-interpreter
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
           path: dist
 
   # =============================================================================
@@ -162,16 +164,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: wheels-ubuntu-latest
+          pattern: wheels-*
           path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-windows-latest
-          path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-macos-latest
-          path: dist/
+          merge-multiple: true
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -225,16 +220,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: wheels-ubuntu-latest
+          pattern: wheels-*
           path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-windows-latest
-          path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-macos-latest
-          path: dist/
+          merge-multiple: true
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

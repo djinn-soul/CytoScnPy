@@ -562,3 +562,90 @@ fn extract_expr_nodes(expr: &ast::Expr) -> Vec<SubtreeNode> {
         _ => vec![],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parser_async_function() {
+        let source = "
+async def fetch_data():
+    x = await api.get()
+    return x
+";
+        let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
+
+        assert_eq!(subtrees.len(), 1);
+        assert!(
+            matches!(subtrees[0].node_type, SubtreeType::AsyncFunction),
+            "Expected AsyncFunction, got {:?}",
+            subtrees[0].node_type
+        );
+        assert_eq!(subtrees[0].name.as_deref(), Some("fetch_data"));
+    }
+
+    #[test]
+    fn test_parser_nested_function() {
+        let source = "
+def outer():
+    def inner():
+        pass
+    return inner
+";
+        let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
+
+        // Should capture outer and inner
+        assert_eq!(subtrees.len(), 2);
+
+        let names: Vec<&str> = subtrees.iter().filter_map(|s| s.name.as_deref()).collect();
+        assert!(names.contains(&"outer"));
+        assert!(names.contains(&"inner"));
+    }
+
+    #[test]
+    fn test_parser_inner_class() {
+        let source = "
+def factory():
+    class Local:
+        pass
+    return Local
+";
+        let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
+
+        assert_eq!(subtrees.len(), 2);
+        let _names: Vec<&str> = subtrees
+            .iter()
+            .map(|s| s.node_type)
+            .map(|t| match t {
+                SubtreeType::Function => "Function",
+                SubtreeType::Class => "Class",
+                _ => "Other",
+            })
+            .collect();
+        // Just checking types present
+        assert!(subtrees
+            .iter()
+            .any(|s| s.node_type == SubtreeType::Function));
+        assert!(subtrees.iter().any(|s| s.node_type == SubtreeType::Class));
+    }
+
+    #[test]
+    fn test_parser_async_method() {
+        let source = "
+class API:
+    async def get(self):
+        pass
+";
+        let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
+
+        // Class + Method
+        assert_eq!(subtrees.len(), 2);
+
+        let method = subtrees
+            .iter()
+            .find(|s| s.name.as_deref() == Some("get"))
+            .unwrap();
+        assert_eq!(method.node_type, SubtreeType::Method);
+    }
+}

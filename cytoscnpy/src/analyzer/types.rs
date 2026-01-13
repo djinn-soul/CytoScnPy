@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 
 /// Represents a fix suggestion with precise byte ranges for code modification.
 /// Used by the VS Code extension to apply surgical fixes.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct FixSuggestion {
     /// The starting byte offset (0-indexed) in the file.
     pub start_byte: usize,
@@ -70,7 +71,7 @@ pub struct FileMetrics {
 
 /// Holds the results of the analysis.
 /// This struct is serialized to JSON if requested.
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 pub struct AnalysisResult {
     /// List of functions that were defined but never used.
     pub unused_functions: Vec<Definition>,
@@ -104,7 +105,7 @@ pub struct AnalysisResult {
 }
 
 /// Summary statistics for the analysis result.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Default)]
 pub struct AnalysisSummary {
     /// Total number of files scanned.
     pub total_files: usize,

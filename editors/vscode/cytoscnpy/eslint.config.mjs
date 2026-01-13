@@ -1,8 +1,13 @@
 import typescriptEslint from "typescript-eslint";
 
-export default [{
-    files: ["**/*.ts"],
-}, {
+export default [
+    {
+        ignores: ["dist/**", "out/**", "node_modules/**", "esbuild.js"],
+    },
+    {
+        files: ["**/*.ts"],
+    },
+ {
     plugins: {
         "@typescript-eslint": typescriptEslint.plugin,
     },

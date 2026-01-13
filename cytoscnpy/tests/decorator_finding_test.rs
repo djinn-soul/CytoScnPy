@@ -22,7 +22,7 @@ def unused_decorated():
 
     let mut analyzer = CytoScnPy::default();
     analyzer.confidence_threshold = 0; // Ensure all findings are returned
-    let result = analyzer.analyze_code(code, Path::new("test_decorated.py"));
+    let result = analyzer.analyze_code(code, Path::new("decorated_code.py"));
 
     assert_eq!(
         result.unused_functions.len(),
@@ -50,7 +50,7 @@ class UnusedClass:
 
     let mut analyzer = CytoScnPy::default();
     analyzer.confidence_threshold = 0;
-    let result = analyzer.analyze_code(code, Path::new("test_decorated.py"));
+    let result = analyzer.analyze_code(code, Path::new("decorated_code.py"));
 
     assert_eq!(
         result.unused_classes.len(),
@@ -79,7 +79,7 @@ def multi_decorated():
 
     let mut analyzer = CytoScnPy::default();
     analyzer.confidence_threshold = 0;
-    let result = analyzer.analyze_code(code, Path::new("test_decorated.py"));
+    let result = analyzer.analyze_code(code, Path::new("decorated_code.py"));
 
     assert_eq!(
         result.unused_functions.len(),
@@ -112,7 +112,7 @@ def complex_function(a, b, c, d, e, f, g):
     analyzer.confidence_threshold = 0;
     analyzer.enable_quality = true;
     analyzer.config.cytoscnpy.max_args = Some(5); // Trigger too many args
-    let result = analyzer.analyze_code(code, Path::new("test_decorated.py"));
+    let result = analyzer.analyze_code(code, Path::new("decorated_code.py"));
 
     // Should have at least one quality finding for too many args
     let args_finding = result.quality.iter().find(|f| f.rule_id == "CSP-C303");

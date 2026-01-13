@@ -56,12 +56,14 @@ fn test_definition_with_fix() {
         references: 0,
         is_exported: false,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: Some("unused function".to_owned()),
-        fix: Some(FixSuggestion::deletion(50, 100)),
+        fix: Some(Box::new(FixSuggestion::deletion(50, 100))),
     };
 
     assert!(def.fix.is_some());
@@ -91,8 +93,10 @@ fn test_definition_without_fix_serializes() {
         references: 3,
         is_exported: true,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: None,
@@ -126,16 +130,18 @@ fn test_definition_with_fix_serializes() {
         references: 0,
         is_exported: false,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: Some("unused function".to_owned()),
-        fix: Some(FixSuggestion {
+        fix: Some(Box::new(FixSuggestion {
             start_byte: 200,
             end_byte: 350,
             replacement: String::new(),
-        }),
+        })),
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");

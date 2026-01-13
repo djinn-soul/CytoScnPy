@@ -101,7 +101,7 @@ mod python_bindings;
 
 // Re-export the Python module at the crate root (required by PyO3)
 #[cfg(feature = "python-bindings")]
-use pyo3::prelude::*;
+use pyo3::{pymodule, types::PyModule, Bound, PyResult};
 
 /// Python module definition for `cytoscnpy`.
 ///

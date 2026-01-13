@@ -29,7 +29,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
-    "prek",
+    "prek",                           # pre-commit alternative
     "psutil",
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -86,9 +86,11 @@ exclude = [
     "site-packages",
     "venv",
     # Project specific excludes
-    "benchmark/examples",
+    "benchmark",
+    # "scripts",
     "cytoscnpy/tests/data",
     "cytoscnpy/tests/python_files",
+    "cytoscnpy/tests/taint_corpus.py",
     "cytoscnpy/tests/reproduce_type_error.py",
 ]
 line-length = 88
@@ -119,8 +121,10 @@ line-ending = "auto"
 [tool.ty.src]
 # Exclude test data directories that contain intentionally broken code
 exclude = [
-    "benchmark/examples",
+    "benchmark",
+    "scripts",
     "cytoscnpy/tests/data",
     "cytoscnpy/tests/python_files",
+    "cytoscnpy/tests/taint_corpus.py",
     "cytoscnpy/tests/reproduce_type_error.py",
 ]

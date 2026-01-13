@@ -21,11 +21,12 @@ def process_data():
     arr = np.array([1, 2, 3])
     print(arr.mean())
 
-# SKY-D217: Potential SQL Injection in pandas
+# CSP-D102: Potential SQL Injection in pandas
 def unsafe_pandas_sql(conn, user_input):
     # This should trigger a warning if heuristics catch it
     query = f"SELECT * FROM users WHERE name = '{user_input}'"
     pd.read_sql(query, conn)
+
 
 def main():
     process_data()

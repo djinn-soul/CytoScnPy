@@ -251,7 +251,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                 writer,
                 "  {} {}: {}",
                 "Skip:".yellow(),
-                file_path.display(),
+                crate::utils::normalize_display_path(&file_path),
                 e
             )?;
             return Ok(None);
@@ -265,7 +265,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                 writer,
                 "  {} {}: {}",
                 "Parse error:".red(),
-                file_path.display(),
+                crate::utils::normalize_display_path(&file_path),
                 e
             )?;
             return Ok(None);
@@ -304,7 +304,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                     "  Would remove {} '{}' at {}:{}",
                     item_type,
                     def.simple_name,
-                    file_path.display(),
+                    crate::utils::normalize_display_path(&file_path),
                     def.line
                 )?;
             } else {
@@ -324,7 +324,7 @@ fn apply_dead_code_fix_to_file<W: Write>(
                 writer,
                 "  {} {} ({} removed)",
                 "Fixed:".green(),
-                file_path.display(),
+                crate::utils::normalize_display_path(&file_path),
                 count
             )?;
             return Ok(Some(FixResult {
@@ -336,4 +336,196 @@ fn apply_dead_code_fix_to_file<W: Write>(
     }
 
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analyzer::types::{AnalysisResult, AnalysisSummary};
+    use crate::visitor::Definition;
+    use smallvec::SmallVec;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    fn create_definition(name: &str, def_type: &str, file: PathBuf, line: usize) -> Definition {
+        Definition {
+            name: name.to_owned(),
+            full_name: name.to_owned(),
+            simple_name: name.to_owned(),
+            def_type: def_type.to_owned(),
+            file: Arc::new(file),
+            line,
+            end_line: line + 1,
+            start_byte: 0,
+            end_byte: 10,
+            confidence: 100,
+            references: 0,
+            is_exported: false,
+            in_init: false,
+            is_framework_managed: false,
+            base_classes: SmallVec::new(),
+            is_type_checking: false,
+            is_captured: false,
+            cell_number: None,
+            is_self_referential: false,
+            message: None,
+            fix: None,
+        }
+    }
+
+    fn create_empty_analysis_result() -> AnalysisResult {
+        AnalysisResult {
+            unused_functions: Vec::new(),
+            unused_methods: Vec::new(),
+            unused_imports: Vec::new(),
+            unused_classes: Vec::new(),
+            unused_variables: Vec::new(),
+            unused_parameters: Vec::new(),
+            secrets: Vec::new(),
+            danger: Vec::new(),
+            quality: Vec::new(),
+            taint_findings: Vec::new(),
+            parse_errors: Vec::new(),
+            clones: Vec::new(),
+            file_metrics: Vec::new(),
+            analysis_summary: AnalysisSummary {
+                total_files: 0,
+                secrets_count: 0,
+                danger_count: 0,
+                quality_count: 0,
+                taint_count: 0,
+                parse_errors_count: 0,
+                total_lines_analyzed: 0,
+                total_definitions: 0,
+                average_complexity: 0.0,
+                average_mi: 0.0,
+                total_directories: 0,
+                total_size: 0.0,
+                functions_count: 0,
+                classes_count: 0,
+                raw_metrics: crate::raw_metrics::RawMetrics::default(),
+                halstead_metrics: crate::halstead::HalsteadMetrics::default(),
+            },
+        }
+    }
+
+    #[test]
+    fn test_find_def_range_function() {
+        let source = "
+def used(): pass
+
+def unused():
+    pass
+";
+        let parsed = ruff_python_parser::parse_module(source).unwrap();
+        let body = parsed.into_syntax().body;
+
+        let range = find_def_range(&body, "unused", "function");
+        assert!(range.is_some());
+        let (start, _end) = range.unwrap();
+        assert!(start > 15);
+    }
+
+    #[test]
+    fn test_find_def_range_class() {
+        let source = "
+class Used: pass
+
+class Unused:
+    pass
+";
+        let parsed = ruff_python_parser::parse_module(source).unwrap();
+        let body = parsed.into_syntax().body;
+
+        let range = find_def_range(&body, "Unused", "class");
+        assert!(range.is_some());
+    }
+
+    #[test]
+    fn test_find_def_range_import() {
+        let source = "
+import used
+import unused
+";
+        let parsed = ruff_python_parser::parse_module(source).unwrap();
+        let body = parsed.into_syntax().body;
+
+        let range = find_def_range(&body, "unused", "import");
+        assert!(range.is_some());
+    }
+
+    #[test]
+    fn test_run_fix_deadcode_dry_run() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.py");
+        let source = "
+def unused_function():
+    pass
+";
+        std::fs::write(&file_path, source).unwrap();
+
+        let def = create_definition("unused_function", "function", file_path.clone(), 2);
+
+        let mut results = create_empty_analysis_result();
+        results.unused_functions.push(def);
+
+        let options = DeadCodeFixOptions {
+            min_confidence: 60,
+            dry_run: true,
+            fix_functions: true,
+            fix_classes: false,
+            fix_imports: false,
+            verbose: true,
+            with_cst: false,
+            analysis_root: dir.path().to_path_buf(),
+        };
+
+        let mut buffer = Vec::new();
+        let fix_results = run_fix_deadcode(&results, &options, &mut buffer).unwrap();
+
+        assert!(fix_results.is_empty());
+
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains("[DRY-RUN]"));
+        assert!(output.contains("Would remove function 'unused_function'"));
+
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, source);
+    }
+
+    #[test]
+    fn test_run_fix_deadcode_apply() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.py");
+        let source = "
+def unused_function():
+    pass
+";
+        std::fs::write(&file_path, source).unwrap();
+
+        let def = create_definition("unused_function", "function", file_path.clone(), 2);
+
+        let mut results = create_empty_analysis_result();
+        results.unused_functions.push(def);
+
+        let options = DeadCodeFixOptions {
+            min_confidence: 60,
+            dry_run: false,
+            fix_functions: true,
+            fix_classes: false,
+            fix_imports: false,
+            verbose: false,
+            with_cst: false,
+            analysis_root: dir.path().to_path_buf(),
+        };
+
+        let mut buffer = Vec::new();
+        let fix_results = run_fix_deadcode(&results, &options, &mut buffer).unwrap();
+
+        assert_eq!(fix_results.len(), 1);
+        assert_eq!(fix_results[0].items_removed, 1);
+
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content.trim().is_empty());
+    }
 }

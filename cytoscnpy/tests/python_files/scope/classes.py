@@ -1,4 +1,4 @@
 class A:
-    class_unique_x = 1
+    _class_unique_x = 1
     def m(self):
-        print(class_unique_x) # Should NOT ref A.class_unique_x
+        print(_class_unique_x) # Should NOT ref A._class_unique_x

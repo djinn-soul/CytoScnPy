@@ -45,6 +45,12 @@ pub fn apply_penalties<S: ::std::hash::BuildHasher>(
         def.confidence = *PENALTIES().get("framework_magic").unwrap_or(&40); // Low confidence
     }
 
+    // Framework managed scope (e.g. inside a decorated function)
+    // Variables here might be used for debugging or framework side-effects
+    if def.is_framework_managed {
+        def.confidence = def.confidence.saturating_sub(50);
+    }
+
     // Private names
     // Names starting with _ are often internal and might not be used externally,
     // but might be used implicitly. We lower confidence.

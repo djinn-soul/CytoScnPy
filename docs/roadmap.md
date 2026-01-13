@@ -3,7 +3,7 @@
 > **Architecture:** Hybrid PyO3 + Standalone CLI
 > **Status:** Production-ready core, active development
 
-For completed features and implementation history, see [Changelog](history.md).
+For completed features and implementation history, see [GitHub Releases](https://github.com/djinn09/CytoScnPy/releases).
 
 ---
 
@@ -571,3 +571,33 @@ _Safe, automated code fixes._
     - CST mode (tree-sitter) is now enabled by default for better comment preservation
     - Only high-confidence items (≥90%) are auto-fixed
     - Cascading detection: methods inside unused classes are auto-removed with their parent class
+
+---
+
+### <a id="phase-12"></a>Phase 12: Security & Lifecycle
+
+- [ ] **Fuzzing Environment Stabilization**
+
+  - Fuzzing is currently difficult on Windows due to MSVC toolchain and sanitizer runtime issues.
+  - **Solution:** Transition fuzzing CI to a purely Linux-based environment (or WSL).
+  - This allows reliable `cargo fuzz` execution to catch edge-case crashes and undefined behavior.
+  - **Implementation:** Add a `fuzz-linux.yml` workflow that runs in Ubuntu and uses `cargo +nightly fuzz`.
+
+---
+
+### <a id="phase-13"></a>Phase 13: Interprocedural Taint Analysis
+
+_Deep data-flow analysis across function boundaries._
+
+- [ ] **Global Call Graph Construction**
+  - Map function calls across the entire project to track how data moves between modules.
+  - Necessary for tracking "taint" from a source in one file to a sink in another.
+- [ ] **Cross-Function Taint Tracking**
+  - Store and propagate "taint state" for function arguments and return values.
+  - **Goal:** Catch vulnerabilities like an API request being passed through a helper function into an `eval()` or SQL query.
+- [ ] **Sanitization Recognition**
+  - Detect when tainted data passes through "safe" functions (like `html.escape()` or custom sanitizers).
+  - **Benefit:** Significantly reduces False Positives by knowing when data is no longer dangerous.
+- [ ] **Framework-Specific Entry Points**
+  - Add deep support for FastAPI dependencies, Django middleware, and Flask request hooks.
+  - **Benefit:** Provides "Premium" level security coverage for modern Python web applications.

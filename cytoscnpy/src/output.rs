@@ -5,7 +5,7 @@ use crate::visitor::Definition;
 use colored::Colorize;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use std::io::Write;
 use std::time::Duration;
 
@@ -53,11 +53,10 @@ pub fn create_spinner() -> ProgressBar {
 
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
-        #[allow(clippy::expect_used)]
         ProgressStyle::default_spinner()
             .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
             .template("{spinner:.cyan} {msg}")
-            .expect("Invalid progress style template"),
+            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
     );
     spinner.set_message("CytoScnPy analyzing your code…");
     spinner.enable_steady_tick(Duration::from_millis(100));
@@ -78,16 +77,17 @@ pub fn create_progress_bar(total_files: u64) -> ProgressBar {
         return ProgressBar::hidden();
     }
 
-    let pb = ProgressBar::new(total_files);
+    let pb =
+        ProgressBar::with_draw_target(Some(total_files), ProgressDrawTarget::stderr_with_hz(20));
     pb.set_style(
-        #[allow(clippy::expect_used)]
         ProgressStyle::default_bar()
             .template("{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}")
-            .expect("Invalid progress style template")
+            .unwrap_or_else(|_| ProgressStyle::default_bar())
             .progress_chars("█▓░"),
     );
     pb.set_message("analyzing...");
     pb.enable_steady_tick(Duration::from_millis(100));
+    pb.tick(); // Force initial draw
     pb
 }
 

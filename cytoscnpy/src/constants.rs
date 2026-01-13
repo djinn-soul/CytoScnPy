@@ -35,6 +35,25 @@ pub fn get_suppression_patterns() -> &'static [&'static str] {
     })
 }
 
+/// Regex for identifying suppression comments.
+///
+/// Supports:
+/// - `# pragma: no cytoscnpy`
+/// - `# noqa`, `# ignore`
+/// - `# noqa: code1, code2` (and variants)
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
+pub fn get_suppression_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)#\s*(?:pragma:\s*no\s*cytoscnpy|(?:noqa|ignore)(?::\s*([^#\n]+))?)")
+            .expect("Invalid suppression regex pattern")
+    })
+}
+
 /// Confidence adjustment penalties for various code patterns.
 pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
     static PENALTIES: OnceLock<HashMap<&'static str, u8>> = OnceLock::new();
@@ -210,13 +229,146 @@ pub fn get_default_exclude_folders() -> &'static FxHashSet<&'static str> {
     })
 }
 
+/// Set of pytest hooks that are automatically called.
+#[allow(clippy::too_many_lines)]
+pub fn get_pytest_hooks() -> &'static FxHashSet<&'static str> {
+    static SET: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| {
+        let mut s = FxHashSet::default();
+        s.insert("main");
+        s.insert("setup");
+        s.insert("teardown");
+        s.insert("pytest_configure");
+        s.insert("pytest_sessionstart");
+        s.insert("pytest_sessionfinish");
+        s.insert("pytest_runtest_setup");
+        s.insert("pytest_runtest_call");
+        s.insert("pytest_runtest_teardown");
+        s.insert("pytest_addoption");
+        s.insert("pytest_collection_modifyitems");
+        s.insert("pytest_generate_tests");
+        s.insert("pytest_cmdline_preparse");
+        s.insert("pytest_load_initial_conftests");
+        s.insert("pytest_unconfigure");
+        s.insert("pytest_exception_interact");
+        s.insert("pytest_terminal_summary");
+        s.insert("pytest_report_header");
+        s.insert("pytest_collection_finish");
+        s.insert("pytest_itemcollected");
+        s.insert("pytest_deselected");
+        s.insert("pytest_ignore_collect");
+        s.insert("pytest_pycollect_makemodule");
+        s.insert("pytest_pycollect_makeitem");
+        s.insert("pytest_runtestloop");
+        s.insert("pytest_runtest_protocol");
+        s.insert("pytest_make_parametrize_id");
+        s.insert("pytest_markeval");
+        s.insert("pytest_namespace");
+        s.insert("pytest_plugin_registered");
+        s.insert("pytest_addhooks");
+        s.insert("pytest_configure_node");
+        s.insert("pytest_test_node_collect");
+        s.insert("pytest_collection_node_collect");
+        s.insert("pytest_collection_node_from_parent");
+        s.insert("pytest_collection_node_from_path");
+        s.insert("pytest_collection_node_from_module");
+        s.insert("pytest_collection_node_from_function");
+        s.insert("pytest_collection_node_from_class");
+        s.insert("pytest_collection_node_from_file");
+        s.insert("pytest_collection_node_from_dir");
+        s.insert("pytest_collection_node_from_package");
+        s.insert("pytest_collection_node_from_session");
+        s.insert("pytest_collection_node_from_item");
+        s.insert("pytest_collection_node_from_collector");
+        s.insert("pytest_collection_node_from_fixture");
+        s.insert("pytest_collection_node_from_hook");
+        s.insert("pytest_collection_node_from_plugin");
+        s.insert("pytest_collection_node_from_config");
+        s.insert("pytest_collection_node_from_request");
+        s.insert("pytest_collection_node_from_metafunc");
+        s.insert("pytest_collection_node_from_call");
+        s.insert("pytest_collection_node_from_result");
+        s.insert("pytest_collection_node_from_report");
+        s.insert("pytest_collection_node_from_error");
+        s.insert("pytest_collection_node_from_warning");
+        s.insert("pytest_collection_node_from_message");
+        s.insert("pytest_collection_node_from_traceback");
+        s.insert("pytest_collection_node_from_exception");
+        s.insert("pytest_collection_node_from_outcome");
+        s.insert("pytest_collection_node_from_duration");
+        s.insert("pytest_collection_node_from_start");
+        s.insert("pytest_collection_node_from_finish");
+        s.insert("pytest_collection_node_from_setup");
+        s.insert("pytest_collection_node_from_teardown");
+        s.insert("pytest_collection_node_from_call_item");
+        s.insert("pytest_collection_node_from_call_setup");
+        s.insert("pytest_collection_node_from_call_teardown");
+        s.insert("pytest_collection_node_from_call_fixture");
+        s.insert("pytest_collection_node_from_call_hook");
+        s.insert("pytest_collection_node_from_call_plugin");
+        s.insert("pytest_collection_node_from_call_config");
+        s.insert("pytest_collection_node_from_call_request");
+        s.insert("pytest_collection_node_from_call_metafunc");
+        s.insert("pytest_collection_node_from_call_result");
+        s.insert("pytest_collection_node_from_call_report");
+        s.insert("pytest_collection_node_from_call_error");
+        s.insert("pytest_collection_node_from_call_warning");
+        s.insert("pytest_collection_node_from_call_message");
+        s.insert("pytest_collection_node_from_call_traceback");
+        s.insert("pytest_collection_node_from_call_exception");
+        s.insert("pytest_collection_node_from_call_outcome");
+        s.insert("pytest_collection_node_from_call_duration");
+        s.insert("pytest_collection_node_from_call_start");
+        s.insert("pytest_collection_node_from_call_finish");
+        s.insert("pytest_collection_node_from_call_setup_item");
+        s.insert("pytest_collection_node_from_call_teardown_item");
+        s.insert("pytest_collection_node_from_call_setup_fixture");
+        s.insert("pytest_collection_node_from_call_teardown_fixture");
+        s.insert("pytest_collection_node_from_call_setup_hook");
+        s.insert("pytest_collection_node_from_call_teardown_hook");
+        s.insert("pytest_collection_node_from_call_setup_plugin");
+        s.insert("pytest_collection_node_from_call_teardown_plugin");
+        s.insert("pytest_collection_node_from_call_setup_config");
+        s.insert("pytest_collection_node_from_call_teardown_call_setup_config");
+        s.insert("pytest_collection_node_from_call_setup_call_request");
+        s.insert("pytest_collection_node_from_call_teardown_call_request");
+        s.insert("pytest_collection_node_from_call_setup_call_metafunc");
+        s.insert("pytest_collection_node_from_call_teardown_call_metafunc");
+        s.insert("pytest_collection_node_from_call_setup_call_result");
+        s.insert("pytest_collection_node_from_call_teardown_call_result");
+        s.insert("pytest_collection_node_from_call_setup_call_report");
+        s.insert("pytest_collection_node_from_call_teardown_call_report");
+        s.insert("pytest_collection_node_from_call_setup_call_error");
+        s.insert("pytest_collection_node_from_call_teardown_call_error");
+        s.insert("pytest_collection_node_from_call_setup_call_warning");
+        s.insert("pytest_collection_node_from_call_teardown_call_warning");
+        s.insert("pytest_collection_node_from_call_setup_call_message");
+        s.insert("pytest_collection_node_from_call_teardown_call_message");
+        s.insert("pytest_collection_node_from_call_setup_call_traceback");
+        s.insert("pytest_collection_node_from_call_teardown_call_traceback");
+        s.insert("pytest_collection_node_from_call_setup_call_exception");
+        s.insert("pytest_collection_node_from_call_teardown_call_exception");
+        s.insert("pytest_collection_node_from_call_setup_call_outcome");
+        s.insert("pytest_collection_node_from_call_teardown_call_outcome");
+        s.insert("pytest_collection_node_from_call_setup_call_duration");
+        s.insert("pytest_collection_node_from_call_teardown_call_duration");
+        s.insert("pytest_collection_node_from_call_setup_call_start");
+        s.insert("pytest_collection_node_from_call_teardown_call_start");
+        s.insert("pytest_collection_node_from_call_setup_call_finish");
+        s.insert("pytest_collection_node_from_call_teardown_call_finish");
+        s
+    })
+}
+
 // Legacy aliases for backward compatibility
 // Callers using PENALTIES.get("key") can use get_penalties().get("key") instead
 pub use get_auto_called as AUTO_CALLED;
 pub use get_default_exclude_folders as DEFAULT_EXCLUDE_FOLDERS;
 pub use get_framework_file_re as FRAMEWORK_FILE_RE;
 pub use get_penalties as PENALTIES;
+pub use get_pytest_hooks as PYTEST_HOOKS;
 pub use get_suppression_patterns as SUPPRESSION_PATTERNS;
+pub use get_suppression_re as SUPPRESSION_RE;
 pub use get_test_decor_re as TEST_DECOR_RE;
 pub use get_test_file_re as TEST_FILE_RE;
 pub use get_test_import_re as TEST_IMPORT_RE;

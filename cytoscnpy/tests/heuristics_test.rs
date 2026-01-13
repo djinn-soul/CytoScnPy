@@ -35,12 +35,15 @@ class Config:
     API_KEY = "123"
 
 class OtherClass:
-    CONSTANT = 1  # Should NOT be ignored (wrong class name)
+    CONSTANT = 1
+    _PRIVATE = 2 # Should be reported
+    _private_var = 3 # Should be reported
+
 "#
     )
     .unwrap();
 
-    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let mut analyzer = CytoScnPy::default().with_confidence(10).with_tests(false);
     let result = analyzer.analyze(dir.path());
 
     // DEBUG and SECRET_KEY and API_KEY should be ignored (confidence 0)
@@ -56,8 +59,11 @@ class OtherClass:
     assert!(!unused_vars.contains(&"SECRET_KEY".to_owned()));
     assert!(!unused_vars.contains(&"API_KEY".to_owned()));
 
-    assert!(unused_vars.contains(&"db_host".to_owned()));
-    assert!(unused_vars.contains(&"CONSTANT".to_owned()));
+    // We need to test that PRIVATE attributes are reported
+    assert!(!unused_vars.contains(&"db_host".to_owned()));
+    assert!(!unused_vars.contains(&"CONSTANT".to_owned()));
+    assert!(unused_vars.contains(&"_PRIVATE".to_owned()));
+    assert!(unused_vars.contains(&"_private_var".to_owned()));
 }
 
 #[test]
@@ -120,12 +126,12 @@ class User:
     age: int = 0
 
 class RegularClass:
-    field: str  # Should be reported as unused variable
+    _field: str  # Should be reported as unused variable (private)
 "
     )
     .unwrap();
 
-    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let mut analyzer = CytoScnPy::default().with_confidence(10).with_tests(false);
     let result = analyzer.analyze(dir.path());
 
     let unused_vars: Vec<String> = result
@@ -138,6 +144,6 @@ class RegularClass:
     assert!(!unused_vars.contains(&"name".to_owned()));
     assert!(!unused_vars.contains(&"age".to_owned()));
 
-    // Regular class field should be unused
-    assert!(unused_vars.contains(&"field".to_owned()));
+    // Regular class private field should be unused
+    assert!(unused_vars.contains(&"_field".to_owned()));
 }

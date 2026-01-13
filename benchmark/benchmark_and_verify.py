@@ -415,11 +415,13 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
         )
     elif name == "dead":
         # dead outputs lines like "func is never read, defined in file.py:line"
-        # NOTE: dead can group multiple definitions on one line, so count file:line pairs
-        for line in output.splitlines():
-            if "is never" in line.lower() or "never read" in line.lower():
-                # Count file:line pairs in this line
-                issue_count += len(re.findall(r"\.py:\d+", line))
+        issue_count = len(
+            [
+                line
+                for line in output.splitlines()
+                if "is never" in line.lower() or "never read" in line.lower()
+            ]
+        )
     elif name == "deadcode":
         # deadcode outputs lines like "file.py:10:0: DC02 Function `func_name` is never used"
         # DC codes range from DC01 to DC13
@@ -551,15 +553,8 @@ class Verification:
 
         elif name == "Skylos":
             # Skylos outputs a flat list with 'type' field per item
-            # NOTE: Skylos may include log lines before JSON (e.g., "INFO - Analyzing...")
-            # We need to extract just the JSON portion.
             try:
-                # Find the start of JSON (first '{')
-                json_start = output.find("{")
-                if json_start == -1:
-                    raise json.JSONDecodeError("No JSON object found", output, 0)
-                json_output = output[json_start:]
-                data = json.loads(json_output)
+                data = json.loads(output)
                 # Skylos JSON: {"unused_functions": [...], ...} OR list of items with 'type' field
                 # Check for flat list structure (list of dicts with 'type')
                 items_list = []
@@ -735,23 +730,15 @@ class Verification:
 
         elif name == "dead":
             # dead output: "func_name is never read, defined in file.py:line"
-            # NOTE: dead can group multiple definitions on one line:
-            # "unused_function is never read, defined in file1.py:6, file2.py:11, file3.py:12"
-            # We need to extract all file:line pairs, not just the first one.
-            name_pattern = r"^(\w+) is never (?:read|called), defined in (.+)$"
+            pattern = r"(\w+) is never (?:read|called), defined in (.+):(\d+)"
             for line in output.splitlines():
-                match = re.match(name_pattern, line)
+                match = re.match(pattern, line)
                 if match:
                     obj_name = match.group(1)
-                    definitions_str = match.group(2)
-                    # Extract all file:line pairs from the definitions string
-                    # Format: "path/to/file.py:123" or "path/to/file.py:123, another/file.py:456"
-                    file_line_pattern = r"([^,]+\.py):(\d+)"
-                    for file_match in re.finditer(file_line_pattern, definitions_str):
-                        fpath = normalize_path(file_match.group(1).strip())
-                        lineno = int(file_match.group(2))
-                        # dead reports functions/variables, we'll assume function
-                        findings.add((fpath, lineno, "function", obj_name))
+                    fpath = normalize_path(match.group(2))
+                    lineno = int(match.group(3))
+                    # dead reports functions/variables, we'll assume function
+                    findings.add((fpath, lineno, "function", obj_name))
 
         elif name == "uncalled":
             # uncalled output format: "file.py: Unused function func_name" (no line number!)

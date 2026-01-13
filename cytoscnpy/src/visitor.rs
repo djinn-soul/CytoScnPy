@@ -1,4 +1,5 @@
 use crate::constants::MAX_RECURSION_DEPTH;
+use crate::constants::PYTEST_HOOKS;
 use crate::utils::LineIndex;
 use compact_str::CompactString;
 use ruff_python_ast::{self as ast, Expr, Stmt};
@@ -65,14 +66,13 @@ pub struct Scope {
     /// Maps simple variable names to their fully qualified names in this scope.
     /// This allows us to differentiate between `x` in `func_a` and `x` in `func_b`.
     pub local_var_map: FxHashMap<String, String>,
-    /// Set of variables declared as global in this scope.
-    pub global_declarations: FxHashSet<String>,
-    /// Whether this scope is managed by a framework (e.g. decorated with @app.route)
+    /// Whether this scope is managed by a framework (e.g., a decorated function).
     pub is_framework: bool,
+    /// Variables explicitly declared as global in this scope.
+    pub global_declarations: FxHashSet<String>,
 }
 
 impl Scope {
-    /// Creates a new scope of the given type.
     /// Creates a new scope of the given type.
     #[must_use]
     pub fn new(kind: ScopeType) -> Self {
@@ -80,8 +80,8 @@ impl Scope {
             kind,
             variables: FxHashSet::default(),
             local_var_map: FxHashMap::default(),
-            global_declarations: FxHashSet::default(),
             is_framework: false,
+            global_declarations: FxHashSet::default(),
         }
     }
 }
@@ -103,6 +103,8 @@ pub struct DefinitionInfo {
     pub start_byte: usize,
     /// The ending byte offset.
     pub end_byte: usize,
+    /// The starting byte offset of the full definition (including decorators/keywords) for fix generation.
+    pub full_start_byte: usize,
     /// Base classes (for class definitions), empty for others.
     pub base_classes: SmallVec<[String; 2]>,
 }
@@ -147,8 +149,7 @@ pub struct Definition {
     pub is_exported: bool,
     /// Whether this definition is inside an `__init__.py` file.
     pub in_init: bool,
-    /// Whether this definition is inside a framework-managed scope.
-    #[serde(skip)]
+    /// Whether this definition is managed by a framework (e.g. inside a decorated function).
     pub is_framework_managed: bool,
     /// List of base classes if this is a class definition.
     /// Uses `SmallVec<[String; 2]>` - most classes have 0-2 base classes.
@@ -263,11 +264,14 @@ pub struct CytoScnPyVisitor<'a> {
     depth: usize,
     /// Whether the recursion limit was hit during traversal.
     pub recursion_limit_hit: bool,
+    /// Set of names that are automatically called by frameworks (e.g., `main`, `setup`, `teardown`).
+    auto_called: FxHashSet<&'static str>,
 }
 
 impl<'a> CytoScnPyVisitor<'a> {
     /// Creates a new visitor for the given file.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
         let cached_prefix = module_name.clone();
         let file_path = Arc::new(file_path); // Wrap in Arc once, share everywhere
@@ -294,6 +298,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             cached_scope_prefix: cached_prefix,
             depth: 0,
             recursion_limit_hit: false,
+            auto_called: PYTEST_HOOKS().clone(),
         }
     }
 
@@ -309,6 +314,7 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Helper to add a definition using the info struct.
+    #[allow(clippy::too_many_lines)]
     fn add_definition(&mut self, info: DefinitionInfo) {
         let simple_name = info
             .name
@@ -341,18 +347,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         // 4. Dunder Methods: Python's magic methods (__str__, __init__, etc.) are implicitly used.
         let is_dunder = simple_name.starts_with("__") && simple_name.ends_with("__");
 
-        // 5. Constants: Module-level UPPER_CASE variables are treated as configuration/constants
-        let is_module_scope = self.scope_stack.len() == 1
-            && matches!(self.scope_stack.last(), Some(s) if matches!(s.kind, ScopeType::Module));
-
-        let is_constant = is_module_scope
-            && info.def_type == "variable"
-            && simple_name
-                .chars()
-                .all(|c| !c.is_alphabetic() || c.is_uppercase())
-            && simple_name.chars().any(char::is_uppercase);
-
-        // 6. Public Class Attributes: Public fields in classes are considered part of the API.
+        // Check if this is a public class attribute (e.g., `class MyClass: my_attr = 1`)
         let is_class_scope = self
             .scope_stack
             .last()
@@ -360,13 +355,29 @@ impl<'a> CytoScnPyVisitor<'a> {
         let is_public_class_attr =
             is_class_scope && info.def_type == "variable" && !simple_name.starts_with('_');
 
+        // Check for module-level constants (UPPER_CASE)
+        // These are often configuration or exported constants.
+        // BUT exclude potential secrets/keys which should be detected if unused.
+        let is_potential_secret = simple_name.contains("KEY")
+            || simple_name.contains("SECRET")
+            || simple_name.contains("PASS")
+            || simple_name.contains("TOKEN");
+
+        let is_constant = self.scope_stack.len() == 1
+            && info.def_type == "variable"
+            && !simple_name.starts_with('_')
+            && !is_potential_secret
+            && simple_name.chars().all(|c| !c.is_lowercase())
+            && simple_name.chars().any(char::is_uppercase);
+
         // Decision: Is this implicitly used? (For reference counting/suppression)
         let is_implicitly_used = is_test
             || is_dynamic_pattern
             || is_standard_entry
             || is_dunder
+            || is_public_class_attr
             || is_constant
-            || is_public_class_attr;
+            || self.auto_called.contains(simple_name.as_str());
 
         // Decision: Is this exported? (For Semantic Graph roots)
         let is_exported = is_implicitly_used || is_public_api;
@@ -374,6 +385,12 @@ impl<'a> CytoScnPyVisitor<'a> {
         // Set reference count to 1 if implicitly used to prevent false positives.
         // This treats the definition as "used".
         let references = usize::from(is_implicitly_used);
+
+        // FIX: Ensure the references map is updated for implicitly used items
+        // This prevents single_file.rs from overwriting the references count with 0
+        if is_implicitly_used {
+            self.add_ref(info.name.clone());
+        }
 
         // Generate human-readable message based on def_type
         let message = match info.def_type.as_str() {
@@ -387,9 +404,9 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         // Try to create a fix suggestion if we have valid CST ranges
         // This ensures the JS extension gets ranges even if CST module didn't run
-        let fix = if info.start_byte < info.end_byte {
+        let fix = if info.full_start_byte < info.end_byte {
             Some(Box::new(crate::analyzer::types::FixSuggestion::deletion(
-                info.start_byte,
+                info.full_start_byte,
                 info.end_byte,
             )))
         } else {
@@ -684,19 +701,12 @@ impl<'a> CytoScnPyVisitor<'a> {
                 if let Some(returns) = &node.returns {
                     self.visit_expr(returns);
                 }
-                // Use the name's range for the finding line (skips decorators)
-                let name_line = self.line_index.line_index(node.name.range().start());
-                // Use full node range for end_line and fix ranges (includes decorators)
-                let (_, end_line, start_byte, end_byte) = self.get_range_info(node);
                 self.visit_function_def(
                     &node.name,
                     &node.decorator_list,
                     &node.parameters,
                     &node.body,
-                    name_line,
-                    end_line,
-                    start_byte,
-                    end_byte,
+                    node.range(),
                 );
             }
             // Handle class definitions
@@ -771,8 +781,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                     def_type: "class".to_owned(),
                     line: name_line,
                     end_line,
-                    start_byte,
+                    start_byte: node.name.range.start().to_usize(),
                     end_byte,
+                    full_start_byte: start_byte,
                     base_classes: base_classes.clone(),
                 });
 
@@ -868,6 +879,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         end_line,
                         start_byte,
                         end_byte,
+                        full_start_byte: start_byte,
                         base_classes: SmallVec::new(),
                     });
 
@@ -899,6 +911,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         end_line,
                         start_byte,
                         end_byte,
+                        full_start_byte: start_byte,
                         base_classes: SmallVec::new(),
                     });
                     self.add_local_def(asname.to_string(), asname.to_string());
@@ -943,7 +956,6 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                             if is_global {
                                 // It's a write to a global variable. Mark the global as referenced.
-                                // We don't create a new definition here.
                                 self.add_ref(name_node.id.to_string());
                                 if !self.module_name.is_empty() {
                                     let qualified =
@@ -962,6 +974,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                                     end_line,
                                     start_byte,
                                     end_byte,
+                                    full_start_byte: start_byte,
                                     base_classes: SmallVec::new(),
                                 });
                                 self.add_local_def(
@@ -980,7 +993,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                             }
                         }
                     } else {
-                        // For non-name targets, visit for references
+                        // For non-name targets, visit for references (e.g. self.x = 1)
                         self.visit_expr(target);
                     }
                 }
@@ -994,39 +1007,25 @@ impl<'a> CytoScnPyVisitor<'a> {
             Stmt::AnnAssign(node) => {
                 // Track variable definition
                 if let Expr::Name(name_node) = &*node.target {
-                    // Check if this variable is declared global in the current scope
-                    let is_global = self
-                        .scope_stack
-                        .last()
-                        .is_some_and(|s| s.global_declarations.contains(name_node.id.as_str()));
+                    let qualified_name = self.get_qualified_name(&name_node.id);
+                    let (line, end_line, start_byte, end_byte) = self.get_range_info(name_node);
+                    self.add_definition(DefinitionInfo {
+                        name: qualified_name.clone(),
+                        def_type: "variable".to_owned(),
+                        line,
+                        end_line,
+                        start_byte,
+                        end_byte,
+                        full_start_byte: start_byte,
+                        base_classes: SmallVec::new(),
+                    });
+                    self.add_local_def(name_node.id.to_string(), qualified_name.clone());
 
-                    if is_global {
-                        // It's a write to a global variable. Mark the global as referenced.
-                        self.add_ref(name_node.id.to_string());
-                        if !self.module_name.is_empty() {
-                            let qualified = format!("{}.{}", self.module_name, name_node.id);
-                            self.add_ref(qualified);
-                        }
-                    } else {
-                        let qualified_name = self.get_qualified_name(&name_node.id);
-                        let (line, end_line, start_byte, end_byte) = self.get_range_info(name_node);
-                        self.add_definition(DefinitionInfo {
-                            name: qualified_name.clone(),
-                            def_type: "variable".to_owned(),
-                            line,
-                            end_line,
-                            start_byte,
-                            end_byte,
-                            base_classes: SmallVec::new(),
-                        });
-                        self.add_local_def(name_node.id.to_string(), qualified_name.clone());
-
-                        // If we are in a Model Class (Dataclasses, Pydantic) and not in a method,
-                        // treat this assignment as a field definition and mark it as implicitly used.
-                        if !self.class_stack.is_empty() && self.function_stack.is_empty() {
-                            if let Some(true) = self.model_class_stack.last() {
-                                self.add_ref(qualified_name);
-                            }
+                    // If we are in a Model Class (Dataclasses, Pydantic) and not in a method,
+                    // treat this assignment as a field definition and mark it as implicitly used.
+                    if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                        if let Some(true) = self.model_class_stack.last() {
+                            self.add_ref(qualified_name);
                         }
                     }
                 } else {
@@ -1193,17 +1192,13 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
             }
-            // Handle global statement - mark global variables as used
             Stmt::Global(node) => {
-                // Register names as global in current scope
-                if let Some(scope) = self.scope_stack.last_mut() {
-                    for name in &node.names {
+                for name in &node.names {
+                    // Register global declaration in the current scope
+                    if let Some(scope) = self.scope_stack.last_mut() {
                         scope.global_declarations.insert(name.id.to_string());
                     }
-                }
-
-                for name in &node.names {
-                    // Mark the global variable as referenced
+                    // Mark as referenced to ensure the global variable is counted as used
                     self.add_ref(name.id.to_string());
                     if !self.module_name.is_empty() {
                         let qualified = format!("{}.{}", self.module_name, name.id);
@@ -1221,15 +1216,13 @@ impl<'a> CytoScnPyVisitor<'a> {
     #[allow(clippy::too_many_lines)]
     fn visit_function_def(
         &mut self,
-        name: &str,
-        decorators: &[ast::Decorator],
-        args: &ast::Parameters,
-        body: &[Stmt],
-        line: usize,
-        end_line: usize,
-        start_byte: usize,
-        end_byte: usize,
+        name_node: &ruff_python_ast::Identifier,
+        decorator_list: &[ruff_python_ast::Decorator],
+        parameters: &ruff_python_ast::Parameters,
+        body: &[ruff_python_ast::Stmt],
+        range: ruff_text_size::TextRange,
     ) {
+        let name = name_node.id.as_str();
         let qualified_name = self.get_qualified_name(name);
 
         // Determine if it's a function or a method based on class stack.
@@ -1239,6 +1232,15 @@ impl<'a> CytoScnPyVisitor<'a> {
             "method"
         };
 
+        // Use name identifier for the start position/line (for precise reporting)
+        let def_range = name_node.range;
+        let start_byte = def_range.start().into();
+        let line = self.line_index.line_index(def_range.start());
+
+        // Use full stmt range for the end position/line (to cover the body for analysis)
+        let end_byte = range.end().into();
+        let end_line = self.line_index.line_index(range.end());
+
         self.add_definition(DefinitionInfo {
             name: qualified_name.clone(),
             def_type: def_type.to_owned(),
@@ -1246,9 +1248,11 @@ impl<'a> CytoScnPyVisitor<'a> {
             end_line,
             start_byte,
             end_byte,
+            full_start_byte: range.start().into(),
             base_classes: SmallVec::new(),
         });
 
+        // Register the function in the current (parent) scope's local_var_map
         // Register the function in the current (parent) scope's local_var_map
         // This allows nested function calls like `used_inner()` to be resolved
         // when the call happens in the parent scope.
@@ -1257,32 +1261,47 @@ impl<'a> CytoScnPyVisitor<'a> {
         // Enter function scope
         self.enter_scope(ScopeType::Function(CompactString::from(name)));
 
-        // Detect Framework Decorators to mark scope as framework-managed
-        // This helps reduce false positives for unused variables in framework hooks
-        for decorator in decorators {
-            let expr = &decorator.expression;
-            // Handle @app.route, @app.get, etc.
-            if let Expr::Call(call) = expr {
-                if let Expr::Attribute(attr) = &*call.func {
-                    if let Expr::Name(val) = &*attr.value {
-                        if matches!(val.id.as_str(), "app" | "router" | "celery") {
-                            if let Some(scope) = self.scope_stack.last_mut() {
-                                scope.is_framework = true;
-                            }
-                            break;
-                        }
-                    }
-                }
-            } else if let Expr::Attribute(attr) = expr {
-                if let Expr::Name(val) = &*attr.value {
-                    if matches!(val.id.as_str(), "app" | "router" | "celery") {
-                        if let Some(scope) = self.scope_stack.last_mut() {
+        // Framework detection logic
+        let mut should_add_ref = false;
+        if let Some(scope) = self.scope_stack.last_mut() {
+            for decorator in decorator_list {
+                // Handle both @app.route and @app.route(...)
+                let expr = match &decorator.expression {
+                    ruff_python_ast::Expr::Call(call) => &*call.func,
+                    _ => &decorator.expression,
+                };
+
+                if let ruff_python_ast::Expr::Attribute(attr) = expr {
+                    if let ruff_python_ast::Expr::Name(name) = &*attr.value {
+                        let base = name.id.as_str();
+                        // Common framework patterns: app.route, router.get, celery.task
+                        if matches!(base, "app" | "router" | "celery") {
                             scope.is_framework = true;
+                            // Check if this is an Azure Function (special case for 1:1 mapping)
+                            if base == "app" {
+                                // Update definition to mark as framework managed and used
+                                if let Some(def) = self.definitions.last_mut() {
+                                    def.is_framework_managed = true;
+                                    def.is_exported = true; // Treat as entry point
+                                    if def.references == 0 {
+                                        def.references = 1;
+                                    }
+                                }
+                                should_add_ref = true;
+                            } else {
+                                // Other frameworks
+                                if let Some(def) = self.definitions.last_mut() {
+                                    def.is_framework_managed = true;
+                                }
+                            }
                         }
-                        break;
                     }
                 }
             }
+        }
+
+        if should_add_ref {
+            self.add_ref(qualified_name.clone());
         }
 
         // Track parameters
@@ -1293,7 +1312,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             |arg: &ast::ParameterWithDefault| -> String { arg.parameter.name.to_string() };
 
         // Positional-only parameters
-        for arg in &args.posonlyargs {
+        for arg in &parameters.posonlyargs {
             let param_name = extract_param_name(arg);
             param_names.insert(param_name.clone());
             let param_qualified = if param_name != "self" && param_name != "cls" {
@@ -1313,13 +1332,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                     end_line: p_end_line,
                     start_byte: p_start_byte,
                     end_byte: p_end_byte,
+                    full_start_byte: p_start_byte,
                     base_classes: SmallVec::new(),
                 });
             }
         }
 
         // Regular positional parameters
-        for arg in &args.args {
+        for arg in &parameters.args {
             let param_name = extract_param_name(arg);
             param_names.insert(param_name.clone());
             let param_qualified = if param_name != "self" && param_name != "cls" {
@@ -1339,13 +1359,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                     end_line: p_end_line,
                     start_byte: p_start_byte,
                     end_byte: p_end_byte,
+                    full_start_byte: p_start_byte,
                     base_classes: SmallVec::new(),
                 });
             }
         }
 
         // Keyword-only parameters
-        for arg in &args.kwonlyargs {
+        for arg in &parameters.kwonlyargs {
             let param_name = extract_param_name(arg);
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
@@ -1358,12 +1379,13 @@ impl<'a> CytoScnPyVisitor<'a> {
                 end_line: p_end_line,
                 start_byte: p_start_byte,
                 end_byte: p_end_byte,
+                full_start_byte: p_start_byte,
                 base_classes: smallvec::SmallVec::new(),
             });
         }
 
         // *args parameter (ruff uses .name instead of .arg)
-        if let Some(vararg) = &args.vararg {
+        if let Some(vararg) = &parameters.vararg {
             let param_name = vararg.name.to_string();
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
@@ -1376,12 +1398,13 @@ impl<'a> CytoScnPyVisitor<'a> {
                 end_line: p_end_line,
                 start_byte: p_start_byte,
                 end_byte: p_end_byte,
+                full_start_byte: p_start_byte,
                 base_classes: smallvec::SmallVec::new(),
             });
         }
 
         // **kwargs parameter (ruff uses .name instead of .arg)
-        if let Some(kwarg) = &args.kwarg {
+        if let Some(kwarg) = &parameters.kwarg {
             let param_name = kwarg.name.to_string();
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
@@ -1394,6 +1417,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 end_line: p_end_line,
                 start_byte: p_start_byte,
                 end_byte: p_end_byte,
+                full_start_byte: p_start_byte,
                 base_classes: smallvec::SmallVec::new(),
             });
         }
@@ -1827,6 +1851,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         end_line,
                         start_byte,
                         end_byte,
+                        full_start_byte: start_byte,
                         base_classes: smallvec::SmallVec::new(),
                     });
                     // Add to local scope so it can be resolved when used
@@ -1853,6 +1878,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         end_line,
                         start_byte,
                         end_byte,
+                        full_start_byte: start_byte,
                         base_classes: smallvec::SmallVec::new(),
                     });
                     // Add to local scope so it can be resolved when used
@@ -1873,6 +1899,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         end_line,
                         start_byte,
                         end_byte,
+                        full_start_byte: start_byte,
                         base_classes: smallvec::SmallVec::new(),
                     });
                     // Add to local scope so it can be resolved when used

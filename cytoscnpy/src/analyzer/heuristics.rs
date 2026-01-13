@@ -126,23 +126,4 @@ pub fn apply_heuristics(def: &mut Definition) {
             .confidence
             .saturating_sub(*PENALTIES().get("type_checking_import").unwrap_or(&100));
     }
-
-    // 4. Module-level UPPER_CASE constant heuristic (only in __init__.py)
-    // UPPER_CASE constants in __init__.py are very likely to be exported as part of the package API.
-    // We only apply this penalty in __init__.py files to avoid suppressing truly dead variables
-    // in regular modules/scripts.
-    if def.def_type == "variable" && def.file.file_name().is_some_and(|n| n == "__init__.py") {
-        let name_parts: Vec<&str> = def.full_name.split('.').collect();
-        // If there's only module.variable (2 parts) or just variable (1 part), it's module-level
-        if name_parts.len() <= 2 {
-            let var_name = name_parts.last().unwrap_or(&"");
-            // UPPER_CASE constants in __init__.py are package exports
-            if !var_name.is_empty()
-                && var_name.len() > 1
-                && var_name.chars().all(|c| c.is_uppercase() || c == '_')
-            {
-                def.confidence = def.confidence.saturating_sub(60);
-            }
-        }
-    }
 }

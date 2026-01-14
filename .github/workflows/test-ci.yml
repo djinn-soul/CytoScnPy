@@ -97,16 +97,8 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           cache-key: "vscode-cli-${{ matrix.os }}"
-
-      - name: Setup Zig (Linux)
-        if: runner.os == 'Linux'
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
-
-      - name: Install cargo-zigbuild (Linux)
-        if: runner.os == 'Linux'
-        run: pip install cargo-zigbuild
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
+          install-cargo-zigbuild: ${{ runner.os == 'Linux' }}
 
       - name: Build CLI for Extension
         env:
@@ -211,6 +203,7 @@ jobs:
         uses: ./.github/actions/setup-rust
         with:
           cache-key: "smoke-${{ matrix.os }}-${{ matrix.python-version }}"
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
 
       - name: Install maturin
         run: pip install maturin
@@ -221,5 +214,5 @@ jobs:
           if [ "${{ runner.os }}" == "Windows" ]; then
             maturin build --release --all-features --out dist -i python
           else
-            maturin build --release --all-features --out dist -i python
+            maturin build --release --all-features --out dist -i python --zig
           fi

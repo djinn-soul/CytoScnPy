@@ -50,21 +50,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           cache-key: vscode-cli-${{ matrix.target }}
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
+          install-cargo-zigbuild: ${{ runner.os == 'Linux' }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Setup Zig (Linux)
-        if: runner.os == 'Linux'
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
-
-      - name: Install cargo-zigbuild (Linux)
-        if: runner.os == 'Linux'
-        run: pip install cargo-zigbuild
 
       - name: Build Binary with PGO
         shell: bash

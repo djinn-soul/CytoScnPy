@@ -52,19 +52,19 @@ jobs:
         shell: pwsh
         run: |
           . scripts/load-pgo-profile.ps1 -Platform windows
-          maturin build --release --all-features --out dist --find-interpreter
+          maturin build --release --all-features --out dist -i python
 
       - name: Build wheel (Linux)
         if: runner.os == 'Linux'
         run: |
           source scripts/load-pgo-profile.sh linux
-          maturin build --release --all-features --out dist --find-interpreter
+          maturin build --release --all-features --out dist -i python
 
       - name: Build wheel (macOS)
         if: runner.os == 'macOS'
         run: |
           source scripts/load-pgo-profile.sh macos
-          maturin build --release --all-features --out dist --find-interpreter
+          maturin build --release --all-features --out dist -i python
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -174,6 +174,7 @@ jobs:
           user: __token__
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           skip-existing: true
+          verbose: true
 
   # =============================================================================
   # Validate SBOM (runs before publishing to block on failure)

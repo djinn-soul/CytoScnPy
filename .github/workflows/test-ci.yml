@@ -219,7 +219,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
-            maturin build --release --all-features --out dist --find-interpreter
+            maturin build --release --all-features --out dist -i python
           else
-            maturin build --release --all-features --out dist --find-interpreter
+            maturin build --release --all-features --out dist -i python
           fi

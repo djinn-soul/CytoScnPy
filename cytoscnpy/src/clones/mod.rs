@@ -85,6 +85,9 @@ impl CloneDetector {
             let chunk_subtrees: Vec<parser::Subtree> = chunk
                 .par_iter()
                 .filter_map(|path| {
+                    if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+                        return None;
+                    }
                     let source = std::fs::read_to_string(path).ok()?;
                     parser::extract_subtrees(&source, path).ok()
                 })

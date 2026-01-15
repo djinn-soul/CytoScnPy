@@ -100,11 +100,37 @@ impl CytoScnPy {
 
         // Process files in chunks to prevent OOM on large projects.
         // Each chunk is processed in parallel, then results are merged.
+        // Process files in chunks to prevent OOM on large projects.
+        // Each chunk is processed in parallel, then results are merged.
         let mut all_results = Vec::with_capacity(total_files);
         for chunk in files.chunks(CHUNK_SIZE) {
+            // Check for cancellation signal
+            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+
             let chunk_results: Vec<_> = chunk
                 .par_iter()
-                .map(|file_path| self.process_single_file(file_path, root_path))
+                .map(|file_path| {
+                    if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+                        // Return empty result if cancelled to finish quickly
+                        return (
+                            Vec::new(),
+                            rustc_hash::FxHashMap::default(),
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                            0,
+                            crate::raw_metrics::RawMetrics::default(),
+                            crate::halstead::HalsteadMetrics::default(),
+                            0.0,
+                            0.0,
+                            0,
+                        );
+                    }
+                    self.process_single_file(file_path, root_path)
+                })
                 .collect();
             all_results.extend(chunk_results);
         }

@@ -15,6 +15,12 @@
 )]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+use std::sync::atomic::AtomicBool;
+
+/// Global cancellation flag for long-running operations.
+/// This is set to true when a signal (like Ctrl+C) is detected.
+pub static CANCELLED: AtomicBool = AtomicBool::new(false);
+
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;

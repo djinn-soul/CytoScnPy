@@ -26,11 +26,29 @@ use pyo3::{pyfunction, types::PyModule, wrap_pyfunction, Bound, PyErr, PyResult,
 /// ```
 #[pyfunction]
 fn run(py: Python, args: Vec<String>) -> PyResult<i32> {
-    // Release the GIL while running the Rust code for better concurrency
-    py.detach(|| {
+    // Reset cancellation flag
+    crate::CANCELLED.store(false, std::sync::atomic::Ordering::SeqCst);
+
+    // Register Ctrl+C handler
+    // We ignore the error if a handler is already set (e.g. from a previous run)
+    let _ = ctrlc::set_handler(|| {
+        crate::CANCELLED.store(true, std::sync::atomic::Ordering::SeqCst);
+    });
+
+    // Release the GIL while running the Rust code
+    let result = py.detach(|| {
         crate::entry_point::run_with_args(args)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
-    })
+    });
+
+    // If cancelled, ensure we raise KeyboardInterrupt for Python to handle
+    if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(PyErr::new::<pyo3::exceptions::PyKeyboardInterrupt, _>(
+            "Operation cancelled by user",
+        ));
+    }
+
+    result
 }
 
 /// Registers all Python functions with the module.

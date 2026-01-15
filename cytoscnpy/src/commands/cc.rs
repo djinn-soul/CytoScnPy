@@ -76,6 +76,9 @@ pub fn run_cc<W: Write>(roots: &[PathBuf], options: CcOptions, mut writer: W) ->
     let results: Vec<CcResult> = files
         .par_iter()
         .flat_map(|file_path| {
+            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+                return Vec::new();
+            }
             let code = fs::read_to_string(file_path).unwrap_or_default();
             let findings = analyze_complexity(&code, file_path, options.no_assert);
             findings

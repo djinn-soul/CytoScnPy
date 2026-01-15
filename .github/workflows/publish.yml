@@ -39,6 +39,7 @@ jobs:
         uses: ./.github/actions/setup-rust
         with:
           cache-key: "wheels-${{ matrix.os }}-${{ matrix.python-version }}"
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
 
       - name: Disable Windows Defender (CI only)
         if: runner.os == 'Windows'
@@ -53,12 +54,11 @@ jobs:
         run: |
           . scripts/load-pgo-profile.ps1 -Platform windows
           maturin build --release --all-features --out dist -i python
-
       - name: Build wheel (Linux)
         if: runner.os == 'Linux'
         run: |
           source scripts/load-pgo-profile.sh linux
-          maturin build --release --all-features --out dist -i python
+          maturin build --release --all-features --out dist -i python --zig
 
       - name: Build wheel (macOS)
         if: runner.os == 'macOS'
@@ -102,21 +102,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           cache-key: ${{ matrix.target }}
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
+          install-cargo-zigbuild: ${{ runner.os == 'Linux' }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Setup Zig (Linux)
-        if: runner.os == 'Linux'
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
-
-      - name: Install cargo-zigbuild (Linux)
-        if: runner.os == 'Linux'
-        run: pip install cargo-zigbuild
 
       - name: Build Binary with PGO
         shell: bash

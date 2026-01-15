@@ -8,6 +8,8 @@ def main():
     try:
         rc = run(args)
         raise SystemExit(int(rc))
+    except KeyboardInterrupt:
+        raise SystemExit(130)
     except Exception as e:
         print(f"cytoscnpy error: {e}", file=sys.stderr)
         raise SystemExit(1)

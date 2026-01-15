@@ -22,6 +22,14 @@ inputs:
     description: 'Workspace paths for caching (format: "path -> target")'
     required: false
     default: ""
+  zig-version:
+    description: "Version of Zig to install (e.g. 0.13.0)"
+    required: false
+    default: ""
+  install-cargo-zigbuild:
+    description: "Whether to install cargo-zigbuild via pip"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -36,6 +44,26 @@ runs:
     - name: Install mold linker (Linux only)
       if: runner.os == 'Linux'
       uses: rui314/setup-mold@v1
+
+    - name: Validate Zig version
+      if: inputs.zig-version != ''
+      shell: bash
+      run: |
+        if [[ ! "${{ inputs.zig-version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Error: Invalid Zig version format. Expected semantic version (e.g., 0.13.0)."
+          exit 1
+        fi
+
+    - name: Setup Zig
+      if: inputs.zig-version != ''
+      uses: mlugg/setup-zig@v1
+      with:
+        version: ${{ inputs.zig-version }}
+
+    - name: Install cargo-zigbuild
+      if: inputs.install-cargo-zigbuild == 'true' && inputs.zig-version != ''
+      run: pip install cargo-zigbuild
+      shell: bash
 
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2

@@ -68,6 +68,13 @@ pub fn run_mi<W: Write>(roots: &[PathBuf], options: MiOptions, mut writer: W) ->
     let results: Vec<MiResult> = files
         .par_iter()
         .map(|file_path| {
+            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+                return MiResult {
+                    file: String::new(),
+                    mi: 0.0,
+                    rank: 'F',
+                };
+            }
             let code = fs::read_to_string(file_path).unwrap_or_default();
 
             let raw = analyze_raw(&code);

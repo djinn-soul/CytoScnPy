@@ -67,7 +67,7 @@ def test_keyboard_interrupt_handled(mock_run):
         # We expect the wrapper might not catch this specifically, or it might let it propagate.
         # If the wrapper generally catches Exception, KeyboardInterrupt (BaseException) might pass through.
         # Let's see current implementation behavior or adjust test expectation.
-        # The current implementation catches `Exception`, NOT `BaseException`.
-        # So KeyboardInterrupt should propagate.
-        with pytest.raises(KeyboardInterrupt):
+        # The current implementation catches `KeyboardInterrupt` and raises SystemExit(130).
+        with pytest.raises(SystemExit) as e:
             main()
+        assert e.value.code == 130

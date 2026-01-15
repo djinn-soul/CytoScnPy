@@ -45,6 +45,15 @@ runs:
       if: runner.os == 'Linux'
       uses: rui314/setup-mold@v1
 
+    - name: Validate Zig version
+      if: inputs.zig-version != ''
+      shell: bash
+      run: |
+        if [[ ! "${{ inputs.zig-version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Error: Invalid Zig version format. Expected semantic version (e.g., 0.13.0)."
+          exit 1
+        fi
+
     - name: Setup Zig
       if: inputs.zig-version != ''
       uses: mlugg/setup-zig@v1
@@ -52,7 +61,7 @@ runs:
         version: ${{ inputs.zig-version }}
 
     - name: Install cargo-zigbuild
-      if: inputs.install-cargo-zigbuild == 'true'
+      if: inputs.install-cargo-zigbuild == 'true' && inputs.zig-version != ''
       run: pip install cargo-zigbuild
       shell: bash
 

@@ -211,8 +211,8 @@ jobs:
       - name: Build wheel (Smoke Test)
         shell: bash
         run: |
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            maturin build --release --all-features --out dist -i python
-          else
+          if [ "${{ runner.os }}" == "Linux" ]; then
             maturin build --release --all-features --out dist -i python --zig
+          else
+            maturin build --release --all-features --out dist -i python
           fi

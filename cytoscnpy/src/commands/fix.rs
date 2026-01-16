@@ -370,6 +370,7 @@ mod tests {
             is_self_referential: false,
             message: None,
             fix: None,
+            is_enum_member: false,
         }
     }
 

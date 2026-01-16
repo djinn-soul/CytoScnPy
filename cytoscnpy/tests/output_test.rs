@@ -35,6 +35,7 @@ fn test_print_report_formatting() {
             is_self_referential: false,
             message: Some("'unused_func' is defined but never used".to_owned()),
             fix: None,
+            is_enum_member: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],

@@ -382,6 +382,7 @@ fn test_analyze_paths_precommit_style() {
             let path = dir.path().join(format!("file{i}.py"));
             let mut f = File::create(&path).unwrap();
             write!(f, "def func_in_file{i}(): pass").unwrap();
+            f.sync_all().unwrap();
             path
         })
         .collect();

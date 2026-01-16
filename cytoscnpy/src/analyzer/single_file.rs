@@ -16,7 +16,7 @@ use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
 
 use ruff_python_parser::parse_module;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::fs;
 use std::path::Path;
 
@@ -34,6 +34,7 @@ impl CytoScnPy {
     ) -> (
         Vec<Definition>,
         FxHashMap<String, usize>,
+        FxHashMap<String, FxHashSet<String>>, // Protocol methods
         Vec<SecretFinding>,
         Vec<Finding>,
         Vec<Finding>,
@@ -61,6 +62,7 @@ impl CytoScnPy {
                     return (
                         Vec::new(),
                         FxHashMap::default(),
+                        FxHashMap::default(), // protocol methods
                         Vec::new(),
                         Vec::new(),
                         Vec::new(),
@@ -84,6 +86,7 @@ impl CytoScnPy {
                     return (
                         Vec::new(),
                         FxHashMap::default(),
+                        FxHashMap::default(), // protocol methods
                         Vec::new(),
                         Vec::new(),
                         Vec::new(),
@@ -193,7 +196,26 @@ impl CytoScnPy {
                 for def in &mut visitor.definitions {
                     if let Some(count) = ref_counts.get(&def.full_name) {
                         def.references = *count;
-                    } else if def.def_type != "variable" && def.def_type != "parameter" {
+                    } else if (def.def_type != "variable" && def.def_type != "parameter")
+                        || def.is_enum_member
+                    {
+                        // For enum members, prefer qualified class.member matching
+                        if def.is_enum_member {
+                            if let Some(dot_idx) = def.full_name.rfind('.') {
+                                let parent = &def.full_name[..dot_idx];
+                                if let Some(class_dot) = parent.rfind('.') {
+                                    let class_member =
+                                        format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
+                                    if let Some(count) = ref_counts.get(&class_member) {
+                                        def.references = *count;
+                                        continue;
+                                    }
+                                }
+                            }
+                            // For enum members, do NOT use bare-name fallback
+                            continue;
+                        }
+                        // Fallback to simple name only for non-enum members
                         if let Some(count) = ref_counts.get(&def.simple_name) {
                             def.references = *count;
                         }
@@ -323,6 +345,7 @@ impl CytoScnPy {
         (
             visitor.definitions,
             visitor.references,
+            visitor.protocol_methods,
             secrets,
             danger,
             quality,
@@ -378,7 +401,26 @@ impl CytoScnPy {
                 for def in &mut visitor.definitions {
                     if let Some(count) = ref_counts.get(&def.full_name) {
                         def.references = *count;
-                    } else if def.def_type != "variable" && def.def_type != "parameter" {
+                    } else if (def.def_type != "variable" && def.def_type != "parameter")
+                        || def.is_enum_member
+                    {
+                        // For enum members, prefer qualified class.member matching
+                        if def.is_enum_member {
+                            if let Some(dot_idx) = def.full_name.rfind('.') {
+                                let parent = &def.full_name[..dot_idx];
+                                if let Some(class_dot) = parent.rfind('.') {
+                                    let class_member =
+                                        format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
+                                    if let Some(count) = ref_counts.get(&class_member) {
+                                        def.references = *count;
+                                        continue;
+                                    }
+                                }
+                            }
+                            // For enum members, do NOT use bare-name fallback
+                            continue;
+                        }
+                        // Fallback to simple name only for non-enum members
                         if let Some(count) = ref_counts.get(&def.simple_name) {
                             def.references = *count;
                         }
@@ -414,6 +456,52 @@ impl CytoScnPy {
                         self.include_tests,
                     );
                     apply_heuristics(def);
+                }
+
+                // --- Duck Typing Logic (same as aggregate_results) ---
+                // 1. Map Class -> Method Names
+                let mut class_methods: rustc_hash::FxHashMap<
+                    String,
+                    rustc_hash::FxHashSet<String>,
+                > = rustc_hash::FxHashMap::default();
+                for def in &visitor.definitions {
+                    if def.def_type == "method" {
+                        if let Some(parent) = def.full_name.rfind('.').map(|i| &def.full_name[..i])
+                        {
+                            class_methods
+                                .entry(parent.to_owned())
+                                .or_default()
+                                .insert(def.simple_name.clone());
+                        }
+                    }
+                }
+
+                // 2. Identification of implicit implementations
+                let mut implicitly_used_methods: rustc_hash::FxHashSet<String> =
+                    rustc_hash::FxHashSet::default();
+
+                for (class_name, methods) in &class_methods {
+                    for (_, proto_methods) in &visitor.protocol_methods {
+                        let intersection_count = methods.intersection(proto_methods).count();
+                        let proto_len = proto_methods.len();
+
+                        if proto_len > 0 && intersection_count >= 3 {
+                            let ratio = intersection_count as f64 / proto_len as f64;
+                            if ratio >= 0.7 {
+                                for method in methods.intersection(proto_methods) {
+                                    implicitly_used_methods
+                                        .insert(format!("{class_name}.{method}"));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Apply implicit usage
+                for def in &mut visitor.definitions {
+                    if implicitly_used_methods.contains(&def.full_name) {
+                        def.references = std::cmp::max(def.references, 1);
+                    }
                 }
 
                 if self.enable_secrets {

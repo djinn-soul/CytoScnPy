@@ -51,6 +51,7 @@ fn test_generate_report_full() {
             is_self_referential: false,
             message: Some("unused".to_owned()),
             fix: None,
+            is_enum_member: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -191,6 +192,7 @@ fn test_calculate_score_logic() {
             is_self_referential: false,
             message: None,
             fix: None,
+            is_enum_member: false,
         });
     }
     generate_report(&result, analysis_root, output_dir).unwrap();

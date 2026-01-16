@@ -443,7 +443,8 @@ impl<'a> CfgBuilder<'a> {
             if let Some(test) = &clause.test {
                 // For elif, the test happens in the condition block
                 self.current_block = clause_block;
-                self.collect_expr_names(test, 0); // Line not critical for elif tests in this context
+                let line = self.line_index.line_index(clause.range().start());
+                self.collect_expr_names(test, line);
             }
 
             self.current_block = clause_block;

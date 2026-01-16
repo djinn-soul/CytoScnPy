@@ -37,6 +37,7 @@ fn create_mock_result() -> AnalysisResult {
             is_self_referential: false,
             message: None,
             fix: None,
+            is_enum_member: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -243,6 +244,7 @@ fn test_print_unused_items_with_items() {
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
     }];
     let result = print_unused_items(&mut buffer, "Unused Functions", &items, "Function");
     assert!(result.is_ok());
@@ -275,6 +277,7 @@ fn test_print_unused_parameters() {
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
     }];
     let result = print_unused_items(&mut buffer, "Unused Parameters", &items, "Parameter");
     assert!(result.is_ok());

@@ -117,6 +117,7 @@ impl CytoScnPy {
                         return (
                             Vec::new(),
                             rustc_hash::FxHashMap::default(),
+                            rustc_hash::FxHashMap::default(), // protocol methods
                             Vec::new(),
                             Vec::new(),
                             Vec::new(),

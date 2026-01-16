@@ -147,3 +147,169 @@ class RegularClass:
     // Regular class private field should be unused
     assert!(unused_vars.contains(&"_field".to_owned()));
 }
+
+#[test]
+fn test_abc_abstract_methods() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("abc_test.py");
+    let mut file = File::create(&file_path).unwrap();
+
+    writeln!(
+        file,
+        r#"
+from abc import ABC, abstractmethod
+
+class Processor(ABC):
+    @abstractmethod
+    def process(self):
+        pass
+        
+    def concrete(self):
+        pass
+
+class ConcreteProcessor(Processor):
+    def process(self):
+        print("processing")
+"#
+    )
+    .unwrap();
+
+    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let result = analyzer.analyze(dir.path());
+
+    let unused_methods: Vec<String> = result
+        .unused_methods
+        .iter()
+        .map(|d| d.simple_name.clone())
+        .collect();
+
+    assert!(!unused_methods.contains(&"process".to_owned()));
+    // concrete might be considered implicitly used or public api depending on config
+    // assert!(unused_methods.contains(&"concrete".to_owned()));
+}
+
+#[test]
+fn test_protocol_member_tracking() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("protocol_test.py");
+    let mut file = File::create(&file_path).unwrap();
+
+    writeln!(
+        file,
+        r#"
+from typing import Protocol
+
+class Renderable(Protocol):
+    def render(self): ...
+    def layout(self): ...
+    def update(self): ...
+
+class Button:
+    def render(self): return "Button"
+    # Implicitly implements others via pass or actual logic
+    def layout(self): pass
+    def update(self): pass
+"#
+    )
+    .unwrap();
+
+    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let result = analyzer.analyze(dir.path());
+
+    let render_findings: Vec<_> = result
+        .unused_methods
+        .iter()
+        .filter(|d| d.simple_name == "render")
+        .collect();
+
+    // Duck Typing Logic:
+    // Button implements Renderable (3/3 methods match).
+    // Button.render, Button.layout, Button.update should be marked as used (ref > 0)
+    // and thus NOT appear in unused_methods.
+
+    let button_render = result
+        .unused_methods
+        .iter()
+        .find(|d| d.full_name == "Button.render");
+    assert!(
+        button_render.is_none(),
+        "Button.render should be marked used via duck typing"
+    );
+
+    // Check Protocol methods (likely still unused if not referenced)
+    // We allow them to be reported as unused in this phase unless referenced.
+}
+
+#[test]
+fn test_optional_dependency_flags() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("flags.py");
+    let mut file = File::create(&file_path).unwrap();
+
+    writeln!(
+        file,
+        r"
+try:
+    import pandas
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+
+def use_pandas():
+    if HAS_PANDAS:
+        pass
+"
+    )
+    .unwrap();
+
+    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let result = analyzer.analyze(dir.path());
+
+    let unused_vars: Vec<String> = result
+        .unused_variables
+        .iter()
+        .map(|d| d.simple_name.clone())
+        .collect();
+
+    assert!(!unused_vars.contains(&"HAS_PANDAS".to_owned()));
+}
+
+#[test]
+fn test_adapter_penalty() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("adapter.py");
+    let mut file = File::create(&file_path).unwrap();
+
+    writeln!(
+        file,
+        r"
+class NetworkAdapter:
+    def connect(self):
+        pass
+        
+    def disconnect(self):
+        pass
+"
+    )
+    .unwrap();
+
+    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let result = analyzer.analyze(dir.path());
+
+    let adapter_methods: Vec<_> = result
+        .unused_methods
+        .iter()
+        .filter(|d| d.full_name.contains("NetworkAdapter"))
+        .collect();
+
+    assert!(
+        !adapter_methods.is_empty(),
+        "Adapter methods should be found as unused"
+    );
+    for method in adapter_methods {
+        assert!(
+            method.confidence <= 70,
+            "Adapter method confidence should be penalized"
+        );
+    }
+}

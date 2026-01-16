@@ -71,7 +71,7 @@ nav:
   - Reference:
       - CLI Reference: CLI.md
       - Migration Guide: migration.md
-
+  - Changelog: https://github.com/djinn09/CytoScnPy/releases
   - Roadmap: roadmap.md
   - Security:
       - Overview: security.md

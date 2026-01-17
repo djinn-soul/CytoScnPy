@@ -67,6 +67,15 @@ impl TaintAwareDangerAnalyzer {
         Self { taint_analyzer }
     }
 
+    /// Creates a taint-aware analyzer with custom patterns.
+    #[must_use]
+    pub fn with_custom(sources: Vec<String>, sinks: Vec<String>) -> Self {
+        let config = crate::taint::analyzer::TaintConfig::with_custom(sources, sinks);
+        Self {
+            taint_analyzer: TaintAnalyzer::new(config),
+        }
+    }
+
     /// Creates a taint-aware analyzer with default taint configuration.
     #[must_use]
     pub fn with_defaults() -> Self {
@@ -112,14 +121,8 @@ impl TaintAwareDangerAnalyzer {
             .into_iter()
             .filter(|finding| {
                 // These rules should only flag when data is tainted
-                let taint_sensitive_rules = [
-                    "CSP-D501", // Path Traversal
-                    "CSP-D402", // SSRF
-                    "CSP-D101", // SQL Injection (ORM)
-                    "CSP-D102", // SQL Injection (Raw)
-                ];
-
-                if taint_sensitive_rules.contains(&finding.rule_id.as_str()) {
+                if crate::constants::get_taint_sensitive_rules().contains(&finding.rule_id.as_str())
+                {
                     // Only keep finding if the line has tainted data
                     taint_context.is_line_tainted(finding.line)
                 } else {
@@ -135,8 +138,12 @@ impl TaintAwareDangerAnalyzer {
     /// If a finding involves tainted data, its severity may be increased
     /// to reflect the higher risk.
     pub fn enhance_severity_with_taint(findings: &mut [Finding], taint_context: &TaintContext) {
+        let taint_sensitive_rules = crate::constants::get_taint_sensitive_rules();
+
         for finding in findings.iter_mut() {
-            if taint_context.is_line_tainted(finding.line) {
+            if taint_sensitive_rules.contains(&finding.rule_id.as_str())
+                && taint_context.is_line_tainted(finding.line)
+            {
                 // Upgrade severity for tainted injection findings
                 if finding.severity == "HIGH" {
                     finding.severity = "CRITICAL".to_owned();

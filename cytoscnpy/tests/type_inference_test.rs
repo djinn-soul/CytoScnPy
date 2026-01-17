@@ -22,7 +22,7 @@ s.append("world")
 "#;
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].rule_id, "CSP-D301");
+    assert_eq!(findings[0].rule_id, "CSP-D601");
     assert!(findings[0]
         .message
         .contains("Method 'append' does not exist for inferred type 'str'"));
@@ -36,7 +36,7 @@ l.strip()
 ";
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].rule_id, "CSP-D301");
+    assert_eq!(findings[0].rule_id, "CSP-D601");
     assert!(findings[0]
         .message
         .contains("Method 'strip' does not exist for inferred type 'list'"));
@@ -50,7 +50,7 @@ d.add(2)
 "#;
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].rule_id, "CSP-D301");
+    assert_eq!(findings[0].rule_id, "CSP-D601");
     assert!(findings[0]
         .message
         .contains("Method 'add' does not exist for inferred type 'dict'"));
@@ -68,7 +68,7 @@ x.append("fail") # Error
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].line, 6); // 1-indexed: line 6 is x.append("fail")
-    assert_eq!(findings[0].rule_id, "CSP-D301");
+    assert_eq!(findings[0].rule_id, "CSP-D601");
 }
 
 #[test]
@@ -81,7 +81,7 @@ x.append(1) # Safe
 "#;
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].rule_id, "CSP-D301");
+    assert_eq!(findings[0].rule_id, "CSP-D601");
 }
 
 #[test]
@@ -97,6 +97,6 @@ d.add(1) # Error
     let findings = analyze_code(code);
     assert_eq!(findings.len(), 3);
     for finding in findings {
-        assert_eq!(finding.rule_id, "CSP-D301");
+        assert_eq!(finding.rule_id, "CSP-D601");
     }
 }

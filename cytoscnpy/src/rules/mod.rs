@@ -50,6 +50,10 @@ pub trait Rule: Send + Sync {
     fn visit_expr(&mut self, _expr: &Expr, _context: &Context) -> Option<Vec<Finding>> {
         None
     }
+    /// Called when leaving an expression.
+    fn leave_expr(&mut self, _expr: &Expr, _context: &Context) -> Option<Vec<Finding>> {
+        None
+    }
 }
 
 /// Module containing security/danger rules.

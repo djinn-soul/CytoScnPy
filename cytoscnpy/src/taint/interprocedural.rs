@@ -1,8 +1,6 @@
-//! Interprocedural taint analysis.
-//!
-//! Tracks taint flow across function boundaries within a single file.
-
+use super::analyzer::TaintAnalyzer;
 use super::call_graph::CallGraph;
+use super::intraprocedural;
 use super::propagation::TaintState;
 use super::sources::check_fastapi_param;
 use super::summaries::SummaryDatabase;
@@ -10,12 +8,12 @@ use super::types::{TaintFinding, TaintInfo, TaintSource};
 use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Stmt};
 use rustc_hash::FxHashMap;
-
 use std::path::Path;
 
 /// Performs interprocedural taint analysis on a module.
 pub fn analyze_module(
     stmts: &[Stmt],
+    analyzer: &TaintAnalyzer,
     file_path: &Path,
     line_index: &LineIndex,
 ) -> Vec<TaintFinding> {
@@ -37,7 +35,7 @@ pub fn analyze_module(
             match func {
                 FunctionDef::Sync(f) => {
                     // Compute summary
-                    summaries.get_or_compute(f, file_path, line_index);
+                    summaries.get_or_compute(f, analyzer, file_path, line_index);
 
                     // Check for FastAPI parameters
                     let fastapi_params = check_fastapi_param(f);
@@ -48,38 +46,62 @@ pub fn analyze_module(
                         state.mark_tainted(&param_name, taint_info);
                     }
 
-                    // Perform intraprocedural analysis with context
-                    let func_findings = analyze_with_context(
+                    // Level 1: Standard intraprocedural analysis
+                    let mut intra_findings = intraprocedural::analyze_function(
                         f,
+                        analyzer,
+                        file_path,
+                        line_index,
+                        Some(state.clone()),
+                    );
+                    findings.append(&mut intra_findings);
+
+                    // Level 2: Interprocedural analysis using summaries
+                    let context_findings = analyze_with_context(
+                        f,
+                        analyzer,
                         file_path,
                         line_index,
                         &state,
                         &summaries,
                         &call_graph,
                     );
-                    findings.extend(func_findings);
+                    findings.extend(context_findings);
                 }
                 FunctionDef::Async(f) => {
-                    // Check for FastAPI parameters
-                    let state = TaintState::new();
-                    // Note: FastAPI params check would need async variant
-
-                    let func_findings = analyze_async_with_context(
+                    // Similar analysis for async functions
+                    summaries.get_or_compute(f, analyzer, file_path, line_index);
+                    let fastapi_params = check_fastapi_param(f);
+                    let mut state = TaintState::new();
+                    for (param_name, taint_info) in fastapi_params {
+                        state.mark_tainted(&param_name, taint_info);
+                    }
+                    let mut intra_findings = intraprocedural::analyze_async_function(
                         f,
+                        analyzer,
+                        file_path,
+                        line_index,
+                        Some(state.clone()),
+                    );
+                    findings.append(&mut intra_findings);
+
+                    let context_findings = analyze_async_with_context(
+                        f,
+                        analyzer,
                         file_path,
                         line_index,
                         &state,
                         &summaries,
                         &call_graph,
                     );
-                    findings.extend(func_findings);
+                    findings.extend(context_findings);
                 }
             }
         }
     }
 
     // Phase 4: Analyze module-level code
-    let module_findings = analyze_module_level(stmts, file_path, line_index);
+    let module_findings = analyze_module_level(stmts, analyzer, file_path, line_index);
     findings.extend(module_findings);
 
     findings
@@ -126,6 +148,7 @@ fn collect_functions(stmts: &[Stmt]) -> FxHashMap<String, FunctionDef<'_>> {
 /// Analyzes a function with interprocedural context.
 fn analyze_with_context(
     func: &ast::StmtFunctionDef,
+    analyzer: &TaintAnalyzer,
     file_path: &Path,
     line_index: &LineIndex,
     initial_state: &TaintState,
@@ -143,6 +166,7 @@ fn analyze_with_context(
             &mut findings,
             file_path,
             line_index,
+            analyzer,
             summaries,
             call_graph,
         );
@@ -154,6 +178,7 @@ fn analyze_with_context(
 /// Analyzes an async function with context.
 fn analyze_async_with_context(
     func: &ast::StmtFunctionDef,
+    analyzer: &TaintAnalyzer,
     file_path: &Path,
     line_index: &LineIndex,
     initial_state: &TaintState,
@@ -170,6 +195,7 @@ fn analyze_async_with_context(
             &mut findings,
             file_path,
             line_index,
+            analyzer,
             summaries,
             call_graph,
         );
@@ -186,6 +212,7 @@ fn analyze_stmt_with_context(
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
     line_index: &LineIndex,
+    analyzer: &TaintAnalyzer,
     summaries: &SummaryDatabase,
     call_graph: &CallGraph,
 ) {
@@ -236,13 +263,13 @@ fn analyze_stmt_with_context(
         Stmt::If(if_stmt) => {
             for s in &if_stmt.body {
                 analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, summaries, call_graph,
+                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
                 );
             }
             for clause in &if_stmt.elif_else_clauses {
                 for s in &clause.body {
                     analyze_stmt_with_context(
-                        s, state, findings, file_path, line_index, summaries, call_graph,
+                        s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
                     );
                 }
             }
@@ -251,7 +278,7 @@ fn analyze_stmt_with_context(
         Stmt::For(for_stmt) => {
             for s in &for_stmt.body {
                 analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, summaries, call_graph,
+                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
                 );
             }
         }
@@ -259,7 +286,7 @@ fn analyze_stmt_with_context(
         Stmt::While(while_stmt) => {
             for s in &while_stmt.body {
                 analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, summaries, call_graph,
+                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
                 );
             }
         }
@@ -267,7 +294,7 @@ fn analyze_stmt_with_context(
         Stmt::With(with_stmt) => {
             for s in &with_stmt.body {
                 analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, summaries, call_graph,
+                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
                 );
             }
         }
@@ -275,14 +302,14 @@ fn analyze_stmt_with_context(
         Stmt::Try(try_stmt) => {
             for s in &try_stmt.body {
                 analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, summaries, call_graph,
+                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
                 );
             }
             for handler in &try_stmt.handlers {
                 let ast::ExceptHandler::ExceptHandler(h) = handler;
                 for s in &h.body {
                     analyze_stmt_with_context(
-                        s, state, findings, file_path, line_index, summaries, call_graph,
+                        s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
                     );
                 }
             }
@@ -297,6 +324,7 @@ fn analyze_stmt_with_context(
 /// Analyzes module-level code.
 fn analyze_module_level(
     stmts: &[Stmt],
+    analyzer: &TaintAnalyzer,
     file_path: &Path,
     line_index: &LineIndex,
 ) -> Vec<TaintFinding> {
@@ -323,7 +351,7 @@ fn analyze_module_level(
         if let Stmt::Expr(expr_stmt) = stmt {
             // Check for dangerous calls at module level
             if let ast::Expr::Call(call) = &*expr_stmt.value {
-                if let Some(sink_info) = super::sinks::check_sink(call) {
+                if let Some(sink_match) = analyzer.plugins.check_sinks(call) {
                     // Check if any argument is tainted
                     for arg in &call.arguments.args {
                         if let Some(taint_info) =
@@ -333,14 +361,14 @@ fn analyze_module_level(
                             findings.push(super::types::TaintFinding {
                                 source: taint_info.source.to_string(),
                                 source_line: taint_info.source_line,
-                                sink: sink_info.name.clone(),
+                                sink: sink_match.name.clone(),
                                 sink_line: line_index.line_index(call.range().start()),
                                 sink_col: 0,
                                 flow_path: vec![],
-                                vuln_type: sink_info.vuln_type.clone(),
-                                severity: sink_info.severity,
+                                vuln_type: sink_match.vuln_type.clone(),
+                                severity: sink_match.severity,
                                 file: file_path.to_path_buf(),
-                                remediation: sink_info.remediation.clone(),
+                                remediation: sink_match.remediation.clone(),
                             });
                         }
                     }

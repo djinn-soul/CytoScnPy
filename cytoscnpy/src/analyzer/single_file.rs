@@ -299,20 +299,78 @@ impl CytoScnPy {
                     }
 
                     // Apply taint analysis if enabled
-                    if self.enable_danger && self.enable_taint {
+                    if self.enable_danger
+                        && self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .enable_taint
+                            .unwrap_or(true)
+                    {
                         use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
-                        let taint_analyzer = TaintAwareDangerAnalyzer::with_defaults();
+                        let custom_sources = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sources
+                            .clone()
+                            .unwrap_or_default();
+                        let custom_sinks = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sinks
+                            .clone()
+                            .unwrap_or_default();
+                        let taint_analyzer =
+                            TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks);
                         let taint_context =
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 
-                        // Filter findings
-                        danger = taint_analyzer.filter_findings_with_taint(danger, &taint_context);
+                        // Update filtering logic: Keep non-tainted findings with reduced severity
+                        for finding in &mut danger {
+                            if crate::constants::get_taint_sensitive_rules()
+                                .contains(&finding.rule_id.as_str())
+                            {
+                                if !taint_context.is_line_tainted(finding.line) {
+                                    // Reduce severity if no taint detected
+                                    finding.severity = "LOW".to_owned();
+                                }
+                            }
+                        }
 
-                        // Enhance severity
+                        // Enhance severity for confirmed taint paths
                         TaintAwareDangerAnalyzer::enhance_severity_with_taint(
                             &mut danger,
                             &taint_context,
                         );
+                    }
+
+                    // Filter based on excluded_rules
+                    if let Some(excluded) = &self.config.cytoscnpy.danger_config.excluded_rules {
+                        danger.retain(|f| !excluded.contains(&f.rule_id));
+                    }
+
+                    // Filter based on severity_threshold
+                    if let Some(threshold) = &self.config.cytoscnpy.danger_config.severity_threshold
+                    {
+                        let threshold_val = match threshold.to_uppercase().as_str() {
+                            "CRITICAL" => 4,
+                            "HIGH" => 3,
+                            "MEDIUM" => 2,
+                            "LOW" => 1,
+                            _ => 0,
+                        };
+                        danger.retain(|f| {
+                            let severity_val = match f.severity.to_uppercase().as_str() {
+                                "CRITICAL" => 4,
+                                "HIGH" => 3,
+                                "MEDIUM" => 2,
+                                "LOW" => 1,
+                                _ => 0,
+                            };
+                            severity_val >= threshold_val
+                        });
                     }
                 }
 
@@ -582,19 +640,75 @@ impl CytoScnPy {
                     }
 
                     // Apply taint analysis if enabled
-                    if self.enable_danger && self.enable_taint {
+                    if self.enable_danger
+                        && self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .enable_taint
+                            .unwrap_or(true)
+                    {
                         use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
-                        let taint_analyzer = TaintAwareDangerAnalyzer::with_defaults();
+                        let custom_sources = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sources
+                            .clone()
+                            .unwrap_or_default();
+                        let custom_sinks = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sinks
+                            .clone()
+                            .unwrap_or_default();
+                        let taint_analyzer =
+                            TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks);
                         let taint_context =
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 
-                        danger_res =
-                            taint_analyzer.filter_findings_with_taint(danger_res, &taint_context);
+                        for finding in &mut danger_res {
+                            if crate::constants::get_taint_sensitive_rules()
+                                .contains(&finding.rule_id.as_str())
+                            {
+                                if !taint_context.is_line_tainted(finding.line) {
+                                    finding.severity = "LOW".to_owned();
+                                }
+                            }
+                        }
 
                         TaintAwareDangerAnalyzer::enhance_severity_with_taint(
                             &mut danger_res,
                             &taint_context,
                         );
+                    }
+
+                    // Filter based on excluded_rules
+                    if let Some(excluded) = &self.config.cytoscnpy.danger_config.excluded_rules {
+                        danger_res.retain(|f| !excluded.contains(&f.rule_id));
+                    }
+
+                    // Filter based on severity_threshold
+                    if let Some(threshold) = &self.config.cytoscnpy.danger_config.severity_threshold
+                    {
+                        let threshold_val = match threshold.to_uppercase().as_str() {
+                            "CRITICAL" => 4,
+                            "HIGH" => 3,
+                            "MEDIUM" => 2,
+                            "LOW" => 1,
+                            _ => 0,
+                        };
+                        danger_res.retain(|f| {
+                            let severity_val = match f.severity.to_uppercase().as_str() {
+                                "CRITICAL" => 4,
+                                "HIGH" => 3,
+                                "MEDIUM" => 2,
+                                "LOW" => 1,
+                                _ => 0,
+                            };
+                            severity_val >= threshold_val
+                        });
                     }
                 }
             }

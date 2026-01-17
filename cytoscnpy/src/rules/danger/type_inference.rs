@@ -264,7 +264,7 @@ impl Rule for MethodMisuseRule {
     }
 
     fn code(&self) -> &'static str {
-        "CSP-D301"
+        "CSP-D601"
     }
 
     fn enter_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
@@ -329,6 +329,43 @@ impl Rule for MethodMisuseRule {
     }
 
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        // Handle scope push for lambdas and comprehensions
+        match expr {
+            Expr::Lambda(node) => {
+                self.scope_stack.push(Scope::new());
+                if let Some(parameters) = &node.parameters {
+                    for param in &parameters.args {
+                        self.add_variable(param.parameter.name.to_string(), "unknown".to_owned());
+                    }
+                }
+            }
+            Expr::ListComp(node) => {
+                self.scope_stack.push(Scope::new());
+                for gen in &node.generators {
+                    self.collect_targets(&gen.target);
+                }
+            }
+            Expr::SetComp(node) => {
+                self.scope_stack.push(Scope::new());
+                for gen in &node.generators {
+                    self.collect_targets(&gen.target);
+                }
+            }
+            Expr::Generator(node) => {
+                self.scope_stack.push(Scope::new());
+                for gen in &node.generators {
+                    self.collect_targets(&gen.target);
+                }
+            }
+            Expr::DictComp(node) => {
+                self.scope_stack.push(Scope::new());
+                for gen in &node.generators {
+                    self.collect_targets(&gen.target);
+                }
+            }
+            _ => {}
+        }
+
         if let Expr::Call(call) = expr {
             if let Expr::Attribute(attr) = &*call.func {
                 if let Expr::Name(name_node) = &*attr.value {
@@ -353,5 +390,40 @@ impl Rule for MethodMisuseRule {
             }
         }
         None
+    }
+
+    fn leave_expr(&mut self, expr: &Expr, _context: &Context) -> Option<Vec<Finding>> {
+        match expr {
+            Expr::Lambda(_)
+            | Expr::ListComp(_)
+            | Expr::SetComp(_)
+            | Expr::DictComp(_)
+            | Expr::Generator(_) => {
+                self.scope_stack.pop();
+            }
+            _ => {}
+        }
+        None
+    }
+}
+
+impl MethodMisuseRule {
+    fn collect_targets(&mut self, target: &Expr) {
+        match target {
+            Expr::Name(name) => {
+                self.add_variable(name.id.to_string(), "unknown".to_owned());
+            }
+            Expr::Tuple(tuple) => {
+                for elt in &tuple.elts {
+                    self.collect_targets(elt);
+                }
+            }
+            Expr::List(list) => {
+                for elt in &list.elts {
+                    self.collect_targets(elt);
+                }
+            }
+            _ => {}
+        }
     }
 }

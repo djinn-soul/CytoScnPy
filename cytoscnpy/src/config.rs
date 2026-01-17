@@ -33,6 +33,8 @@ pub struct CytoScnPyConfig {
     pub danger: Option<bool>,
     /// Whether to scan for code quality issues.
     pub quality: Option<bool>,
+    /// Whether to enable taint analysis for danger detection.
+    pub enable_taint_analysis: Option<bool>,
     // New fields for rule configuration
     /// Maximum allowed lines for a function.
     pub max_lines: Option<usize>,

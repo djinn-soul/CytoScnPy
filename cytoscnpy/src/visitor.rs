@@ -978,7 +978,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                         base_classes: SmallVec::new(),
                     });
 
-                    self.add_local_def(simple_name.to_string(), simple_name.to_string());
+                    self.add_local_def(
+                        simple_name.as_str().to_owned(),
+                        simple_name.as_str().to_owned(),
+                    );
 
                     // Add alias mapping: asname -> name
                     self.alias_map

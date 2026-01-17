@@ -52,7 +52,6 @@ fn test_json_output_structure() {
         vec![], // include_folders
         false,  // include_ipynb
         false,  // ipynb_cells
-        false,  // taint
         config,
     );
 
@@ -85,7 +84,6 @@ fn test_exit_code_on_findings() {
         vec![],
         false,
         false,
-        false,
         config,
     );
 
@@ -110,7 +108,6 @@ fn test_error_on_invalid_path() {
         false,
         vec![],
         vec![],
-        false,
         false,
         false,
         config,
@@ -247,7 +244,6 @@ fn test_multi_file_project_analysis() {
         vec![],
         false,
         false,
-        false,
         config,
     );
 
@@ -331,7 +327,6 @@ fn test_exclude_folder_logic() {
         vec![],
         false,
         false,
-        false,
         config,
     );
 
@@ -377,7 +372,6 @@ fn test_include_folder_overrides_exclude() {
         false,
         vec![],                   // no extra excludes
         vec!["venv".to_string()], // force include venv
-        false,
         false,
         false,
         config,

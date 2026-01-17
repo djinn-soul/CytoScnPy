@@ -5,6 +5,7 @@
 use super::interprocedural;
 use super::summaries::{get_builtin_summaries, SummaryDatabase};
 use super::types::TaintFinding;
+use crate::utils::LineIndex;
 use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 
@@ -71,11 +72,12 @@ impl CrossFileAnalyzer {
         let findings = match ruff_python_parser::parse_module(source) {
             Ok(parsed) => {
                 let module = parsed.into_syntax();
+                let line_index = LineIndex::new(source);
                 // Extract imports first
                 self.extract_imports(file_path, &module.body);
 
                 // Perform interprocedural analysis
-                interprocedural::analyze_module(&module.body, file_path)
+                interprocedural::analyze_module(&module.body, file_path, &line_index)
             }
             Err(_) => Vec::new(),
         };

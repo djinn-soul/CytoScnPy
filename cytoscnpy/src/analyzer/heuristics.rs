@@ -3,8 +3,9 @@
 use crate::constants::{AUTO_CALLED, PENALTIES};
 use crate::framework::FrameworkAwareVisitor;
 use crate::test_utils::TestAwareVisitor;
+use crate::utils::Suppression;
 use crate::visitor::Definition;
-use std::collections::HashSet;
+use rustc_hash::FxHashMap;
 
 /// Applies penalty-based confidence adjustments to definitions.
 ///
@@ -14,18 +15,20 @@ use std::collections::HashSet;
 /// - Framework decorations (lowers confidence for framework-managed code).
 /// - Private naming conventions (lowers confidence for internal helpers).
 /// - Dunder methods (ignores magic methods).
-pub fn apply_penalties<S: ::std::hash::BuildHasher>(
+pub fn apply_penalties(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,
     tv: &TestAwareVisitor,
-    ignored_lines: &HashSet<usize, S>,
+    ignored_lines: &FxHashMap<usize, Suppression>,
     include_tests: bool,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)
     // If the line is marked to be ignored, set confidence to 0.
-    if ignored_lines.contains(&def.line) {
-        def.confidence = 0;
-        return;
+    if let Some(suppression) = ignored_lines.get(&def.line) {
+        if matches!(suppression, Suppression::All) {
+            def.confidence = 0;
+            return;
+        }
     }
 
     // Test files: confidence 0 (ignore)

@@ -1,0 +1,618 @@
+use super::utils::{
+    create_finding, get_call_name, is_likely_tarfile_receiver, is_likely_zipfile_receiver,
+    is_literal, is_literal_expr, SUBPROCESS_INJECTION_MSG,
+};
+use crate::rules::{Context, Finding, Rule};
+use ruff_python_ast::{self as ast, Expr};
+use ruff_text_size::Ranged;
+
+pub struct EvalRule;
+impl Rule for EvalRule {
+    fn name(&self) -> &'static str {
+        "EvalRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D001"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name == "eval" {
+                    return Some(vec![create_finding(
+                        "Avoid using eval",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct ExecRule;
+impl Rule for ExecRule {
+    fn name(&self) -> &'static str {
+        "ExecRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D002"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name == "exec" {
+                    return Some(vec![create_finding(
+                        "Avoid using exec",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct PickleRule;
+impl Rule for PickleRule {
+    fn name(&self) -> &'static str {
+        "PickleRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D201"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name.starts_with("pickle.")
+                    || name.starts_with("cPickle.")
+                    || name.starts_with("dill.")
+                    || name.starts_with("shelve.")
+                    || name.starts_with("jsonpickle.")
+                    || name == "pandas.read_pickle"
+                {
+                    if name.contains("load")
+                        || name.contains("Unpickler")
+                        || name == "shelve.open"
+                        || name == "shelve.DbfilenameShelf"
+                        || name.contains("decode")
+                        || name == "pandas.read_pickle"
+                    {
+                        return Some(vec![create_finding(
+                            "Avoid using pickle/dill/shelve/jsonpickle/pandas.read_pickle (vulnerable to RCE on untrusted data)",
+                            self.code(),
+                            context,
+                            call.range().start(),
+                            "CRITICAL",
+                        )]);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct YamlRule;
+impl Rule for YamlRule {
+    fn name(&self) -> &'static str {
+        "YamlRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D202"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name == "yaml.load" {
+                    let mut is_safe = false;
+                    for keyword in &call.arguments.keywords {
+                        if let Some(arg) = &keyword.arg {
+                            if arg == "Loader" {
+                                if let Expr::Name(n) = &keyword.value {
+                                    if n.id.as_str() == "SafeLoader" {
+                                        is_safe = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if !is_safe {
+                        return Some(vec![create_finding(
+                            "Use yaml.safe_load or Loader=SafeLoader",
+                            self.code(),
+                            context,
+                            call.range().start(),
+                            "HIGH",
+                        )]);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct SubprocessRule;
+impl Rule for SubprocessRule {
+    fn name(&self) -> &'static str {
+        "SubprocessRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D003"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name == "os.system" && !is_literal(&call.arguments.args) {
+                    return Some(vec![create_finding(
+                        "Potential command injection (os.system with dynamic arg)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "CRITICAL",
+                    )]);
+                }
+                if name.starts_with("subprocess.") {
+                    let mut is_shell_true = false;
+                    let mut args_keyword_expr: Option<&Expr> = None;
+
+                    for keyword in &call.arguments.keywords {
+                        if let Some(arg) = &keyword.arg {
+                            match arg.as_str() {
+                                "shell" => {
+                                    if let Expr::BooleanLiteral(b) = &keyword.value {
+                                        if b.value {
+                                            is_shell_true = true;
+                                        }
+                                    }
+                                }
+                                "args" => {
+                                    args_keyword_expr = Some(&keyword.value);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+
+                    if is_shell_true {
+                        if !call.arguments.args.is_empty() && !is_literal(&call.arguments.args) {
+                            return Some(vec![create_finding(
+                                SUBPROCESS_INJECTION_MSG,
+                                self.code(),
+                                context,
+                                call.range().start(),
+                                "CRITICAL",
+                            )]);
+                        }
+
+                        if let Some(expr) = args_keyword_expr {
+                            if !is_literal_expr(expr) {
+                                return Some(vec![create_finding(
+                                    SUBPROCESS_INJECTION_MSG,
+                                    self.code(),
+                                    context,
+                                    call.range().start(),
+                                    "CRITICAL",
+                                )]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct SqlInjectionRule;
+impl Rule for SqlInjectionRule {
+    fn name(&self) -> &'static str {
+        "SqlInjectionRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D101"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name.ends_with(".execute") || name.ends_with(".executemany") {
+                    if let Some(arg) = call.arguments.args.first() {
+                        if let Expr::FString(_) = arg {
+                            return Some(vec![create_finding(
+                                "Potential SQL injection (f-string in execute)",
+                                self.code(),
+                                context,
+                                call.range().start(),
+                                "CRITICAL",
+                            )]);
+                        }
+                        if let Expr::Call(inner_call) = arg {
+                            if let Expr::Attribute(attr) = &*inner_call.func {
+                                if attr.attr.as_str() == "format" {
+                                    return Some(vec![create_finding(
+                                        "Potential SQL injection (str.format in execute)",
+                                        self.code(),
+                                        context,
+                                        call.range().start(),
+                                        "CRITICAL",
+                                    )]);
+                                }
+                            }
+                        }
+                        if let Expr::BinOp(binop) = arg {
+                            if matches!(binop.op, ast::Operator::Add) {
+                                return Some(vec![create_finding(
+                                    "Potential SQL injection (string concatenation in execute)",
+                                    self.code(),
+                                    context,
+                                    call.range().start(),
+                                    "CRITICAL",
+                                )]);
+                            }
+                            if matches!(binop.op, ast::Operator::Mod) {
+                                return Some(vec![create_finding(
+                                    "Potential SQL injection (% formatting in execute)",
+                                    self.code(),
+                                    context,
+                                    call.range().start(),
+                                    "CRITICAL",
+                                )]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct SqlInjectionRawRule;
+impl Rule for SqlInjectionRawRule {
+    fn name(&self) -> &'static str {
+        "SqlInjectionRawRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D102"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if (name == "sqlalchemy.text"
+                    || name == "pandas.read_sql"
+                    || name.ends_with(".objects.raw"))
+                    && !is_literal(&call.arguments.args)
+                {
+                    return Some(vec![create_finding(
+                        "Potential SQL injection (dynamic raw SQL)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "CRITICAL",
+                    )]);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct XSSRule;
+impl Rule for XSSRule {
+    fn name(&self) -> &'static str {
+        "XSSRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D103"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if (name == "flask.render_template_string" || name == "jinja2.Markup")
+                    && !is_literal(&call.arguments.args)
+                {
+                    return Some(vec![create_finding(
+                        "Potential XSS (dynamic template/markup)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "CRITICAL",
+                    )]);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct XmlRule;
+impl Rule for XmlRule {
+    fn name(&self) -> &'static str {
+        "XmlRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D104"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name.ends_with(".parse")
+                    || name.ends_with(".iterparse")
+                    || name.ends_with(".fromstring")
+                    || name.ends_with(".XML")
+                    || name.ends_with(".parseString")
+                    || name.ends_with(".make_parser")
+                    || name.ends_with(".RestrictedElement")
+                    || name.ends_with(".GlobalParserTLS")
+                    || name.ends_with(".getDefaultParser")
+                    || name.ends_with(".check_docinfo")
+                {
+                    if name.contains("lxml") {
+                        return Some(vec![create_finding(
+                            "Potential XML XXE vulnerability in lxml. Use defusedxml.lxml or configure parser safely (resolve_entities=False)",
+                            self.code(),
+                            context,
+                            call.range().start(),
+                            "HIGH",
+                        )]);
+                    }
+
+                    if name.contains("xml.etree")
+                        || name.contains("ElementTree")
+                        || name.contains("minidom")
+                        || name.contains("sax")
+                        || name.contains("pulldom")
+                        || name.contains("expatbuilder")
+                        || name.starts_with("ET.")
+                        || name.starts_with("etree.")
+                    {
+                        let msg = if name.contains("minidom") {
+                            "Potential XML DoS (Billion Laughs) in xml.dom.minidom. Use defusedxml.minidom"
+                        } else if name.contains("sax") {
+                            "Potential XML XXE/DoS in xml.sax. Use defusedxml.sax"
+                        } else {
+                            "Potential XML vulnerability (XXE/Billion Laughs) - use defusedxml or ensure parser is configured securely"
+                        };
+
+                        return Some(vec![create_finding(
+                            msg,
+                            self.code(),
+                            context,
+                            call.range().start(),
+                            "MEDIUM",
+                        )]);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct TarfileExtractionRule;
+impl Rule for TarfileExtractionRule {
+    fn name(&self) -> &'static str {
+        "TarfileExtractionRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D502"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Expr::Attribute(attr) = &*call.func {
+                if attr.attr.as_str() != "extractall" {
+                    return None;
+                }
+
+                let receiver = &attr.value;
+                let looks_like_tar = is_likely_tarfile_receiver(receiver);
+
+                let filter_kw = call.arguments.keywords.iter().find_map(|kw| {
+                    if kw.arg.as_ref().is_some_and(|a| a == "filter") {
+                        Some(&kw.value)
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(filter_expr) = filter_kw {
+                    let is_safe_literal = if let Expr::StringLiteral(s) = filter_expr {
+                        let s_lower = s.value.to_string().to_lowercase();
+                        s_lower == "data" || s_lower == "tar" || s_lower == "fully_trusted"
+                    } else {
+                        false
+                    };
+
+                    if is_safe_literal {
+                        return None;
+                    }
+                    let severity = if looks_like_tar { "MEDIUM" } else { "LOW" };
+                    return Some(vec![create_finding(
+                        "extractall() with non-literal or unrecognized 'filter' - verify it safely limits extraction paths (recommended: filter='data' or 'tar' in Python 3.12+)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        severity,
+                    )]);
+                }
+                if looks_like_tar {
+                    return Some(vec![create_finding(
+                        "Potential Zip Slip: tarfile extractall() without 'filter'. Use filter='data' or 'tar' (Python 3.12+) or validate member paths before extraction",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+                return Some(vec![create_finding(
+                    "Possible unsafe extractall() call without 'filter'. If this is a tarfile, use filter='data' or 'tar' (Python 3.12+)",
+                    self.code(),
+                    context,
+                    call.range().start(),
+                    "MEDIUM",
+                )]);
+            }
+        }
+        None
+    }
+}
+
+pub struct ZipfileExtractionRule;
+impl Rule for ZipfileExtractionRule {
+    fn name(&self) -> &'static str {
+        "ZipfileExtractionRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D503"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Expr::Attribute(attr) = &*call.func {
+                if attr.attr.as_str() != "extractall" {
+                    return None;
+                }
+
+                let receiver = &attr.value;
+                let looks_like_zip = is_likely_zipfile_receiver(receiver);
+
+                if looks_like_zip {
+                    return Some(vec![create_finding(
+                        "Potential Zip Slip: zipfile extractall() without path validation. Check ZipInfo.filename for '..' and absolute paths before extraction",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct AsyncSubprocessRule;
+impl Rule for AsyncSubprocessRule {
+    fn name(&self) -> &'static str {
+        "AsyncSubprocessRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D901"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name == "asyncio.create_subprocess_shell" && !is_literal(&call.arguments.args) {
+                    return Some(vec![create_finding(
+                        "Potential command injection (asyncio.create_subprocess_shell with dynamic args)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "CRITICAL",
+                    )]);
+                }
+
+                if (name == "os.popen"
+                    || name == "os.popen2"
+                    || name == "os.popen3"
+                    || name == "os.popen4")
+                    && !is_literal(&call.arguments.args)
+                {
+                    return Some(vec![create_finding(
+                        "Potential command injection (os.popen with dynamic args). Use subprocess module instead.",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+
+                if name == "pty.spawn" && !is_literal(&call.arguments.args) {
+                    return Some(vec![create_finding(
+                        "Potential command injection (pty.spawn with dynamic args)",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct ModelDeserializationRule;
+impl Rule for ModelDeserializationRule {
+    fn name(&self) -> &'static str {
+        "ModelDeserializationRule"
+    }
+    fn code(&self) -> &'static str {
+        "CSP-D902"
+    }
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if let Expr::Call(call) = expr {
+            if let Some(name) = get_call_name(&call.func) {
+                if name == "torch.load" {
+                    let has_weights_only = call.arguments.keywords.iter().any(|kw| {
+                        if let Some(arg) = &kw.arg {
+                            if arg == "weights_only" {
+                                if let Expr::BooleanLiteral(b) = &kw.value {
+                                    return b.value;
+                                }
+                            }
+                        }
+                        false
+                    });
+                    if !has_weights_only {
+                        return Some(vec![create_finding(
+                            "torch.load() without weights_only=True can execute arbitrary code. Use weights_only=True or torch.safe_load().",
+                            self.code(),
+                            context,
+                            call.range().start(),
+                            "CRITICAL",
+                        )]);
+                    }
+                }
+
+                if name == "joblib.load" {
+                    return Some(vec![create_finding(
+                        "joblib.load() can execute arbitrary code. Ensure the model source is trusted.",
+                        self.code(),
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+
+                if name == "keras.models.load_model" || name == "tf.keras.models.load_model" {
+                    let has_safe_mode = call.arguments.keywords.iter().any(|kw| {
+                        if let Some(arg) = &kw.arg {
+                            if arg == "safe_mode" {
+                                if let Expr::BooleanLiteral(b) = &kw.value {
+                                    return b.value;
+                                }
+                            }
+                        }
+                        false
+                    });
+                    if !has_safe_mode {
+                        return Some(vec![create_finding(
+                            "keras.models.load_model() without safe_mode=True can load Lambda layers with arbitrary code.",
+                            self.code(),
+                            context,
+                            call.range().start(),
+                            "HIGH",
+                        )]);
+                    }
+                }
+            }
+        }
+        None
+    }
+}

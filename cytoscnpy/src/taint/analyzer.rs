@@ -10,6 +10,7 @@ use super::interprocedural;
 use super::intraprocedural;
 use super::sources::check_taint_source;
 use super::types::{Severity, TaintFinding, TaintInfo, TaintSource, VulnType};
+use crate::utils::LineIndex;
 use ruff_python_ast::{Expr, Stmt};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -25,7 +26,7 @@ pub trait TaintSourcePlugin: Send + Sync {
 
     /// Checks if an expression is a taint source.
     /// Returns Some(TaintInfo) if the expression is a source, None otherwise.
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo>;
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo>;
 
     /// Returns the source patterns this plugin handles (for documentation).
     fn patterns(&self) -> Vec<String> {
@@ -115,9 +116,9 @@ impl PluginRegistry {
     }
 
     /// Checks all source plugins for a match.
-    pub fn check_sources(&self, expr: &Expr) -> Option<TaintInfo> {
+    pub fn check_sources(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
         for plugin in &self.sources {
-            if let Some(info) = plugin.check_source(expr) {
+            if let Some(info) = plugin.check_source(expr, line_index) {
                 return Some(info);
             }
         }
@@ -157,8 +158,9 @@ impl TaintSourcePlugin for FlaskSourcePlugin {
         "Flask"
     }
 
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo> {
-        check_taint_source(expr).filter(|info| matches!(info.source, TaintSource::FlaskRequest(_)))
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        check_taint_source(expr, line_index)
+            .filter(|info| matches!(info.source, TaintSource::FlaskRequest(_)))
     }
 
     fn patterns(&self) -> Vec<String> {
@@ -181,8 +183,9 @@ impl TaintSourcePlugin for DjangoSourcePlugin {
         "Django"
     }
 
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo> {
-        check_taint_source(expr).filter(|info| matches!(info.source, TaintSource::DjangoRequest(_)))
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        check_taint_source(expr, line_index)
+            .filter(|info| matches!(info.source, TaintSource::DjangoRequest(_)))
     }
 
     fn patterns(&self) -> Vec<String> {
@@ -203,8 +206,8 @@ impl TaintSourcePlugin for BuiltinSourcePlugin {
         "Builtin"
     }
 
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo> {
-        check_taint_source(expr).filter(|info| {
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        check_taint_source(expr, line_index).filter(|info| {
             matches!(
                 info.source,
                 TaintSource::Input | TaintSource::Environment | TaintSource::CommandLine
@@ -358,6 +361,8 @@ impl TaintAnalyzer {
             Err(_) => return findings,
         };
 
+        let line_index = LineIndex::new(source);
+
         // Level 1: Intraprocedural
         if self.config.intraprocedural {
             // Analyze module-level statements (not inside functions)
@@ -368,6 +373,7 @@ impl TaintAnalyzer {
                     &mut module_state,
                     &mut findings,
                     file_path,
+                    &line_index,
                 );
             }
 
@@ -375,12 +381,16 @@ impl TaintAnalyzer {
             for stmt in &stmts {
                 if let Stmt::FunctionDef(func) = stmt {
                     if func.is_async {
-                        let func_findings =
-                            intraprocedural::analyze_async_function(func, file_path, None);
+                        let func_findings = intraprocedural::analyze_async_function(
+                            func,
+                            file_path,
+                            &line_index,
+                            None,
+                        );
                         findings.extend(func_findings);
                     } else {
                         let func_findings =
-                            intraprocedural::analyze_function(func, file_path, None);
+                            intraprocedural::analyze_function(func, file_path, &line_index, None);
                         findings.extend(func_findings);
                     }
                 }
@@ -389,7 +399,8 @@ impl TaintAnalyzer {
 
         // Level 2: Interprocedural
         if self.config.interprocedural {
-            let interprocedural_findings = interprocedural::analyze_module(&stmts, file_path);
+            let interprocedural_findings =
+                interprocedural::analyze_module(&stmts, file_path, &line_index);
             findings.extend(interprocedural_findings);
         }
 

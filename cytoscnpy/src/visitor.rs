@@ -381,7 +381,19 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         // 1. Tests: Functions starting with 'test_' are assumed to be Pytest/Unittest tests.
         // These are run by test runners, not called explicitly.
-        let is_test = simple_name.starts_with("test_");
+        // 1. Tests: Vulture-style Smart Heuristic
+        // If the file looks like a test (tests/ or test_*.py), we are lenient.
+        let file_is_test = self
+            .file_path
+            .to_string_lossy()
+            .to_lowercase()
+            .contains("test");
+        let is_test_function = simple_name.starts_with("test_");
+
+        let is_test_class =
+            file_is_test && (simple_name.contains("Test") || simple_name.contains("Suite"));
+
+        let is_test = is_test_function || is_test_class;
 
         // 2. Dynamic Dispatch Patterns:
         //    - 'visit_' / 'leave_': Standard Visitor pattern (AST, LibCST)
@@ -435,8 +447,11 @@ impl<'a> CytoScnPyVisitor<'a> {
             || is_standard_entry
             || is_dunder
             || is_public_class_attr
-            || is_constant
             || self.auto_called.contains(simple_name.as_str());
+
+        // FIX: Global constants (UPPER_CASE) are NOT "implicitly used" (which would hide them forever).
+        // Instead, we let them fall through as unused, BUT we will assign them very low confidence later.
+        // This allows --confidence 0 to find unused settings, while keeping default runs clean.
 
         // Decision: Is this exported? (For Semantic Graph roots)
         let is_exported = is_implicitly_used || is_public_api;
@@ -1275,6 +1290,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             Stmt::For(node) => {
                 self.visit_expr(&node.iter);
+                self.visit_definition_target(&node.target);
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
                 }
@@ -2028,41 +2044,45 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
             }
             Expr::ListComp(node) => {
-                self.visit_expr(&node.elt);
                 for gen in &node.generators {
                     self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
                     for if_expr in &gen.ifs {
                         self.visit_expr(if_expr);
                     }
                 }
+                self.visit_expr(&node.elt);
             }
             Expr::SetComp(node) => {
-                self.visit_expr(&node.elt);
                 for gen in &node.generators {
                     self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
                     for if_expr in &gen.ifs {
                         self.visit_expr(if_expr);
                     }
                 }
+                self.visit_expr(&node.elt);
             }
             Expr::DictComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
+                    for if_expr in &gen.ifs {
+                        self.visit_expr(if_expr);
+                    }
+                }
                 self.visit_expr(&node.key);
                 self.visit_expr(&node.value);
-                for gen in &node.generators {
-                    self.visit_expr(&gen.iter);
-                    for if_expr in &gen.ifs {
-                        self.visit_expr(if_expr);
-                    }
-                }
             }
             Expr::Generator(node) => {
-                self.visit_expr(&node.elt);
                 for gen in &node.generators {
                     self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
                     for if_expr in &gen.ifs {
                         self.visit_expr(if_expr);
                     }
                 }
+                self.visit_expr(&node.elt);
             }
             Expr::Await(node) => self.visit_expr(&node.value),
             Expr::Yield(node) => {
@@ -2128,6 +2148,52 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
 
         self.depth -= 1;
+    }
+
+    /// Visits a definition target (LHS of assignment or loop variable).
+    /// Registers variables as definitions.
+    fn visit_definition_target(&mut self, target: &Expr) {
+        match target {
+            Expr::Name(node) => {
+                let name = node.id.to_string();
+                let qualified_name = self.get_qualified_name(&name);
+                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+
+                self.add_definition(DefinitionInfo {
+                    name: qualified_name.clone(),
+                    def_type: "variable".to_owned(),
+                    line,
+                    end_line,
+                    start_byte,
+                    end_byte,
+                    full_start_byte: start_byte,
+                    base_classes: smallvec::SmallVec::new(),
+                });
+                self.add_local_def(name, qualified_name);
+            }
+            Expr::Tuple(node) => {
+                for elt in &node.elts {
+                    self.visit_definition_target(elt);
+                }
+            }
+            Expr::List(node) => {
+                for elt in &node.elts {
+                    self.visit_definition_target(elt);
+                }
+            }
+            Expr::Starred(node) => {
+                self.visit_definition_target(&node.value);
+            }
+            // Use visits for attribute/subscript to ensure we track usage of the object/index
+            Expr::Attribute(node) => {
+                self.visit_expr(&node.value);
+            }
+            Expr::Subscript(node) => {
+                self.visit_expr(&node.value);
+                self.visit_expr(&node.slice);
+            }
+            _ => {}
+        }
     }
 
     /// Helper to recursively visit match patterns

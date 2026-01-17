@@ -186,19 +186,23 @@ impl CytoScnPy {
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
-                // For variables and parameters, if they were already marked as unused
-                // (e.g. by flow-sensitive analysis), we respect that 0 count.
+                // For variables and parameters, if the cross-file count is 0,
+                // stay at 0 to avoid false negatives from flow-sensitive analysis.
+                // FIX: Previously checked def.references == 0 which blocked ALL
+                // variables since references starts at 0. Now check *count == 0.
                 if (def.def_type == "variable" || def.def_type == "parameter")
                     && !def.is_enum_member
-                    && def.references == 0
+                    && *count == 0
                 {
-                    // Stay at 0
+                    // Stay at 0 - no references found
                 } else {
                     def.references = *count;
                 }
-            } else if def.def_type != "variable" || def.is_enum_member {
-                // For enum members, prefer qualified class.member matching
+            } else {
+                // full_name didn't match - try fallback strategies
                 let mut matched = false;
+
+                // For enum members, prefer qualified class.member matching
                 if def.is_enum_member {
                     if let Some(dot_idx) = def.full_name.rfind('.') {
                         let parent = &def.full_name[..dot_idx];
@@ -214,10 +218,21 @@ impl CytoScnPy {
                     // For enum members, do NOT use bare-name fallback to prevent
                     // unrelated attributes from marking enum members as used
                 }
-                // Fallback to simple name only for non-enum members
+
+                // Fallback to simple name for all non-enum types (including variables)
+                // This fixes cross-file references like `module.CONSTANT` where the
+                // reference is tracked as simple name but def has full qualified path
+                //
+                // EXCEPTION: Do not do this for variables to avoid conflating local variables
+                // (e.g. 'a', 'i', 'x') with global references. Variables should rely on
+                // full_name matching or scope resolution in visitor.
                 if !matched && !def.is_enum_member {
-                    if let Some(count) = ref_counts.get(&def.simple_name) {
-                        def.references = *count;
+                    let should_fallback = def.def_type != "variable" && def.def_type != "parameter";
+
+                    if should_fallback {
+                        if let Some(count) = ref_counts.get(&def.simple_name) {
+                            def.references = *count;
+                        }
                     }
                 }
             }

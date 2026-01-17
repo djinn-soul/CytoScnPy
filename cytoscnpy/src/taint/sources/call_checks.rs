@@ -2,12 +2,13 @@
 
 use super::utils::get_call_name;
 use crate::taint::types::{TaintInfo, TaintSource};
+use crate::utils::LineIndex;
 use ruff_python_ast as ast;
 use ruff_text_size::Ranged;
 
 /// Checks if a call expression is a taint source.
-pub(crate) fn check_call_source(call: &ast::ExprCall) -> Option<TaintInfo> {
-    let line = call.range().start().to_u32() as usize;
+pub(crate) fn check_call_source(call: &ast::ExprCall, line_index: &LineIndex) -> Option<TaintInfo> {
+    let line = line_index.line_index(call.range().start());
 
     // Get the function name
     if let Some(name) = get_call_name(&call.func) {

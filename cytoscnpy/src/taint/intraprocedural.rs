@@ -6,6 +6,7 @@ use super::propagation::{is_expr_tainted, is_parameterized_query, is_sanitizer_c
 use super::sinks::{check_sink, SinkInfo};
 use super::sources::check_taint_source;
 use super::types::{TaintFinding, TaintInfo};
+use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 use std::path::Path;
@@ -14,6 +15,7 @@ use std::path::Path;
 pub fn analyze_function(
     func: &ast::StmtFunctionDef,
     file_path: &Path,
+    line_index: &LineIndex,
     initial_taint: Option<TaintState>,
 ) -> Vec<TaintFinding> {
     let mut state = initial_taint.unwrap_or_default();
@@ -21,7 +23,7 @@ pub fn analyze_function(
 
     // Analyze each statement in the function body
     for stmt in &func.body {
-        analyze_stmt(stmt, &mut state, &mut findings, file_path);
+        analyze_stmt(stmt, &mut state, &mut findings, file_path, line_index);
     }
 
     findings
@@ -31,13 +33,14 @@ pub fn analyze_function(
 pub fn analyze_async_function(
     func: &ast::StmtFunctionDef,
     file_path: &Path,
+    line_index: &LineIndex,
     initial_taint: Option<TaintState>,
 ) -> Vec<TaintFinding> {
     let mut state = initial_taint.unwrap_or_default();
     let mut findings = Vec::new();
 
     for stmt in &func.body {
-        analyze_stmt(stmt, &mut state, &mut findings, file_path);
+        analyze_stmt(stmt, &mut state, &mut findings, file_path, line_index);
     }
 
     findings
@@ -50,8 +53,9 @@ pub fn analyze_stmt_public(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
-    analyze_stmt(stmt, state, findings, file_path);
+    analyze_stmt(stmt, state, findings, file_path, line_index);
 }
 
 /// Analyzes a statement for taint flow.
@@ -61,30 +65,35 @@ fn analyze_stmt(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
     match stmt {
-        Stmt::Assign(assign) => handle_assign(assign, state, findings, file_path),
-        Stmt::AnnAssign(assign) => handle_ann_assign(assign, state, findings, file_path),
-        Stmt::AugAssign(assign) => handle_aug_assign(assign, state, findings, file_path),
+        Stmt::Assign(assign) => handle_assign(assign, state, findings, file_path, line_index),
+        Stmt::AnnAssign(assign) => {
+            handle_ann_assign(assign, state, findings, file_path, line_index)
+        }
+        Stmt::AugAssign(assign) => {
+            handle_aug_assign(assign, state, findings, file_path, line_index)
+        }
         Stmt::Expr(expr_stmt) => {
-            check_expr_for_sinks(&expr_stmt.value, state, findings, file_path);
+            check_expr_for_sinks(&expr_stmt.value, state, findings, file_path, line_index);
         }
         Stmt::Return(ret) => {
             if let Some(value) = &ret.value {
-                check_expr_for_sinks(value, state, findings, file_path);
+                check_expr_for_sinks(value, state, findings, file_path, line_index);
             }
         }
-        Stmt::If(if_stmt) => handle_if(if_stmt, state, findings, file_path),
-        Stmt::For(for_stmt) => handle_for(for_stmt, state, findings, file_path),
-        Stmt::While(while_stmt) => handle_while(while_stmt, state, findings, file_path),
+        Stmt::If(if_stmt) => handle_if(if_stmt, state, findings, file_path, line_index),
+        Stmt::For(for_stmt) => handle_for(for_stmt, state, findings, file_path, line_index),
+        Stmt::While(while_stmt) => handle_while(while_stmt, state, findings, file_path, line_index),
         Stmt::With(with_stmt) => {
             for s in &with_stmt.body {
-                analyze_stmt(s, state, findings, file_path);
+                analyze_stmt(s, state, findings, file_path, line_index);
             }
         }
-        Stmt::Try(try_stmt) => handle_try(try_stmt, state, findings, file_path),
+        Stmt::Try(try_stmt) => handle_try(try_stmt, state, findings, file_path, line_index),
         Stmt::FunctionDef(nested_func) => {
-            handle_function_def(nested_func, state, findings, file_path);
+            handle_function_def(nested_func, state, findings, file_path, line_index);
         }
         _ => {}
     }
@@ -95,10 +104,11 @@ fn handle_assign(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
-    check_expr_for_sinks(&assign.value, state, findings, file_path);
+    check_expr_for_sinks(&assign.value, state, findings, file_path, line_index);
 
-    if let Some(taint_info) = check_taint_source(&assign.value) {
+    if let Some(taint_info) = check_taint_source(&assign.value, line_index) {
         for target in &assign.targets {
             if let Expr::Name(name) = target {
                 state.mark_tainted(name.id.as_str(), taint_info.clone());
@@ -128,9 +138,10 @@ fn handle_ann_assign(
     state: &mut TaintState,
     _findings: &mut Vec<TaintFinding>,
     _file_path: &Path,
+    line_index: &LineIndex,
 ) {
     if let Some(value) = &assign.value {
-        if let Some(taint_info) = check_taint_source(value) {
+        if let Some(taint_info) = check_taint_source(value, line_index) {
             if let Expr::Name(name) = &*assign.target {
                 state.mark_tainted(name.id.as_str(), taint_info);
             }
@@ -155,13 +166,14 @@ fn handle_aug_assign(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
     if let Some(taint_info) = is_expr_tainted(&assign.value, state) {
         if let Expr::Name(name) = &*assign.target {
             state.mark_tainted(name.id.as_str(), taint_info.extend_path(name.id.as_str()));
         }
     }
-    check_expr_for_sinks(&assign.value, state, findings, file_path);
+    check_expr_for_sinks(&assign.value, state, findings, file_path, line_index);
 }
 
 fn handle_if(
@@ -169,13 +181,14 @@ fn handle_if(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
-    check_expr_for_sinks(&if_stmt.test, state, findings, file_path);
+    check_expr_for_sinks(&if_stmt.test, state, findings, file_path, line_index);
 
     let mut then_state = state.clone();
 
     for s in &if_stmt.body {
-        analyze_stmt(s, &mut then_state, findings, file_path);
+        analyze_stmt(s, &mut then_state, findings, file_path, line_index);
     }
 
     let mut combined_state = then_state;
@@ -183,10 +196,10 @@ fn handle_if(
     for clause in &if_stmt.elif_else_clauses {
         let mut clause_state = state.clone();
         if let Some(test) = &clause.test {
-            check_expr_for_sinks(test, state, findings, file_path);
+            check_expr_for_sinks(test, state, findings, file_path, line_index);
         }
         for s in &clause.body {
-            analyze_stmt(s, &mut clause_state, findings, file_path);
+            analyze_stmt(s, &mut clause_state, findings, file_path, line_index);
         }
         combined_state.merge(&clause_state);
     }
@@ -199,6 +212,7 @@ fn handle_for(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
     if let Some(taint_info) = is_expr_tainted(&for_stmt.iter, state) {
         if let Expr::Name(name) = &*for_stmt.target {
@@ -207,10 +221,10 @@ fn handle_for(
     }
 
     for s in &for_stmt.body {
-        analyze_stmt(s, state, findings, file_path);
+        analyze_stmt(s, state, findings, file_path, line_index);
     }
     for s in &for_stmt.orelse {
-        analyze_stmt(s, state, findings, file_path);
+        analyze_stmt(s, state, findings, file_path, line_index);
     }
 }
 
@@ -219,14 +233,15 @@ fn handle_while(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
-    check_expr_for_sinks(&while_stmt.test, state, findings, file_path);
+    check_expr_for_sinks(&while_stmt.test, state, findings, file_path, line_index);
 
     for s in &while_stmt.body {
-        analyze_stmt(s, state, findings, file_path);
+        analyze_stmt(s, state, findings, file_path, line_index);
     }
     for s in &while_stmt.orelse {
-        analyze_stmt(s, state, findings, file_path);
+        analyze_stmt(s, state, findings, file_path, line_index);
     }
 }
 
@@ -235,21 +250,22 @@ fn handle_try(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
     for s in &try_stmt.body {
-        analyze_stmt(s, state, findings, file_path);
+        analyze_stmt(s, state, findings, file_path, line_index);
     }
     for handler in &try_stmt.handlers {
         let ast::ExceptHandler::ExceptHandler(h) = handler;
         for s in &h.body {
-            analyze_stmt(s, state, findings, file_path);
+            analyze_stmt(s, state, findings, file_path, line_index);
         }
     }
     for s in &try_stmt.orelse {
-        analyze_stmt(s, state, findings, file_path);
+        analyze_stmt(s, state, findings, file_path, line_index);
     }
     for s in &try_stmt.finalbody {
-        analyze_stmt(s, state, findings, file_path);
+        analyze_stmt(s, state, findings, file_path, line_index);
     }
 }
 
@@ -258,12 +274,15 @@ fn handle_function_def(
     state: &mut TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
     if nested_func.is_async {
-        let nested_findings = analyze_async_function(nested_func, file_path, Some(state.clone()));
+        let nested_findings =
+            analyze_async_function(nested_func, file_path, line_index, Some(state.clone()));
         findings.extend(nested_findings);
     } else {
-        let nested_findings = analyze_function(nested_func, file_path, Some(state.clone()));
+        let nested_findings =
+            analyze_function(nested_func, file_path, line_index, Some(state.clone()));
         findings.extend(nested_findings);
     }
 }
@@ -273,6 +292,7 @@ fn handle_call_sink(
     state: &TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
     // Check if this call is a sink
     if let Some(sink_info) = check_sink(call) {
@@ -290,7 +310,7 @@ fn handle_call_sink(
                     let finding = create_finding(
                         &taint_info,
                         &sink_info,
-                        call.range().start().to_u32() as usize,
+                        line_index.line_index(call.range().start()),
                         file_path,
                     );
                     findings.push(finding);
@@ -301,7 +321,7 @@ fn handle_call_sink(
 
     // Recursively check arguments
     for arg in &call.arguments.args {
-        check_expr_for_sinks(arg, state, findings, file_path);
+        check_expr_for_sinks(arg, state, findings, file_path, line_index);
     }
 }
 
@@ -311,29 +331,30 @@ fn check_expr_for_sinks(
     state: &TaintState,
     findings: &mut Vec<TaintFinding>,
     file_path: &Path,
+    line_index: &LineIndex,
 ) {
     match expr {
-        Expr::Call(call) => handle_call_sink(call, state, findings, file_path),
+        Expr::Call(call) => handle_call_sink(call, state, findings, file_path, line_index),
 
         Expr::BinOp(binop) => {
-            check_expr_for_sinks(&binop.left, state, findings, file_path);
-            check_expr_for_sinks(&binop.right, state, findings, file_path);
+            check_expr_for_sinks(&binop.left, state, findings, file_path, line_index);
+            check_expr_for_sinks(&binop.right, state, findings, file_path, line_index);
         }
 
         Expr::If(ifexp) => {
-            check_expr_for_sinks(&ifexp.test, state, findings, file_path);
-            check_expr_for_sinks(&ifexp.body, state, findings, file_path);
-            check_expr_for_sinks(&ifexp.orelse, state, findings, file_path);
+            check_expr_for_sinks(&ifexp.test, state, findings, file_path, line_index);
+            check_expr_for_sinks(&ifexp.body, state, findings, file_path, line_index);
+            check_expr_for_sinks(&ifexp.orelse, state, findings, file_path, line_index);
         }
 
         Expr::List(list) => {
             for elt in &list.elts {
-                check_expr_for_sinks(elt, state, findings, file_path);
+                check_expr_for_sinks(elt, state, findings, file_path, line_index);
             }
         }
 
         Expr::ListComp(comp) => {
-            check_expr_for_sinks(&comp.elt, state, findings, file_path);
+            check_expr_for_sinks(&comp.elt, state, findings, file_path, line_index);
         }
 
         _ => {}

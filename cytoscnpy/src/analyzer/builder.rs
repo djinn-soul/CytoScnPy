@@ -17,9 +17,14 @@ impl CytoScnPy {
         include_folders: Vec<String>,
         include_ipynb: bool,
         ipynb_cells: bool,
-        enable_taint: bool,
         config: Config,
     ) -> Self {
+        let enable_taint = if enable_danger {
+            config.cytoscnpy.enable_taint_analysis.unwrap_or(true)
+        } else {
+            false
+        };
+
         #[allow(deprecated)]
         Self {
             confidence_threshold,
@@ -74,6 +79,12 @@ impl CytoScnPy {
     #[must_use]
     pub fn with_danger(mut self, enabled: bool) -> Self {
         self.enable_danger = enabled;
+        // Auto-enable taint if danger is enabled, unless explicitly disabled in config
+        if enabled {
+            self.enable_taint = self.config.cytoscnpy.enable_taint_analysis.unwrap_or(true);
+        } else {
+            self.enable_taint = false;
+        }
         self
     }
 
@@ -119,17 +130,14 @@ impl CytoScnPy {
         self
     }
 
-    /// Builder-style method to enable taint analysis.
-    #[must_use]
-    pub fn with_taint(mut self, enabled: bool) -> Self {
-        self.enable_taint = enabled;
-        self
-    }
-
     /// Builder-style method to set config.
     #[must_use]
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = config;
+        // Re-evaluate taint enablement based on new config and existing danger flag
+        if self.enable_danger {
+            self.enable_taint = self.config.cytoscnpy.enable_taint_analysis.unwrap_or(true);
+        }
         self
     }
 

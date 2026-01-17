@@ -93,7 +93,7 @@ def foo():
 
 #[test]
 fn test_path_traversal() {
-    let code = "open(user_input)";
+    let code = "user_input = input(); open(user_input)";
     let config = Config::default();
     let result = analyze_code(code, config);
     assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D501"));
@@ -101,7 +101,7 @@ fn test_path_traversal() {
 
 #[test]
 fn test_ssrf() {
-    let code = "requests.get(user_url)";
+    let code = "import os; user_url = os.getenv('URL'); requests.get(user_url)";
     let config = Config::default();
     let result = analyze_code(code, config);
     assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D402"));
@@ -109,7 +109,7 @@ fn test_ssrf() {
 
 #[test]
 fn test_sqli_raw() {
-    let code = "sqlalchemy.text(user_sql)";
+    let code = "user_sql = input(); sqlalchemy.text(user_sql)";
     let config = Config::default();
     let result = analyze_code(code, config);
     assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D102"));

@@ -1,12 +1,16 @@
 //! Checks for attribute-based taint sources.
 
 use crate::taint::types::{TaintInfo, TaintSource};
+use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
 /// Checks if an attribute expression is a taint source.
-pub(crate) fn check_attribute_source(attr: &ast::ExprAttribute) -> Option<TaintInfo> {
-    let line = attr.range().start().to_u32() as usize;
+pub(crate) fn check_attribute_source(
+    attr: &ast::ExprAttribute,
+    line_index: &LineIndex,
+) -> Option<TaintInfo> {
+    let line = line_index.line_index(attr.range().start());
     let attr_name = attr.attr.as_str();
 
     // Check if the value is 'request'

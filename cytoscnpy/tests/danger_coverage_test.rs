@@ -31,4 +31,39 @@ fn test_danger_rules_full_coverage() {
         !tar_findings.is_empty(),
         "Expected Tarfile extraction findings"
     );
+
+    // Verify new modern security pattern rules (CSP-D9xx)
+
+    // CSP-D901: Async subprocess
+    let async_subprocess_findings: Vec<_> = result
+        .danger
+        .iter()
+        .filter(|f| f.rule_id == "CSP-D901")
+        .collect();
+    assert!(
+        !async_subprocess_findings.is_empty(),
+        "Expected async subprocess findings (CSP-D901)"
+    );
+
+    // CSP-D902: ML model deserialization
+    let model_deser_findings: Vec<_> = result
+        .danger
+        .iter()
+        .filter(|f| f.rule_id == "CSP-D902")
+        .collect();
+    assert!(
+        !model_deser_findings.is_empty(),
+        "Expected model deserialization findings (CSP-D902)"
+    );
+
+    // CSP-D903: Sensitive data in logs
+    let logging_findings: Vec<_> = result
+        .danger
+        .iter()
+        .filter(|f| f.rule_id == "CSP-D903")
+        .collect();
+    assert!(
+        !logging_findings.is_empty(),
+        "Expected sensitive data logging findings (CSP-D903)"
+    );
 }

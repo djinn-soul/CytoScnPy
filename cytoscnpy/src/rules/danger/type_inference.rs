@@ -70,6 +70,22 @@ impl MethodMisuseRule {
     }
 
     fn is_valid_method(type_name: &str, method_name: &str) -> bool {
+        // Common protocol methods available on most types
+        let protocol_methods = [
+            "__len__",
+            "__iter__",
+            "__contains__",
+            "__str__",
+            "__repr__",
+            "__eq__",
+            "__ne__",
+            "__hash__",
+            "__bool__",
+        ];
+        if protocol_methods.contains(&method_name) {
+            return true;
+        }
+
         match type_name {
             "str" => matches!(
                 method_name,
@@ -121,6 +137,51 @@ impl MethodMisuseRule {
                     | "upper"
                     | "zfill"
             ),
+            "bytes" => matches!(
+                method_name,
+                "capitalize"
+                    | "center"
+                    | "count"
+                    | "decode"
+                    | "endswith"
+                    | "expandtabs"
+                    | "find"
+                    | "fromhex"
+                    | "hex"
+                    | "index"
+                    | "isalnum"
+                    | "isalpha"
+                    | "isascii"
+                    | "isdigit"
+                    | "islower"
+                    | "isspace"
+                    | "istitle"
+                    | "isupper"
+                    | "join"
+                    | "ljust"
+                    | "lower"
+                    | "lstrip"
+                    | "maketrans"
+                    | "partition"
+                    | "removeprefix"
+                    | "removesuffix"
+                    | "replace"
+                    | "rfind"
+                    | "rindex"
+                    | "rjust"
+                    | "rpartition"
+                    | "rsplit"
+                    | "rstrip"
+                    | "split"
+                    | "splitlines"
+                    | "startswith"
+                    | "strip"
+                    | "swapcase"
+                    | "title"
+                    | "translate"
+                    | "upper"
+                    | "zfill"
+            ),
             "list" => matches!(
                 method_name,
                 "append"
@@ -135,6 +196,7 @@ impl MethodMisuseRule {
                     | "reverse"
                     | "sort"
             ),
+            "tuple" => matches!(method_name, "count" | "index"),
             "dict" => matches!(
                 method_name,
                 "clear"
@@ -169,9 +231,29 @@ impl MethodMisuseRule {
                     | "union"
                     | "update"
             ),
-            "int" | "float" | "bool" | "None" => false, // Primitives mostly don't have interesting methods used like this
-            // Note: int has methods like to_bytes, bit_length but rarely misused in this way to confuse with list/str
-            _ => true, // Unknown type, assume valid to reduce false positives
+            "int" => matches!(
+                method_name,
+                "bit_length"
+                    | "bit_count"
+                    | "to_bytes"
+                    | "from_bytes"
+                    | "as_integer_ratio"
+                    | "conjugate"
+                    | "real"
+                    | "imag"
+            ),
+            "float" => matches!(
+                method_name,
+                "as_integer_ratio"
+                    | "is_integer"
+                    | "hex"
+                    | "fromhex"
+                    | "conjugate"
+                    | "real"
+                    | "imag"
+            ),
+            "bool" | "None" => false, // These don't have meaningful mutable methods
+            _ => true,                // Unknown type, assume valid to reduce false positives
         }
     }
 }
@@ -188,7 +270,7 @@ impl Rule for MethodMisuseRule {
     fn enter_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
         match stmt {
             Stmt::FunctionDef(node) => {
-                self.scope_stack.push(Scope::new()); // Ensure we push scope!
+                self.scope_stack.push(Scope::new()); // Push scope for function
                                                      // Track function definitions to handle return types
                                                      // We'll reset current_function when exiting (via stack or similar if full traversal)
                                                      // For now, simpler approach:
@@ -199,6 +281,10 @@ impl Rule for MethodMisuseRule {
                         self.add_variable(node.name.to_string(), name.id.to_string());
                     }
                 }
+            }
+            Stmt::ClassDef(_) => {
+                // Push scope for class - matches the pop in leave_stmt
+                self.scope_stack.push(Scope::new());
             }
             Stmt::AnnAssign(node) => {
                 if let Some(value) = &node.value {
@@ -215,15 +301,13 @@ impl Rule for MethodMisuseRule {
             }
             // Handle regular assignments like `s = "hello"`
             Stmt::Assign(node) => {
-                if let Some(value) = Some(&node.value) {
-                    if let Some(inferred_type) = Self::infer_type(value) {
-                        for target in &node.targets {
-                            if let Expr::Name(name_node) = target {
-                                if let Some(scope) = self.scope_stack.last_mut() {
-                                    scope
-                                        .variables
-                                        .insert(name_node.id.to_string(), inferred_type.clone());
-                                }
+                if let Some(inferred_type) = Self::infer_type(&node.value) {
+                    for target in &node.targets {
+                        if let Expr::Name(name_node) = target {
+                            if let Some(scope) = self.scope_stack.last_mut() {
+                                scope
+                                    .variables
+                                    .insert(name_node.id.to_string(), inferred_type.clone());
                             }
                         }
                     }

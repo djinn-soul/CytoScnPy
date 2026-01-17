@@ -106,7 +106,7 @@ impl ContextScorer {
         }
 
         // Check for suppression comments
-        if crate::utils::is_line_suppressed(ctx.line_content) {
+        if crate::utils::get_line_suppression(ctx.line_content).is_some() {
             score += self.adjustments.has_pragma;
         }
 

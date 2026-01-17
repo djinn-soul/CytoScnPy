@@ -168,8 +168,15 @@ impl SecretScanner {
             }
 
             // Skip suppressed lines (pragma, noqa, ignore comments)
-            if crate::utils::is_line_suppressed(line_content) {
-                continue;
+            if let Some(suppression) = crate::utils::get_line_suppression(line_content) {
+                match suppression {
+                    crate::utils::Suppression::All => continue,
+                    crate::utils::Suppression::Specific(rules) => {
+                        if rules.contains(&finding.rule_id) {
+                            continue;
+                        }
+                    }
+                }
             }
 
             // Check if in docstring

@@ -11,6 +11,12 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import xml.sax
 import lxml.etree
+import dill
+import shelve
+import xmlrpc
+import xmlrpc.client
+from Crypto.PublicKey import RSA
+from wsgiref.handlers import CGIHandler
 
 # CSP-D001: Eval
 eval("1 + 1")
@@ -85,3 +91,43 @@ z.extractall()
 tf = tarfile.TarFile("archive.tar")
 tf.extractall()
 self.tar.extractall()
+
+# ════════════════════════════════════════════════════════════════════════
+# Category 9: Modern Python Patterns (CSP-D9xx) - 2025/2026 Security
+# ════════════════════════════════════════════════════════════════════════
+
+# CSP-D901: Async subprocess security
+import asyncio
+asyncio.create_subprocess_shell(user_cmd)  # Unsafe - dynamic
+asyncio.create_subprocess_shell("ls -la")  # Safe - static
+
+os.popen(user_cmd)  # Unsafe
+os.popen("ls")  # Safe
+
+import pty
+pty.spawn(user_shell)  # Unsafe
+
+# CSP-D902: ML model deserialization
+import torch
+torch.load("model.pt")  # Unsafe - no weights_only
+torch.load("model.pt", weights_only=True)  # Safe
+torch.load("model.pt", weights_only=False)  # Unsafe
+
+import joblib
+joblib.load("model.pkl")  # Unsafe - always risky
+
+from keras.models import load_model
+load_model("model.h5")  # Unsafe - no safe_mode
+load_model("model.h5", safe_mode=True)  # Safe
+keras.models.load_model("model.h5")  # Unsafe
+
+# CSP-D903: Sensitive data in logs
+import logging
+password = "secret123"
+token = "abc123"
+api_key = "key123"
+
+logging.debug(f"User password: {password}")  # Unsafe
+logging.info("Processing token: " + token)  # Unsafe
+logger.warning(api_key)  # Unsafe
+logging.info("User logged in")  # Safe

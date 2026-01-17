@@ -849,7 +849,6 @@ fn handle_analysis<W: std::io::Write>(
         include_folders,
         cli_var.include.include_ipynb,
         cli_var.include.ipynb_cells,
-        danger, // taint is now automatically enabled with --danger
         config.clone(),
     )
     .with_verbose(cli_var.output.verbose)

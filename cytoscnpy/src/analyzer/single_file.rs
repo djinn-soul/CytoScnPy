@@ -281,7 +281,11 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
-                        if ignored_lines.contains(&finding.line) {
+                        if crate::utils::is_line_suppressed(
+                            &ignored_lines,
+                            finding.line,
+                            &finding.rule_id,
+                        ) {
                             continue;
                         }
                         if finding.rule_id.starts_with("CSP-D") {
@@ -292,6 +296,23 @@ impl CytoScnPy {
                         {
                             quality.push(finding);
                         }
+                    }
+
+                    // Apply taint analysis if enabled
+                    if self.enable_danger && self.enable_taint {
+                        use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
+                        let taint_analyzer = TaintAwareDangerAnalyzer::with_defaults();
+                        let taint_context =
+                            taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
+
+                        // Filter findings
+                        danger = taint_analyzer.filter_findings_with_taint(danger, &taint_context);
+
+                        // Enhance severity
+                        TaintAwareDangerAnalyzer::enhance_severity_with_taint(
+                            &mut danger,
+                            &taint_context,
+                        );
                     }
                 }
 
@@ -538,9 +559,18 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
-                        if ignored_lines.contains(&finding.line) {
-                            continue;
+                        // Check for suppression
+                        if let Some(suppression) = ignored_lines.get(&finding.line) {
+                            match suppression {
+                                crate::utils::Suppression::All => continue,
+                                crate::utils::Suppression::Specific(rules) => {
+                                    if rules.contains(&finding.rule_id) {
+                                        continue;
+                                    }
+                                }
+                            }
                         }
+
                         if finding.rule_id.starts_with("CSP-D") {
                             danger_res.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
@@ -549,6 +579,22 @@ impl CytoScnPy {
                         {
                             quality_res.push(finding);
                         }
+                    }
+
+                    // Apply taint analysis if enabled
+                    if self.enable_danger && self.enable_taint {
+                        use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
+                        let taint_analyzer = TaintAwareDangerAnalyzer::with_defaults();
+                        let taint_context =
+                            taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
+
+                        danger_res =
+                            taint_analyzer.filter_findings_with_taint(danger_res, &taint_context);
+
+                        TaintAwareDangerAnalyzer::enhance_severity_with_taint(
+                            &mut danger_res,
+                            &taint_context,
+                        );
                     }
                 }
             }

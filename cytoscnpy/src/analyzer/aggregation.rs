@@ -300,7 +300,7 @@ impl CytoScnPy {
                     let findings = taint_analyzer.analyze_file(source, path);
                     findings
                         .into_iter()
-                        .filter(move |f| !path_ignored.contains(&f.sink_line))
+                        .filter(move |f| !path_ignored.contains_key(&f.sink_line))
                 })
                 .collect::<Vec<_>>();
             file_taint

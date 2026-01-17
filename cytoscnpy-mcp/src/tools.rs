@@ -33,10 +33,6 @@ pub struct AnalyzePathRequest {
     #[schemars(description = "Whether to check code quality metrics")]
     #[serde(default = "default_true")]
     pub check_quality: bool,
-    /// Whether to run taint analysis (default: false).
-    #[schemars(description = "Whether to run taint/data-flow analysis")]
-    #[serde(default)]
-    pub taint_analysis: bool,
 }
 
 fn default_true() -> bool {
@@ -123,8 +119,7 @@ impl CytoScnPyServer {
         let mut analyzer = CytoScnPy::default()
             .with_secrets(req.scan_secrets)
             .with_danger(req.scan_danger)
-            .with_quality(req.check_quality)
-            .with_taint(req.taint_analysis);
+            .with_quality(req.check_quality);
 
         let result = analyzer.analyze(path_buf.as_path());
         let json = serde_json::to_string_pretty(&result)
@@ -186,8 +181,7 @@ impl CytoScnPyServer {
         let mut analyzer = CytoScnPy::default()
             .with_secrets(true)
             .with_danger(true)
-            .with_quality(false)
-            .with_taint(false);
+            .with_quality(false);
 
         let result = analyzer.analyze(path_buf.as_path());
 

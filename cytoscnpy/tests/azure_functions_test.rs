@@ -26,7 +26,8 @@ fn analyze_code(code: &str) -> cytoscnpy::analyzer::AnalysisResult {
     let mut analyzer = CytoScnPy::default()
         .with_confidence(60)
         .with_tests(false)
-        .with_taint(true); // Enable taint for taint tests
+        .with_quality(false)
+        .with_danger(true); // Enable danger to activate taint analysis
 
     analyzer.analyze(dir.path())
 }

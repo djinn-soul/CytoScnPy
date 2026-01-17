@@ -105,7 +105,6 @@ fn test_analyze_path_invalid() {
         scan_secrets: true,
         scan_danger: true,
         check_quality: true,
-        taint_analysis: false,
     });
     let result = server.analyze_path(params);
 

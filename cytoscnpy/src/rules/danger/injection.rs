@@ -69,19 +69,18 @@ impl Rule for PickleRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if name.starts_with("pickle.")
+                if (name.starts_with("pickle.")
                     || name.starts_with("cPickle.")
                     || name.starts_with("dill.")
                     || name.starts_with("shelve.")
                     || name.starts_with("jsonpickle.")
-                    || name == "pandas.read_pickle"
-                {
-                    if name.contains("load")
+                    || name == "pandas.read_pickle")
+                    && (name.contains("load")
                         || name.contains("Unpickler")
                         || name == "shelve.open"
                         || name == "shelve.DbfilenameShelf"
                         || name.contains("decode")
-                        || name == "pandas.read_pickle"
+                        || name == "pandas.read_pickle")
                     {
                         return Some(vec![create_finding(
                             "Avoid using pickle/dill/shelve/jsonpickle/pandas.read_pickle (vulnerable to RCE on untrusted data)",
@@ -91,7 +90,6 @@ impl Rule for PickleRule {
                             "CRITICAL",
                         )]);
                     }
-                }
             }
         }
         None

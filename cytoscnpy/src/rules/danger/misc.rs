@@ -2,7 +2,7 @@ use super::crypto::{check_ciphers_and_modes, check_marshal_and_hashes};
 use super::network::check_network_and_ssl;
 use super::utils::{contains_sensitive_names, create_finding, get_call_name};
 use crate::rules::{Context, Finding, Rule};
-use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
 pub struct AssertUsedRule;

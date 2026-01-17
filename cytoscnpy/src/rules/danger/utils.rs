@@ -1,6 +1,5 @@
 use crate::rules::{Context, Finding};
-use ruff_python_ast::{self as ast, Expr};
-use ruff_text_size::Ranged;
+use ruff_python_ast::Expr;
 
 /// Message for subprocess command injection findings
 pub const SUBPROCESS_INJECTION_MSG: &str =
@@ -159,7 +158,7 @@ pub fn contains_sensitive_names(expr: &Expr) -> bool {
             // Check f-string elements for sensitive names
             for part in &fstring.value {
                 if let ruff_python_ast::FStringPart::FString(f) = part {
-                    for element in f.elements.iter() {
+                    for element in &f.elements {
                         if let ruff_python_ast::InterpolatedStringElement::Interpolation(interp) =
                             element
                         {

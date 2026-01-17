@@ -150,7 +150,7 @@ impl CytoScnPy {
         let mut implicitly_used_methods: FxHashSet<String> = FxHashSet::default();
 
         for (class_name, methods) in &class_methods {
-            for (_, proto_methods) in &all_protocols {
+            for proto_methods in all_protocols.values() {
                 let intersection_count = methods.intersection(proto_methods).count();
                 let proto_len = proto_methods.len();
 

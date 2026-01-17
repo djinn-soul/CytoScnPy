@@ -95,10 +95,10 @@ impl Rule for SSRFRule {
                     for keyword in &call.arguments.keywords {
                         if let Some(arg) = &keyword.arg {
                             let arg_s = arg.as_str();
-                            if matches!(arg_s, "url" | "uri" | "address") {
-                                if !crate::rules::danger::utils::is_literal_expr(&keyword.value) {
+                            if matches!(arg_s, "url" | "uri" | "address")
+                                && !crate::rules::danger::utils::is_literal_expr(&keyword.value) {
                                     findings.push(create_finding(
-                                        format!("Potential SSRF (dynamic URL in '{}' arg)", arg_s)
+                                        format!("Potential SSRF (dynamic URL in '{arg_s}' arg)")
                                             .as_str(),
                                         self.code(),
                                         context,
@@ -106,7 +106,6 @@ impl Rule for SSRFRule {
                                         "CRITICAL",
                                     ));
                                 }
-                            }
                         }
                     }
 

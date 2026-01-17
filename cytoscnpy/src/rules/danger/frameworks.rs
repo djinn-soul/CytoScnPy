@@ -1,6 +1,6 @@
 use super::utils::create_finding;
 use crate::rules::{Context, Finding, Rule};
-use ruff_python_ast::{self as ast, Expr, Stmt};
+use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
 
 pub struct DjangoSecurityRule;
@@ -11,7 +11,7 @@ impl Rule for DjangoSecurityRule {
     fn code(&self) -> &'static str {
         "CSP-D904"
     }
-    /// Detects hardcoded SECRET_KEY in assignments
+    /// Detects hardcoded `SECRET_KEY` in assignments
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         if let Stmt::Assign(assign) = stmt {
             for target in &assign.targets {

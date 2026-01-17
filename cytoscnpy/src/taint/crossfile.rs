@@ -7,7 +7,7 @@ use super::interprocedural;
 use super::summaries::{get_builtin_summaries, SummaryDatabase};
 use super::types::TaintFinding;
 use crate::utils::LineIndex;
-use ruff_python_ast::{self as ast, Stmt};
+use ruff_python_ast::Stmt;
 use rustc_hash::FxHashMap;
 use std::path::{Path, PathBuf};
 

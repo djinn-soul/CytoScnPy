@@ -75,7 +75,15 @@ nav:
   - Roadmap: roadmap.md
   - Security:
       - Overview: security.md
-      - Dangerous Code Rules: dangerous-code.md
+      - Dangerous Code Rules:
+          - Overview: dangerous-code.md
+          - Code Execution: danger/code-execution.md
+          - Injection & Logic: danger/injection.md
+          - Deserialization: danger/deserialization.md
+          - Cryptography: danger/cryptography.md
+          - Network & HTTP: danger/network.md
+          - File Operations: danger/filesystem.md
+          - Modern Python: danger/modern-python.md
   - Integrations: integrations.md
   - Blog:
       - blog/index.md

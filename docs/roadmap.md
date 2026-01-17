@@ -98,9 +98,9 @@ cargo test --features cfg
 
 ## <a id="phase-6"></a>Phase 6: Editor Integration ✅ DONE
 
-### 6.1 VS Code Extension ✅
+### 6.1 VS Code Extension 🔄 IN PROGRESS
 
-### 6.2 Extension Code Audit (Pending Fixes) 🔄
+### 6.2 Extension Code Audit (Pending Fixes) 🔄 IN PROGRESS
 
 #### 6.2.3 JSON Parsing Completeness ✅
 
@@ -171,6 +171,11 @@ _Systematic improvements to detection accuracy based on benchmark analysis._
 **Current Status:** F1 = 0.63 (77 TP, 34 FP, 60 FN)
 
 ### 7.6.1 Completed Fixes ✅
+
+- [x] **Framework Decorator Tracking:** Accurate detection for FastAPI, Django, and Celery entry points.
+- [x] **TYPE_CHECKING Block Handling:** Correctly ignores imports used only in type-check blocks.
+- [x] **F-string Reference Detection:** Tracking variables and functions referenced within f-string interpolations.
+- [x] **Multi-line String LOC:** Improved metrics for backslash-continued strings and comments.
 
 ### 7.6.2 Remaining False Positives (34 items)
 
@@ -295,8 +300,17 @@ Django, FastAPI, Pydantic is done ✅.
 
 _Tools to improve the workflow around CytoScnPy._
 
-- [ ] **MCP HTTP/SSE Transport**
+- [x] **Git Hooks (pre-commit)** ✅
+  - Automated analysis on commit/push.
+  - See `docs/pre-commit.md` for setup instructions.
+- [x] **CI/CD Integration Examples** ✅
+  - Reference workflows for GitHub Actions provided in `.github/workflows/`.
+  - Supports `--fail-on-quality` and `--fail-threshold` for gatekeeping.
+- [x] **uv Package Manager Integration** ✅
+  - Full support for `uv`-managed environments.
+  - Used in official lint/CI workflows.
 
+- [ ] **MCP HTTP/SSE Transport**
   - Add HTTP/SSE transport for remote LLM integrations (web-based clients, APIs).
   - **Challenges to Address:**
     - Path validation/sandboxing for security
@@ -314,24 +328,20 @@ _Tools to improve the workflow around CytoScnPy._
     - Add Git clone support for `analyze_repo` tool
 
 - [ ] **LSP Server (Language Server Protocol)**
-
   - Implement a real-time LSP server for VS Code, Neovim, and Zed.
   - Provide instant diagnostics without saving or running CLI.
 
 - [ ] **Config File Support for Notebook Options**
-
   - Allow `include_ipynb` and `ipynb_cells` in `.cytoscnpy.toml` and `pyproject.toml`
   - Currently these are CLI-only flags (`--include-ipynb`, `--ipynb-cells`)
   - **Rationale:** Enable persistent configuration without passing flags on every run
   - **Implementation:** Add fields to `CytoScnPyConfig` struct in `src/config.rs`
 
 - [ ] **Git Integration**
-
   - **Blame Analysis:** Identify who introduced unused code.
   - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
 
 - [x] **HTML Report Generation** ✅
-
   - Generate self-contained HTML reports for large codebase analysis.
   - **Features:**
     - Syntax highlighting (using highlight.js or prism.js)
@@ -350,8 +360,13 @@ _Tools to improve the workflow around CytoScnPy._
     - Embed CSS/JS for self-contained output
     - Optional: Split large reports into multiple HTML files with index
 
-- [ ] **Live Server Mode**
+- [x] **Security Documentation Overhaul** ✅
+  - Categorized all 50+ danger rules into logical modules (Code Execution, Injection, etc.).
+  - Ensured 1:1 parity between documentation and Rust implementation (severities, patterns).
+  - Added safer alternatives and remediation advice for all rules.
+  - See [Dangerous Code Rules](dangerous-code.md) for details.
 
+- [ ] **Live Server Mode**
   - Built-in HTTP server to browse analysis results interactively.
   - **Features:**
     - Auto-refresh on file changes (watch mode)
@@ -378,7 +393,6 @@ _Implementing findings from the Recommendation System Audit._
 **Goal:** Transform the report from a diagnostic tool into a remediation platform.
 
 - [ ] **Remediation Display Engine** (Priority: HIGH)
-
   - **Problem:** Backend has remediation data (e.g., "Use parameterized queries"), but it's lost during report generation.
   - **Solution:**
     - Extend `IssueItem` struct with `remediation` and `vuln_type` fields.
@@ -386,19 +400,16 @@ _Implementing findings from the Recommendation System Audit._
     - Update `issues.html` and `file_view.html` to display a collapsible "Remediation" box.
 
 - [ ] **Context-Aware Code Snippets** (Priority: MEDIUM)
-
   - **Problem:** Issues are shown as one-liners without context.
   - **Solution:**
     - Extract 3-5 lines of code around the issue location.
     - Display syntax-highlighted snippets inline in the Issues tab.
 
 - [ ] **Enriched Quality Messages** (Priority: MEDIUM)
-
   - **Problem:** Generic messages like "Function too complex" offer no guidance.
   - **Solution:** Map rule IDs to specific refactoring advice (e.g., "Extract reusable logic into helper functions").
 
 - [ ] **Prioritization Framework** (Priority: LOW)
-
   - **Problem:** All high-severity issues look the same.
   - **Solution:** Add "Exploitability" and "Fix Effort" scores to help teams prioritize.
 
@@ -430,11 +441,9 @@ _Implementing findings from the Recommendation System Audit._
 _Pushing the boundaries of static analysis._
 
 - [x] **Secret Scanning 2.0**
-
   - Enhance regex scanning with entropy analysis to reduce false positives for API keys.
 
-- [ ] **AST-Based Suspicious Variable Detection** _(Secret Scanning 3.0)_
-
+- [x] **AST-Based Suspicious Variable Detection** _(Secret Scanning 3.0)_ ✅
   - **Problem:** Current regex patterns only detect secrets when the _value_ matches a known format (e.g., `ghp_xxx`). This misses hardcoded secrets assigned to suspiciously named variables:
     ```python
     database_password = "hunter2"        # Missed - no pattern match
@@ -482,8 +491,7 @@ _Pushing the boundaries of static analysis._
   - **Files:** `src/visitor.rs`, `src/rules/secrets.rs`
   - **New Rule ID:** `CSP-S300` (Suspicious Variable Assignment)
 
-- [ ] **Modular Secret Recognition Engine** _(Secret Scanning 4.0)_
-
+- [x] **Modular Secret Recognition Engine** _(Secret Scanning 4.0)_ ✅
   - **Goal:** Refactor secret detection into a pluggable, trait-based architecture with unified context-based scoring.
 
   - **Architecture:**
@@ -535,7 +543,6 @@ _Pushing the boundaries of static analysis._
     ```
 
   - **Implementation Plan:**
-
     1. Add `confidence: u8` to `SecretFinding` struct
     2. Create `SecretRecognizer` trait in `src/rules/recognizers/mod.rs`
     3. Refactor existing patterns into `RegexRecognizer`
@@ -550,9 +557,9 @@ _Pushing the boundaries of static analysis._
     - `src/rules/secrets/scoring.rs` (new)
     - `src/config.rs` (extend `SecretsConfig`)
 
-- [ ] **Dependency Graph**
-
+- [ ] **Dependency Graph** 🔄 IN PROGRESS
   - Generate DOT/Mermaid graphs of module dependencies to aid refactoring.
+  - Core `CallGraph` infrastructure implemented in `cytoscnpy/src/taint/call_graph.rs`.
 
 - [ ] **License Compliance**
   - Scan `requirements.txt` and `Cargo.toml` for incompatible licenses.
@@ -577,7 +584,6 @@ _Safe, automated code fixes._
 ### <a id="phase-12"></a>Phase 12: Security & Lifecycle
 
 - [ ] **Fuzzing Environment Stabilization**
-
   - Fuzzing is currently difficult on Windows due to MSVC toolchain and sanitizer runtime issues.
   - **Solution:** Transition fuzzing CI to a purely Linux-based environment (or WSL).
   - This allows reliable `cargo fuzz` execution to catch edge-case crashes and undefined behavior.
@@ -589,7 +595,7 @@ _Safe, automated code fixes._
 
 _Deep data-flow analysis across function boundaries._
 
-- [ ] **Global Call Graph Construction**
+- [ ] **Global Call Graph Construction** 🔄 IN PROGRESS
   - Map function calls across the entire project to track how data moves between modules.
   - Necessary for tracking "taint" from a source in one file to a sink in another.
 - [ ] **Cross-Function Taint Tracking**
@@ -601,3 +607,7 @@ _Deep data-flow analysis across function boundaries._
 - [ ] **Framework-Specific Entry Points**
   - Add deep support for FastAPI dependencies, Django middleware, and Flask request hooks.
   - **Benefit:** Provides "Premium" level security coverage for modern Python web applications.
+
+---
+
+_135 total ground truth items, 11 tools benchmarked_

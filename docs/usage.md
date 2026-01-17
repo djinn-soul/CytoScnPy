@@ -48,7 +48,7 @@ Enable with `--secrets` and `--danger`.
 **Secret Scanning**: Finds hardcoded secrets (API keys, tokens) using regex and entropy analysis.
 **Dangerous Code**: Detects patterns known to cause vulnerabilities (SQLi, XSS, RCE, etc.).
 
-For detailed vulnerability rules (`CSP-Dxxx`), see [Security Analysis](security.md).
+For detailed vulnerability rules (`CSP-Dxxx`), see the **[Dangerous Code Rules Index](dangerous-code.md)** or the general [Security Analysis](security.md) overview.
 
 ### 📊 Code Quality Metrics
 
@@ -129,6 +129,7 @@ exclude_folders = ["venv", "build", "dist"]
 secrets = true
 danger = true
 quality = true
+include_ipynb = false
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code

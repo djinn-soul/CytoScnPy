@@ -14,7 +14,12 @@ impl Rule for PathTraversalRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if (name == "open" || name.starts_with("os.path.") || name.starts_with("shutil."))
+                if (name == "open"
+                    || name.starts_with("os.path.")
+                    || name.starts_with("shutil.")
+                    || name == "pathlib.Path"
+                    || name == "Path"
+                    || name == "zipfile.Path")
                     && !is_literal(&call.arguments.args)
                 {
                     return Some(vec![create_finding(
@@ -42,7 +47,8 @@ impl Rule for TempfileRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if name == "tempfile.mktemp" {
+                // CSP-D504 / B306 / B316: mktemp usage
+                if name == "tempfile.mktemp" || name == "mktemp" {
                     return Some(vec![create_finding(
                         "Insecure use of tempfile.mktemp (race condition risk). Use tempfile.mkstemp or tempfile.TemporaryFile.",
                         self.code(),

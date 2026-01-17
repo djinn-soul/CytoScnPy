@@ -2,6 +2,7 @@ use crate::rules::Rule;
 
 pub mod crypto;
 pub mod filesystem;
+pub mod frameworks;
 pub mod injection;
 pub mod misc;
 pub mod network;
@@ -13,6 +14,7 @@ pub mod utils;
 
 use crypto::{HashlibRule, RandomRule};
 use filesystem::{BadFilePermissionsRule, PathTraversalRule, TempfileRule};
+use frameworks::DjangoSecurityRule;
 use injection::{
     AsyncSubprocessRule, EvalRule, ExecRule, ModelDeserializationRule, PickleRule,
     SqlInjectionRawRule, SqlInjectionRule, SubprocessRule, TarfileExtractionRule, XSSRule, XmlRule,
@@ -64,6 +66,10 @@ pub fn get_danger_rules() -> Vec<Box<dyn Rule>> {
         Box::new(ZipfileExtractionRule), // CSP-D503: Zip extraction vulnerabilities
         Box::new(TempfileRule),      // CSP-D504: Insecure tempfile.mktemp
         Box::new(BadFilePermissionsRule), // CSP-D505: Bad file permissions
+        // ═══════════════════════════════════════════════════════════════════════
+        // Category X: Frameworks (CSP-D904 etc)
+        // ═══════════════════════════════════════════════════════════════════════
+        Box::new(DjangoSecurityRule), // CSP-D904: Django SECRET_KEY
         // ═══════════════════════════════════════════════════════════════════════
         // Category 7: Type Safety (CSP-D6xx)
         // ═══════════════════════════════════════════════════════════════════════

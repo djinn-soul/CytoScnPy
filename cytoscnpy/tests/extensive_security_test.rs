@@ -86,4 +86,5 @@ fn test_extensive_security_corpus() {
 
     // Misc
     assert!(ids.contains("CSP-D403"), "Missing CSP-D403 (Debug)");
+    assert!(ids.contains("CSP-D402"), "Missing CSP-D402 (SSRF)");
 }

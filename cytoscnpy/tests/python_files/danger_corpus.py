@@ -131,3 +131,31 @@ logging.debug(f"User password: {password}")  # Unsafe
 logging.info("Processing token: " + token)  # Unsafe
 logger.warning(api_key)  # Unsafe
 logging.info("User logged in")  # Safe
+
+# ════════════════════════════════════════════════════════════════════════
+# New Security Gap Closures (2026-01-17)
+# ════════════════════════════════════════════════════════════════════════
+
+# CSP-D409: ssl.wrap_socket (deprecated and often insecure)
+import ssl
+ssl.wrap_socket(sock)  # Unsafe
+
+# CSP-D004: wsgiref imports (httpoxy vulnerability)
+import wsgiref  # Low severity audit
+from wsgiref.handlers import CGIHandler  # High severity (already in imports above)
+
+# CSP-D004: xmlrpclib (Python 2 legacy)
+import xmlrpclib  # Unsafe - Python 2 XML-RPC
+
+# CSP-D504: mktemp direct import
+from tempfile import mktemp
+mktemp()  # Unsafe - race condition
+
+# CSP-D904: Django SECRET_KEY hardcoding
+# CSP-D501: Modern Path Traversal (pathlib / zipfile)
+import pathlib
+import zipfile
+pathlib.Path(user_input)  # Unsafe
+pathlib.Path("safe/path")  # Safe
+Path(user_input)  # Unsafe (if imported as Path)
+zipfile.Path("archive.zip", at=user_input)  # Unsafe (dynamic path inside zip)

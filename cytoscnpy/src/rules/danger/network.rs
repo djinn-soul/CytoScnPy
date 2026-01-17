@@ -50,18 +50,69 @@ impl Rule for SSRFRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if (name.starts_with("requests.")
+                if name.starts_with("requests.")
                     || name.starts_with("httpx.")
-                    || name == "urllib.request.urlopen")
-                    && !is_literal(&call.arguments.args)
+                    || name == "urllib.request.urlopen"
                 {
-                    return Some(vec![create_finding(
-                        "Potential SSRF (dynamic URL)",
-                        self.code(),
-                        context,
-                        call.range.start(),
-                        "CRITICAL",
-                    )]);
+                    let mut findings = Vec::new();
+
+                    // Case 1: Positional arguments
+                    if !call.arguments.args.is_empty() {
+                        if name.ends_with(".request") {
+                            // For .request(method, url, ...), check 2nd arg (index 1)
+                            if call.arguments.args.len() >= 2
+                                && !crate::rules::danger::utils::is_literal_expr(
+                                    &call.arguments.args[1],
+                                )
+                            {
+                                findings.push(create_finding(
+                                    "Potential SSRF (dynamic URL in positional arg 2)",
+                                    self.code(),
+                                    context,
+                                    call.arguments.args[1].range().start(),
+                                    "CRITICAL",
+                                ));
+                            }
+                        } else {
+                            // For .get(url, ...), .post(url, ...), check 1st arg via is_literal check
+                            // Note: is_literal checks if ALL args are literal. If any is dynamic, logic assumes risk.
+                            // Ideally we just check the first arg for exactness, but keeping existing heuristic for now
+                            // unless strictly asked only for .request change.
+                            // The guard !is_literal(&call.arguments.args) covers the "any dynamic arg" case.
+                            if !is_literal(&call.arguments.args) {
+                                findings.push(create_finding(
+                                    "Potential SSRF (dynamic URL in positional arg)",
+                                    self.code(),
+                                    context,
+                                    call.range.start(),
+                                    "CRITICAL",
+                                ));
+                            }
+                        }
+                    }
+
+                    // Case 2: Keyword arguments (Always check)
+                    for keyword in &call.arguments.keywords {
+                        if let Some(arg) = &keyword.arg {
+                            let arg_s = arg.as_str();
+                            if matches!(arg_s, "url" | "uri" | "address") {
+                                if !crate::rules::danger::utils::is_literal_expr(&keyword.value) {
+                                    findings.push(create_finding(
+                                        format!("Potential SSRF (dynamic URL in '{}' arg)", arg_s)
+                                            .as_str(),
+                                        self.code(),
+                                        context,
+                                        keyword.value.range().start(),
+                                        "CRITICAL",
+                                    ));
+                                }
+                            }
+                        }
+                    }
+
+                    if !findings.is_empty() {
+                        return Some(findings);
+                    }
                 }
             }
         }
@@ -297,6 +348,16 @@ pub fn check_network_and_ssl(
         return Some(create_finding(
             "Use of potentially insecure ssl._create_unverified_context.",
             "CSP-D407",
+            context,
+            call.range().start(),
+            "MEDIUM",
+        ));
+    }
+    // Extension: ssl.wrap_socket detection
+    if name == "ssl.wrap_socket" {
+        return Some(create_finding(
+            "Use of ssl.wrap_socket is deprecated and often insecure. Use ssl.create_default_context().wrap_socket() instead.",
+            "CSP-D409",
             context,
             call.range().start(),
             "MEDIUM",

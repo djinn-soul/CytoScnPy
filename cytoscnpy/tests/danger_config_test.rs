@@ -3,11 +3,13 @@ use cytoscnpy::config::Config;
 use std::path::Path;
 
 #[test]
+#[test]
 fn test_excluded_rules() {
     let code = "eval('import os')"; // Triggers CSP-D001 (Exec/Eval)
     let mut config = Config::default();
     config.cytoscnpy.danger = Some(true);
     config.cytoscnpy.danger_config.excluded_rules = Some(vec!["CSP-D001".to_owned()]);
+    config.cytoscnpy.danger_config.enable_taint = Some(false); // Disable taint to catch raw findings
 
     let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
@@ -21,6 +23,7 @@ fn test_severity_threshold() {
     let mut config = Config::default();
     config.cytoscnpy.danger = Some(true);
     config.cytoscnpy.danger_config.severity_threshold = Some("CRITICAL".to_owned());
+    config.cytoscnpy.danger_config.enable_taint = Some(false); // Disable taint
 
     let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
@@ -32,6 +35,7 @@ fn test_severity_threshold() {
     let mut config_low = Config::default();
     config_low.cytoscnpy.danger = Some(true);
     config_low.cytoscnpy.danger_config.severity_threshold = Some("LOW".to_owned());
+    config_low.cytoscnpy.danger_config.enable_taint = Some(false); // Disable taint
     let analyzer_low = CytoScnPy::default()
         .with_danger(true)
         .with_config(config_low);

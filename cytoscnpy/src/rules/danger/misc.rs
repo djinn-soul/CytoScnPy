@@ -301,6 +301,18 @@ fn check_insecure_module(name: &str) -> Option<(&'static str, &'static str)> {
             "HIGH",
         ));
     }
+    if name == "wsgiref" {
+        return Some((
+            "Insecure import (wsgiref). Ensure CGIHandler is not used (httpoxy vulnerability).",
+            "LOW",
+        ));
+    }
+    if name == "xmlrpclib" {
+        return Some((
+            "Insecure import (xmlrpclib). XMLRPC is vulnerable to XML attacks. Use defusedxml.xmlrpc.",
+            "HIGH",
+        ));
+    }
 
     if matches!(name, "pickle" | "cPickle" | "dill" | "shelve") {
         return Some((

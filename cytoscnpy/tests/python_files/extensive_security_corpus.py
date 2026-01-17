@@ -7,6 +7,13 @@ import socket
 import hashlib
 import requests
 import httpx
+
+# Tests for improved SSRF detection
+requests.request("GET", user_input)  # Positional dynamic URL
+requests.request("POST", url=user_input)  # Keyword dynamic URL
+requests.request("GET", url=user_input, timeout=5)  # Mixed args + kwarg check
+httpx.request("GET", url=user_input)  # httpx keyword check
+import httpx
 import marshal
 import pickle
 import xml.etree.ElementTree as ET
@@ -134,3 +141,12 @@ pickle.loads(data) # unsafe (D201)
 marshal.load(f) # unsafe (D203)
 import pandas
 pandas.read_pickle("file") # unsafe (D201)
+
+# --- CSP-D402: SSRF ---
+requests.get(url) # unsafe (dynamic positional)
+requests.get("http://google.com") # safe (literal positional)
+requests.get(url="http://google.com") # safe (literal keyword)
+user_input = "http://evil.com"
+requests.get(url=user_input) # unsafe (dynamic keyword - NEW)
+httpx.get(url=user_input) # unsafe
+requests.post(url=user_input) # unsafe

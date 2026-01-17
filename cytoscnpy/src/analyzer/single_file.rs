@@ -327,17 +327,8 @@ impl CytoScnPy {
                         let taint_context =
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 
-                        // Update filtering logic: Keep non-tainted findings with reduced severity
-                        for finding in &mut danger {
-                            if crate::constants::get_taint_sensitive_rules()
-                                .contains(&finding.rule_id.as_str())
-                            {
-                                if !taint_context.is_line_tainted(finding.line) {
-                                    // Reduce severity if no taint detected
-                                    finding.severity = "LOW".to_owned();
-                                }
-                            }
-                        }
+                        // Update filtering logic: remove findings without taint
+                        danger = taint_analyzer.filter_findings_with_taint(danger, &taint_context);
 
                         // Enhance severity for confirmed taint paths
                         TaintAwareDangerAnalyzer::enhance_severity_with_taint(
@@ -668,15 +659,8 @@ impl CytoScnPy {
                         let taint_context =
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 
-                        for finding in &mut danger_res {
-                            if crate::constants::get_taint_sensitive_rules()
-                                .contains(&finding.rule_id.as_str())
-                            {
-                                if !taint_context.is_line_tainted(finding.line) {
-                                    finding.severity = "LOW".to_owned();
-                                }
-                            }
-                        }
+                        danger_res =
+                            taint_analyzer.filter_findings_with_taint(danger_res, &taint_context);
 
                         TaintAwareDangerAnalyzer::enhance_severity_with_taint(
                             &mut danger_res,

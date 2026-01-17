@@ -66,6 +66,7 @@ Security rules detected by the `--danger` flag, organized by category.
 | **CSP-D406** | `urllib` audit                      | File scheme vulnerabilities        | Validate URL schemes (https only)     |
 | **CSP-D407** | `ssl._create_unverified_context`    | Certificate bypass                 | Use default secure context            |
 | **CSP-D408** | `HTTPSConnection` without context   | Insecure defaults in some versions | Pass explicit SSL context             |
+| **CSP-D409** | `ssl.wrap_socket`                   | Deprecated, often insecure         | Use `ssl.create_default_context()`    |
 
 ---
 
@@ -120,5 +121,20 @@ Security rules for modern Python features and ML/AI workflows introduced in 2025
 | **CSP-D902** | `joblib.load()`                                 | Arbitrary code execution            | Ensure trusted model sources only              |
 | **CSP-D902** | `keras.models.load_model()` without `safe_mode` | Lambda layers can execute code      | Use `safe_mode=True`                           |
 | **CSP-D903** | Logging sensitive variables                     | Data leakage in logs                | Redact passwords, tokens, API keys             |
+
+---
+
+## Category 10: Framework Security (CSP-D9xx)
+
+| Rule ID      | Pattern                                         | Why it's risky                      | Safer alternative / Fix                        |
+| :----------- | :---------------------------------------------- | :---------------------------------- | :--------------------------------------------- |
+| **CSP-D901** | `asyncio.create_subprocess_shell(dynamic)`      | Async command injection             | Use `create_subprocess_exec` with list args    |
+| **CSP-D901** | `os.popen(dynamic)`                             | Legacy command injection            | Use `subprocess.run` with list args            |
+| **CSP-D901** | `pty.spawn(dynamic)`                            | PTY command injection               | Validate/allowlist commands                    |
+| **CSP-D902** | `torch.load()` without `weights_only=True`      | Arbitrary code execution via pickle | Use `weights_only=True` or `torch.safe_load()` |
+| **CSP-D902** | `joblib.load()`                                 | Arbitrary code execution            | Ensure trusted model sources only              |
+| **CSP-D902** | `keras.models.load_model()` without `safe_mode` | Lambda layers can execute code      | Use `safe_mode=True`                           |
+| **CSP-D903** | Logging sensitive variables                     | Data leakage in logs                | Redact passwords, tokens, API keys             |
+| **CSP-D904** | Hardcoded `SECRET_KEY`                          | Key exposure in Django              | Store in environment variables                 |
 
 ---

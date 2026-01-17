@@ -196,9 +196,8 @@ impl CytoScnPy {
                 for def in &mut visitor.definitions {
                     if let Some(count) = ref_counts.get(&def.full_name) {
                         def.references = *count;
-                    } else if (def.def_type != "variable" && def.def_type != "parameter")
-                        || def.is_enum_member
-                    {
+                    } else {
+                        // full_name didn't match - try fallback strategies
                         // For enum members, prefer qualified class.member matching
                         if def.is_enum_member {
                             if let Some(dot_idx) = def.full_name.rfind('.') {
@@ -215,7 +214,8 @@ impl CytoScnPy {
                             // For enum members, do NOT use bare-name fallback
                             continue;
                         }
-                        // Fallback to simple name only for non-enum members
+                        // Fallback to simple name for all non-enum types (including variables)
+                        // This fixes cross-file references like `module.CONSTANT`
                         if let Some(count) = ref_counts.get(&def.simple_name) {
                             def.references = *count;
                         }
@@ -471,9 +471,8 @@ impl CytoScnPy {
                 for def in &mut visitor.definitions {
                     if let Some(count) = ref_counts.get(&def.full_name) {
                         def.references = *count;
-                    } else if (def.def_type != "variable" && def.def_type != "parameter")
-                        || def.is_enum_member
-                    {
+                    } else {
+                        // full_name didn't match - try fallback strategies
                         // For enum members, prefer qualified class.member matching
                         if def.is_enum_member {
                             if let Some(dot_idx) = def.full_name.rfind('.') {
@@ -490,7 +489,8 @@ impl CytoScnPy {
                             // For enum members, do NOT use bare-name fallback
                             continue;
                         }
-                        // Fallback to simple name only for non-enum members
+                        // Fallback to simple name for all non-enum types (including variables)
+                        // This fixes cross-file references like `module.CONSTANT`
                         if let Some(count) = ref_counts.get(&def.simple_name) {
                             def.references = *count;
                         }

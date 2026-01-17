@@ -172,13 +172,14 @@ def check_tool_availability(tools_config, env=None):
                 if match:
                     bin_path = Path(match.group(1))
 
-            if bin_path:
-                if bin_path.exists():
-                    status = {"available": True, "reason": "Binary found"}
-                else:
-                    status["reason"] = f"Binary not found: {bin_path}"
+            if bin_path and bin_path.exists():
+                status = {"available": True, "reason": "Binary found"}
+            elif shutil.which(str(command)):
+                status = {"available": True, "reason": "Command found in PATH"}
+            elif bin_path:
+                status["reason"] = f"Binary not found: {bin_path}"
             else:
-                status["reason"] = "Could not parse binary path"
+                status["reason"] = "Could not parse binary path and command not in PATH"
 
         elif name == "CytoScnPy (Python)":
             # Check if cytoscnpy module is importable
@@ -518,7 +519,8 @@ class Verification:
 
         return truth_set
 
-    def parse_tool_output(self, name, output):
+    @staticmethod
+    def parse_tool_output(name, output):
         """Parse raw output from a tool into structured findings."""
         findings = set()
 
@@ -841,9 +843,9 @@ class Verification:
             for t_item in truth_remaining:
                 t_file, t_line, t_type, t_name = t_item
 
-                # Path matching: compare basenames or check if one path ends with the other
                 f_basename = os.path.basename(f_file)
                 t_basename = os.path.basename(t_file)
+
                 path_match = (
                     (f_basename == t_basename)
                     or f_file.endswith(t_file)
@@ -890,6 +892,7 @@ class Verification:
 
         # Calculate FN (remaining truth items)
         stats["overall"]["FN"] = len(truth_remaining)
+
         for t_item in truth_remaining:
             t_type = t_item[2]
             if t_type in stats:
@@ -1030,10 +1033,10 @@ def main():
 
     # Rust Binary Path
     # Try project_root/target/release first (workspace root)
-    rust_bin = project_root / "target" / "release" / "cytoscnpy-bin"
+    rust_bin = project_root / "target" / "release" / "cytoscnpy-cli"
     if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
         # Fallback to cytoscnpy/target/release
-        rust_bin = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy-bin"
+        rust_bin = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy-cli"
 
     if sys.platform == "win32":
         rust_bin = rust_bin.with_suffix(".exe")
@@ -1203,7 +1206,7 @@ def main():
             print(f"[-] Cargo.toml not found at {cargo_toml}")
             return
 
-        build_cmd = ["cargo", "build", "--release", "--manifest-path", str(cargo_toml)]
+        build_cmd = ["cargo", "build", "--release", "-p", "cytoscnpy-cli", "--manifest-path", str(cargo_toml)]
         subprocess.run(build_cmd, shell=False, check=True)
         print("[+] Rust build successful.")
 

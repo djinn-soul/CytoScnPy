@@ -403,7 +403,7 @@ impl TaintConfig {
         }
         for pattern in sinks {
             config.custom_sinks.push(CustomSinkConfig {
-                name: format!("Custom: {}", pattern),
+                name: format!("Custom: {pattern}"),
                 pattern,
                 vuln_type: VulnType::CodeInjection, // Default to code injection for custom patterns
                 severity: Severity::High,

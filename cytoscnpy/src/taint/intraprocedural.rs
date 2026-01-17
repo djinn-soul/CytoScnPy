@@ -4,7 +4,6 @@
 
 use super::analyzer::TaintAnalyzer;
 use super::propagation::{is_expr_tainted, is_parameterized_query, is_sanitizer_call, TaintState};
-use super::sinks::SinkInfo;
 use super::types::{SinkMatch, TaintFinding, TaintInfo};
 use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr, Stmt};
@@ -87,13 +86,13 @@ fn analyze_stmt(
 ) {
     match stmt {
         Stmt::Assign(assign) => {
-            handle_assign(assign, analyzer, state, findings, file_path, line_index)
+            handle_assign(assign, analyzer, state, findings, file_path, line_index);
         }
         Stmt::AnnAssign(assign) => {
-            handle_ann_assign(assign, analyzer, state, findings, file_path, line_index)
+            handle_ann_assign(assign, analyzer, state, findings, file_path, line_index);
         }
         Stmt::AugAssign(assign) => {
-            handle_aug_assign(assign, analyzer, state, findings, file_path, line_index)
+            handle_aug_assign(assign, analyzer, state, findings, file_path, line_index);
         }
         Stmt::Expr(expr_stmt) => {
             check_expr_for_sinks(
@@ -112,10 +111,10 @@ fn analyze_stmt(
         }
         Stmt::If(if_stmt) => handle_if(if_stmt, analyzer, state, findings, file_path, line_index),
         Stmt::For(for_stmt) => {
-            handle_for(for_stmt, analyzer, state, findings, file_path, line_index)
+            handle_for(for_stmt, analyzer, state, findings, file_path, line_index);
         }
         Stmt::While(while_stmt) => {
-            handle_while(while_stmt, analyzer, state, findings, file_path, line_index)
+            handle_while(while_stmt, analyzer, state, findings, file_path, line_index);
         }
         Stmt::With(with_stmt) => {
             for s in &with_stmt.body {
@@ -123,7 +122,7 @@ fn analyze_stmt(
             }
         }
         Stmt::Try(try_stmt) => {
-            handle_try(try_stmt, analyzer, state, findings, file_path, line_index)
+            handle_try(try_stmt, analyzer, state, findings, file_path, line_index);
         }
         Stmt::FunctionDef(nested_func) => {
             handle_function_def(
@@ -420,7 +419,7 @@ fn check_expr_for_sinks(
 ) {
     match expr {
         Expr::Call(call) => {
-            handle_call_sink(call, analyzer, state, findings, file_path, line_index)
+            handle_call_sink(call, analyzer, state, findings, file_path, line_index);
         }
 
         Expr::BinOp(binop) => {

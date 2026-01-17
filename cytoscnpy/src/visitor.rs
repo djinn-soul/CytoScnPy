@@ -1087,7 +1087,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                             if id.starts_with("HAS_") || id.starts_with("HAVE_") {
                                 self.optional_dependency_flags.insert(id.to_owned());
                                 // Mark as used
-                                self.add_ref(id.to_string());
+                                self.add_ref(id.to_owned());
                                 if !self.module_name.is_empty() {
                                     let qualified = format!("{}.{}", self.module_name, id);
                                     self.add_ref(qualified);
@@ -1525,7 +1525,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.abc_abstract_methods
                         .entry(class_name.clone())
                         .or_default()
-                        .insert(name.to_string());
+                        .insert(name.to_owned());
 
                     // Mark abstract method as "used" (confidence 0)
                     if let Some(def) = self.definitions.last_mut() {

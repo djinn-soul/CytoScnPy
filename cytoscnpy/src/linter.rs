@@ -59,7 +59,6 @@ impl LinterVisitor {
                     self.visit_stmt(s);
                 }
                 for clause in &node.elif_else_clauses {
-                    self.visit_stmt(&clause.body[0]); // Hack: elif_else_clauses body is Vec<Stmt>, but visitor expects single Stmt recursion? No, loop over them.
                     for s in &clause.body {
                         self.visit_stmt(s);
                     }
@@ -211,7 +210,51 @@ impl LinterVisitor {
             Expr::YieldFrom(node) => self.visit_expr(&node.value),
             Expr::Await(node) => self.visit_expr(&node.value),
             Expr::Lambda(node) => self.visit_expr(&node.body),
+            Expr::ListComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.elt);
+            }
+            Expr::SetComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.elt);
+            }
+            Expr::DictComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.key);
+                self.visit_expr(&node.value);
+            }
+            Expr::Generator(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.elt);
+            }
             _ => {}
+        }
+
+        // Call leave_expr for all rules
+        for rule in &mut self.rules {
+            if let Some(mut findings) = rule.leave_expr(expr, &self.context) {
+                self.findings.append(&mut findings);
+            }
         }
     }
 }

@@ -360,6 +360,22 @@ pub fn get_pytest_hooks() -> &'static FxHashSet<&'static str> {
     })
 }
 
+/// Rules that are sensitive to taint analysis (injection, SSRF, path traversal).
+pub fn get_taint_sensitive_rules() -> &'static [&'static str] {
+    static RULES: OnceLock<Vec<&'static str>> = OnceLock::new();
+    RULES.get_or_init(|| {
+        vec![
+            "CSP-D001", // Eval
+            "CSP-D002", // Exec
+            "CSP-D003", // Subprocess
+            "CSP-D101", // SQL Injection (ORM)
+            "CSP-D102", // SQL Injection (Raw)
+            "CSP-D402", // SSRF
+            "CSP-D501", // Path Traversal
+        ]
+    })
+}
+
 // Legacy aliases for backward compatibility
 // Callers using PENALTIES.get("key") can use get_penalties().get("key") instead
 pub use get_auto_called as AUTO_CALLED;
@@ -369,6 +385,7 @@ pub use get_penalties as PENALTIES;
 pub use get_pytest_hooks as PYTEST_HOOKS;
 pub use get_suppression_patterns as SUPPRESSION_PATTERNS;
 pub use get_suppression_re as SUPPRESSION_RE;
+pub use get_taint_sensitive_rules as TAINT_SENSITIVE_RULES;
 pub use get_test_decor_re as TEST_DECOR_RE;
 pub use get_test_file_re as TEST_FILE_RE;
 pub use get_test_import_re as TEST_IMPORT_RE;

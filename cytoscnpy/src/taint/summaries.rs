@@ -1,7 +1,4 @@
-//! Function summaries for interprocedural analysis.
-//!
-//! Caches taint behavior of functions to avoid re-analysis.
-
+use super::analyzer::TaintAnalyzer;
 use super::intraprocedural;
 use super::propagation::TaintState;
 use crate::taint::types::{FunctionSummary, TaintSource};
@@ -28,6 +25,7 @@ impl SummaryDatabase {
     pub fn get_or_compute(
         &mut self,
         func: &ast::StmtFunctionDef,
+        analyzer: &TaintAnalyzer,
         file_path: &Path,
         line_index: &LineIndex,
     ) -> FunctionSummary {
@@ -37,7 +35,7 @@ impl SummaryDatabase {
             return summary.clone();
         }
 
-        let summary = compute_summary(func, file_path, line_index);
+        let summary = compute_summary(func, analyzer, file_path, line_index);
         self.summaries.insert(name, summary.clone());
         summary
     }
@@ -73,6 +71,7 @@ impl SummaryDatabase {
 /// Computes the summary for a function.
 fn compute_summary(
     func: &ast::StmtFunctionDef,
+    analyzer: &TaintAnalyzer,
     file_path: &Path,
     line_index: &LineIndex,
 ) -> FunctionSummary {
@@ -108,8 +107,13 @@ fn compute_summary(
         let original_param_idx = param_indices[state_idx];
 
         // Analyze function with this param tainted
-        let findings =
-            intraprocedural::analyze_function(func, file_path, line_index, Some(state.clone()));
+        let findings = intraprocedural::analyze_function(
+            func,
+            analyzer,
+            file_path,
+            line_index,
+            Some(state.clone()),
+        );
 
         // Record sinks reached
         for finding in findings {
@@ -125,7 +129,7 @@ fn compute_summary(
         if let Stmt::Return(ret) = stmt {
             if let Some(value) = &ret.value {
                 // Check if return value contains any taint sources
-                if contains_taint_source(value, line_index) {
+                if contains_taint_source(value, analyzer, line_index) {
                     summary.returns_tainted = true;
                 }
             }
@@ -136,8 +140,12 @@ fn compute_summary(
 }
 
 /// Checks if an expression contains a taint source.
-fn contains_taint_source(expr: &ast::Expr, line_index: &LineIndex) -> bool {
-    super::sources::check_taint_source(expr, line_index).is_some()
+fn contains_taint_source(
+    expr: &ast::Expr,
+    analyzer: &TaintAnalyzer,
+    line_index: &LineIndex,
+) -> bool {
+    analyzer.plugins.check_sources(expr, line_index).is_some()
 }
 
 /// Prebuilt summaries for common library functions.

@@ -275,8 +275,30 @@ impl CytoScnPy {
         }
 
         // Run taint analysis if enabled
-        let taint_findings = if self.enable_taint {
-            let taint_config = crate::taint::analyzer::TaintConfig::all_levels();
+        let taint_findings = if self.enable_danger
+            && self
+                .config
+                .cytoscnpy
+                .danger_config
+                .enable_taint
+                .unwrap_or(true)
+        {
+            let custom_sources = self
+                .config
+                .cytoscnpy
+                .danger_config
+                .custom_sources
+                .clone()
+                .unwrap_or_default();
+            let custom_sinks = self
+                .config
+                .cytoscnpy
+                .danger_config
+                .custom_sinks
+                .clone()
+                .unwrap_or_default();
+            let taint_config =
+                crate::taint::analyzer::TaintConfig::with_custom(custom_sources, custom_sinks);
             let taint_analyzer = crate::taint::analyzer::TaintAnalyzer::new(taint_config);
 
             let file_sources: Vec<_> = files

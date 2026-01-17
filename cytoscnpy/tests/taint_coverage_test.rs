@@ -90,7 +90,7 @@ fn test_taint_analyzer_full_corpus() {
 #[test]
 fn test_taint_analyzer_project() {
     let source = include_str!("taint_corpus.py");
-    let mut analyzer = TaintAnalyzer::default();
+    let mut analyzer = TaintAnalyzer::new(TaintConfig::all_levels());
     let files = vec![(PathBuf::from("taint_corpus.py"), source.to_owned())];
 
     let findings = analyzer.analyze_project(&files);

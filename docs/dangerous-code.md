@@ -122,14 +122,3 @@ Security rules for modern Python features and ML/AI workflows introduced in 2025
 | **CSP-D903** | Logging sensitive variables                     | Data leakage in logs                | Redact passwords, tokens, API keys             |
 
 ---
-
-## Taint Analysis Integration
-
-CytoScnPy now supports taint-aware danger detection. When enabled, rules like CSP-D501 (Path Traversal), CSP-D402 (SSRF), and CSP-D101/D102 (SQL Injection) can use taint analysis to reduce false positives by only flagging issues when user-controlled data flows to dangerous sinks.
-
-Enable taint-aware analysis via configuration:
-
-```toml
-[cytoscnpy.danger]
-enable_taint_analysis = true
-```

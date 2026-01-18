@@ -2,6 +2,7 @@ use crate::constants::MAX_RECURSION_DEPTH;
 use crate::constants::PYTEST_HOOKS;
 use crate::utils::LineIndex;
 use compact_str::CompactString;
+use regex::Regex;
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -225,8 +226,9 @@ pub struct CytoScnPyVisitor<'a> {
     /// Stack of scopes for variable resolution.
     /// Uses `SmallVec` - most code has < 8 nested scopes.
     pub scope_stack: SmallVec<[Scope; 8]>,
-    /// Whether the current file is considered dynamic (e.g., uses eval/exec).
-    pub is_dynamic: bool,
+    /// Set of scopes that contain dynamic execution (eval/exec).
+    /// Stores the fully qualified name of the scope.
+    pub dynamic_scopes: FxHashSet<String>,
     /// Variables that are captured by nested scopes (closures).
     pub captured_definitions: FxHashSet<String>,
     /// Set of class names that have a metaclass (used to detect metaclass inheritance).
@@ -284,7 +286,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             model_class_stack: SmallVec::new(),
             in_type_checking_block: false,
             scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
-            is_dynamic: false,
+            dynamic_scopes: FxHashSet::default(),
             captured_definitions: FxHashSet::default(),
             metaclass_classes: FxHashSet::default(),
             self_referential_methods: FxHashSet::default(),
@@ -590,6 +592,18 @@ impl<'a> CytoScnPyVisitor<'a> {
     /// Records a reference to a name by incrementing its count.
     pub fn add_ref(&mut self, name: String) {
         *self.references.entry(name).or_insert(0) += 1;
+    }
+
+    /// Returns the fully qualified ID of the current scope.
+    /// Used for tracking dynamic scopes.
+    fn get_current_scope_id(&self) -> String {
+        if self.cached_scope_prefix.is_empty() {
+            self.module_name.clone()
+        } else if self.module_name.is_empty() {
+            self.cached_scope_prefix.clone()
+        } else {
+            format!("{}.{}", self.module_name, self.cached_scope_prefix)
+        }
     }
 
     /// Constructs a qualified name based on the current scope stack.
@@ -1782,8 +1796,30 @@ impl<'a> CytoScnPyVisitor<'a> {
         // Check for dynamic execution or reflection
         if let Expr::Name(func_name) = &*node.func {
             let name = func_name.id.as_str();
-            if name == "eval" || name == "exec" || name == "globals" || name == "locals" {
-                self.is_dynamic = true;
+            if name == "eval" {
+                // Optimization: If eval is called with a string literal, parse it for name references
+                // instead of marking the whole scope as dynamic.
+                let mut handled_as_literal = false;
+                if let Some(Expr::StringLiteral(s)) = node.arguments.args.first() {
+                    // Extract identifiers from the string
+                    // We construct the Regex locally. Since this is only for eval(), the per-call cost is verified acceptable.
+                    if let Ok(re) = Regex::new(r"\b[a-zA-Z_]\w*\b") {
+                        // s.value is a StringLiteralValue, convert to string
+                        let val = s.value.to_string();
+                        for m in re.find_iter(&val) {
+                            self.add_ref(m.as_str().to_string());
+                        }
+                        handled_as_literal = true;
+                    }
+                }
+
+                if !handled_as_literal {
+                    let scope_id = self.get_current_scope_id();
+                    self.dynamic_scopes.insert(scope_id);
+                }
+            } else if name == "exec" || name == "globals" || name == "locals" {
+                let scope_id = self.get_current_scope_id();
+                self.dynamic_scopes.insert(scope_id);
             }
 
             // Special handling for hasattr(obj, "attr") to detect attribute usage

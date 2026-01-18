@@ -231,17 +231,49 @@ impl CytoScnPy {
                 }
 
                 // 2. Dynamic code handling
-                if visitor.is_dynamic {
-                    for def in &mut visitor.definitions {
+                // 2. Dynamic code handling
+                let any_dynamic = !visitor.dynamic_scopes.is_empty();
+                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
+
+                for def in &mut visitor.definitions {
+                    // 1. Global eval affects everything (conservative)
+                    if module_is_dynamic {
                         def.references += 1;
+                        continue;
+                    }
+
+                    // 2. Any local eval affects module-level variables (globals)
+                    if any_dynamic {
+                        if let Some(idx) = def.full_name.rfind('.') {
+                            if &def.full_name[..idx] == &module_name {
+                                def.references += 1;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // 3. Scoped eval usage (locals)
+                    for scope in &visitor.dynamic_scopes {
+                        if def.full_name.starts_with(scope) {
+                            let scope_len = scope.len();
+                            // Ensure boundary match
+                            if def.full_name.len() > scope_len
+                                && def.full_name.as_bytes()[scope_len] == b'.'
+                            {
+                                def.references += 1;
+                                break;
+                            }
+                        }
                     }
                 }
 
                 // 3. Flow-sensitive refinement
                 #[cfg(feature = "cfg")]
-                if !visitor.is_dynamic {
-                    Self::refine_flow_sensitive(&source, &mut visitor.definitions);
-                }
+                Self::refine_flow_sensitive(
+                    &source,
+                    &mut visitor.definitions,
+                    &visitor.dynamic_scopes,
+                );
 
                 // 3. Apply penalties and heuristics
                 for def in &mut visitor.definitions {
@@ -447,7 +479,8 @@ impl CytoScnPy {
             .to_string_lossy()
             .to_string();
 
-        let mut visitor = CytoScnPyVisitor::new(file_path.to_path_buf(), module_name, &line_index);
+        let mut visitor =
+            CytoScnPyVisitor::new(file_path.to_path_buf(), module_name.clone(), &line_index);
         let mut framework_visitor = FrameworkAwareVisitor::new(&line_index);
         let mut test_visitor = TestAwareVisitor::new(file_path, &line_index);
 
@@ -506,16 +539,41 @@ impl CytoScnPy {
                 }
 
                 // 1.5. Dynamic code handling
-                if visitor.is_dynamic {
-                    for def in &mut visitor.definitions {
+                let any_dynamic = !visitor.dynamic_scopes.is_empty();
+                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
+
+                for def in &mut visitor.definitions {
+                    if module_is_dynamic {
                         def.references += 1;
+                        continue;
+                    }
+                    if any_dynamic {
+                        if let Some(idx) = def.full_name.rfind('.') {
+                            if &def.full_name[..idx] == &module_name {
+                                def.references += 1;
+                                continue;
+                            }
+                        }
+                    }
+                    for scope in &visitor.dynamic_scopes {
+                        if def.full_name.starts_with(scope) {
+                            let scope_len = scope.len();
+                            if def.full_name.len() > scope_len
+                                && def.full_name.as_bytes()[scope_len] == b'.'
+                            {
+                                def.references += 1;
+                                break;
+                            }
+                        }
                     }
                 }
 
                 #[cfg(feature = "cfg")]
-                if !visitor.is_dynamic {
-                    Self::refine_flow_sensitive(&source, &mut visitor.definitions);
-                }
+                Self::refine_flow_sensitive(
+                    &source,
+                    &mut visitor.definitions,
+                    &visitor.dynamic_scopes,
+                );
 
                 for def in &mut visitor.definitions {
                     apply_penalties(
@@ -759,7 +817,11 @@ impl CytoScnPy {
     }
 
     #[cfg(feature = "cfg")]
-    fn refine_flow_sensitive(source: &str, definitions: &mut [Definition]) {
+    fn refine_flow_sensitive(
+        source: &str,
+        definitions: &mut [Definition],
+        dynamic_scopes: &FxHashSet<String>,
+    ) {
         let mut function_scopes: FxHashMap<String, (usize, usize)> = FxHashMap::default();
         for def in definitions.iter() {
             if def.def_type == "function" || def.def_type == "method" {
@@ -768,6 +830,9 @@ impl CytoScnPy {
         }
 
         for (func_name, (start_line, end_line)) in function_scopes {
+            if dynamic_scopes.contains(&func_name) {
+                continue;
+            }
             let lines: Vec<&str> = source
                 .lines()
                 .skip(start_line.saturating_sub(1))

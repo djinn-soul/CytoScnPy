@@ -157,6 +157,26 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         });
     }
 
+    if name == "pathlib.Path"
+        || name == "pathlib.PurePath"
+        || name == "pathlib.PosixPath"
+        || name == "pathlib.WindowsPath"
+        || name == "Path"
+        || name == "PurePath"
+        || name == "PosixPath"
+        || name == "WindowsPath"
+        || name == "zipfile.Path"
+    {
+        return Some(SinkInfo {
+            name,
+            vuln_type: VulnType::PathTraversal,
+            severity: Severity::High,
+            dangerous_args: vec![0],
+            remediation: "Validate and sanitize file paths. Use os.path.basename() or pathlib."
+                .to_owned(),
+        });
+    }
+
     // SSRF sinks
     if name.starts_with("requests.")
         || name.starts_with("httpx.")
@@ -281,6 +301,15 @@ pub static SINK_PATTERNS: &[&str] = &[
     "subprocess.",
     "open",
     "shutil.",
+    "pathlib.Path",
+    "pathlib.PurePath",
+    "pathlib.PosixPath",
+    "pathlib.WindowsPath",
+    "Path",
+    "PurePath",
+    "PosixPath",
+    "WindowsPath",
+    "zipfile.Path",
     "requests.",
     "httpx.",
     "urlopen",

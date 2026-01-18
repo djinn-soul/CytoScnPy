@@ -1,4 +1,4 @@
-use super::utils::{create_finding, get_call_name, is_literal};
+use super::utils::{create_finding, get_call_name, is_literal, is_literal_expr};
 use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
@@ -15,21 +15,41 @@ impl Rule for PathTraversalRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if (name == "open"
+                if name == "open"
                     || name.starts_with("os.path.")
                     || name.starts_with("shutil.")
                     || name == "pathlib.Path"
+                    || name == "pathlib.PurePath"
+                    || name == "pathlib.PosixPath"
+                    || name == "pathlib.WindowsPath"
                     || name == "Path"
-                    || name == "zipfile.Path")
-                    && !is_literal(&call.arguments.args)
+                    || name == "PurePath"
+                    || name == "PosixPath"
+                    || name == "WindowsPath"
+                    || name == "zipfile.Path"
                 {
-                    return Some(vec![create_finding(
-                        "Potential path traversal (dynamic file path)",
-                        self.code(),
-                        context,
-                        call.range.start(),
-                        "HIGH",
-                    )]);
+                    let is_dynamic_args = !is_literal(&call.arguments.args);
+                    let is_dynamic_kwargs = call.arguments.keywords.iter().any(|kw| {
+                        kw.arg.as_ref().is_some_and(|a| {
+                            let s = a.as_str();
+                            s == "path"
+                                || s == "file"
+                                || s == "at"
+                                || s == "filename"
+                                || s == "filepath"
+                                || s == "member"
+                        }) && !is_literal_expr(&kw.value)
+                    });
+
+                    if is_dynamic_args || is_dynamic_kwargs {
+                        return Some(vec![create_finding(
+                            "Potential path traversal (dynamic file path)",
+                            self.code(),
+                            context,
+                            call.range().start(),
+                            "HIGH",
+                        )]);
+                    }
                 }
             }
         }

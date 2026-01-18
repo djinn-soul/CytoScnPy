@@ -601,7 +601,11 @@ impl Rule for ModelDeserializationRule {
                     )]);
                 }
 
-                if name == "keras.models.load_model" || name == "tf.keras.models.load_model" {
+                if name == "keras.models.load_model"
+                    || name == "tf.keras.models.load_model"
+                    || name == "load_model"
+                    || name == "keras.load_model"
+                {
                     let has_safe_mode = call.arguments.keywords.iter().any(|kw| {
                         if let Some(arg) = &kw.arg {
                             if arg == "safe_mode" {

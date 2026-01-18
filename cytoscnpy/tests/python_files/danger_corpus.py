@@ -120,6 +120,8 @@ from keras.models import load_model
 load_model("model.h5")  # Unsafe - no safe_mode
 load_model("model.h5", safe_mode=True)  # Safe
 keras.models.load_model("model.h5")  # Unsafe
+keras.load_model("model.h5")  # Unsafe - Added for CSP-D902
+keras.load_model("trusted_model.h5", safe_mode=True) # Safe - Added negative case
 
 # CSP-D903: Sensitive data in logs
 import logging
@@ -156,6 +158,19 @@ mktemp()  # Unsafe - race condition
 import pathlib
 import zipfile
 pathlib.Path(user_input)  # Unsafe
-pathlib.Path("safe/path")  # Safe
+pathlib.Path("safe/path")  # Safe - Negative case
+from pathlib import Path, PurePath, PosixPath, WindowsPath
 Path(user_input)  # Unsafe (if imported as Path)
+PurePath(user_input) # Unsafe
+PosixPath(user_input) # Unsafe
+WindowsPath(user_input) # Unsafe
 zipfile.Path("archive.zip", at=user_input)  # Unsafe (dynamic path inside zip)
+zipfile.Path("archive.zip", path=user_input) # Unsafe (keyword 'path')
+zipfile.Path("archive.zip", filename=user_input) # Unsafe (keyword 'filename')
+zipfile.Path("archive.zip", filepath=user_input) # Unsafe (keyword 'filepath')
+tarfile.TarFile("archive.tar").extractall(member=user_input) # Unsafe (keyword 'member')
+zipfile.Path(user_input) # Unsafe (positional)
+# Negative cases (literals)
+Path("/etc/passwd") # Safe (literal)
+PurePath("C:\\Windows") # Safe (literal)
+zipfile.Path("archive.zip", at="data/file.txt") # Safe (literal)

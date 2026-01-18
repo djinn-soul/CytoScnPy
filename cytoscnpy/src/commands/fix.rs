@@ -371,6 +371,7 @@ mod tests {
             message: None,
             fix: None,
             is_enum_member: false,
+            is_constant: false,
         }
     }
 

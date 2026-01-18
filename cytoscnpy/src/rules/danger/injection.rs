@@ -6,6 +6,7 @@ use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
+/// Rule for detecting potentially dangerous `eval()` calls.
 pub struct EvalRule;
 impl Rule for EvalRule {
     fn name(&self) -> &'static str {
@@ -32,6 +33,7 @@ impl Rule for EvalRule {
     }
 }
 
+/// Rule for detecting potentially dangerous `exec()` calls.
 pub struct ExecRule;
 impl Rule for ExecRule {
     fn name(&self) -> &'static str {
@@ -58,6 +60,7 @@ impl Rule for ExecRule {
     }
 }
 
+/// Rule for detecting insecure usage of `pickle` and similar deserialization modules.
 pub struct PickleRule;
 impl Rule for PickleRule {
     fn name(&self) -> &'static str {
@@ -81,21 +84,22 @@ impl Rule for PickleRule {
                         || name == "shelve.DbfilenameShelf"
                         || name.contains("decode")
                         || name == "pandas.read_pickle")
-                    {
-                        return Some(vec![create_finding(
+                {
+                    return Some(vec![create_finding(
                             "Avoid using pickle/dill/shelve/jsonpickle/pandas.read_pickle (vulnerable to RCE on untrusted data)",
                             self.code(),
                             context,
                             call.range().start(),
                             "CRITICAL",
                         )]);
-                    }
+                }
             }
         }
         None
     }
 }
 
+/// Rule for detecting unsafe YAML loading.
 pub struct YamlRule;
 impl Rule for YamlRule {
     fn name(&self) -> &'static str {
@@ -136,6 +140,7 @@ impl Rule for YamlRule {
     }
 }
 
+/// Rule for detecting potential command injection in `subprocess` and `os.system`.
 pub struct SubprocessRule;
 impl Rule for SubprocessRule {
     fn name(&self) -> &'static str {
@@ -208,6 +213,7 @@ impl Rule for SubprocessRule {
     }
 }
 
+/// Rule for detecting potential SQL injection in ORM-like `execute` calls.
 pub struct SqlInjectionRule;
 impl Rule for SqlInjectionRule {
     fn name(&self) -> &'static str {
@@ -271,6 +277,7 @@ impl Rule for SqlInjectionRule {
     }
 }
 
+/// Rule for detecting potential SQL injection in raw SQL queries.
 pub struct SqlInjectionRawRule;
 impl Rule for SqlInjectionRawRule {
     fn name(&self) -> &'static str {
@@ -301,6 +308,7 @@ impl Rule for SqlInjectionRawRule {
     }
 }
 
+/// Rule for detecting potential Cross-Site Scripting (XSS) vulnerabilities.
 pub struct XSSRule;
 impl Rule for XSSRule {
     fn name(&self) -> &'static str {
@@ -329,6 +337,7 @@ impl Rule for XSSRule {
     }
 }
 
+/// Rule for detecting insecure XML parsing.
 pub struct XmlRule;
 impl Rule for XmlRule {
     fn name(&self) -> &'static str {
@@ -393,6 +402,7 @@ impl Rule for XmlRule {
     }
 }
 
+/// Rule for detecting insecure `tarfile` extractions (Zip Slip).
 pub struct TarfileExtractionRule;
 impl Rule for TarfileExtractionRule {
     fn name(&self) -> &'static str {
@@ -461,6 +471,7 @@ impl Rule for TarfileExtractionRule {
     }
 }
 
+/// Rule for detecting insecure `zipfile` extractions (Zip Slip).
 pub struct ZipfileExtractionRule;
 impl Rule for ZipfileExtractionRule {
     fn name(&self) -> &'static str {
@@ -494,6 +505,7 @@ impl Rule for ZipfileExtractionRule {
     }
 }
 
+/// Rule for detecting potential command injection in async subprocesses and popen.
 pub struct AsyncSubprocessRule;
 impl Rule for AsyncSubprocessRule {
     fn name(&self) -> &'static str {
@@ -545,6 +557,7 @@ impl Rule for AsyncSubprocessRule {
     }
 }
 
+/// Rule for detecting insecure deserialization of machine learning models.
 pub struct ModelDeserializationRule;
 impl Rule for ModelDeserializationRule {
     fn name(&self) -> &'static str {

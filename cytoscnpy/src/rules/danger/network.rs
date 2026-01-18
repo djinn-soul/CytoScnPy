@@ -3,6 +3,7 @@ use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 
+/// Rule for detecting insecure HTTP requests (e.g., SSL verification disabled).
 pub struct RequestsRule;
 impl Rule for RequestsRule {
     fn name(&self) -> &'static str {
@@ -39,6 +40,7 @@ impl Rule for RequestsRule {
     }
 }
 
+/// Rule for detecting potential Server-Side Request Forgery (SSRF) vulnerabilities.
 pub struct SSRFRule;
 impl Rule for SSRFRule {
     fn name(&self) -> &'static str {
@@ -96,16 +98,17 @@ impl Rule for SSRFRule {
                         if let Some(arg) = &keyword.arg {
                             let arg_s = arg.as_str();
                             if matches!(arg_s, "url" | "uri" | "address")
-                                && !crate::rules::danger::utils::is_literal_expr(&keyword.value) {
-                                    findings.push(create_finding(
-                                        format!("Potential SSRF (dynamic URL in '{arg_s}' arg)")
-                                            .as_str(),
-                                        self.code(),
-                                        context,
-                                        keyword.value.range().start(),
-                                        "CRITICAL",
-                                    ));
-                                }
+                                && !crate::rules::danger::utils::is_literal_expr(&keyword.value)
+                            {
+                                findings.push(create_finding(
+                                    format!("Potential SSRF (dynamic URL in '{arg_s}' arg)")
+                                        .as_str(),
+                                    self.code(),
+                                    context,
+                                    keyword.value.range().start(),
+                                    "CRITICAL",
+                                ));
+                            }
                         }
                     }
 
@@ -119,6 +122,7 @@ impl Rule for SSRFRule {
     }
 }
 
+/// Rule for detecting hardcoded bindings to all network interfaces (0.0.0.0).
 pub struct HardcodedBindAllInterfacesRule;
 impl Rule for HardcodedBindAllInterfacesRule {
     fn name(&self) -> &'static str {
@@ -226,6 +230,7 @@ impl Rule for HardcodedBindAllInterfacesRule {
     }
 }
 
+/// Rule for detecting HTTP requests made without a timeout.
 pub struct RequestWithoutTimeoutRule;
 impl Rule for RequestWithoutTimeoutRule {
     fn name(&self) -> &'static str {

@@ -3,6 +3,7 @@ use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
+/// Rule for detecting weak hashing algorithms in `hashlib`.
 pub struct HashlibRule;
 impl Rule for HashlibRule {
     fn name(&self) -> &'static str {
@@ -38,6 +39,7 @@ impl Rule for HashlibRule {
     }
 }
 
+/// Rule for detecting weak pseudo-random number generators in `random`.
 pub struct RandomRule;
 impl Rule for RandomRule {
     fn name(&self) -> &'static str {

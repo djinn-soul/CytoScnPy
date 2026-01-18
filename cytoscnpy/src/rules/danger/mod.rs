@@ -1,15 +1,22 @@
 use crate::rules::Rule;
 
+/// Cryptography-related security rules.
 pub mod crypto;
+/// Filesystem-related security rules.
 pub mod filesystem;
+/// Framework-specific (e.g., Django) security rules.
 pub mod frameworks;
+/// Injection (SQL, Command, etc.) security rules.
 pub mod injection;
+/// Miscellaneous security rules.
 pub mod misc;
+/// Network and HTTP-related security rules.
 pub mod network;
 /// Taint-aware danger rules for reduced false positives.
 pub mod taint_aware;
 /// Type inference rules for detecting method misuse on inferred types.
 pub mod type_inference;
+/// Common utilities for security rules.
 pub mod utils;
 
 use crypto::{HashlibRule, RandomRule};

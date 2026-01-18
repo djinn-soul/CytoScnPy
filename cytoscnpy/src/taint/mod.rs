@@ -11,11 +11,13 @@
 pub mod analyzer;
 pub mod call_graph;
 pub mod crossfile;
+/// Interprocedural taint analysis logic.
 pub mod interprocedural;
 pub mod intraprocedural;
 pub mod propagation;
 pub mod sinks;
 pub mod sources;
+/// Taint summaries for functions.
 pub mod summaries;
 pub mod types;
 

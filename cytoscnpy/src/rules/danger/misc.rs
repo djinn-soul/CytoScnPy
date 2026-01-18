@@ -5,6 +5,7 @@ use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
+/// Rule for detecting the use of `assert` in production code.
 pub struct AssertUsedRule;
 impl Rule for AssertUsedRule {
     fn name(&self) -> &'static str {
@@ -27,6 +28,7 @@ impl Rule for AssertUsedRule {
     }
 }
 
+/// Rule for detecting if debug mode is enabled in production.
 pub struct DebugModeRule;
 impl Rule for DebugModeRule {
     fn name(&self) -> &'static str {
@@ -63,6 +65,7 @@ impl Rule for DebugModeRule {
     }
 }
 
+/// Rule for detecting disabled autoescaping in Jinja2 templates.
 pub struct Jinja2AutoescapeRule;
 impl Rule for Jinja2AutoescapeRule {
     fn name(&self) -> &'static str {
@@ -99,6 +102,7 @@ impl Rule for Jinja2AutoescapeRule {
     }
 }
 
+/// Rule for detecting blacklisted function calls.
 pub struct BlacklistCallRule;
 impl Rule for BlacklistCallRule {
     fn name(&self) -> &'static str {
@@ -163,6 +167,7 @@ fn check_misc_blacklist(name: &str, call: &ast::ExprCall, context: &Context) -> 
     None
 }
 
+/// Rule for detecting logging of potentially sensitive data.
 pub struct LoggingSensitiveDataRule;
 impl Rule for LoggingSensitiveDataRule {
     fn name(&self) -> &'static str {
@@ -201,6 +206,7 @@ impl Rule for LoggingSensitiveDataRule {
     }
 }
 
+/// Rule for detecting insecure module imports.
 pub struct InsecureImportRule;
 impl Rule for InsecureImportRule {
     fn name(&self) -> &'static str {

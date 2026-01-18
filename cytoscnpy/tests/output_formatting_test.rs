@@ -38,6 +38,7 @@ fn create_mock_result() -> AnalysisResult {
             message: None,
             fix: None,
             is_enum_member: false,
+            is_constant: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -245,6 +246,7 @@ fn test_print_unused_items_with_items() {
         message: None,
         fix: None,
         is_enum_member: false,
+        is_constant: false,
     }];
     let result = print_unused_items(&mut buffer, "Unused Functions", &items, "Function");
     assert!(result.is_ok());
@@ -278,6 +280,7 @@ fn test_print_unused_parameters() {
         message: None,
         fix: None,
         is_enum_member: false,
+        is_constant: false,
     }];
     let result = print_unused_items(&mut buffer, "Unused Parameters", &items, "Parameter");
     assert!(result.is_ok());

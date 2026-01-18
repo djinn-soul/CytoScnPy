@@ -180,65 +180,12 @@ pub struct Definition {
     /// Used to allow simple name matching for Enum members (e.g. `Status.ACTIVE` matching `ACTIVE`).
     #[serde(default)]
     pub is_enum_member: bool,
+    /// Whether this definition is a module-level constant (`UPPER_CASE`).
+    #[serde(default)]
+    pub is_constant: bool,
 }
 
-impl Definition {
-    /// Apply confidence penalties based on naming patterns and context.
-    ///
-    /// This adjusts the `confidence` score to reduce false positives.
-    /// For example, private methods or dunder methods are often implicitly used,
-    /// so we lower the confidence that they are "unused" even if we don't see explicit references.
-    pub fn apply_penalties(&mut self) {
-        let mut confidence: i16 = 100;
-
-        // Private names (starts with _ but not __)
-        if self.simple_name.starts_with('_') && !self.simple_name.starts_with("__") {
-            confidence -= 30;
-        }
-
-        // Dunder/magic methods - zero confidence
-        if self.simple_name.starts_with("__") && self.simple_name.ends_with("__") {
-            confidence = 0;
-        }
-
-        // In __init__.py penalty
-        if self.in_init && (self.def_type == "function" || self.def_type == "class") {
-            confidence -= 20;
-        }
-
-        // Mixin penalty: Methods in *Mixin classes are often used implicitly
-        if self.def_type == "method" && self.full_name.contains("Mixin") {
-            confidence -= 60;
-        }
-
-        // Base/Abstract class penalty: Methods in Base* / *Base / *ABC are often overrides
-        // or interfaces.
-        if self.def_type == "method"
-            && (self.full_name.contains(".Base")
-                || self.full_name.contains("Base")
-                || self.full_name.contains("Abstract")
-                || self.full_name.contains("Interface")
-                || self.full_name.contains("Adapter"))
-        {
-            confidence -= 50;
-        }
-
-        // Framework lifecycle methods
-        if self.def_type == "method" || self.def_type == "function" {
-            if self.simple_name.starts_with("on_") {
-                confidence -= 30;
-            }
-            if self.simple_name.starts_with("watch_") {
-                confidence -= 30;
-            }
-            if self.simple_name == "compose" {
-                confidence -= 40;
-            }
-        }
-
-        self.confidence = u8::try_from(confidence.max(0)).unwrap_or(0);
-    }
-}
+// apply_penalties method removed as it was redundant with heuristics.rs
 
 /// The main visitor for collecting definitions and references from the AST.
 pub struct CytoScnPyVisitor<'a> {
@@ -383,11 +330,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         // These are run by test runners, not called explicitly.
         // 1. Tests: Vulture-style Smart Heuristic
         // If the file looks like a test (tests/ or test_*.py), we are lenient.
-        let file_is_test = self
-            .file_path
-            .to_string_lossy()
-            .to_lowercase()
-            .contains("test");
+        let file_is_test = crate::utils::is_test_path(&self.file_path.to_string_lossy());
         let is_test_function = simple_name.starts_with("test_");
 
         let is_test_class =
@@ -513,6 +456,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             is_self_referential: false,
             message: Some(message),
             fix,
+            is_constant,
         };
 
         self.definitions.push(definition);

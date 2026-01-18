@@ -270,7 +270,9 @@ impl TaintSinkPlugin for BuiltinSinkPlugin {
 
 /// Plugin for dynamic patterns from configuration.
 pub struct DynamicPatternPlugin {
+    /// List of custom source patterns to match.
     pub sources: Vec<String>,
+    /// List of custom sink patterns to match.
     pub sinks: Vec<String>,
 }
 

@@ -174,6 +174,8 @@ def check_tool_availability(tools_config, env=None):
 
             if bin_path and bin_path.exists():
                 status = {"available": True, "reason": "Binary found"}
+            elif isinstance(command, list) and shutil.which(command[0]):
+                status = {"available": True, "reason": "Command found in PATH"}
             elif shutil.which(str(command)):
                 status = {"available": True, "reason": "Command found in PATH"}
             elif bin_path:
@@ -1033,10 +1035,14 @@ def main():
 
     # Rust Binary Path
     # Try project_root/target/release first (workspace root)
-    rust_bin = project_root / "target" / "release" / "cytoscnpy-cli"
+    rust_bin = project_root / "target" / "release" / "cytoscnpy-bin"
     if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
         # Fallback to cytoscnpy/target/release
-        rust_bin = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy-cli"
+        rust_bin = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy-bin"
+    
+    # Second fallback: maybe it was built as 'cytoscnpy'
+    if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
+        rust_bin = project_root / "target" / "release" / "cytoscnpy"
 
     if sys.platform == "win32":
         rust_bin = rust_bin.with_suffix(".exe")
@@ -1201,12 +1207,18 @@ def main():
 
     if run_rust_build:
         print("\n[+] Building Rust project...")
-        cargo_toml = project_root / "cytoscnpy" / "Cargo.toml"
+        cargo_toml = project_root / "Cargo.toml"
         if not cargo_toml.exists():
-            print(f"[-] Cargo.toml not found at {cargo_toml}")
+            # Fallback to sub-directory if not in root
+            cargo_toml = project_root / "cytoscnpy" / "Cargo.toml"
+        
+        if not cargo_toml.exists():
+            print(f"[-] Cargo.toml not found in {project_root} or {project_root/'cytoscnpy'}")
             return
 
-        build_cmd = ["cargo", "build", "--release", "-p", "cytoscnpy-cli", "--manifest-path", str(cargo_toml)]
+        build_cmd = ["cargo", "build", "--release", "-p", "cytoscnpy"]
+        if cargo_toml.parent != project_root:
+             build_cmd.extend(["--manifest-path", str(cargo_toml)])
         subprocess.run(build_cmd, shell=False, check=True)
         print("[+] Rust build successful.")
 

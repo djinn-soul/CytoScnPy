@@ -3,6 +3,7 @@ use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
 
+/// django security rule
 pub struct DjangoSecurityRule;
 impl Rule for DjangoSecurityRule {
     fn name(&self) -> &'static str {

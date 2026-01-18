@@ -56,7 +56,7 @@ pub fn apply_penalties(
 
     // Mixin penalty: Methods in *Mixin classes are often used implicitly
     if def.def_type == "method" && def.full_name.contains("Mixin") {
-        def.confidence = def.confidence.saturating_sub(30);
+        def.confidence = def.confidence.saturating_sub(60);
     }
 
     // Base/Abstract/Interface penalty
@@ -67,7 +67,7 @@ pub fn apply_penalties(
             || def.full_name.contains("Abstract")
             || def.full_name.contains("Interface"))
     {
-        def.confidence = def.confidence.saturating_sub(30);
+        def.confidence = def.confidence.saturating_sub(50);
     }
 
     // Adapter penalty
@@ -80,10 +80,10 @@ pub fn apply_penalties(
     // Framework lifecycle methods
     if def.def_type == "method" || def.def_type == "function" {
         if def.simple_name.starts_with("on_") || def.simple_name.starts_with("watch_") {
-            def.confidence = def.confidence.saturating_sub(50);
+            def.confidence = def.confidence.saturating_sub(30);
         }
         if def.simple_name == "compose" {
-            def.confidence = def.confidence.saturating_sub(50);
+            def.confidence = def.confidence.saturating_sub(40);
         }
     }
 
@@ -109,6 +109,13 @@ pub fn apply_penalties(
         def.confidence = def
             .confidence
             .saturating_sub(*PENALTIES().get("dunder_or_magic").unwrap_or(&100));
+    }
+
+    // Module-level constants
+    if def.is_constant {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("module_constant").unwrap_or(&80));
     }
 
     // In __init__.py

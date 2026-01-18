@@ -3,6 +3,7 @@ use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
+/// Rule for detecting potential path traversal vulnerabilities.
 pub struct PathTraversalRule;
 impl Rule for PathTraversalRule {
     fn name(&self) -> &'static str {
@@ -36,6 +37,7 @@ impl Rule for PathTraversalRule {
     }
 }
 
+/// Rule for detecting insecure temporary file usage.
 pub struct TempfileRule;
 impl Rule for TempfileRule {
     fn name(&self) -> &'static str {
@@ -63,6 +65,7 @@ impl Rule for TempfileRule {
     }
 }
 
+/// Rule for detecting insecure file permission settings.
 pub struct BadFilePermissionsRule;
 impl Rule for BadFilePermissionsRule {
     fn name(&self) -> &'static str {

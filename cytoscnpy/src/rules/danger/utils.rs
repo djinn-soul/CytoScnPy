@@ -5,6 +5,7 @@ use ruff_python_ast::Expr;
 pub const SUBPROCESS_INJECTION_MSG: &str =
     "Potential command injection (subprocess with shell=True and dynamic args)";
 
+/// Extracts the name of a function or method call as a string.
 pub fn get_call_name(func: &Expr) -> Option<String> {
     match func {
         Expr::Name(node) => Some(node.id.to_string()),
@@ -24,6 +25,7 @@ pub fn get_call_name(func: &Expr) -> Option<String> {
     }
 }
 
+/// Checks if the first argument in a list of arguments is a literal value.
 pub fn is_literal(args: &[Expr]) -> bool {
     if let Some(arg) = args.first() {
         is_literal_expr(arg)
@@ -49,6 +51,7 @@ pub fn is_literal_expr(expr: &Expr) -> bool {
     }
 }
 
+/// Creates a security finding with the specified details.
 pub fn create_finding(
     msg: &str,
     rule_id: &str,

@@ -5,10 +5,10 @@
 #![allow(clippy::needless_raw_string_hashes)]
 #![allow(clippy::str_to_string)]
 
-use cytoscnpy::taint::analyzer::{TaintAnalyzer, TaintConfig};
+use cytoscnpy::taint::analyzer::TaintAnalyzer;
 use cytoscnpy::taint::crossfile::{analyze_project, CrossFileAnalyzer};
 use cytoscnpy::utils::LineIndex;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 // =============================================================================
 // CROSSFILE ANALYZER BASIC TESTS

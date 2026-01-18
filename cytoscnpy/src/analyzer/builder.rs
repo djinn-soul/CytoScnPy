@@ -68,6 +68,8 @@ impl CytoScnPy {
         self
     }
 
+    /// Builder-style method to enable danger (security) scanning.
+    #[must_use]
     pub fn with_danger(mut self, enabled: bool) -> Self {
         self.enable_danger = enabled;
         self

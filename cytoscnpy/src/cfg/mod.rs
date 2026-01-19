@@ -227,6 +227,9 @@ impl<'a> Visitor<'a> for NameCollector<'a> {
                 if let Some(rest) = &p.rest {
                     self.defs.insert((rest.to_string(), self.current_line));
                 }
+                for key in &p.keys {
+                    self.visit_expr(key);
+                }
                 for pattern in &p.patterns {
                     self.visit_pattern(pattern);
                 }

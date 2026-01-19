@@ -163,25 +163,33 @@ def check_tool_availability(tools_config, env=None):
 
         # Special checks for each tool type
         if name == "CytoScnPy (Rust)":
-            # Check if binary exists
-            bin_path = None
+            # Handles "cargo run ..." or explicit binary paths
+            is_valid = False
             if isinstance(command, list):
-                bin_path = Path(command[0])
+                if command[0] == "cargo":
+                     if shutil.which("cargo"):
+                        status = {"available": True, "reason": "Cargo found"}
+                        is_valid = True
+                     else:
+                        status["reason"] = "Cargo not found in PATH"
+                else:
+                    # Generic binary path in list
+                     bin_path = Path(command[0])
+                     if bin_path.exists() or shutil.which(command[0]):
+                        status = {"available": True, "reason": "Binary found"}
+                        is_valid = True
+                     else:
+                        status["reason"] = f"Binary not found: {command[0]}"
             else:
-                match = re.search(r'"([^"]+)"', command)
-                if match:
-                    bin_path = Path(match.group(1))
-
-            if bin_path and bin_path.exists():
-                status = {"available": True, "reason": "Binary found"}
-            elif isinstance(command, list) and shutil.which(command[0]):
-                status = {"available": True, "reason": "Command found in PATH"}
-            elif shutil.which(str(command)):
-                status = {"available": True, "reason": "Command found in PATH"}
-            elif bin_path:
-                status["reason"] = f"Binary not found: {bin_path}"
-            else:
-                status["reason"] = "Could not parse binary path and command not in PATH"
+                 # String command
+                 match = re.search(r'"([^"]+)"', command)
+                 bin_path = Path(match.group(1)) if match else Path(command)
+                 
+                 if bin_path.exists() or shutil.which(str(command)):
+                    status = {"available": True, "reason": "Binary found"}
+                    is_valid = True
+                 else:
+                     status["reason"] = f"Binary not found: {bin_path if bin_path else command}"
 
         elif name == "CytoScnPy (Python)":
             # Check if cytoscnpy module is importable
@@ -922,6 +930,11 @@ class Verification:
                 "Precision": precision,
                 "Recall": recall,
                 "F1": f1,
+                "missed_items": [
+                    f"{t[3]} ({os.path.basename(t[0])}:{t[1]})"
+                    for t in truth_remaining
+                    if t[2] == key or (key == "overall")
+                ],
             }
 
         return results
@@ -1039,7 +1052,7 @@ def main():
     if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
         # Fallback to cytoscnpy/target/release
         rust_bin = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy-bin"
-    
+
     # Second fallback: maybe it was built as 'cytoscnpy'
     if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
         rust_bin = project_root / "target" / "release" / "cytoscnpy"
@@ -1211,7 +1224,7 @@ def main():
         if not cargo_toml.exists():
             # Fallback to sub-directory if not in root
             cargo_toml = project_root / "cytoscnpy" / "Cargo.toml"
-        
+
         if not cargo_toml.exists():
             print(f"[-] Cargo.toml not found in {project_root} or {project_root/'cytoscnpy'}")
             return
@@ -1339,10 +1352,14 @@ def main():
                 # Ensure current is treated as a dict
                 current = current_item
                 # specific tool matching
-                base = next(
-                    (b for b in baseline["results"] if b["name"] == current["name"]),
-                    None,
-                )
+                try:
+                    base = next(
+                        (b for b in baseline.get("results", []) if b.get("name") == current["name"]),
+                        None,
+                    )
+                except Exception:
+                    continue
+                
                 if not base:
                     print(f"    [?] New tool found (no baseline): {current['name']}")
                     continue

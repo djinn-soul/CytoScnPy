@@ -193,12 +193,75 @@ impl CytoScnPy {
 
                 // 1. Synchronize reference counts from visitor's bag before refinement
                 let ref_counts = visitor.references.clone();
+
+                // Pre-compute simple name uniqueness to safely use fallback
+                let mut simple_name_counts: rustc_hash::FxHashMap<String, usize> =
+                    rustc_hash::FxHashMap::default();
+                for def in &visitor.definitions {
+                    *simple_name_counts
+                        .entry(def.simple_name.clone())
+                        .or_insert(0) += 1;
+                }
+
+                // Pre-compute full_name -> def_type for scope lookups
+                let mut def_type_map: rustc_hash::FxHashMap<String, String> =
+                    rustc_hash::FxHashMap::default();
+                for def in &visitor.definitions {
+                    def_type_map.insert(def.full_name.clone(), def.def_type.clone());
+                }
+
                 for def in &mut visitor.definitions {
+                    let mut current_refs = 0;
+                    let is_unique = simple_name_counts
+                        .get(&def.simple_name)
+                        .copied()
+                        .unwrap_or(0)
+                        == 1;
+
+                    // 1. Try full qualified name match (Preferred)
                     if let Some(count) = ref_counts.get(&def.full_name) {
-                        def.references = *count;
-                    } else {
-                        // full_name didn't match - try fallback strategies
-                        // For enum members, prefer qualified class.member matching
+                        current_refs = if def.full_name.split('.').count() > 2 {
+                            *count
+                        } else {
+                            *count // Removed saturating_sub(1)
+                        };
+                    }
+
+                    // 2. Fallback strategies if not found
+                    if current_refs == 0 {
+                        let mut fallback_refs = 0;
+
+                        // Strategy A: Simple name match (Variables/Imports)
+                        // Only safe if the name is unique to avoid ambiguity
+                        if is_unique && !def.is_enum_member {
+                            if let Some(count) = ref_counts.get(&def.simple_name) {
+                                fallback_refs += *count;
+                            }
+                        }
+
+                        // Strategy B: Dot-prefixed attribute match (.attr)
+                        // Used for methods and attributes where `obj.attr` is used but `obj` type is unknown.
+                        // We check this ONLY if the definition is likely an attribute/method.
+                        let is_attribute_like = match def.def_type.as_str() {
+                            "method" | "class" | "class_variable" => true,
+                            "variable" | "parameter" => {
+                                // Check if parent scope is a Class
+                                if let Some((parent, _)) = def.full_name.rsplit_once('.') {
+                                    def_type_map.get(parent).map_or(false, |t| t == "class")
+                                } else {
+                                    false
+                                }
+                            }
+                            _ => false,
+                        };
+
+                        if is_attribute_like {
+                            if let Some(count) = ref_counts.get(&format!(".{}", def.simple_name)) {
+                                fallback_refs += *count;
+                            }
+                        }
+
+                        // Strategy C: Enum Member special fallback
                         if def.is_enum_member {
                             if let Some(dot_idx) = def.full_name.rfind('.') {
                                 let parent = &def.full_name[..dot_idx];
@@ -206,20 +269,23 @@ impl CytoScnPy {
                                     let class_member =
                                         format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
                                     if let Some(count) = ref_counts.get(&class_member) {
-                                        def.references = *count;
-                                        continue;
+                                        fallback_refs = fallback_refs.max(*count);
                                     }
                                 }
                             }
-                            // For enum members, do NOT use bare-name fallback
-                            continue;
                         }
-                        // Fallback to simple name for all non-enum types (including variables)
-                        // This fixes cross-file references like `module.CONSTANT`
-                        if let Some(count) = ref_counts.get(&def.simple_name) {
-                            def.references = *count;
+
+                        // Apply fallback result
+                        if fallback_refs > 0 {
+                            current_refs = if def.full_name.split('.').count() > 2 {
+                                fallback_refs
+                            } else {
+                                fallback_refs // Removed saturating_sub(1)
+                            };
                         }
                     }
+
+                    def.references = current_refs;
                 }
 
                 // 1.5. Populate is_captured and mark as used if captured
@@ -243,7 +309,8 @@ impl CytoScnPy {
                     }
 
                     // 2. Any local eval affects module-level variables (globals)
-                    if any_dynamic {
+                    // Skip secrets - they should be reported even if there is an eval.
+                    if any_dynamic && !def.is_potential_secret {
                         if let Some(idx) = def.full_name.rfind('.') {
                             if &def.full_name[..idx] == &module_name {
                                 def.references += 1;
@@ -501,12 +568,62 @@ impl CytoScnPy {
 
                 // Sync and Refine
                 let ref_counts = visitor.references.clone();
+                // Pre-compute maps
+                let mut def_type_map: rustc_hash::FxHashMap<String, String> =
+                    rustc_hash::FxHashMap::default();
+                let mut simple_name_counts: rustc_hash::FxHashMap<String, usize> =
+                    rustc_hash::FxHashMap::default();
+
+                for def in &visitor.definitions {
+                    def_type_map.insert(def.full_name.clone(), def.def_type.clone());
+                    *simple_name_counts
+                        .entry(def.simple_name.clone())
+                        .or_insert(0) += 1;
+                }
+
                 for def in &mut visitor.definitions {
+                    let mut current_refs = 0;
+                    let is_unique = simple_name_counts
+                        .get(&def.simple_name)
+                        .copied()
+                        .unwrap_or(0)
+                        == 1;
+
                     if let Some(count) = ref_counts.get(&def.full_name) {
-                        def.references = *count;
-                    } else {
-                        // full_name didn't match - try fallback strategies
-                        // For enum members, prefer qualified class.member matching
+                        current_refs = if def.full_name.split('.').count() > 2 {
+                            *count
+                        } else {
+                            *count
+                        };
+                    }
+
+                    if current_refs == 0 {
+                        let mut fallback_refs = 0;
+
+                        if is_unique && !def.is_enum_member {
+                            if let Some(count) = ref_counts.get(&def.simple_name) {
+                                fallback_refs += *count;
+                            }
+                        }
+
+                        let is_attribute_like = match def.def_type.as_str() {
+                            "method" | "class" | "class_variable" => true,
+                            "variable" | "parameter" => {
+                                if let Some((parent, _)) = def.full_name.rsplit_once('.') {
+                                    def_type_map.get(parent).map_or(false, |t| t == "class")
+                                } else {
+                                    false
+                                }
+                            }
+                            _ => false,
+                        };
+
+                        if is_attribute_like {
+                            if let Some(count) = ref_counts.get(&format!(".{}", def.simple_name)) {
+                                fallback_refs += *count;
+                            }
+                        }
+
                         if def.is_enum_member {
                             if let Some(dot_idx) = def.full_name.rfind('.') {
                                 let parent = &def.full_name[..dot_idx];
@@ -514,20 +631,21 @@ impl CytoScnPy {
                                     let class_member =
                                         format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
                                     if let Some(count) = ref_counts.get(&class_member) {
-                                        def.references = *count;
-                                        continue;
+                                        fallback_refs = fallback_refs.max(*count);
                                     }
                                 }
                             }
-                            // For enum members, do NOT use bare-name fallback
-                            continue;
                         }
-                        // Fallback to simple name for all non-enum types (including variables)
-                        // This fixes cross-file references like `module.CONSTANT`
-                        if let Some(count) = ref_counts.get(&def.simple_name) {
-                            def.references = *count;
+
+                        if fallback_refs > 0 {
+                            current_refs = if def.full_name.split('.').count() > 2 {
+                                fallback_refs
+                            } else {
+                                fallback_refs
+                            };
                         }
                     }
+                    def.references = current_refs;
                 }
 
                 // 1.5. Populate is_captured and mark as used if captured
@@ -781,6 +899,13 @@ impl CytoScnPy {
 
         for def in visitor.definitions {
             if def.confidence >= self.confidence_threshold && def.references == 0 {
+                // Check for valid suppression
+                // Note: is_line_suppressed handles "no cytoscnpy" and specific rules if we supported them for variables
+                // For now, we assume any suppression on the line applies to the unused variable finding
+                if crate::utils::is_line_suppressed(&ignored_lines, def.line, "CSP-V001") {
+                    continue;
+                }
+
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
                     "method" => unused_methods.push(def),
@@ -830,7 +955,8 @@ impl CytoScnPy {
         }
 
         for (func_name, (start_line, end_line)) in function_scopes {
-            if dynamic_scopes.contains(&func_name) {
+            let simple_name = func_name.split('.').next_back().unwrap_or(&func_name);
+            if dynamic_scopes.contains(&func_name) || dynamic_scopes.contains(simple_name) {
                 continue;
             }
             let lines: Vec<&str> = source
@@ -839,7 +965,6 @@ impl CytoScnPy {
                 .take(end_line.saturating_sub(start_line) + 1)
                 .collect();
             let func_source = lines.join("\n");
-            let simple_name = func_name.split('.').next_back().unwrap_or(&func_name);
 
             if let Some(cfg) = Cfg::from_source(&func_source, simple_name) {
                 let flow_results = analyze_reaching_definitions(&cfg);
@@ -848,12 +973,10 @@ impl CytoScnPy {
                         && def.full_name.starts_with(&func_name)
                     {
                         let relative_name = &def.full_name[func_name.len()..];
-                        if let Some(var_name) = relative_name.strip_prefix('.') {
+                        if let Some(var_key) = relative_name.strip_prefix('.') {
                             let rel_line = def.line.saturating_sub(start_line) + 1;
-                            if !flow_results.is_def_used(&cfg, var_name, rel_line)
-                                && def.references > 0
-                                && !def.is_captured
-                            {
+                            let is_used = flow_results.is_def_used(&cfg, var_key, rel_line);
+                            if !is_used && def.references > 0 && !def.is_captured {
                                 def.references = 0;
                             }
                         }

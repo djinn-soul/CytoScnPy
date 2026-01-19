@@ -81,13 +81,27 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
             None
         }
 
-        // Method call: tainted if receiver is tainted (e.g., tainted.upper())
+        // Call: tainted if receiver is tainted OR if any argument is tainted
         Expr::Call(call) => {
+            // Check receiver first (for methods)
             if let Expr::Attribute(attr) = &*call.func {
-                is_expr_tainted(&attr.value, state)
-            } else {
-                None
+                if let Some(info) = is_expr_tainted(&attr.value, state) {
+                    return Some(info);
+                }
             }
+            // Check positional arguments
+            for arg in &call.arguments.args {
+                if let Some(info) = is_expr_tainted(arg, state) {
+                    return Some(info);
+                }
+            }
+            // Check keyword arguments
+            for kw in &call.arguments.keywords {
+                if let Some(info) = is_expr_tainted(&kw.value, state) {
+                    return Some(info);
+                }
+            }
+            None
         }
 
         // Attribute access: tainted if value is tainted

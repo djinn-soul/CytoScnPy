@@ -25,13 +25,15 @@ pub fn get_call_name(func: &Expr) -> Option<String> {
     }
 }
 
-/// Checks if the first argument in a list of arguments is a literal value.
+/// Checks if all arguments in a list are literal values.
 pub fn is_literal(args: &[Expr]) -> bool {
-    if let Some(arg) = args.first() {
-        is_literal_expr(arg)
-    } else {
-        true // No args is "literal" in the sense of safe
-    }
+    args.iter().all(is_literal_expr)
+}
+
+/// Checks if a specific argument in a list (by index) is a literal value.
+/// If the index is out of bounds, it returns true (assumed safe).
+pub fn is_arg_literal(args: &[Expr], index: usize) -> bool {
+    args.get(index).map_or(true, is_literal_expr)
 }
 
 /// Check if a single expression is a literal (constant value).

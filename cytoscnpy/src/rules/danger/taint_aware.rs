@@ -139,9 +139,11 @@ impl TaintAwareDangerAnalyzer {
     /// to reflect the higher risk.
     pub fn enhance_severity_with_taint(findings: &mut [Finding], taint_context: &TaintContext) {
         let taint_sensitive_rules = crate::constants::get_taint_sensitive_rules();
+        let inherently_dangerous = ["CSP-D001", "CSP-D002", "CSP-D003"];
 
         for finding in findings.iter_mut() {
-            if taint_sensitive_rules.contains(&finding.rule_id.as_str())
+            if (taint_sensitive_rules.contains(&finding.rule_id.as_str())
+                || inherently_dangerous.contains(&finding.rule_id.as_str()))
                 && taint_context.is_line_tainted(finding.line)
             {
                 // Upgrade severity for tainted injection findings

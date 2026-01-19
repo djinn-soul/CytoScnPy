@@ -48,8 +48,8 @@ pub fn get_danger_rules() -> Vec<Box<dyn Rule>> {
         // Category 2: Injection Attacks (CSP-D1xx)
         // ═══════════════════════════════════════════════════════════════════════
         Box::new(SqlInjectionRule),    // CSP-D101: SQL injection (ORM)
-        Box::new(SqlInjectionRawRule), // CSP-D102: SQL injection (raw)
-        Box::new(XSSRule),             // CSP-D103: Cross-site scripting
+        Box::new(SqlInjectionRawRule), // CSP-D102: SQL injection (raw, SQLAlchemy, JinjaSQL, Template)
+        Box::new(XSSRule),             // CSP-D103: Cross-site scripting (Flask, Django, FastAPI)
         Box::new(XmlRule),             // CSP-D104: Insecure XML parsing (XXE/DoS)
         // ═══════════════════════════════════════════════════════════════════════
         // Category 3: Deserialization (CSP-D2xx)

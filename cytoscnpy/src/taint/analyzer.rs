@@ -256,6 +256,7 @@ impl TaintSinkPlugin for BuiltinSinkPlugin {
             vuln_type: info.vuln_type,
             severity: info.severity,
             dangerous_args: info.dangerous_args,
+            dangerous_keywords: info.dangerous_keywords,
             remediation: info.remediation,
         })
     }
@@ -321,6 +322,7 @@ impl TaintSinkPlugin for DynamicPatternPlugin {
                         vuln_type: VulnType::CodeInjection,
                         severity: Severity::High,
                         dangerous_args: vec![0], // Assume first arg is dangerous by default for custom sinks
+                        dangerous_keywords: Vec::new(),
                         remediation: "Review data flow to this custom sink.".to_owned(),
                     });
                 }

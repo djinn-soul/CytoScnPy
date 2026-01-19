@@ -366,9 +366,6 @@ pub fn get_taint_sensitive_rules() -> &'static [&'static str] {
     static RULES: OnceLock<Vec<&'static str>> = OnceLock::new();
     RULES.get_or_init(|| {
         vec![
-            "CSP-D001", // Eval
-            "CSP-D002", // Exec
-            "CSP-D003", // Subprocess
             "CSP-D101", // SQL Injection (ORM)
             "CSP-D102", // SQL Injection (Raw)
             "CSP-D402", // SSRF

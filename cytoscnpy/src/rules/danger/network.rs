@@ -1,4 +1,4 @@
-use super::utils::{create_finding, get_call_name, is_literal};
+use super::utils::{create_finding, get_call_name, is_arg_literal};
 use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
@@ -71,7 +71,7 @@ impl Rule for SSRFRule {
                                     "Potential SSRF (dynamic URL in positional arg 2)",
                                     self.code(),
                                     context,
-                                    call.arguments.args[1].range().start(),
+                                    call.range().start(),
                                     "CRITICAL",
                                 ));
                             }
@@ -80,13 +80,13 @@ impl Rule for SSRFRule {
                             // Note: is_literal checks if ALL args are literal. If any is dynamic, logic assumes risk.
                             // Ideally we just check the first arg for exactness, but keeping existing heuristic for now
                             // unless strictly asked only for .request change.
-                            // The guard !is_literal(&call.arguments.args) covers the "any dynamic arg" case.
-                            if !is_literal(&call.arguments.args) {
+                            // The guard !is_arg_literal(&call.arguments.args, 0) covers the "URL arg must be literal" case.
+                            if !is_arg_literal(&call.arguments.args, 0) {
                                 findings.push(create_finding(
                                     "Potential SSRF (dynamic URL in positional arg)",
                                     self.code(),
                                     context,
-                                    call.range.start(),
+                                    call.range().start(),
                                     "CRITICAL",
                                 ));
                             }
@@ -105,7 +105,7 @@ impl Rule for SSRFRule {
                                         .as_str(),
                                     self.code(),
                                     context,
-                                    keyword.value.range().start(),
+                                    call.range().start(),
                                     "CRITICAL",
                                 ));
                             }

@@ -182,6 +182,8 @@ pub struct SinkMatch {
     pub severity: Severity,
     /// Which argument indices are dangerous (0-indexed)
     pub dangerous_args: Vec<usize>,
+    /// Which keyword arguments are dangerous
+    pub dangerous_keywords: Vec<String>,
     /// Remediation advice
     pub remediation: String,
 }

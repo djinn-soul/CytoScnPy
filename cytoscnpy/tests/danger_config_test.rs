@@ -4,7 +4,6 @@ use cytoscnpy::config::Config;
 use std::path::Path;
 
 #[test]
-#[test]
 fn test_excluded_rules() {
     let code = "eval('import os')"; // Triggers CSP-D001 (Exec/Eval)
     let mut config = Config::default();

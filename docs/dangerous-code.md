@@ -31,11 +31,3 @@ Use the `--severity-threshold` flag to filter results:
 ```bash
 cytoscnpy --danger --severity-threshold HIGH .
 ```
-
----
-
-## Taint-Aware Analysis
-
-Some danger rules are **taint-aware**, meaning they only report a finding if the risky sink (e.g., `eval`) is reached by data from an untrusted source (e.g., `request.args`). This significantly reduces false positives.
-
-For more information on taint analysis, see the [Taint Analysis Guide](../taint-analysis.md) (if available).

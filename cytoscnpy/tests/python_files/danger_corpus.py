@@ -174,3 +174,58 @@ zipfile.Path(user_input) # Unsafe (positional)
 Path("/etc/passwd") # Safe (literal)
 PurePath("C:\\Windows") # Safe (literal)
 zipfile.Path("archive.zip", at="data/file.txt") # Safe (literal)
+# Multi-argument path traversal (Comment 1)
+pathlib.Path("safe_prefix", user_input) # Unsafe (dynamic second arg)
+os.path.join("safe", user_input) # Unsafe
+os.path.abspath(user_input) # Unsafe (Comment 1)
+# Multi-line cases for SSRF (Comment 1)
+requests.get(
+    url=user_input
+)
+
+# Expand SQLi/XSS# Template and JinjaSQL (Comment 1)
+from string import Template
+user_sql = input()
+user_params = {"id": input()}
+Template(user_sql).substitute(user_params) # Unsafe
+Template("$sql").substitute(sql=user_sql) # Unsafe
+
+from jinjasql import JinjaSql
+j = JinjaSql()
+query, params = j.prepare_query(user_sql, user_params) # Unsafe
+j.prepare_query("SELECT * FROM table WHERE id={{id}}", user_params) # Unsafe (params dynamic)
+
+import flask
+flask.Markup(user_html)  # CSP-D103
+from django.utils.html import format_html
+format_html("<b>{}</b>", user_html)  # CSP-D103
+from fastapi import HTMLResponse
+HTMLResponse(content=user_html)  # CSP-D103
+
+# Refined Literal Argument Checking (Regression Tests)
+import requests
+import os
+import subprocess
+t = 10
+d = {"key": "value"}
+requests.get("https://safe.com", timeout=t) # Safe: URL is literal
+requests.post("https://safe.com", data=d) # Safe: URL is literal
+os.system("ls") # Safe: Literal command
+subprocess.run(["ls"], shell=True, timeout=t) # Safe: Command is literal list
+
+# Further Security Rule Refinements (Regression Tests)
+import asyncio
+from fastapi import HTMLResponse
+import os
+
+# Comment 1: Path Traversal focuses on index 0
+open("literal.txt", mode=os.environ.get("MODE", "r")) # Safe
+asyncio.run(asyncio.create_subprocess_shell("ls", stdout=asyncio.PIPE)) # Safe
+
+# Comment 2: XSS restricts keywords
+HTMLResponse(content="<b>Safe</b>", status_code=os.getpid()) # Safe
+HTMLResponse(content=os.environ.get("HTML"), status_code=200) # Unsafe (content is dynamic)
+
+# Comment 3: os.path track all positional args (Taint analysis)
+# This is better verified in dedicated taint tests, but we'll add the pattern here.
+os.path.join("a", "b", os.environ.get("TAINTED")) # Should be flagged in taint mode

@@ -1,6 +1,6 @@
 use super::utils::{
-    create_finding, get_call_name, is_likely_tarfile_receiver, is_likely_zipfile_receiver,
-    is_literal, is_literal_expr, SUBPROCESS_INJECTION_MSG,
+    create_finding, get_call_name, is_arg_literal, is_likely_tarfile_receiver,
+    is_likely_zipfile_receiver, is_literal_expr, SUBPROCESS_INJECTION_MSG,
 };
 use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr};
@@ -152,7 +152,7 @@ impl Rule for SubprocessRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if name == "os.system" && !is_literal(&call.arguments.args) {
+                if name == "os.system" && !is_arg_literal(&call.arguments.args, 0) {
                     return Some(vec![create_finding(
                         "Potential command injection (os.system with dynamic arg)",
                         self.code(),
@@ -184,7 +184,9 @@ impl Rule for SubprocessRule {
                     }
 
                     if is_shell_true {
-                        if !call.arguments.args.is_empty() && !is_literal(&call.arguments.args) {
+                        if !call.arguments.args.is_empty()
+                            && !is_arg_literal(&call.arguments.args, 0)
+                        {
                             return Some(vec![create_finding(
                                 SUBPROCESS_INJECTION_MSG,
                                 self.code(),
@@ -288,20 +290,69 @@ impl Rule for SqlInjectionRawRule {
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
+            let mut is_sqli = false;
+
             if let Some(name) = get_call_name(&call.func) {
                 if (name == "sqlalchemy.text"
                     || name == "pandas.read_sql"
-                    || name.ends_with(".objects.raw"))
-                    && !is_literal(&call.arguments.args)
+                    || name.ends_with(".objects.raw")
+                    || name.contains("Template.substitute")
+                    || name.starts_with("jinjasql."))
+                    && !is_arg_literal(&call.arguments.args, 0)
                 {
-                    return Some(vec![create_finding(
-                        "Potential SQL injection (dynamic raw SQL)",
-                        self.code(),
-                        context,
-                        call.range().start(),
-                        "CRITICAL",
-                    )]);
+                    is_sqli = true;
                 }
+            }
+
+            // Comment 1: Handle Template(...).substitute() and JinjaSql.prepare_query()
+            if !is_sqli {
+                if let Expr::Attribute(attr) = &*call.func {
+                    let attr_name = attr.attr.as_str();
+                    if attr_name == "substitute" || attr_name == "safe_substitute" {
+                        // Check if receiver is a Call to Template()
+                        if let Expr::Call(inner_call) = &*attr.value {
+                            if let Some(inner_name) = get_call_name(&inner_call.func) {
+                                if inner_name == "Template" || inner_name == "string.Template" {
+                                    // If either the template itself or the substitution values are dynamic
+                                    if !is_arg_literal(&inner_call.arguments.args, 0)
+                                        || !is_arg_literal(&call.arguments.args, 0)
+                                        || call
+                                            .arguments
+                                            .keywords
+                                            .iter()
+                                            .any(|k| !is_literal_expr(&k.value))
+                                    {
+                                        is_sqli = true;
+                                    }
+                                }
+                            }
+                        }
+                    } else if attr_name == "prepare_query" {
+                        // Check if receiver is instantiated from JinjaSql or called on a likely JinjaSql object
+                        let is_jinja = match &*attr.value {
+                            Expr::Call(inner) => get_call_name(&inner.func)
+                                .is_some_and(|n| n == "JinjaSql" || n == "jinjasql.JinjaSql"),
+                            Expr::Name(n) => {
+                                let id = n.id.as_str().to_lowercase();
+                                id == "j" || id.contains("jinjasql")
+                            }
+                            _ => false,
+                        };
+                        if is_jinja && !is_arg_literal(&call.arguments.args, 0) {
+                            is_sqli = true;
+                        }
+                    }
+                }
+            }
+
+            if is_sqli {
+                return Some(vec![create_finding(
+                    "Potential SQL injection (dynamic raw SQL)",
+                    self.code(),
+                    context,
+                    call.range().start(),
+                    "CRITICAL",
+                )]);
             }
         }
         None
@@ -320,8 +371,20 @@ impl Rule for XSSRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if (name == "flask.render_template_string" || name == "jinja2.Markup")
-                    && !is_literal(&call.arguments.args)
+                if (name == "flask.render_template_string"
+                    || name == "jinja2.Markup"
+                    || name == "flask.Markup"
+                    || name.starts_with("django.utils.html.format_html")
+                    || name == "format_html"
+                    || name.ends_with(".HTMLResponse")
+                    || name == "HTMLResponse")
+                    && (!is_arg_literal(&call.arguments.args, 0)
+                        || call.arguments.keywords.iter().any(|k| {
+                            k.arg.as_ref().is_some_and(|a| {
+                                let s = a.as_str();
+                                s == "content" || s == "body" || s == "source" || s == "template"
+                            }) && !is_literal_expr(&k.value)
+                        }))
                 {
                     return Some(vec![create_finding(
                         "Potential XSS (dynamic template/markup)",
@@ -517,7 +580,9 @@ impl Rule for AsyncSubprocessRule {
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if name == "asyncio.create_subprocess_shell" && !is_literal(&call.arguments.args) {
+                if name == "asyncio.create_subprocess_shell"
+                    && !is_arg_literal(&call.arguments.args, 0)
+                {
                     return Some(vec![create_finding(
                         "Potential command injection (asyncio.create_subprocess_shell with dynamic args)",
                         self.code(),
@@ -531,7 +596,7 @@ impl Rule for AsyncSubprocessRule {
                     || name == "os.popen2"
                     || name == "os.popen3"
                     || name == "os.popen4")
-                    && !is_literal(&call.arguments.args)
+                    && !is_arg_literal(&call.arguments.args, 0)
                 {
                     return Some(vec![create_finding(
                         "Potential command injection (os.popen with dynamic args). Use subprocess module instead.",
@@ -542,7 +607,7 @@ impl Rule for AsyncSubprocessRule {
                     )]);
                 }
 
-                if name == "pty.spawn" && !is_literal(&call.arguments.args) {
+                if name == "pty.spawn" && !is_arg_literal(&call.arguments.args, 0) {
                     return Some(vec![create_finding(
                         "Potential command injection (pty.spawn with dynamic args)",
                         self.code(),

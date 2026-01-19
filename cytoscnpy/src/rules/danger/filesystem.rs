@@ -1,4 +1,4 @@
-use super::utils::{create_finding, get_call_name, is_literal, is_literal_expr};
+use super::utils::{create_finding, get_call_name, is_arg_literal, is_literal, is_literal_expr};
 use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
@@ -28,7 +28,20 @@ impl Rule for PathTraversalRule {
                     || name == "WindowsPath"
                     || name == "zipfile.Path"
                 {
-                    let is_dynamic_args = !is_literal(&call.arguments.args);
+                    let is_dynamic_args = if name == "open"
+                        || name == "os.open"
+                        || name.starts_with("pathlib.")
+                        || name == "Path"
+                        || name == "PurePath"
+                        || name == "PosixPath"
+                        || name == "WindowsPath"
+                    {
+                        !is_arg_literal(&call.arguments.args, 0)
+                    } else {
+                        // For os.path.join and shutil functions, multiple positional args can be paths
+                        !is_literal(&call.arguments.args)
+                    };
+
                     let is_dynamic_kwargs = call.arguments.keywords.iter().any(|kw| {
                         kw.arg.as_ref().is_some_and(|a| {
                             let s = a.as_str();

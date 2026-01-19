@@ -16,6 +16,8 @@ pub struct SinkInfo {
     pub severity: Severity,
     /// Which argument positions are dangerous (0-indexed)
     pub dangerous_args: Vec<usize>,
+    /// Which keyword arguments are dangerous
+    pub dangerous_keywords: Vec<String>,
     /// Suggested remediation
     pub remediation: String,
 }
@@ -32,6 +34,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::CodeInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Avoid eval() with user input. Use ast.literal_eval() for safe parsing."
                 .to_owned(),
         });
@@ -43,6 +46,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::CodeInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Avoid exec() with user input. Consider safer alternatives.".to_owned(),
         });
     }
@@ -53,6 +57,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::CodeInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Avoid compile() with user input.".to_owned(),
         });
     }
@@ -64,6 +69,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::SqlInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use parameterized queries: cursor.execute(sql, (param,))".to_owned(),
         });
     }
@@ -76,6 +82,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::SqlInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use bound parameters: text('SELECT * WHERE id=:id').bindparams(id=val)"
                 .to_owned(),
         });
@@ -87,6 +94,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::SqlInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use Django ORM methods instead of raw SQL.".to_owned(),
         });
     }
@@ -97,6 +105,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::SqlInjection,
             severity: Severity::High,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use parameterized queries with pd.read_sql(sql, con, params=[...])"
                 .to_owned(),
         });
@@ -109,6 +118,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::CommandInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use subprocess.run() with shell=False and a list of arguments."
                 .to_owned(),
         });
@@ -120,6 +130,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::CommandInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use subprocess.run() with shell=False.".to_owned(),
         });
     }
@@ -131,6 +142,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::CommandInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use shell=False and pass arguments as a list.".to_owned(),
         });
     }
@@ -142,17 +154,19 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::PathTraversal,
             severity: Severity::High,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Validate and sanitize file paths. Use os.path.basename() or pathlib."
                 .to_owned(),
         });
     }
 
-    if name.starts_with("shutil.") {
+    if name.starts_with("shutil.") || name.starts_with("os.path.") {
         return Some(SinkInfo {
             name,
             vuln_type: VulnType::PathTraversal,
             severity: Severity::High,
-            dangerous_args: vec![0, 1],
+            dangerous_args: vec![], // Sentinel: check all positional args
+            dangerous_keywords: vec!["path".to_owned(), "src".to_owned(), "dst".to_owned()],
             remediation: "Validate file paths before file operations.".to_owned(),
         });
     }
@@ -172,6 +186,13 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::PathTraversal,
             severity: Severity::High,
             dangerous_args: vec![0],
+            dangerous_keywords: vec![
+                "path".to_owned(),
+                "at".to_owned(),
+                "file".to_owned(),
+                "filename".to_owned(),
+                "filepath".to_owned(),
+            ],
             remediation: "Validate and sanitize file paths. Use os.path.basename() or pathlib."
                 .to_owned(),
         });
@@ -183,11 +204,17 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         || name == "urllib.request.urlopen"
         || name == "urlopen"
     {
+        let dangerous_args = if name.ends_with(".request") {
+            vec![1]
+        } else {
+            vec![0]
+        };
         return Some(SinkInfo {
             name,
             vuln_type: VulnType::Ssrf,
             severity: Severity::Critical,
-            dangerous_args: vec![0],
+            dangerous_args,
+            dangerous_keywords: vec!["url".to_owned(), "uri".to_owned(), "address".to_owned()],
             remediation: "Validate URLs against an allowlist. Block internal/private IP ranges."
                 .to_owned(),
         });
@@ -200,6 +227,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::Xss,
             severity: Severity::High,
             dangerous_args: vec![0],
+            dangerous_keywords: vec!["source".to_owned()],
             remediation: "Use render_template() with template files instead.".to_owned(),
         });
     }
@@ -210,6 +238,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::Xss,
             severity: Severity::High,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Escape user input before marking as safe.".to_owned(),
         });
     }
@@ -221,6 +250,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::Deserialization,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Avoid unpickling untrusted data. Use JSON or other safe formats."
                 .to_owned(),
         });
@@ -232,6 +262,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::Deserialization,
             severity: Severity::Critical,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Use yaml.safe_load() instead.".to_owned(),
         });
     }
@@ -243,8 +274,45 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vuln_type: VulnType::OpenRedirect,
             severity: Severity::Medium,
             dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
             remediation: "Validate redirect URLs against an allowlist.".to_owned(),
         });
+    }
+
+    // SQL Injection for Template and JinjaSQL
+    if name == "Template.substitute" || name == "JinjaSql.prepare_query" {
+        return Some(SinkInfo {
+            name,
+            vuln_type: VulnType::SqlInjection,
+            severity: Severity::Critical,
+            dangerous_args: vec![0],
+            dangerous_keywords: Vec::new(),
+            remediation: "Avoid building raw SQL strings. Use parameterized queries.".to_owned(),
+        });
+    }
+
+    // JinjaSql instance calls (Comment 1)
+    if let Expr::Attribute(attr) = &*call.func {
+        if attr.attr.as_str() == "prepare_query" {
+            let is_jinja = match &*attr.value {
+                Expr::Name(n) => {
+                    let id = n.id.as_str().to_lowercase();
+                    id == "j" || id.contains("jinjasql")
+                }
+                _ => false,
+            };
+            if is_jinja {
+                return Some(SinkInfo {
+                    name: "JinjaSql.prepare_query".to_owned(),
+                    vuln_type: VulnType::SqlInjection,
+                    severity: Severity::Critical,
+                    dangerous_args: vec![0],
+                    dangerous_keywords: Vec::new(),
+                    remediation: "Avoid building raw SQL strings. Use parameterized queries."
+                        .to_owned(),
+                });
+            }
+        }
     }
 
     None
@@ -279,6 +347,22 @@ fn get_call_name(func: &Expr) -> Option<String> {
                 } else {
                     None
                 }
+            } else if let Expr::Call(inner_call) = &*node.value {
+                // Handling Template(...).substitute() and JinjaSql(...).prepare_query()
+                if let Some(inner_name) = get_call_name(&inner_call.func) {
+                    if (inner_name == "Template" || inner_name == "string.Template")
+                        && (node.attr.as_str() == "substitute"
+                            || node.attr.as_str() == "safe_substitute")
+                    {
+                        return Some("Template.substitute".to_owned());
+                    }
+                    if (inner_name == "JinjaSql" || inner_name == "jinjasql.JinjaSql")
+                        && node.attr.as_str() == "prepare_query"
+                    {
+                        return Some("JinjaSql.prepare_query".to_owned());
+                    }
+                }
+                None
             } else {
                 None
             }
@@ -298,6 +382,7 @@ pub static SINK_PATTERNS: &[&str] = &[
     ".objects.raw",
     "os.system",
     "os.popen",
+    "os.path.",
     "subprocess.",
     "open",
     "shutil.",
@@ -320,4 +405,6 @@ pub static SINK_PATTERNS: &[&str] = &[
     "pickle.loads",
     "yaml.load",
     "redirect",
+    "Template.substitute",
+    "JinjaSql.prepare_query",
 ];

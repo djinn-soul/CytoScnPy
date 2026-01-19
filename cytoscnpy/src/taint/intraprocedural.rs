@@ -380,8 +380,9 @@ fn handle_call_sink(
     // Check if this call is a sink
     if let Some(sink_info) = analyzer.plugins.check_sinks(call) {
         // Check if any dangerous argument is tainted
-        for arg_idx in &sink_info.dangerous_args {
-            if let Some(arg) = call.arguments.args.get(*arg_idx) {
+        if sink_info.dangerous_args.is_empty() {
+            // Sentinel: check all positional arguments
+            for arg in &call.arguments.args {
                 if let Some(taint_info) = is_expr_tainted(arg, state) {
                     // Check for sanitization (e.g., parameterized queries)
                     if sink_info.vuln_type == super::types::VulnType::SqlInjection
@@ -399,12 +400,75 @@ fn handle_call_sink(
                     findings.push(finding);
                 }
             }
+        } else {
+            for arg_idx in &sink_info.dangerous_args {
+                if let Some(arg) = call.arguments.args.get(*arg_idx) {
+                    if let Some(taint_info) = is_expr_tainted(arg, state) {
+                        // Check for sanitization (e.g., parameterized queries)
+                        if sink_info.vuln_type == super::types::VulnType::SqlInjection
+                            && is_parameterized_query(call)
+                        {
+                            continue;
+                        }
+
+                        let finding = create_finding(
+                            &taint_info,
+                            &sink_info,
+                            line_index.line_index(call.range().start()),
+                            file_path,
+                        );
+                        findings.push(finding);
+                    }
+                }
+            }
+        }
+
+        // Check if receiver is tainted for method calls
+        if let Expr::Attribute(attr) = &*call.func {
+            if let Some(taint_info) = is_expr_tainted(&attr.value, state) {
+                let finding = create_finding(
+                    &taint_info,
+                    &sink_info,
+                    line_index.line_index(call.range().start()),
+                    file_path,
+                );
+                findings.push(finding);
+            }
+        }
+
+        // Check if any dangerous keyword is tainted
+        for keyword in &call.arguments.keywords {
+            if let Some(arg_name) = &keyword.arg {
+                if sink_info.dangerous_keywords.contains(&arg_name.to_string()) {
+                    if let Some(taint_info) = is_expr_tainted(&keyword.value, state) {
+                        let finding = create_finding(
+                            &taint_info,
+                            &sink_info,
+                            line_index.line_index(call.range().start()),
+                            file_path,
+                        );
+                        findings.push(finding);
+                    }
+                }
+            }
         }
     }
 
     // Recursively check arguments
     for arg in &call.arguments.args {
         check_expr_for_sinks(arg, analyzer, state, findings, file_path, line_index);
+    }
+
+    // Recursively check keyword arguments
+    for keyword in &call.arguments.keywords {
+        check_expr_for_sinks(
+            &keyword.value,
+            analyzer,
+            state,
+            findings,
+            file_path,
+            line_index,
+        );
     }
 }
 

@@ -184,6 +184,9 @@ pub struct Definition {
     /// Whether this definition is a module-level constant (`UPPER_CASE`).
     #[serde(default)]
     pub is_constant: bool,
+    /// Whether this definition is a potential secret/key.
+    #[serde(default)]
+    pub is_potential_secret: bool,
 }
 
 // apply_penalties method removed as it was redundant with heuristics.rs
@@ -268,7 +271,6 @@ impl<'a> CytoScnPyVisitor<'a> {
     #[must_use]
     #[allow(clippy::too_many_lines)]
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
-        let cached_prefix = module_name.clone();
         let file_path = Arc::new(file_path); // Wrap in Arc once, share everywhere
         Self {
             definitions: Vec::new(),
@@ -290,7 +292,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             captured_definitions: FxHashSet::default(),
             metaclass_classes: FxHashSet::default(),
             self_referential_methods: FxHashSet::default(),
-            cached_scope_prefix: cached_prefix,
+            cached_scope_prefix: String::new(),
             depth: 0,
             recursion_limit_hit: false,
             auto_called: PYTEST_HOOKS().clone(),
@@ -350,9 +352,19 @@ impl<'a> CytoScnPyVisitor<'a> {
         // 3. Standard Entry Points: Common names for script execution.
         let is_standard_entry = matches!(simple_name.as_str(), "main" | "run" | "execute");
 
+        // Check for module-level constants (UPPER_CASE)
+        // These are often configuration or exported constants.
+        // BUT exclude potential secrets/keys which should be detected if unused.
+        let is_potential_secret = simple_name.contains("KEY")
+            || simple_name.contains("SECRET")
+            || simple_name.contains("PASS")
+            || simple_name.contains("TOKEN");
+
         // 5. Public API: Symbols not starting with '_' are considered exported/public API.
         //    This is crucial for library analysis where entry points aren't explicit.
-        let is_public_api = !simple_name.starts_with('_') && info.def_type != "method";
+        //    FIX: Secrets are NOT public API - they should be flagged if unused.
+        let is_public_api =
+            !simple_name.starts_with('_') && info.def_type != "method" && !is_potential_secret;
 
         // 4. Dunder Methods: Python's magic methods (__str__, __init__, etc.) are implicitly used.
         let is_dunder = simple_name.starts_with("__") && simple_name.ends_with("__");
@@ -370,14 +382,6 @@ impl<'a> CytoScnPyVisitor<'a> {
             && info.def_type == "variable"
             && !simple_name.starts_with('_')
             && !is_enum_member;
-
-        // Check for module-level constants (UPPER_CASE)
-        // These are often configuration or exported constants.
-        // BUT exclude potential secrets/keys which should be detected if unused.
-        let is_potential_secret = simple_name.contains("KEY")
-            || simple_name.contains("SECRET")
-            || simple_name.contains("PASS")
-            || simple_name.contains("TOKEN");
 
         let is_constant = self.scope_stack.len() == 1
             && info.def_type == "variable"
@@ -459,6 +463,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             message: Some(message),
             fix,
             is_constant,
+            is_potential_secret,
         };
 
         self.definitions.push(definition);
@@ -1855,9 +1860,9 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     fn visit_attribute_expr(&mut self, node: &ast::ExprAttribute) {
-        // Always track the attribute name as a reference (loose tracking)
-        // This ensures we catch methods in chains like `obj.method().other_method()`
-        self.add_ref(node.attr.to_string());
+        // Track attribute access strictly as attribute reference (prefixed with dot)
+        // This distinguishes `d.keys()` (attribute) from `keys` (variable)
+        self.add_ref(format!(".{}", node.attr));
 
         // Check for self-referential method call (recursive method)
         // If we see self.method_name() and method_name matches current function in function_stack

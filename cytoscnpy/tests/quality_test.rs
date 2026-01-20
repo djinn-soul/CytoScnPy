@@ -41,7 +41,10 @@ def deeply_nested():
         !linter.findings.is_empty(),
         "Should detect deeply nested code"
     );
-    assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-Q302"));
+    assert!(linter
+        .findings
+        .iter()
+        .any(|f| f.message.contains("Deeply nested code")));
 }
 
 #[test]
@@ -73,11 +76,14 @@ def good_defaults(x=None, y=1, z="string"):
 "#;
     let linter = run_linter(source, Config::default());
 
-    assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-L001"));
+    assert!(linter
+        .findings
+        .iter()
+        .any(|f| f.message.contains("Mutable default argument")));
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L001")
+        .filter(|f| f.message.contains("Mutable default argument"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -101,11 +107,14 @@ except ValueError:
 ";
     let linter = run_linter(source, Config::default());
 
-    assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-L002"));
+    assert!(linter
+        .findings
+        .iter()
+        .any(|f| f.message.contains("Bare except block")));
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L002")
+        .filter(|f| f.message.contains("Bare except block"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect exactly one bare except");
 }
@@ -124,7 +133,7 @@ if x: pass          # OK
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L003")
+        .filter(|f| f.message.contains("Dangerous comparison"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -149,7 +158,7 @@ def okay(a, b, c, d, e):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C303")
+        .filter(|f| f.message.contains("Too many arguments"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect function with > 5 args");
 }
@@ -170,7 +179,7 @@ def short_function():
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C304")
+        .filter(|f| f.message.contains("Function too long"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -199,7 +208,7 @@ def complex_function(x):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-Q301")
+        .filter(|f| f.message.contains("Function is too complex"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect complex function");
 }
@@ -218,7 +227,7 @@ fn test_list_default() {
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L001")
+        .filter(|f| f.message.contains("Mutable default argument"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect list default []");
 }
@@ -231,7 +240,7 @@ fn test_dict_default() {
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L001")
+        .filter(|f| f.message.contains("Mutable default argument"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect dict default {{}}");
 }
@@ -244,7 +253,7 @@ fn test_set_default() {
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L001")
+        .filter(|f| f.message.contains("Mutable default argument"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect set default {{1}}");
 }
@@ -260,7 +269,7 @@ def good(x=None, y=1, z='string'):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L001")
+        .filter(|f| f.message.contains("Mutable default argument"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -277,7 +286,7 @@ fn test_kwonly_defaults() {
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L001")
+        .filter(|f| f.message.contains("Mutable default argument"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -294,7 +303,7 @@ fn test_async_function_mutable() {
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L001")
+        .filter(|f| f.message.contains("Mutable default argument"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -318,7 +327,7 @@ except:
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L002")
+        .filter(|f| f.message.contains("Bare except block"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect bare except");
 }
@@ -336,7 +345,7 @@ except ValueError:
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L002")
+        .filter(|f| f.message.contains("Bare except block"))
         .collect();
     assert_eq!(findings.len(), 0, "Should not flag specific exception");
 }
@@ -354,7 +363,7 @@ except (ValueError, TypeError):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-L002")
+        .filter(|f| f.message.contains("Bare except block"))
         .collect();
     assert_eq!(findings.len(), 0, "Should not flag tuple of exceptions");
 }
@@ -379,7 +388,7 @@ def too_many(a, b, c, d, e, f):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C303")
+        .filter(|f| f.message.contains("Too many arguments"))
         .collect();
     assert_eq!(findings.len(), 1, "Should detect function with 6 > 5 args");
 }
@@ -398,7 +407,7 @@ def okay(a, b, c, d, e):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C303")
+        .filter(|f| f.message.contains("Too many arguments"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -421,7 +430,7 @@ def with_stars(a, b, *args, **kwargs):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C303")
+        .filter(|f| f.message.contains("Too many arguments"))
         .collect();
     assert_eq!(findings.len(), 1, "Should count *args and **kwargs (4 > 3)");
 }
@@ -439,7 +448,7 @@ async def async_many(a, b, c, d, e, f):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C303")
+        .filter(|f| f.message.contains("Too many arguments"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -462,7 +471,7 @@ def kwonly(a, *, b, c, d, e, f):
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C303")
+        .filter(|f| f.message.contains("Too many arguments"))
         .collect();
     assert_eq!(findings.len(), 1, "Should count keyword-only args (6 > 5)");
 }
@@ -487,7 +496,7 @@ def long_function():
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C304")
+        .filter(|f| f.message.contains("Function too long"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -509,7 +518,7 @@ fn test_function_too_long_exactly_at_limit() {
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C304")
+        .filter(|f| f.message.contains("Function too long"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -536,7 +545,7 @@ async def async_long():
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C304")
+        .filter(|f| f.message.contains("Function too long"))
         .collect();
     assert_eq!(
         findings.len(),
@@ -563,7 +572,7 @@ def with_docstring():
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C304")
+        .filter(|f| f.message.contains("Function too long"))
         .collect();
     // Docstring is included in count, so this should trigger
     assert_eq!(findings.len(), 1, "Should include docstring in line count");
@@ -588,7 +597,7 @@ def outer():
     let findings: Vec<_> = linter
         .findings
         .iter()
-        .filter(|f| f.rule_id == "CSP-C304")
+        .filter(|f| f.message.contains("Function too long"))
         .collect();
     // Outer is 7 lines (from def to last pass) - should trigger
     assert_eq!(

@@ -75,8 +75,9 @@ fn test_extensive_security_corpus() {
 
     // Injection/XML
     assert!(ids.contains("CSP-D104"), "Missing CSP-D104 (XML)");
-    assert!(ids.contains("CSP-D105"), "Missing CSP-D105 (Assert)");
-    assert!(ids.contains("CSP-D106"), "Missing CSP-D106 (Jinja2)");
+    // assert!(ids.contains("CSP-D105"), "Missing CSP-D105 (MarkSafe)");
+    assert!(ids.contains("CSP-D701"), "Missing CSP-D106 (Assert)");
+    assert!(ids.contains("CSP-D703"), "Missing CSP-D106 (Jinja2)");
 
     // Deserialization
     assert!(ids.contains("CSP-D201"), "Missing CSP-D201 (Pickle)");

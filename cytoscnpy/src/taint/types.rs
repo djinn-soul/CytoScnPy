@@ -153,8 +153,12 @@ pub struct TaintFinding {
     pub source: String,
     /// Line where taint originated
     pub source_line: usize,
+    /// Category (e.g., "Taint Analysis")
+    pub category: String,
     /// Sink function/pattern
     pub sink: String,
+    /// Rule ID (e.g., "CSP-D003")
+    pub rule_id: String,
     /// Line where sink is called
     pub sink_line: usize,
     /// Column of sink
@@ -176,6 +180,8 @@ pub struct TaintFinding {
 pub struct SinkMatch {
     /// Name of the sink
     pub name: String,
+    /// Rule ID
+    pub rule_id: String,
     /// Vulnerability type
     pub vuln_type: VulnType,
     /// Severity

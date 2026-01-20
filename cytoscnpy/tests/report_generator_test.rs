@@ -65,6 +65,7 @@ fn test_generate_report_full() {
         quality: vec![Finding {
             message: "Function is too complex (McCabe=15)".to_owned(),
             rule_id: "CSP-Q001".to_owned(),
+            category: "Maintainability".to_owned(),
             file: PathBuf::from("test.py"),
             line: 5,
             col: 0,

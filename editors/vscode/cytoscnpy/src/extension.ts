@@ -97,7 +97,7 @@ function getExecutablePath(context: vscode.ExtensionContext): string {
 
 // Helper function to get configuration
 function getCytoScnPyConfiguration(
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
 ): CytoScnPyConfig {
   const config = vscode.workspace.getConfiguration("cytoscnpy");
   const pathSetting = config.inspect<string>("path");
@@ -128,6 +128,9 @@ function getCytoScnPyConfiguration(
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Congratulations, your extension "cytoscnpy" is now active!');
+  const config = getCytoScnPyConfiguration(context);
+  console.log(`CytoScnPy using binary at: ${config.path}`);
+  console.log(`Danger scan enabled: ${config.enableDangerScan}`);
   try {
     // Register MCP server definition provider for GitHub Copilot integration
     // This allows Copilot to use CytoScnPy's MCP server in agent mode
@@ -158,12 +161,12 @@ export function activate(context: vscode.ExtensionContext) {
                   {
                     cwd: cwd,
                     version: version,
-                  }
+                  },
                 ),
               ];
             },
             resolveMcpServerDefinition: async (server) => server,
-          })
+          }),
         );
         console.log("CytoScnPy MCP server provider registered successfully");
       } catch (mcpError) {
@@ -171,7 +174,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     } else {
       console.log(
-        "MCP server registration not available (requires VS Code 1.96+ with Copilot)"
+        "MCP server registration not available (requires VS Code 1.96+ with Copilot)",
       );
     }
 
@@ -180,8 +183,8 @@ export function activate(context: vscode.ExtensionContext) {
       gutterIconPath: vscode.Uri.parse(
         "data:image/svg+xml," +
           encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#f44336"/></svg>'
-          )
+            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#f44336"/></svg>',
+          ),
       ),
       gutterIconSize: "contain",
       overviewRulerColor: "#f44336",
@@ -191,8 +194,8 @@ export function activate(context: vscode.ExtensionContext) {
       gutterIconPath: vscode.Uri.parse(
         "data:image/svg+xml," +
           encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#ff9800"/></svg>'
-          )
+            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#ff9800"/></svg>',
+          ),
       ),
       gutterIconSize: "contain",
       overviewRulerColor: "#ff9800",
@@ -202,8 +205,8 @@ export function activate(context: vscode.ExtensionContext) {
       gutterIconPath: vscode.Uri.parse(
         "data:image/svg+xml," +
           encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#2196f3"/></svg>'
-          )
+            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#2196f3"/></svg>',
+          ),
       ),
       gutterIconSize: "contain",
       overviewRulerColor: "#2196f3",
@@ -212,13 +215,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       errorDecorationType,
       warningDecorationType,
-      infoDecorationType
+      infoDecorationType,
     );
 
     // Function to apply gutter decorations based on diagnostics
     function applyGutterDecorations(
       editor: vscode.TextEditor,
-      diagnostics: vscode.Diagnostic[]
+      diagnostics: vscode.Diagnostic[],
     ) {
       const errorRanges: vscode.DecorationOptions[] = [];
       const warningRanges: vscode.DecorationOptions[] = [];
@@ -269,7 +272,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Helper function to convert findings to diagnostics for a document
     function findingsToDiagnostics(
       document: vscode.TextDocument,
-      findings: CytoScnPyFinding[]
+      findings: CytoScnPyFinding[],
     ): vscode.Diagnostic[] {
       return findings
         .filter((finding) => {
@@ -288,7 +291,7 @@ export function activate(context: vscode.ExtensionContext) {
             return new vscode.Diagnostic(
               range,
               `${finding.message} [${finding.rule_id}]`,
-              vscode.DiagnosticSeverity.Warning
+              vscode.DiagnosticSeverity.Warning,
             );
           }
           const lineText = document.lineAt(lineIndex);
@@ -300,7 +303,7 @@ export function activate(context: vscode.ExtensionContext) {
 
           const range = new vscode.Range(
             new vscode.Position(lineIndex, startCol),
-            new vscode.Position(lineIndex, lineText.text.length)
+            new vscode.Position(lineIndex, lineText.text.length),
           );
           let severity: vscode.DiagnosticSeverity;
           switch (finding.severity.toUpperCase()) {
@@ -327,46 +330,15 @@ export function activate(context: vscode.ExtensionContext) {
           const diagnostic = new vscode.Diagnostic(
             range,
             `${finding.message} [${finding.rule_id}]`,
-            severity
+            severity,
           );
 
-          const unusedRules = [
-            "unused-function",
-            "unused-method",
-            "unused-class",
-            "unused-import",
-            "unused-variable",
-            "unused-parameter",
-          ];
-          if (unusedRules.includes(finding.rule_id)) {
+          if (finding.category === "Dead Code") {
             diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
           }
 
-          const securityRules = [
-            "secret-detected",
-            "dangerous-code",
-            "taint-vulnerability",
-          ];
-          const qualityRules = ["quality-issue"];
-
-          let category: string;
-          if (unusedRules.includes(finding.rule_id)) {
-            category = "Unused";
-          } else if (securityRules.includes(finding.rule_id)) {
-            category = "Security";
-          } else if (qualityRules.includes(finding.rule_id)) {
-            category = "Quality";
-          } else {
-            category = "Analysis";
-          }
-
-          diagnostic.source = `CytoScnPy [${category}]`;
-          diagnostic.code = {
-            value: finding.rule_id,
-            target: vscode.Uri.parse(
-              `https://github.com/djinn09/CytoScnPy#${finding.rule_id}`
-            ),
-          };
+          diagnostic.source = `CytoScnPy [${finding.category}]`;
+          diagnostic.code = finding.rule_id;
 
           return diagnostic;
         });
@@ -406,8 +378,8 @@ export function activate(context: vscode.ExtensionContext) {
             const fileCount = workspaceCache.size;
             console.log(
               `[CytoScnPy] Workspace analysis completed in ${duration.toFixed(
-                2
-              )}s, found findings in ${fileCount} files`
+                2,
+              )}s, found findings in ${fileCount} files`,
             );
 
             progress.report({ message: `Updating diagnostics...` });
@@ -423,7 +395,7 @@ export function activate(context: vscode.ExtensionContext) {
                   finding.col && finding.col > 0 ? finding.col : 0;
                 const range = new vscode.Range(
                   new vscode.Position(lineIndex, startCol),
-                  new vscode.Position(lineIndex, 100) // Approximate end
+                  new vscode.Position(lineIndex, 100), // Approximate end
                 );
 
                 let severity: vscode.DiagnosticSeverity;
@@ -447,7 +419,7 @@ export function activate(context: vscode.ExtensionContext) {
                 const diagnostic = new vscode.Diagnostic(
                   range,
                   `${finding.message} [${finding.rule_id}]`,
-                  severity
+                  severity,
                 );
                 diagnostic.source = `CytoScnPy`;
                 diagnostic.code = finding.rule_id;
@@ -479,7 +451,7 @@ export function activate(context: vscode.ExtensionContext) {
 
                 applyGutterDecorations(
                   vscode.window.activeTextEditor,
-                  diagnostics
+                  diagnostics,
                 );
               }
             }
@@ -487,20 +459,20 @@ export function activate(context: vscode.ExtensionContext) {
             // Show completion message in status bar
             vscode.window.setStatusBarMessage(
               `$(check) CytoScnPy: Analyzed in ${duration.toFixed(1)}s`,
-              5000
+              5000,
             );
           } catch (error: any) {
             console.error(
-              `[CytoScnPy] Workspace analysis failed: ${error.message}`
+              `[CytoScnPy] Workspace analysis failed: ${error.message}`,
             );
             vscode.window.showErrorMessage(
-              `CytoScnPy analysis failed: ${error.message}`
+              `CytoScnPy analysis failed: ${error.message}`,
             );
             workspaceCache = null;
           } finally {
             isWorkspaceAnalysisRunning = false;
           }
-        }
+        },
       );
     }
 
@@ -558,12 +530,12 @@ export function activate(context: vscode.ExtensionContext) {
 
         console.log(
           `[CytoScnPy] Incremental analysis completed for ${path.basename(
-            filePath
-          )}`
+            filePath,
+          )}`,
         );
       } catch (error: any) {
         console.error(
-          `[CytoScnPy] Incremental analysis failed for ${filePath}: ${error.message}`
+          `[CytoScnPy] Incremental analysis failed for ${filePath}: ${error.message}`,
         );
         // On failure, fall back to full workspace analysis
         if (!isWorkspaceAnalysisRunning) {
@@ -671,12 +643,12 @@ export function activate(context: vscode.ExtensionContext) {
     const PERIODIC_SCAN_INTERVAL_MS = isDebug ? 15 * 1000 : 5 * 60 * 1000;
 
     console.log(
-      `[CytoScnPy] Periodic scan interval set to ${PERIODIC_SCAN_INTERVAL_MS}ms (Debug: ${isDebug})`
+      `[CytoScnPy] Periodic scan interval set to ${PERIODIC_SCAN_INTERVAL_MS}ms (Debug: ${isDebug})`,
     );
 
     const periodicScanInterval = setInterval(async () => {
       console.log(
-        `[CytoScnPy] Periodic scan timer tick. Debug: ${isDebug}, Last Change: ${lastFileChangeTime}, Last Scan: ${workspaceCacheTimestamp}`
+        `[CytoScnPy] Periodic scan timer tick. Debug: ${isDebug}, Last Change: ${lastFileChangeTime}, Last Scan: ${workspaceCacheTimestamp}`,
       );
 
       // In Debug mode: ALWAYS run (to verify timer works)
@@ -685,12 +657,12 @@ export function activate(context: vscode.ExtensionContext) {
         console.log(
           "[CytoScnPy] Triggering periodic workspace re-scan (Reason: " +
             (isDebug ? "Debug Force" : "Changes Detected") +
-            ")..."
+            ")...",
         );
         await runFullWorkspaceAnalysis();
       } else {
         console.log(
-          "[CytoScnPy] Skipping periodic re-scan (No changes detected)."
+          "[CytoScnPy] Skipping periodic re-scan (No changes detected).",
         );
       }
     }, PERIODIC_SCAN_INTERVAL_MS);
@@ -724,7 +696,7 @@ export function activate(context: vscode.ExtensionContext) {
               runFullWorkspaceAnalysis().catch((err) => {
                 console.error(
                   "[CytoScnPy] Workspace analysis on save failed:",
-                  err
+                  err,
                 );
               });
             } else {
@@ -736,7 +708,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
           }, debounceMs);
         }
-      })
+      }),
     );
 
     // Re-run analysis when CytoScnPy settings change (e.g., settings.json saved)
@@ -753,7 +725,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
           });
         }
-      })
+      }),
     );
 
     // Analyze when the active editor changes (switching tabs)
@@ -762,7 +734,7 @@ export function activate(context: vscode.ExtensionContext) {
         if (editor && editor.document.languageId === "python") {
           refreshDiagnostics(editor.document);
         }
-      })
+      }),
     );
 
     // Clear diagnostics and cache when a document is closed
@@ -770,7 +742,7 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.workspace.onDidCloseTextDocument((document) => {
         cytoscnpyDiagnostics.delete(document.uri);
         fileCache.delete(getCacheKey(document.uri.fsPath)); // Clear cache entry
-      })
+      }),
     );
 
     // Register a command to manually trigger analysis (e.g., from command palette)
@@ -783,7 +755,7 @@ export function activate(context: vscode.ExtensionContext) {
         } else {
           vscode.window.showWarningMessage("No active text editor to analyze.");
         }
-      }
+      },
     );
 
     context.subscriptions.push(disposableAnalyze);
@@ -792,14 +764,14 @@ export function activate(context: vscode.ExtensionContext) {
     async function runMetricCommand(
       context: vscode.ExtensionContext,
       commandType: "cc" | "hal" | "mi" | "raw",
-      commandName: string
+      commandName: string,
     ) {
       if (
         !vscode.window.activeTextEditor ||
         vscode.window.activeTextEditor.document.languageId !== "python"
       ) {
         vscode.window.showWarningMessage(
-          `No active Python file to run ${commandName} on.`
+          `No active Python file to run ${commandName} on.`,
         );
         return;
       }
@@ -813,7 +785,7 @@ export function activate(context: vscode.ExtensionContext) {
       cytoscnpyOutputChannel.clear();
       cytoscnpyOutputChannel.show();
       cytoscnpyOutputChannel.appendLine(
-        `Running: ${config.path} ${args.join(" ")}\n`
+        `Running: ${config.path} ${args.join(" ")}\n`,
       );
 
       execFile(
@@ -822,46 +794,46 @@ export function activate(context: vscode.ExtensionContext) {
         (error: Error | null, stdout: string, stderr: string) => {
           if (error) {
             cytoscnpyOutputChannel.appendLine(
-              `Error running ${commandName}: ${error.message}`
+              `Error running ${commandName}: ${error.message}`,
             );
             cytoscnpyOutputChannel.appendLine(`Stderr: ${stderr}`);
             vscode.window.showErrorMessage(
-              `CytoScnPy ${commandName} failed: ${error.message}`
+              `CytoScnPy ${commandName} failed: ${error.message}`,
             );
             return;
           }
           if (stderr) {
             cytoscnpyOutputChannel.appendLine(
-              `Stderr for ${commandName}:\n${stderr}`
+              `Stderr for ${commandName}:\n${stderr}`,
             );
           }
           cytoscnpyOutputChannel.appendLine(
-            `Stdout for ${commandName}:\n${stdout}`
+            `Stdout for ${commandName}:\n${stdout}`,
           );
-        }
+        },
       );
     }
 
     // Register metric commands
     context.subscriptions.push(
       vscode.commands.registerCommand("cytoscnpy.complexity", () =>
-        runMetricCommand(context, "cc", "Cyclomatic Complexity")
-      )
+        runMetricCommand(context, "cc", "Cyclomatic Complexity"),
+      ),
     );
     context.subscriptions.push(
       vscode.commands.registerCommand("cytoscnpy.halstead", () =>
-        runMetricCommand(context, "hal", "Halstead Metrics")
-      )
+        runMetricCommand(context, "hal", "Halstead Metrics"),
+      ),
     );
     context.subscriptions.push(
       vscode.commands.registerCommand("cytoscnpy.maintainability", () =>
-        runMetricCommand(context, "mi", "Maintainability Index")
-      )
+        runMetricCommand(context, "mi", "Maintainability Index"),
+      ),
     );
     context.subscriptions.push(
       vscode.commands.registerCommand("cytoscnpy.rawMetrics", () =>
-        runMetricCommand(context, "raw", "Raw Metrics")
-      )
+        runMetricCommand(context, "raw", "Raw Metrics"),
+      ),
     );
 
     // Register analyze workspace command
@@ -881,7 +853,7 @@ export function activate(context: vscode.ExtensionContext) {
           cytoscnpyOutputChannel.clear();
           cytoscnpyOutputChannel.show();
           cytoscnpyOutputChannel.appendLine(
-            `Analyzing workspace: ${workspacePath}\n`
+            `Analyzing workspace: ${workspacePath}\n`,
           );
 
           const args = [workspacePath, "--json"];
@@ -909,12 +881,12 @@ export function activate(context: vscode.ExtensionContext) {
                 cytoscnpyOutputChannel.appendLine(`Results:\n${stdout}`);
               }
               vscode.window.showInformationMessage(
-                "Workspace analysis complete. See output channel."
+                "Workspace analysis complete. See output channel.",
               );
-            }
+            },
           );
-        }
-      )
+        },
+      ),
     );
 
     // NOTE: Removed custom HoverProvider - VS Code natively displays diagnostic messages on hover
@@ -925,7 +897,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.languages.registerCodeActionsProvider("python", quickFixProvider, {
         providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
-      })
+      }),
     );
   } catch (error) {
     console.error("Error during extension activation:", error);
@@ -937,7 +909,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     range: vscode.Range | vscode.Selection,
     context: vscode.CodeActionContext,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
   ): vscode.CodeAction[] {
     const actions: vscode.CodeAction[] = [];
 
@@ -966,7 +938,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       // First try fileCache
       let finding = cachedEntry?.findings.find(
         (f) =>
-          f.rule_id === ruleId && Math.abs(f.line_number - diagnosticLine) <= 2
+          f.rule_id === ruleId && Math.abs(f.line_number - diagnosticLine) <= 2,
       );
 
       // Fallback to workspaceCache if fileCache doesn't have it
@@ -975,7 +947,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         finding = wsFindings.find(
           (f) =>
             f.rule_id === ruleId &&
-            Math.abs(f.line_number - diagnosticLine) <= 2
+            Math.abs(f.line_number - diagnosticLine) <= 2,
         );
       }
 
@@ -983,7 +955,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         // Precise CST-based fix available (e.g., Remove unused function)
         const fixAction = new vscode.CodeAction(
           `Remove ${ruleId.replace("unused-", "")}`,
-          vscode.CodeActionKind.QuickFix
+          vscode.CodeActionKind.QuickFix,
         );
         fixAction.diagnostics = [diagnostic];
         fixAction.isPreferred = true;
@@ -995,7 +967,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         edit.replace(
           document.uri,
           new vscode.Range(startPos, endPos),
-          finding.fix.replacement
+          finding.fix.replacement,
         );
         fixAction.edit = edit;
         actions.push(fixAction);
@@ -1013,13 +985,13 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
 
   private createSuppressionAction(
     document: vscode.TextDocument,
-    diagnostic: vscode.Diagnostic
+    diagnostic: vscode.Diagnostic,
   ): vscode.CodeAction | undefined {
     const actionTitle = "Suppress with # noqa: CSP";
 
     const action = new vscode.CodeAction(
       actionTitle,
-      vscode.CodeActionKind.QuickFix
+      vscode.CodeActionKind.QuickFix,
     );
     action.diagnostics = [diagnostic];
 
@@ -1047,7 +1019,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       const newComment = `${commentContent}, CSP`;
       const range = new vscode.Range(
         new vscode.Position(lineIndex, commentStart),
-        new vscode.Position(lineIndex, commentStart + commentContent.length)
+        new vscode.Position(lineIndex, commentStart + commentContent.length),
       );
       edit.replace(document.uri, range, newComment);
     } else {

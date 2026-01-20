@@ -253,6 +253,7 @@ impl TaintSinkPlugin for BuiltinSinkPlugin {
     fn check_sink(&self, call: &ruff_python_ast::ExprCall) -> Option<SinkMatch> {
         check_builtin_sink(call).map(|info| SinkMatch {
             name: info.name,
+            rule_id: info.rule_id,
             vuln_type: info.vuln_type,
             severity: info.severity,
             dangerous_args: info.dangerous_args,
@@ -319,6 +320,7 @@ impl TaintSinkPlugin for DynamicPatternPlugin {
                 if &call_name == pattern {
                     return Some(SinkMatch {
                         name: pattern.clone(),
+                        rule_id: "CSP-CUSTOM-SINK".to_owned(),
                         vuln_type: VulnType::CodeInjection,
                         severity: Severity::High,
                         dangerous_args: vec![0], // Assume first arg is dangerous by default for custom sinks
@@ -579,6 +581,11 @@ impl TaintAnalyzer {
         }
 
         // Deduplicate findings
+        findings.sort_by(|a, b| {
+            a.sink_line
+                .cmp(&b.sink_line)
+                .then(a.source_line.cmp(&b.source_line))
+        });
         findings.dedup_by(|a, b| a.source_line == b.source_line && a.sink_line == b.sink_line);
 
         findings

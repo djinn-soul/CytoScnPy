@@ -27,7 +27,7 @@ impl CytoScnPy {
     /// Processes a single file (from disk or notebook) and returns analysis results.
     /// Used by the directory traversal for high-performance scanning.
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
-    pub(crate) fn process_single_file(
+    pub fn process_single_file(
         &self,
         file_path: &Path,
         root_path: &Path,
@@ -384,7 +384,10 @@ impl CytoScnPy {
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
+                            || finding.category == "Best Practices"
+                            || finding.category == "Maintainability"
                         {
+                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality.push(finding);
                         }
                     }
@@ -396,7 +399,7 @@ impl CytoScnPy {
                             .cytoscnpy
                             .danger_config
                             .enable_taint
-                            .unwrap_or(true)
+                            .unwrap_or(crate::constants::TAINT_ENABLED_DEFAULT)
                     {
                         use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
                         let custom_sources = self
@@ -415,6 +418,7 @@ impl CytoScnPy {
                             .unwrap_or_default();
                         let taint_analyzer =
                             TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks);
+
                         let taint_context =
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 
@@ -475,6 +479,7 @@ impl CytoScnPy {
                                     "Maintainability Index too low ({file_mi:.2} < {min_mi:.2})"
                                 ),
                                 rule_id: "CSP-Q303".to_owned(),
+                                category: "Maintainability".to_owned(),
                                 file: file_path.to_path_buf(),
                                 line: 1,
                                 col: 0,
@@ -788,7 +793,10 @@ impl CytoScnPy {
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
+                            || finding.category == "Best Practices"
+                            || finding.category == "Maintainability"
                         {
+                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality_res.push(finding);
                         }
                     }
@@ -800,7 +808,7 @@ impl CytoScnPy {
                             .cytoscnpy
                             .danger_config
                             .enable_taint
-                            .unwrap_or(true)
+                            .unwrap_or(crate::constants::TAINT_ENABLED_DEFAULT)
                     {
                         use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
                         let custom_sources = self
@@ -819,6 +827,7 @@ impl CytoScnPy {
                             .unwrap_or_default();
                         let taint_analyzer =
                             TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks);
+
                         let taint_context =
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 

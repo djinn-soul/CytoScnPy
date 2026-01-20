@@ -42,33 +42,33 @@ fn test_danger_rules_full_coverage() {
     let async_subprocess_findings: Vec<_> = result
         .danger
         .iter()
-        .filter(|f| f.rule_id == "CSP-D901")
+        .filter(|f| f.rule_id == "CSP-D004")
         .collect();
     assert!(
         !async_subprocess_findings.is_empty(),
-        "Expected async subprocess findings (CSP-D901)"
+        "Expected async subprocess findings (CSP-D004)"
     );
 
     // CSP-D902: ML model deserialization
     let model_deser_findings: Vec<_> = result
         .danger
         .iter()
-        .filter(|f| f.rule_id == "CSP-D902")
+        .filter(|f| f.rule_id == "CSP-D204")
         .collect();
     assert!(
         !model_deser_findings.is_empty(),
-        "Expected model deserialization findings (CSP-D902)"
+        "Expected model deserialization findings (CSP-D204)"
     );
 
     // CSP-D903: Sensitive data in logs
     let logging_findings: Vec<_> = result
         .danger
         .iter()
-        .filter(|f| f.rule_id == "CSP-D903")
+        .filter(|f| f.rule_id == "CSP-D901")
         .collect();
     assert!(
         !logging_findings.is_empty(),
-        "Expected sensitive data logging findings (CSP-D903)"
+        "Expected sensitive data logging findings (CSP-D901)"
     );
 
     // Assert that expanded SQLi/XSS patterns are found (Comment 1 & 2)

@@ -1,28 +1,65 @@
-// Note: We check Python method names like `.debug`, `.run` which clippy
-// incorrectly flags as file extension comparisons
-#![allow(clippy::case_sensitive_file_extension_comparisons)]
-
-use super::crypto::{check_ciphers_and_modes, check_marshal_and_hashes};
+use super::crypto::check_ciphers_and_modes;
 use super::network::check_network_and_ssl;
 use super::utils::{contains_sensitive_names, create_finding, get_call_name};
-use crate::rules::{Context, Finding, Rule};
+use crate::rules::ids;
+use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
 /// Rule for detecting the use of `assert` in production code.
-pub struct AssertUsedRule;
+pub const META_ASSERT: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_ASSERT,
+    category: super::CAT_BEST_PRACTICES,
+};
+/// Rule for detecting insecure module imports (e.g., telnetlib, ftplib).
+pub const META_INSECURE_IMPORT: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_INSECURE_IMPORT,
+    category: super::CAT_BEST_PRACTICES,
+};
+/// Rule for detecting disabled Jinja2 autoescaping.
+pub const META_JINJA_AUTOESCAPE: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_JINJA_AUTOESCAPE,
+    category: super::CAT_BEST_PRACTICES,
+};
+/// Rule for detecting calls to blacklisted functions.
+pub const META_BLACKLIST: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_BLACKLIST,
+    category: super::CAT_BEST_PRACTICES,
+};
+/// Rule for detecting logging of sensitive data.
+pub const META_LOGGING_SENSITIVE: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_LOGGING_SENSITIVE,
+    category: super::CAT_PRIVACY,
+};
+/// Rule for detecting use of `input()` (vulnerable in Py2, dangerous in Py3).
+pub const META_INPUT: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_INPUT,
+    category: super::CAT_CODE_EXEC,
+};
+
+/// Rule for detecting the use of `assert` in production code.
+pub struct AssertUsedRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl AssertUsedRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for AssertUsedRule {
     fn name(&self) -> &'static str {
         "AssertUsedRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D105"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn enter_stmt(&mut self, stmt: &ast::Stmt, context: &Context) -> Option<Vec<Finding>> {
         if matches!(stmt, ast::Stmt::Assert(_)) {
             return Some(vec![create_finding(
                 "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
-                self.code(),
+                self.metadata,
                 context,
                 stmt.range().start(),
                 "LOW",
@@ -33,13 +70,22 @@ impl Rule for AssertUsedRule {
 }
 
 /// Rule for detecting if debug mode is enabled in production.
-pub struct DebugModeRule;
+pub struct DebugModeRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl DebugModeRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for DebugModeRule {
     fn name(&self) -> &'static str {
         "DebugModeRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D403"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -52,7 +98,7 @@ impl Rule for DebugModeRule {
                                     if b.value {
                                         return Some(vec![create_finding(
                                             "Debug mode enabled (debug=True) in production",
-                                            self.code(),
+                                            self.metadata,
                                             context,
                                             call.range().start(),
                                             "HIGH",
@@ -70,13 +116,22 @@ impl Rule for DebugModeRule {
 }
 
 /// Rule for detecting disabled autoescaping in Jinja2 templates.
-pub struct Jinja2AutoescapeRule;
+pub struct Jinja2AutoescapeRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl Jinja2AutoescapeRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for Jinja2AutoescapeRule {
     fn name(&self) -> &'static str {
         "Jinja2AutoescapeRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D106"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -89,7 +144,7 @@ impl Rule for Jinja2AutoescapeRule {
                                     if !b.value {
                                         return Some(vec![create_finding(
                                             "jinja2.Environment created with autoescape=False. This enables XSS attacks.",
-                                            self.code(),
+                                            self.metadata,
                                             context,
                                             call.range().start(),
                                             "HIGH",
@@ -107,20 +162,26 @@ impl Rule for Jinja2AutoescapeRule {
 }
 
 /// Rule for detecting blacklisted function calls.
-pub struct BlacklistCallRule;
+pub struct BlacklistCallRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl BlacklistCallRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for BlacklistCallRule {
     fn name(&self) -> &'static str {
         "BlacklistCallRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D800"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if let Some(finding) = check_marshal_and_hashes(&name, call, context) {
-                    return Some(vec![finding]);
-                }
                 if let Some(finding) = check_ciphers_and_modes(&name, call, context) {
                     return Some(vec![finding]);
                 }
@@ -138,11 +199,15 @@ impl Rule for BlacklistCallRule {
 
 /// Check for miscellaneous blacklisted calls (B308, B322, B325)
 fn check_misc_blacklist(name: &str, call: &ast::ExprCall, context: &Context) -> Option<Finding> {
+    use super::filesystem::META_TEMPNAM;
+    use super::injection::META_MARK_SAFE;
+    // use crate::rules::danger::{META_INPUT, META_MARK_SAFE, META_TEMPNAM};
+
     // B308: mark_safe
     if name == "mark_safe" || name == "django.utils.safestring.mark_safe" {
         return Some(create_finding(
             "Use of mark_safe() may expose XSS. Review carefully.",
-            "CSP-D107",
+            META_MARK_SAFE,
             context,
             call.range().start(),
             "MEDIUM",
@@ -152,7 +217,7 @@ fn check_misc_blacklist(name: &str, call: &ast::ExprCall, context: &Context) -> 
     if name == "input" {
         return Some(create_finding(
             "Check for use of input() (vulnerable in Py2, unsafe in Py3 if not careful).",
-            "CSP-D007",
+            META_INPUT,
             context,
             call.range().start(),
             "HIGH",
@@ -162,7 +227,7 @@ fn check_misc_blacklist(name: &str, call: &ast::ExprCall, context: &Context) -> 
     if name == "os.tempnam" || name == "os.tmpnam" {
         return Some(create_finding(
             "Use of os.tempnam/os.tmpnam is vulnerable to symlink attacks. Use tempfile module instead.",
-            "CSP-D506",
+            META_TEMPNAM,
             context,
             call.range().start(),
             "MEDIUM",
@@ -172,13 +237,22 @@ fn check_misc_blacklist(name: &str, call: &ast::ExprCall, context: &Context) -> 
 }
 
 /// Rule for detecting logging of potentially sensitive data.
-pub struct LoggingSensitiveDataRule;
+pub struct LoggingSensitiveDataRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl LoggingSensitiveDataRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for LoggingSensitiveDataRule {
     fn name(&self) -> &'static str {
         "LoggingSensitiveDataRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D903"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -196,7 +270,7 @@ impl Rule for LoggingSensitiveDataRule {
                         if contains_sensitive_names(arg) {
                             return Some(vec![create_finding(
                                 "Potential sensitive data in log statement. Avoid logging passwords, tokens, secrets, or API keys.",
-                                self.code(),
+                                self.metadata,
                                 context,
                                 call.range().start(),
                                 "MEDIUM",
@@ -211,13 +285,22 @@ impl Rule for LoggingSensitiveDataRule {
 }
 
 /// Rule for detecting insecure module imports.
-pub struct InsecureImportRule;
+pub struct InsecureImportRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl InsecureImportRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for InsecureImportRule {
     fn name(&self) -> &'static str {
         "InsecureImportRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D004"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn enter_stmt(&mut self, stmt: &ast::Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
@@ -227,7 +310,7 @@ impl Rule for InsecureImportRule {
                     if let Some((msg, severity)) = check_insecure_module(&name.name.id) {
                         findings.push(create_finding(
                             msg,
-                            self.code(),
+                            self.metadata,
                             context,
                             name.range().start(),
                             severity,
@@ -248,7 +331,7 @@ impl Rule for InsecureImportRule {
                 if let Some((msg, severity)) = check_insecure_module(module_name) {
                     return Some(vec![create_finding(
                         msg,
-                        self.code(),
+                        self.metadata,
                         context,
                         node.range().start(),
                         severity,
@@ -266,7 +349,7 @@ impl Rule for InsecureImportRule {
                     if let Some((msg, severity)) = check_insecure_module(&full_name) {
                         findings.push(create_finding(
                             msg,
-                            self.code(),
+                            self.metadata,
                             context,
                             name.range().start(),
                             severity,

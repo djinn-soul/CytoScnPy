@@ -6,6 +6,7 @@ export interface CytoScnPyFinding {
   col?: number;
   message: string;
   rule_id: string;
+  category: string;
   severity: "error" | "warning" | "info" | "hint";
   // CST-based fix suggestion (if available)
   fix?: {
@@ -52,6 +53,7 @@ interface RawCytoScnPyFinding {
   col?: number;
   message?: string;
   rule_id?: string;
+  category?: string;
   severity?: string;
   name?: string;
   simple_name?: string;
@@ -60,6 +62,19 @@ interface RawCytoScnPyFinding {
     end_byte: number;
     replacement: string;
   };
+}
+
+interface RawTaintFinding {
+  source: string;
+  source_line: number;
+  sink: string;
+  sink_line: number;
+  sink_col: number;
+  flow_path: string[];
+  vuln_type: string;
+  severity: string;
+  file: string;
+  remediation: string;
 }
 
 interface RawCytoScnPyResult {
@@ -72,7 +87,7 @@ interface RawCytoScnPyResult {
   secrets?: RawCytoScnPyFinding[];
   danger?: RawCytoScnPyFinding[];
   quality?: RawCytoScnPyFinding[];
-  taint_findings?: RawCytoScnPyFinding[];
+  taint_findings?: RawTaintFinding[];
   clone_findings?: RawCloneFinding[];
   parse_errors?: { file: string; line: number; message: string }[];
 }
@@ -103,13 +118,13 @@ interface RawCloneFinding {
 }
 
 function transformRawResult(
-  rawResult: RawCytoScnPyResult
+  rawResult: RawCytoScnPyResult,
 ): CytoScnPyAnalysisResult {
   const findings: CytoScnPyFinding[] = [];
   const parseErrors: ParseError[] = [];
 
   const normalizeSeverity = (
-    severity: string | undefined
+    severity: string | undefined,
   ): "error" | "warning" | "info" => {
     switch (severity?.toUpperCase()) {
       case "HIGH":
@@ -125,22 +140,24 @@ function transformRawResult(
   };
 
   const processCategory = (
-    category: RawCytoScnPyFinding[] | undefined,
+    categoryItems: RawCytoScnPyFinding[] | undefined,
     defaultRuleId: string,
+    defaultCategory: string,
     messageFormatter: (finding: RawCytoScnPyFinding) => string,
-    defaultSeverity: "error" | "warning" | "info"
+    defaultSeverity: "error" | "warning" | "info",
   ) => {
-    if (!category) {
+    if (!categoryItems) {
       return;
     }
 
-    for (const rawFinding of category) {
+    for (const rawFinding of categoryItems) {
       findings.push({
         file_path: rawFinding.file,
         line_number: rawFinding.line,
         col: rawFinding.col,
         message: rawFinding.message || messageFormatter(rawFinding),
         rule_id: rawFinding.rule_id || defaultRuleId,
+        category: rawFinding.category || defaultCategory,
         severity: normalizeSeverity(rawFinding.severity) || defaultSeverity,
         fix: rawFinding.fix,
       });
@@ -151,65 +168,90 @@ function transformRawResult(
   processCategory(
     rawResult.unused_functions,
     "unused-function",
+    "Dead Code",
     (f) => `'${f.simple_name || f.name}' is defined but never used`,
-    "warning"
+    "warning",
   );
   processCategory(
     rawResult.unused_methods,
     "unused-method",
+    "Dead Code",
     (f) => `Method '${f.simple_name || f.name}' is defined but never used`,
-    "warning"
+    "warning",
   );
   processCategory(
     rawResult.unused_imports,
     "unused-import",
+    "Dead Code",
     (f) => `'${f.name}' is imported but never used`,
-    "warning"
+    "warning",
   );
   processCategory(
     rawResult.unused_classes,
     "unused-class",
+    "Dead Code",
     (f) => `Class '${f.name}' is defined but never used`,
-    "warning"
+    "warning",
   );
   processCategory(
     rawResult.unused_variables,
     "unused-variable",
+    "Dead Code",
     (f) => `Variable '${f.name}' is assigned but never used`,
-    "warning"
+    "warning",
   );
   processCategory(
     rawResult.unused_parameters,
     "unused-parameter",
+    "Dead Code",
     (f) => `Parameter '${f.name}' is never used`,
-    "info"
+    "info",
   );
 
   // Security categories
   processCategory(
     rawResult.secrets,
     "secret-detected",
+    "Secrets",
     (f) => f.message || `Potential secret detected: ${f.name}`,
-    "error"
+    "error",
   );
   processCategory(
     rawResult.danger,
     "dangerous-code",
+    "Security",
     (f) => f.message || `Dangerous code pattern: ${f.name}`,
-    "error"
+    "error",
   );
   processCategory(
     rawResult.quality,
     "quality-issue",
+    "Quality",
     (f) => f.message || `Quality issue: ${f.name}`,
-    "warning"
+    "warning",
   );
-  processCategory(
-    rawResult.taint_findings,
-    "taint-vulnerability",
-    (f) => f.message || `Potential vulnerability: ${f.name}`,
-    "error"
-  );
+
+  // Process taint findings separately because they have a different structure
+  if (rawResult.taint_findings) {
+    for (const f of rawResult.taint_findings) {
+      const flowStr =
+        f.flow_path.length > 0
+          ? `${f.source} -> ${f.flow_path.join(" -> ")} -> ${f.sink}`
+          : `${f.source} -> ${f.sink}`;
+
+      const message = `${f.vuln_type}: Tainted data from ${f.source} (line ${f.source_line}) reaches sink ${f.sink}.\n\nFlow: ${flowStr}\n\nRemediation: ${f.remediation}`;
+
+      findings.push({
+        file_path: f.file,
+        line_number: f.sink_line,
+        col: f.sink_col,
+        message,
+        rule_id: `taint-${f.vuln_type.toLowerCase()}`,
+        category: "Security",
+        severity: normalizeSeverity(f.severity),
+      });
+    }
+  }
 
   // Process parse errors
   if (rawResult.parse_errors) {
@@ -258,6 +300,7 @@ function transformRawResult(
         line_number: clone.line,
         message,
         rule_id: clone.rule_id,
+        category: "Clones",
         severity: clone.is_duplicate ? "warning" : "hint",
       });
     }
@@ -268,7 +311,7 @@ function transformRawResult(
 
 export function runCytoScnPyAnalysis(
   filePath: string,
-  config: CytoScnPyConfig
+  config: CytoScnPyConfig,
 ): Promise<CytoScnPyAnalysisResult> {
   return new Promise((resolve, reject) => {
     // Build args array (avoids shell escaping issues on Windows)
@@ -339,15 +382,15 @@ export function runCytoScnPyAnalysis(
           } catch (parseError) {
             // JSON parsing failed - this is a real error
             console.error(
-              `CytoScnPy analysis failed for ${filePath}: ${error.message}`
+              `CytoScnPy analysis failed for ${filePath}: ${error.message}`,
             );
             if (stderr) {
               console.error(`Stderr: ${stderr}`);
             }
             reject(
               new Error(
-                `Failed to run CytoScnPy analysis: ${error.message}. Stderr: ${stderr}`
-              )
+                `Failed to run CytoScnPy analysis: ${error.message}. Stderr: ${stderr}`,
+              ),
             );
           }
           return;
@@ -355,7 +398,7 @@ export function runCytoScnPyAnalysis(
 
         if (stderr) {
           console.warn(
-            `CytoScnPy analysis for ${filePath} produced stderr: ${stderr}`
+            `CytoScnPy analysis for ${filePath} produced stderr: ${stderr}`,
           );
         }
 
@@ -366,11 +409,11 @@ export function runCytoScnPyAnalysis(
         } catch (parseError: any) {
           reject(
             new Error(
-              `Failed to parse CytoScnPy JSON output for ${filePath}: ${parseError.message}. Output: ${stdout}`
-            )
+              `Failed to parse CytoScnPy JSON output for ${filePath}: ${parseError.message}. Output: ${stdout}`,
+            ),
           );
         }
-      }
+      },
     );
   });
 }
@@ -381,7 +424,7 @@ export function runCytoScnPyAnalysis(
  */
 export function runWorkspaceAnalysis(
   workspacePath: string,
-  config: CytoScnPyConfig
+  config: CytoScnPyConfig,
 ): Promise<Map<string, CytoScnPyFinding[]>> {
   return new Promise((resolve, reject) => {
     const args: string[] = [workspacePath, "--json"];
@@ -443,7 +486,7 @@ export function runWorkspaceAnalysis(
       (error: Error | null, stdout: string, stderr: string) => {
         if (error && !stdout.trim()) {
           console.error(
-            `CytoScnPy workspace analysis failed: ${error.message}`
+            `CytoScnPy workspace analysis failed: ${error.message}`,
           );
           if (stderr) {
             console.error(`Stderr: ${stderr}`);
@@ -479,11 +522,11 @@ export function runWorkspaceAnalysis(
         } catch (parseError: any) {
           reject(
             new Error(
-              `Failed to parse workspace analysis output: ${parseError.message}`
-            )
+              `Failed to parse workspace analysis output: ${parseError.message}`,
+            ),
           );
         }
-      }
+      },
     );
   });
 }

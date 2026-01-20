@@ -70,6 +70,7 @@ nav:
       - Pre-commit Hooks: pre-commit.md
   - Reference:
       - CLI Reference: CLI.md
+      - Quality Rules: quality.md
       - Migration Guide: migration.md
   - Changelog: https://github.com/djinn09/CytoScnPy/releases
   - Roadmap: roadmap.md
@@ -83,7 +84,9 @@ nav:
           - Cryptography: danger/cryptography.md
           - Network & HTTP: danger/network.md
           - File Operations: danger/filesystem.md
-          - Modern Python: danger/modern-python.md
+          - Type Safety: danger/type-safety.md
+          - Best Practices: danger/best-practices.md
+          - Privacy & Frameworks: danger/modern-python.md
   - Integrations: integrations.md
   - Blog:
       - blog/index.md

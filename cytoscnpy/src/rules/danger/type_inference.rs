@@ -1,4 +1,6 @@
-use crate::rules::{Context, Finding, Rule};
+use super::utils::create_finding;
+use crate::rules::ids;
+use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
 use std::collections::HashMap;
@@ -7,6 +9,12 @@ use std::collections::HashMap;
 struct Scope {
     variables: HashMap<String, String>,
 }
+
+/// Rule for detecting method calls on objects that do not support them.
+pub const META_METHOD_MISUSE: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_METHOD_MISUSE,
+    category: super::CAT_TYPE_SAFETY,
+};
 
 impl Scope {
     fn new() -> Self {
@@ -21,12 +29,16 @@ impl Scope {
 /// Uses lightweight type inference to track variable types through assignments
 /// and flags method calls that are invalid for the inferred type (e.g., `str.append()`).
 pub struct MethodMisuseRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
     scope_stack: Vec<Scope>,
 }
 
-impl Default for MethodMisuseRule {
-    fn default() -> Self {
+impl MethodMisuseRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
         Self {
+            metadata,
             scope_stack: vec![Scope::new()], // Global scope
         }
     }
@@ -263,28 +275,21 @@ impl Rule for MethodMisuseRule {
     fn name(&self) -> &'static str {
         "MethodMisuseRule"
     }
-
-    fn code(&self) -> &'static str {
-        "CSP-D601"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
 
     fn enter_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
         match stmt {
             Stmt::FunctionDef(node) => {
                 self.scope_stack.push(Scope::new()); // Push scope for function
-                                                     // Track function definitions to handle return types
-                                                     // We'll reset current_function when exiting (via stack or similar if full traversal)
-                                                     // For now, simpler approach:
                 if let Some(returns) = &node.returns {
                     if let Expr::Name(name) = &**returns {
-                        // e.g. def foo() -> str:
-                        // Map "foo" to "str"
                         self.add_variable(node.name.to_string(), name.id.to_string());
                     }
                 }
             }
             Stmt::ClassDef(_) => {
-                // Push scope for class - matches the pop in leave_stmt
                 self.scope_stack.push(Scope::new());
             }
             Stmt::AnnAssign(node) => {
@@ -300,7 +305,6 @@ impl Rule for MethodMisuseRule {
                     }
                 }
             }
-            // Handle regular assignments like `s = "hello"`
             Stmt::Assign(node) => {
                 if let Some(inferred_type) = Self::infer_type(&node.value) {
                     for target in &node.targets {
@@ -330,7 +334,6 @@ impl Rule for MethodMisuseRule {
     }
 
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
-        // Handle scope push for lambdas and comprehensions
         match expr {
             Expr::Lambda(node) => {
                 self.scope_stack.push(Scope::new());
@@ -375,16 +378,13 @@ impl Rule for MethodMisuseRule {
 
                     if let Some(type_name) = self.get_variable_type(var_name) {
                         if !Self::is_valid_method(type_name, method_name) {
-                            return Some(vec![Finding {
-                                rule_id: self.code().to_owned(),
-                                severity: "HIGH".to_owned(), // Method misuse is usually a runtime error
-                                message: format!(
-                                    "Method '{method_name}' does not exist for inferred type '{type_name}'"
-                                ),
-                                file: context.filename.clone(),
-                                line: context.line_index.line_index(call.range().start()),
-                                col: 0, // Column tracking not fully implemented in Finding yet
-                            }]);
+                            return Some(vec![create_finding(
+                                &format!("Method '{method_name}' does not exist for inferred type '{type_name}'"),
+                                self.metadata,
+                                context,
+                                call.range().start(),
+                                "HIGH",
+                            )]);
                         }
                     }
                 }

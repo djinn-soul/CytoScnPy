@@ -16,6 +16,8 @@ pub struct TaintContext {
     pub tainted_vars: HashMap<String, TaintInfo>,
     /// Map of line numbers to taint sources that affect them
     pub tainted_lines: HashMap<usize, Vec<String>>,
+    /// Whether taint analysis actually ran (vs skipped/failed)
+    pub analysis_ran: bool,
 }
 
 impl TaintContext {
@@ -92,6 +94,7 @@ impl TaintAwareDangerAnalyzer {
     pub fn build_taint_context(&self, source: &str, file_path: &PathBuf) -> TaintContext {
         let findings = self.taint_analyzer.analyze_file(source, file_path);
         let mut context = TaintContext::new();
+        context.analysis_ran = true; // Mark that taint analysis completed
 
         for finding in findings {
             // Extract variable names from flow path if available
@@ -107,11 +110,10 @@ impl TaintAwareDangerAnalyzer {
         context
     }
 
-    /// Filters danger findings based on taint analysis to reduce false positives.
-    ///
-    /// For rules that check for injection vulnerabilities (SQL, command, path traversal, SSRF),
-    /// this method filters out findings where the input is not tainted (i.e., not from user input).
-    #[must_use]
+    /// Filters findings based on taint analysis.
+    /// - If analysis didn't run: keep all findings (fallback)
+    /// - If analysis ran but no taint found: filter taint-sensitive rules (proven safe)
+    /// - If analysis ran and taint found: only keep findings on tainted lines
     pub fn filter_findings_with_taint(
         findings: Vec<Finding>,
         taint_context: &TaintContext,
@@ -122,8 +124,16 @@ impl TaintAwareDangerAnalyzer {
                 // These rules should only flag when data is tainted
                 if crate::constants::get_taint_sensitive_rules().contains(&finding.rule_id.as_str())
                 {
-                    // Only keep finding if the line has tainted data
-                    taint_context.is_line_tainted(finding.line)
+                    if !taint_context.analysis_ran {
+                        // Taint analysis didn't run - keep as fallback
+                        true
+                    } else if taint_context.tainted_lines.is_empty() {
+                        // Taint analysis ran but found no tainted data - filter out (proven safe)
+                        false
+                    } else {
+                        // Taint analysis active: only keep if line is tainted
+                        taint_context.is_line_tainted(finding.line)
+                    }
                 } else {
                     // Keep all other findings
                     true
@@ -141,15 +151,22 @@ impl TaintAwareDangerAnalyzer {
         let inherently_dangerous = ["CSP-D001", "CSP-D002", "CSP-D003"];
 
         for finding in findings.iter_mut() {
-            if (taint_sensitive_rules.contains(&finding.rule_id.as_str())
-                || inherently_dangerous.contains(&finding.rule_id.as_str()))
-                && taint_context.is_line_tainted(finding.line)
+            if taint_sensitive_rules.contains(&finding.rule_id.as_str())
+                || inherently_dangerous.contains(&finding.rule_id.as_str())
             {
-                // Upgrade severity for tainted injection findings
-                if finding.severity == "HIGH" {
-                    "CRITICAL".clone_into(&mut finding.severity);
-                } else if finding.severity == "MEDIUM" {
-                    "HIGH".clone_into(&mut finding.severity);
+                if let Some(sources) = taint_context.tainted_lines.get(&finding.line) {
+                    // Check if we should upgrade severity (conservative: skip if only param source)
+                    let is_high_confidence =
+                        sources.iter().any(|s| !s.starts_with("function param:"));
+
+                    if is_high_confidence {
+                        // Upgrade severity for tainted injection findings
+                        if finding.severity == "HIGH" {
+                            "CRITICAL".clone_into(&mut finding.severity);
+                        } else if finding.severity == "MEDIUM" {
+                            "HIGH".clone_into(&mut finding.severity);
+                        }
+                    }
                 }
             }
         }

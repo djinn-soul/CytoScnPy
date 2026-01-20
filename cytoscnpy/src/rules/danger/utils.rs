@@ -1,4 +1,4 @@
-use crate::rules::{Context, Finding};
+use crate::rules::{Context, Finding, RuleMetadata};
 use ruff_python_ast::Expr;
 
 /// Message for subprocess command injection findings
@@ -57,7 +57,7 @@ pub fn is_literal_expr(expr: &Expr) -> bool {
 #[must_use]
 pub fn create_finding(
     msg: &str,
-    rule_id: &str,
+    metadata: RuleMetadata,
     context: &Context,
     location: ruff_text_size::TextSize,
     severity: &str,
@@ -65,7 +65,8 @@ pub fn create_finding(
     let line = context.line_index.line_index(location);
     Finding {
         message: msg.to_owned(),
-        rule_id: rule_id.to_owned(),
+        rule_id: metadata.id.to_owned(),
+        category: metadata.category.to_owned(),
         file: context.filename.clone(),
         line,
         col: 0,
@@ -75,6 +76,9 @@ pub fn create_finding(
 
 /// Checks if an expression looks like it's related to tarfile operations.
 /// Used to reduce false positives from unrelated .`extractall()` calls.
+///
+/// Uses conservative heuristics to detect tarfile receivers. May produce false
+/// positives for generic variable names; severity is reduced to MEDIUM for uncertain cases.
 pub fn is_likely_tarfile_receiver(receiver: &Expr) -> bool {
     match receiver {
         // tarfile.open(...).extractall() -> receiver is Call to tarfile.open
@@ -90,18 +94,29 @@ pub fn is_likely_tarfile_receiver(receiver: &Expr) -> bool {
         // Variable that might be a TarFile instance
         Expr::Name(name) => {
             let id = name.id.as_str().to_lowercase();
-            id == "tarfile" || id.contains("tar") || id == "tf" || id == "t"
+            id == "tarfile"
+                || id == "tar"
+                || id.starts_with("tar_")
+                || id.ends_with("_tar")
+                || id.contains("_tar_")
         }
         // Attribute access like self.tar_file or module.tar_archive
         Expr::Attribute(attr2) => {
-            let attr_id = attr2.attr.as_str().to_lowercase();
-            attr_id.contains("tar") || attr_id == "tf"
+            let id = attr2.attr.as_str().to_lowercase();
+            id == "tar_file"
+                || id == "tar"
+                || id.starts_with("tar_")
+                || id.ends_with("_tar")
+                || id.contains("_tar_")
         }
         _ => false,
     }
 }
 
 /// Checks if an expression looks like it's related to zipfile operations.
+///
+/// Uses conservative heuristics to detect zipfile receivers. May produce false
+/// positives for generic variable names; severity is reduced to MEDIUM for uncertain cases.
 pub fn is_likely_zipfile_receiver(receiver: &Expr) -> bool {
     match receiver {
         // zipfile.ZipFile(...).extractall() -> receiver is Call
@@ -120,12 +135,20 @@ pub fn is_likely_zipfile_receiver(receiver: &Expr) -> bool {
         // Variable that might be a ZipFile instance
         Expr::Name(name) => {
             let id = name.id.as_str().to_lowercase();
-            id == "zipfile" || id.contains("zip") || id == "zf" || id == "z"
+            id == "zipfile"
+                || id == "zip"
+                || id.starts_with("zip_")
+                || id.ends_with("_zip")
+                || id.contains("_zip_")
         }
         // Attribute access like self.zip_file
         Expr::Attribute(attr2) => {
-            let attr_id = attr2.attr.as_str().to_lowercase();
-            attr_id.contains("zip") || attr_id == "zf"
+            let id = attr2.attr.as_str().to_lowercase();
+            id == "zip_file"
+                || id == "zip"
+                || id.starts_with("zip_")
+                || id.ends_with("_zip")
+                || id.contains("_zip_")
         }
         _ => false,
     }

@@ -20,6 +20,10 @@ pub const PYPROJECT_FILENAME: &str = "pyproject.toml";
 /// Rule ID for configuration-related errors.
 pub const RULE_ID_CONFIG_ERROR: &str = "CSP-CONFIG-ERROR";
 
+/// Default value for whether taint analysis is enabled when not explicitly configured.
+/// Set to `true` because taint analysis improves accuracy and reduces false positives.
+pub const TAINT_ENABLED_DEFAULT: bool = true;
+
 /// Suppression comment patterns that disable findings on a line.
 /// Supports both pragma format and noqa format.
 /// - `# pragma: no cytoscnpy` - Legacy format
@@ -366,10 +370,10 @@ pub fn get_taint_sensitive_rules() -> &'static [&'static str] {
     static RULES: OnceLock<Vec<&'static str>> = OnceLock::new();
     RULES.get_or_init(|| {
         vec![
-            "CSP-D101", // SQL Injection (ORM)
-            "CSP-D102", // SQL Injection (Raw)
-            "CSP-D402", // SSRF
-            "CSP-D501", // Path Traversal
+            crate::rules::ids::RULE_ID_SQL_INJECTION, // SQL Injection (ORM)
+            crate::rules::ids::RULE_ID_SQL_RAW,       // SQL Injection (Raw)
+            crate::rules::ids::RULE_ID_SSRF,          // SSRF
+            crate::rules::ids::RULE_ID_PATH_TRAVERSAL, // Path Traversal
         ]
     })
 }

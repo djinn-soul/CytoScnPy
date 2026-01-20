@@ -9,7 +9,7 @@
 mod aggregation;
 mod builder;
 mod heuristics;
-mod single_file;
+pub mod single_file;
 mod traversal;
 mod utils;
 

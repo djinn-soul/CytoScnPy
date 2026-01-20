@@ -17,14 +17,19 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 fn project_tempdir() -> TempDir {
-    let mut target_dir = std::env::current_dir().unwrap();
-    target_dir.push("target");
-    target_dir.push("tmp-multipath");
-    fs::create_dir_all(&target_dir).unwrap();
-    tempfile::Builder::new()
-        .prefix("multipath_test_")
-        .tempdir_in(target_dir)
+    // Try to find the workspace target directory, fallback to standard temp dir
+    let target_dir = std::env::current_dir()
         .unwrap()
+        .join("target")
+        .join("tmp-multipath");
+    if fs::create_dir_all(&target_dir).is_ok() {
+        tempfile::Builder::new()
+            .prefix("multipath_test_")
+            .tempdir_in(target_dir)
+            .unwrap()
+    } else {
+        tempfile::tempdir().unwrap()
+    }
 }
 
 /// Test that `analyze_paths` with a single directory works the same as analyze

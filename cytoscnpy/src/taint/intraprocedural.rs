@@ -4,7 +4,7 @@
 
 use super::analyzer::TaintAnalyzer;
 use super::propagation::{is_expr_tainted, is_parameterized_query, is_sanitizer_call, TaintState};
-use super::types::{SinkMatch, TaintFinding, TaintInfo};
+use super::types::{TaintFinding, TaintInfo};
 use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
@@ -20,6 +20,18 @@ pub fn analyze_function(
 ) -> Vec<TaintFinding> {
     let mut state = initial_taint.unwrap_or_default();
     let mut findings = Vec::new();
+
+    // Always taint function parameters (conservative approach)
+    for arg in &func.parameters.args {
+        let name = arg.parameter.name.as_str();
+        state.mark_tainted(
+            name,
+            TaintInfo::new(
+                crate::taint::types::TaintSource::FunctionParam(name.to_owned()),
+                line_index.line_index(arg.range().start()),
+            ),
+        );
+    }
 
     // Analyze each statement in the function body
     for stmt in &func.body {
@@ -46,6 +58,18 @@ pub fn analyze_async_function(
 ) -> Vec<TaintFinding> {
     let mut state = initial_taint.unwrap_or_default();
     let mut findings = Vec::new();
+
+    // Always taint function parameters (conservative approach)
+    for arg in &func.parameters.args {
+        let name = arg.parameter.name.as_str();
+        state.mark_tainted(
+            name,
+            TaintInfo::new(
+                crate::taint::types::TaintSource::FunctionParam(name.to_owned()),
+                line_index.line_index(arg.range().start()),
+            ),
+        );
+    }
 
     for stmt in &func.body {
         analyze_stmt(
@@ -549,14 +573,16 @@ fn check_expr_for_sinks(
 /// Creates a taint finding from source and sink info.
 fn create_finding(
     taint_info: &TaintInfo,
-    sink_info: &SinkMatch,
+    sink_info: &super::types::SinkMatch,
     sink_line: usize,
     file_path: &Path,
 ) -> TaintFinding {
     TaintFinding {
         source: taint_info.source.to_string(),
         source_line: taint_info.source_line,
+        category: "Taint Analysis".to_owned(),
         sink: sink_info.name.clone(),
+        rule_id: sink_info.rule_id.clone(),
         sink_line,
         sink_col: 0,
         flow_path: taint_info.path.clone(),

@@ -115,7 +115,10 @@ def complex_function(a, b, c, d, e, f, g):
     let result = analyzer.analyze_code(code, Path::new("decorated_code.py"));
 
     // Should have at least one quality finding for too many args
-    let args_finding = result.quality.iter().find(|f| f.rule_id == "CSP-C303");
+    let args_finding = result
+        .quality
+        .iter()
+        .find(|f| f.message.contains("Too many arguments"));
     assert!(
         args_finding.is_some(),
         "Should have an ArgumentCount finding. Got findings: {:?}",

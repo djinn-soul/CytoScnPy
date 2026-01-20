@@ -168,7 +168,7 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 
 _Systematic improvements to detection accuracy based on benchmark analysis._
 
-**Current Status:** F1 = 0.63 (77 TP, 34 FP, 60 FN)
+**Current Status:** F1 = 0.72 (110 TP, 46 FP, 38 FN)
 
 ### 7.6.1 Completed Fixes ✅
 

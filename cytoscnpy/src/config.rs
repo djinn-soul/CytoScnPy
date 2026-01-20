@@ -167,6 +167,7 @@ pub struct DangerConfig {
     /// Custom taint sources.
     pub custom_sources: Option<Vec<String>>,
     /// Custom taint sinks.
+    /// Custom taint sinks.
     pub custom_sinks: Option<Vec<String>>,
 }
 

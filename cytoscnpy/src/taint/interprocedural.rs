@@ -361,7 +361,9 @@ fn analyze_module_level(
                             findings.push(super::types::TaintFinding {
                                 source: taint_info.source.to_string(),
                                 source_line: taint_info.source_line,
+                                category: "Taint Analysis".to_owned(),
                                 sink: sink_match.name.clone(),
+                                rule_id: sink_match.rule_id.clone(),
                                 sink_line: line_index.line_index(call.range().start()),
                                 sink_col: 0,
                                 flow_path: vec![],

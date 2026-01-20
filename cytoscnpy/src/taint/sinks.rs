@@ -1,8 +1,5 @@
-//! Dangerous sink detection.
-//!
-//! Identifies where tainted data can cause security vulnerabilities.
-
 use super::types::{Severity, VulnType};
+use crate::rules::ids;
 use ruff_python_ast::{self as ast, Expr};
 
 /// Information about a detected sink.
@@ -10,6 +7,8 @@ use ruff_python_ast::{self as ast, Expr};
 pub struct SinkInfo {
     /// Name of the sink function/pattern
     pub name: String,
+    /// Rule ID
+    pub rule_id: String,
     /// Type of vulnerability this sink can cause
     pub vuln_type: VulnType,
     /// Severity level
@@ -23,49 +22,54 @@ pub struct SinkInfo {
 }
 
 /// Checks if a call expression is a dangerous sink.
-#[allow(clippy::too_many_lines)]
+/// Checks if a call expression is a dangerous sink.
 pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
     let name = get_call_name(&call.func)?;
 
-    // Code injection sinks
-    if name == "eval" {
-        return Some(SinkInfo {
+    check_code_injection_sinks(&name)
+        .or_else(|| check_sql_injection_sinks(&name))
+        .or_else(|| check_command_injection_sinks(&name, call))
+        .or_else(|| check_path_traversal_sinks(&name))
+        .or_else(|| check_network_sinks(&name))
+        .or_else(|| check_misc_sinks(&name))
+        .or_else(|| check_dynamic_attribute_sinks(call))
+}
+
+fn check_code_injection_sinks(name: &str) -> Option<SinkInfo> {
+    match name {
+        "eval" => Some(SinkInfo {
             name: "eval".to_owned(),
+            rule_id: ids::RULE_ID_EVAL.to_owned(),
             vuln_type: VulnType::CodeInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
             dangerous_keywords: Vec::new(),
             remediation: "Avoid eval() with user input. Use ast.literal_eval() for safe parsing."
                 .to_owned(),
-        });
+        }),
+        "exec" | "compile" => {
+            let actual_name = if name == "exec" { "exec" } else { "compile" };
+            Some(SinkInfo {
+                name: actual_name.to_owned(),
+                rule_id: ids::RULE_ID_EXEC.to_owned(),
+                vuln_type: VulnType::CodeInjection,
+                severity: Severity::Critical,
+                dangerous_args: vec![0],
+                dangerous_keywords: Vec::new(),
+                remediation: format!(
+                    "Avoid {actual_name}() with user input. Consider safer alternatives."
+                ),
+            })
+        }
+        _ => None,
     }
+}
 
-    if name == "exec" {
-        return Some(SinkInfo {
-            name: "exec".to_owned(),
-            vuln_type: VulnType::CodeInjection,
-            severity: Severity::Critical,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Avoid exec() with user input. Consider safer alternatives.".to_owned(),
-        });
-    }
-
-    if name == "compile" {
-        return Some(SinkInfo {
-            name: "compile".to_owned(),
-            vuln_type: VulnType::CodeInjection,
-            severity: Severity::Critical,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Avoid compile() with user input.".to_owned(),
-        });
-    }
-
-    // SQL injection sinks
+fn check_sql_injection_sinks(name: &str) -> Option<SinkInfo> {
     if name.ends_with(".execute") || name.ends_with(".executemany") {
         return Some(SinkInfo {
-            name,
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_SQL_RAW.to_owned(),
             vuln_type: VulnType::SqlInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
@@ -76,81 +80,84 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
 
     // This is not actually a file extension comparison - we're checking method name suffixes
     #[allow(clippy::case_sensitive_file_extension_comparisons)]
-    if name == "sqlalchemy.text" || name.ends_with(".text") {
+    if name == "sqlalchemy.text" || name.ends_with(".text") || name.ends_with(".objects.raw") {
+        let rule_id = if name.ends_with(".objects.raw")
+            || name == "sqlalchemy.text"
+            || name.ends_with(".text")
+        {
+            ids::RULE_ID_SQL_INJECTION.to_owned()
+        } else {
+            ids::RULE_ID_SQL_RAW.to_owned()
+        };
         return Some(SinkInfo {
-            name,
+            name: name.to_owned(),
+            rule_id,
             vuln_type: VulnType::SqlInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
             dangerous_keywords: Vec::new(),
-            remediation: "Use bound parameters: text('SELECT * WHERE id=:id').bindparams(id=val)"
-                .to_owned(),
+            remediation: if name.ends_with(".objects.raw") {
+                "Use Django ORM methods instead of raw SQL.".to_owned()
+            } else {
+                "Use bound parameters: text('SELECT * WHERE id=:id').bindparams(id=val)".to_owned()
+            },
         });
     }
 
-    if name.ends_with(".objects.raw") {
+    if name == "pandas.read_sql"
+        || name == "pd.read_sql"
+        || name == "Template.substitute"
+        || name == "JinjaSql.prepare_query"
+    {
         return Some(SinkInfo {
-            name,
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_SQL_RAW.to_owned(),
             vuln_type: VulnType::SqlInjection,
-            severity: Severity::Critical,
+            severity: if name.starts_with("pandas") || name.starts_with("pd") {
+                Severity::High
+            } else {
+                Severity::Critical
+            },
             dangerous_args: vec![0],
             dangerous_keywords: Vec::new(),
-            remediation: "Use Django ORM methods instead of raw SQL.".to_owned(),
+            remediation: if name.contains("pandas") || name.contains("pd") {
+                "Use parameterized queries with pd.read_sql(sql, con, params=[...])".to_owned()
+            } else {
+                "Avoid building raw SQL strings. Use parameterized queries.".to_owned()
+            },
         });
     }
 
-    if name == "pandas.read_sql" || name == "pd.read_sql" {
-        return Some(SinkInfo {
-            name,
-            vuln_type: VulnType::SqlInjection,
-            severity: Severity::High,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Use parameterized queries with pd.read_sql(sql, con, params=[...])"
-                .to_owned(),
-        });
-    }
+    None
+}
 
-    // Command injection sinks
-    if name == "os.system" {
+fn check_command_injection_sinks(name: &str, call: &ast::ExprCall) -> Option<SinkInfo> {
+    if name == "os.system"
+        || name == "os.popen"
+        || (name.starts_with("subprocess.") && has_shell_true(call))
+    {
         return Some(SinkInfo {
-            name: "os.system".to_owned(),
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_SUBPROCESS.to_owned(),
             vuln_type: VulnType::CommandInjection,
             severity: Severity::Critical,
             dangerous_args: vec![0],
             dangerous_keywords: Vec::new(),
-            remediation: "Use subprocess.run() with shell=False and a list of arguments."
-                .to_owned(),
+            remediation: if name.starts_with("subprocess") {
+                "Use shell=False and pass arguments as a list.".to_owned()
+            } else {
+                "Use subprocess.run() with shell=False.".to_owned()
+            },
         });
     }
+    None
+}
 
-    if name == "os.popen" {
-        return Some(SinkInfo {
-            name: "os.popen".to_owned(),
-            vuln_type: VulnType::CommandInjection,
-            severity: Severity::Critical,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Use subprocess.run() with shell=False.".to_owned(),
-        });
-    }
-
-    // subprocess with shell=True
-    if name.starts_with("subprocess.") && has_shell_true(call) {
-        return Some(SinkInfo {
-            name,
-            vuln_type: VulnType::CommandInjection,
-            severity: Severity::Critical,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Use shell=False and pass arguments as a list.".to_owned(),
-        });
-    }
-
-    // Path traversal sinks
+fn check_path_traversal_sinks(name: &str) -> Option<SinkInfo> {
     if name == "open" {
         return Some(SinkInfo {
             name: "open".to_owned(),
+            rule_id: ids::RULE_ID_PATH_TRAVERSAL.to_owned(),
             vuln_type: VulnType::PathTraversal,
             severity: Severity::High,
             dangerous_args: vec![0],
@@ -162,7 +169,8 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
 
     if name.starts_with("shutil.") || name.starts_with("os.path.") {
         return Some(SinkInfo {
-            name,
+            name: name.to_owned(),
+            rule_id: "CSP-D501".to_owned(),
             vuln_type: VulnType::PathTraversal,
             severity: Severity::High,
             dangerous_args: vec![], // Sentinel: check all positional args
@@ -171,7 +179,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         });
     }
 
-    if name == "pathlib.Path"
+    let is_pathlib = name == "pathlib.Path"
         || name == "pathlib.PurePath"
         || name == "pathlib.PosixPath"
         || name == "pathlib.WindowsPath"
@@ -179,10 +187,12 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         || name == "PurePath"
         || name == "PosixPath"
         || name == "WindowsPath"
-        || name == "zipfile.Path"
-    {
+        || name == "zipfile.Path";
+
+    if is_pathlib {
         return Some(SinkInfo {
-            name,
+            name: name.to_owned(),
+            rule_id: "CSP-D501".to_owned(),
             vuln_type: VulnType::PathTraversal,
             severity: Severity::High,
             dangerous_args: vec![0],
@@ -198,7 +208,10 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         });
     }
 
-    // SSRF sinks
+    None
+}
+
+fn check_network_sinks(name: &str) -> Option<SinkInfo> {
     if name.starts_with("requests.")
         || name.starts_with("httpx.")
         || name == "urllib.request.urlopen"
@@ -210,7 +223,8 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             vec![0]
         };
         return Some(SinkInfo {
-            name,
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_SSRF.to_owned(),
             vuln_type: VulnType::Ssrf,
             severity: Severity::Critical,
             dangerous_args,
@@ -220,57 +234,10 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         });
     }
 
-    // XSS sinks
-    if name == "flask.render_template_string" || name == "render_template_string" {
-        return Some(SinkInfo {
-            name,
-            vuln_type: VulnType::Xss,
-            severity: Severity::High,
-            dangerous_args: vec![0],
-            dangerous_keywords: vec!["source".to_owned()],
-            remediation: "Use render_template() with template files instead.".to_owned(),
-        });
-    }
-
-    if name == "jinja2.Markup" || name == "Markup" || name == "mark_safe" {
-        return Some(SinkInfo {
-            name,
-            vuln_type: VulnType::Xss,
-            severity: Severity::High,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Escape user input before marking as safe.".to_owned(),
-        });
-    }
-
-    // Deserialization sinks
-    if name == "pickle.load" || name == "pickle.loads" {
-        return Some(SinkInfo {
-            name,
-            vuln_type: VulnType::Deserialization,
-            severity: Severity::Critical,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Avoid unpickling untrusted data. Use JSON or other safe formats."
-                .to_owned(),
-        });
-    }
-
-    if name == "yaml.load" || name == "yaml.unsafe_load" {
-        return Some(SinkInfo {
-            name,
-            vuln_type: VulnType::Deserialization,
-            severity: Severity::Critical,
-            dangerous_args: vec![0],
-            dangerous_keywords: Vec::new(),
-            remediation: "Use yaml.safe_load() instead.".to_owned(),
-        });
-    }
-
-    // Open redirect
     if name == "redirect" || name == "flask.redirect" || name == "django.shortcuts.redirect" {
         return Some(SinkInfo {
-            name,
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_OPEN_REDIRECT.to_owned(),
             vuln_type: VulnType::OpenRedirect,
             severity: Severity::Medium,
             dangerous_args: vec![0],
@@ -279,19 +246,54 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         });
     }
 
-    // SQL Injection for Template and JinjaSQL
-    if name == "Template.substitute" || name == "JinjaSql.prepare_query" {
-        return Some(SinkInfo {
-            name,
-            vuln_type: VulnType::SqlInjection,
+    None
+}
+
+fn check_misc_sinks(name: &str) -> Option<SinkInfo> {
+    match name {
+        "flask.render_template_string"
+        | "render_template_string"
+        | "jinja2.Markup"
+        | "Markup"
+        | "mark_safe" => {
+            let vuln_type = VulnType::Xss;
+            let remediation = if name.contains("render_template") {
+                "Use render_template() with template files instead.".to_owned()
+            } else {
+                "Escape user input before marking as safe.".to_owned()
+            };
+            Some(SinkInfo {
+                name: name.to_owned(),
+                rule_id: ids::RULE_ID_XSS_GENERIC.to_owned(),
+                vuln_type,
+                severity: Severity::High,
+                dangerous_args: vec![0],
+                dangerous_keywords: if name.contains("render_template") {
+                    vec!["source".to_owned()]
+                } else {
+                    Vec::new()
+                },
+                remediation,
+            })
+        }
+        "pickle.load" | "pickle.loads" | "yaml.load" | "yaml.unsafe_load" => Some(SinkInfo {
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_METHOD_MISUSE.to_owned(), // Note: Using D601 as generic deser fallback
+            vuln_type: VulnType::Deserialization,
             severity: Severity::Critical,
             dangerous_args: vec![0],
             dangerous_keywords: Vec::new(),
-            remediation: "Avoid building raw SQL strings. Use parameterized queries.".to_owned(),
-        });
+            remediation: if name.contains("pickle") {
+                "Avoid unpickling untrusted data. Use JSON or other safe formats.".to_owned()
+            } else {
+                "Use yaml.safe_load() instead.".to_owned()
+            },
+        }),
+        _ => None,
     }
+}
 
-    // JinjaSql instance calls (Comment 1)
+fn check_dynamic_attribute_sinks(call: &ast::ExprCall) -> Option<SinkInfo> {
     if let Expr::Attribute(attr) = &*call.func {
         if attr.attr.as_str() == "prepare_query" {
             let is_jinja = match &*attr.value {
@@ -304,6 +306,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             if is_jinja {
                 return Some(SinkInfo {
                     name: "JinjaSql.prepare_query".to_owned(),
+                    rule_id: "CSP-D102".to_owned(),
                     vuln_type: VulnType::SqlInjection,
                     severity: Severity::Critical,
                     dangerous_args: vec![0],
@@ -314,7 +317,6 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
             }
         }
     }
-
     None
 }
 

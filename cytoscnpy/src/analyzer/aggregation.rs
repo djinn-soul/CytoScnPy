@@ -296,7 +296,7 @@ impl CytoScnPy {
                 .cytoscnpy
                 .danger_config
                 .enable_taint
-                .unwrap_or(true)
+                .unwrap_or(crate::constants::TAINT_ENABLED_DEFAULT)
         {
             let custom_sources = self
                 .config
@@ -335,11 +335,12 @@ impl CytoScnPy {
                 .flat_map(|(path, source)| {
                     let path_ignored = crate::utils::get_ignored_lines(source);
                     let findings = taint_analyzer.analyze_file(source, path);
-                    findings
-                        .into_iter()
-                        .filter(move |f| !path_ignored.contains_key(&f.sink_line))
+                    findings.into_iter().filter(move |f| {
+                        !crate::utils::is_line_suppressed(&path_ignored, f.sink_line, &f.rule_id)
+                    })
                 })
                 .collect::<Vec<_>>();
+
             file_taint
         } else {
             Vec::new()

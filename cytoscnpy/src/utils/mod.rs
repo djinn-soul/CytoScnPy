@@ -86,9 +86,7 @@ pub fn get_line_suppression(line: &str) -> Option<Suppression> {
                 if c == "CSP" {
                     return Some(Suppression::All); // Treat generic "CSP" as suppress all
                 }
-                if c.starts_with("CSP") {
-                    specific_rules.insert(c);
-                }
+                specific_rules.insert(c);
             }
             if !specific_rules.is_empty() {
                 return Some(Suppression::Specific(specific_rules));

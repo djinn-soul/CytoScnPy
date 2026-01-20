@@ -164,20 +164,21 @@ Path(user_input)  # Unsafe (if imported as Path)
 PurePath(user_input) # Unsafe
 PosixPath(user_input) # Unsafe
 WindowsPath(user_input) # Unsafe
-zipfile.Path("archive.zip", at=user_input)  # Unsafe (dynamic path inside zip)
-zipfile.Path("archive.zip", path=user_input) # Unsafe (keyword 'path')
-zipfile.Path("archive.zip", filename=user_input) # Unsafe (keyword 'filename')
-zipfile.Path("archive.zip", filepath=user_input) # Unsafe (keyword 'filepath')
-tarfile.TarFile("archive.tar").extractall(member=user_input) # Unsafe (keyword 'member')
-zipfile.Path(user_input) # Unsafe (positional)
+
+zipfile.Path("archive.zip", at=sys.argv[1])  # Unsafe (dynamic path inside zip)
+zipfile.Path("archive.zip", path=sys.argv[1]) # Unsafe (keyword 'path')
+zipfile.Path("archive.zip", filename=sys.argv[1]) # Unsafe (keyword 'filename')
+zipfile.Path("archive.zip", filepath=sys.argv[1]) # Unsafe (keyword 'filepath')
+tarfile.TarFile("archive.tar").extractall(member=sys.argv[1]) # Unsafe (keyword 'member')
+zipfile.Path(sys.argv[1]) # Unsafe (positional)
 # Negative cases (literals)
 Path("/etc/passwd") # Safe (literal)
 PurePath("C:\\Windows") # Safe (literal)
 zipfile.Path("archive.zip", at="data/file.txt") # Safe (literal)
 # Multi-argument path traversal (Comment 1)
-pathlib.Path("safe_prefix", user_input) # Unsafe (dynamic second arg)
-os.path.join("safe", user_input) # Unsafe
-os.path.abspath(user_input) # Unsafe (Comment 1)
+pathlib.Path("safe_prefix", sys.argv[1]) # Unsafe (dynamic second arg)
+os.path.join("safe", sys.argv[1]) # Unsafe
+os.path.abspath(sys.argv[1]) # Unsafe (Comment 1)
 # Multi-line cases for SSRF (Comment 1)
 requests.get(
     url=user_input

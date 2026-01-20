@@ -1,20 +1,82 @@
-// Note: We check Python method names like `.get`, `.post` which clippy
-// incorrectly flags as file extension comparisons
-#![allow(clippy::case_sensitive_file_extension_comparisons)]
-
 use super::utils::{create_finding, get_call_name, is_arg_literal};
-use crate::rules::{Context, Finding, Rule};
+use crate::rules::ids;
+use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 
 /// Rule for detecting insecure HTTP requests (e.g., SSL verification disabled).
-pub struct RequestsRule;
+pub const META_REQUESTS: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_REQUESTS,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting potential Server-Side Request Forgery (SSRF) vulnerabilities.
+pub const META_SSRF: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_SSRF,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting if debug mode is enabled in production.
+pub const META_DEBUG_MODE: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_DEBUG_MODE,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting hardcoded bindings to all network interfaces.
+pub const META_BIND_ALL: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_BIND_ALL,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting HTTP requests made without a timeout.
+pub const META_TIMEOUT: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_TIMEOUT,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting potentially insecure FTP usage.
+pub const META_FTP: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_FTP,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting potentially insecure HTTPS connections without context.
+pub const META_HTTPS_CONNECTION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_HTTPS_CONNECTION,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting use of unverified SSL contexts.
+pub const META_SSL_UNVERIFIED: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_SSL_UNVERIFIED,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting potentially insecure Telnet usage.
+pub const META_TELNET: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_TELNET,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting potentially insecure URL opening.
+pub const META_URL_OPEN: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_URL_OPEN,
+    category: super::CAT_NETWORK,
+};
+/// Rule for detecting use of `ssl.wrap_socket`.
+pub const META_WRAP_SOCKET: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_WRAP_SOCKET,
+    category: super::CAT_NETWORK,
+};
+
+/// Rule for detecting insecure HTTP requests (e.g., SSL verification disabled).
+pub struct RequestsRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl RequestsRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for RequestsRule {
     fn name(&self) -> &'static str {
         "RequestsRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D401"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -27,7 +89,7 @@ impl Rule for RequestsRule {
                                     if !b.value {
                                         return Some(vec![create_finding(
                                             "SSL verification disabled (verify=False)",
-                                            self.code(),
+                                            self.metadata,
                                             context,
                                             call.range().start(),
                                             "HIGH",
@@ -45,13 +107,22 @@ impl Rule for RequestsRule {
 }
 
 /// Rule for detecting potential Server-Side Request Forgery (SSRF) vulnerabilities.
-pub struct SSRFRule;
+pub struct SSRFRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl SSRFRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for SSRFRule {
     fn name(&self) -> &'static str {
         "SSRFRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D402"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -73,7 +144,7 @@ impl Rule for SSRFRule {
                             {
                                 findings.push(create_finding(
                                     "Potential SSRF (dynamic URL in positional arg 2)",
-                                    self.code(),
+                                    self.metadata,
                                     context,
                                     call.range().start(),
                                     "CRITICAL",
@@ -81,14 +152,10 @@ impl Rule for SSRFRule {
                             }
                         } else {
                             // For .get(url, ...), .post(url, ...), check 1st arg via is_literal check
-                            // Note: is_literal checks if ALL args are literal. If any is dynamic, logic assumes risk.
-                            // Ideally we just check the first arg for exactness, but keeping existing heuristic for now
-                            // unless strictly asked only for .request change.
-                            // The guard !is_arg_literal(&call.arguments.args, 0) covers the "URL arg must be literal" case.
                             if !is_arg_literal(&call.arguments.args, 0) {
                                 findings.push(create_finding(
                                     "Potential SSRF (dynamic URL in positional arg)",
-                                    self.code(),
+                                    self.metadata,
                                     context,
                                     call.range().start(),
                                     "CRITICAL",
@@ -105,9 +172,8 @@ impl Rule for SSRFRule {
                                 && !crate::rules::danger::utils::is_literal_expr(&keyword.value)
                             {
                                 findings.push(create_finding(
-                                    format!("Potential SSRF (dynamic URL in '{arg_s}' arg)")
-                                        .as_str(),
-                                    self.code(),
+                                    &format!("Potential SSRF (dynamic URL in '{arg_s}' arg)"),
+                                    self.metadata,
                                     context,
                                     call.range().start(),
                                     "CRITICAL",
@@ -127,13 +193,22 @@ impl Rule for SSRFRule {
 }
 
 /// Rule for detecting hardcoded bindings to all network interfaces (0.0.0.0).
-pub struct HardcodedBindAllInterfacesRule;
+pub struct HardcodedBindAllInterfacesRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl HardcodedBindAllInterfacesRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for HardcodedBindAllInterfacesRule {
     fn name(&self) -> &'static str {
         "HardcodedBindAllInterfacesRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D404"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
@@ -152,7 +227,7 @@ impl Rule for HardcodedBindAllInterfacesRule {
                         if val == "0.0.0.0" || val == "::" {
                             return Some(vec![create_finding(
                                 "Possible hardcoded binding to all interfaces (0.0.0.0 or ::)",
-                                self.code(),
+                                self.metadata,
                                 context,
                                 assign.value.range().start(),
                                 "MEDIUM",
@@ -171,7 +246,7 @@ impl Rule for HardcodedBindAllInterfacesRule {
                                 if val == "0.0.0.0" || val == "::" {
                                     return Some(vec![create_finding(
                                         "Possible hardcoded binding to all interfaces (0.0.0.0 or ::)",
-                                        self.code(),
+                                        self.metadata,
                                         context,
                                         value.range().start(),
                                         "MEDIUM",
@@ -198,7 +273,7 @@ impl Rule for HardcodedBindAllInterfacesRule {
                             if val == "0.0.0.0" || val == "::" {
                                 return Some(vec![create_finding(
                                     "Possible hardcoded binding to all interfaces (0.0.0.0 or ::)",
-                                    self.code(),
+                                    self.metadata,
                                     context,
                                     kw.value.range().start(),
                                     "MEDIUM",
@@ -218,7 +293,7 @@ impl Rule for HardcodedBindAllInterfacesRule {
                                 if val == "0.0.0.0" || val == "::" {
                                     return Some(vec![create_finding(
                                         "Possible hardcoded binding to all interfaces (0.0.0.0 or ::)",
-                                        self.code(),
+                                        self.metadata,
                                         context,
                                         t.elts[0].range().start(),
                                         "MEDIUM",
@@ -235,13 +310,22 @@ impl Rule for HardcodedBindAllInterfacesRule {
 }
 
 /// Rule for detecting HTTP requests made without a timeout.
-pub struct RequestWithoutTimeoutRule;
+pub struct RequestWithoutTimeoutRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+impl RequestWithoutTimeoutRule {
+    /// Creates a new instance with the specified metadata.
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
 impl Rule for RequestWithoutTimeoutRule {
     fn name(&self) -> &'static str {
         "RequestWithoutTimeoutRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-D405"
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
@@ -276,7 +360,7 @@ impl Rule for RequestWithoutTimeoutRule {
                     if bad_timeout {
                         return Some(vec![create_finding(
                             "Request call without timeout or with an unsafe timeout (None, 0, False). This can cause the process to hang indefinitely.",
-                            self.code(),
+                            self.metadata,
                             context,
                             call.range().start(),
                             "MEDIUM",
@@ -295,6 +379,11 @@ pub fn check_network_and_ssl(
     call: &ast::ExprCall,
     context: &Context,
 ) -> Option<Finding> {
+    // use crate::rules::danger::{
+    //     META_FTP, META_HTTPS_CONNECTION, META_SSL_UNVERIFIED, META_TELNET, META_URL_OPEN,
+    //     META_WRAP_SOCKET,
+    // };
+
     // B309: HTTPSConnection
     if name == "httplib.HTTPSConnection"
         || name == "http.client.HTTPSConnection"
@@ -308,7 +397,7 @@ pub fn check_network_and_ssl(
         if !has_context {
             return Some(create_finding(
                 "Use of HTTPSConnection without a context is insecure in some Python versions.",
-                "CSP-D408",
+                META_HTTPS_CONNECTION,
                 context,
                 call.range().start(),
                 "MEDIUM",
@@ -325,7 +414,7 @@ pub fn check_network_and_ssl(
     {
         return Some(create_finding(
             "Audit url open for permitted schemes. Allowing file: or custom schemes is dangerous.",
-            "CSP-D406",
+            META_URL_OPEN,
             context,
             call.range().start(),
             "MEDIUM",
@@ -335,7 +424,7 @@ pub fn check_network_and_ssl(
     if name.starts_with("telnetlib.") {
         return Some(create_finding(
             "Telnet-related functions are being called. Telnet is insecure.",
-            "CSP-D005",
+            META_TELNET,
             context,
             call.range().start(),
             "HIGH",
@@ -345,7 +434,7 @@ pub fn check_network_and_ssl(
     if name.starts_with("ftplib.") {
         return Some(create_finding(
             "FTP-related functions are being called. FTP is insecure.",
-            "CSP-D006",
+            META_FTP,
             context,
             call.range().start(),
             "HIGH",
@@ -355,7 +444,7 @@ pub fn check_network_and_ssl(
     if name == "ssl._create_unverified_context" {
         return Some(create_finding(
             "Use of potentially insecure ssl._create_unverified_context.",
-            "CSP-D407",
+            META_SSL_UNVERIFIED,
             context,
             call.range().start(),
             "MEDIUM",
@@ -365,7 +454,7 @@ pub fn check_network_and_ssl(
     if name == "ssl.wrap_socket" {
         return Some(create_finding(
             "Use of ssl.wrap_socket is deprecated and often insecure. Use ssl.create_default_context().wrap_socket() instead.",
-            "CSP-D409",
+            META_WRAP_SOCKET,
             context,
             call.range().start(),
             "MEDIUM",

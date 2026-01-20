@@ -51,6 +51,7 @@ fn create_mock_result() -> AnalysisResult {
         quality: vec![Finding {
             message: "Test finding".to_owned(),
             rule_id: "CSP-Q001".to_owned(),
+            category: "Maintainability".to_owned(),
             file: PathBuf::from("test.py"),
             line: 5,
             col: 0,
@@ -201,6 +202,7 @@ fn test_print_findings_with_items() {
     let findings = vec![Finding {
         message: "Test message".to_owned(),
         rule_id: "TEST-001".to_owned(),
+        category: "Security Issues".to_owned(),
         file: PathBuf::from("file.py"),
         line: 10,
         col: 0,

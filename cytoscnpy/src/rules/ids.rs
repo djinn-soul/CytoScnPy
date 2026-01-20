@@ -1,14 +1,14 @@
 //! Centralized Rule IDs for CytoScnPy.
 
-/// Code Execution: eval()
+/// Code Execution: `eval()`
 pub const RULE_ID_EVAL: &str = "CSP-D001";
-/// Code Execution: exec() or compile()
+/// Code Execution: `exec()` or `compile()`
 pub const RULE_ID_EXEC: &str = "CSP-D002";
-/// Code Execution: Command injection in subprocess/os.system
+/// Code Execution: Command injection in `subprocess`/`os.system`
 pub const RULE_ID_SUBPROCESS: &str = "CSP-D003";
-/// Code Execution: Command injection in async subprocess/popen
+/// Code Execution: Command injection in async `subprocess`/`popen`
 pub const RULE_ID_ASYNC_SUBPROCESS: &str = "CSP-D004";
-/// Code Execution: unsafe use of input()
+/// Code Execution: unsafe use of `input()`
 pub const RULE_ID_INPUT: &str = "CSP-D005";
 
 /// Injection: SQL Injection (ORM/Query builders)
@@ -19,14 +19,14 @@ pub const RULE_ID_SQL_RAW: &str = "CSP-D102";
 pub const RULE_ID_XSS: &str = "CSP-D103";
 /// Injection: Insecure XML parsing (XXE)
 pub const RULE_ID_XML: &str = "CSP-D104";
-/// Injection: mark_safe bypassing escaping
+/// Injection: `mark_safe` bypassing escaping
 pub const RULE_ID_MARK_SAFE: &str = "CSP-D105";
 
 /// Deserialization: pickle/dill/shelve
 pub const RULE_ID_PICKLE: &str = "CSP-D201";
 /// Deserialization: Unsafe YAML load
 pub const RULE_ID_YAML: &str = "CSP-D202";
-/// Deserialization: marshal.load()
+/// Deserialization: `marshal.load()`
 pub const RULE_ID_MARSHAL: &str = "CSP-D203";
 /// Deserialization: ML model loading (torch, keras, joblib)
 pub const RULE_ID_MODEL_DESER: &str = "CSP-D204";
@@ -52,9 +52,9 @@ pub const RULE_ID_DEBUG_MODE: &str = "CSP-D403";
 pub const RULE_ID_BIND_ALL: &str = "CSP-D404";
 /// Network: Requests without timeout
 pub const RULE_ID_TIMEOUT: &str = "CSP-D405";
-/// Network: Insecure FTP
+/// Network: Insecure `FTP`
 pub const RULE_ID_FTP: &str = "CSP-D406";
-/// Network: HTTPSConnection without context
+/// Network: `HTTPSConnection` without context
 pub const RULE_ID_HTTPS_CONNECTION: &str = "CSP-D407";
 /// Network: Unverified SSL context
 pub const RULE_ID_SSL_UNVERIFIED: &str = "CSP-D408";
@@ -62,7 +62,7 @@ pub const RULE_ID_SSL_UNVERIFIED: &str = "CSP-D408";
 pub const RULE_ID_TELNET: &str = "CSP-D409";
 /// Network: Insecure URL opening
 pub const RULE_ID_URL_OPEN: &str = "CSP-D410";
-/// Network: ssl.wrap_socket usage
+/// Network: `ssl.wrap_socket` usage
 pub const RULE_ID_WRAP_SOCKET: &str = "CSP-D411";
 
 /// Filesystem: Path traversal
@@ -95,7 +95,7 @@ pub const RULE_ID_OPEN_REDIRECT: &str = "CSP-D801";
 
 /// Privacy: Logging of sensitive data
 pub const RULE_ID_LOGGING_SENSITIVE: &str = "CSP-D901";
-/// Privacy: Django SECRET_KEY in code
+/// Privacy: Django `SECRET_KEY` in code
 pub const RULE_ID_DJANGO_SECURITY: &str = "CSP-D902";
 
 /// XSS (Generic fallback for taint analysis)

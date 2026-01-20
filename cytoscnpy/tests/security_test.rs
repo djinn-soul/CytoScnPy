@@ -912,8 +912,7 @@ import lxml.etree
     assert!(findings.iter().all(|f| f.rule_id == "CSP-D702"
         || f.rule_id == "CSP-D003"
         || f.rule_id == "CSP-D409"
-        || f.rule_id == "CSP-D406"
-        || f.rule_id == "CSP-D702"));
+        || f.rule_id == "CSP-D406"));
 }
 
 #[test]

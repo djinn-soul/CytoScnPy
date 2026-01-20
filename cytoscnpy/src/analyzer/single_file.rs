@@ -27,6 +27,7 @@ impl CytoScnPy {
     /// Processes a single file (from disk or notebook) and returns analysis results.
     /// Used by the directory traversal for high-performance scanning.
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+    #[must_use]
     pub fn process_single_file(
         &self,
         file_path: &Path,

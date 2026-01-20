@@ -114,6 +114,7 @@ impl TaintAwareDangerAnalyzer {
     /// - If analysis didn't run: keep all findings (fallback)
     /// - If analysis ran but no taint found: filter taint-sensitive rules (proven safe)
     /// - If analysis ran and taint found: only keep findings on tainted lines
+    #[must_use]
     pub fn filter_findings_with_taint(
         findings: Vec<Finding>,
         taint_context: &TaintContext,

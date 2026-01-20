@@ -1,15 +1,16 @@
+//! Tests for suppression functionality (noqa comments).
+
 #[cfg(test)]
 mod tests {
     use cytoscnpy::utils::{get_ignored_lines, is_line_suppressed, Suppression};
-    use rustc_hash::FxHashMap;
 
     #[test]
     fn test_noqa_csp_suppression() {
         let source = "os.system(cmd) # noqa: CSP\n";
         let ignored = get_ignored_lines(source);
 
-        assert!(ignored.contains_key(&1));
-        assert!(matches!(ignored.get(&1).unwrap(), Suppression::All));
+        assert!(ignored.contains_key(&1), "Line 1 should have suppression");
+        assert!(matches!(ignored.get(&1), Some(Suppression::All)));
 
         // Standard rule ID should be suppressed
         assert!(is_line_suppressed(&ignored, 1, "CSP-D003"));
@@ -37,8 +38,10 @@ mod tests {
     fn test_analyzer_respects_suppression() {
         use cytoscnpy::analyzer::CytoScnPy;
         let source = "import os\nos.system('ls') # noqa: CSP\n";
-        let mut analyzer = CytoScnPy::default();
-        analyzer.enable_danger = true;
+        let analyzer = CytoScnPy {
+            enable_danger: true,
+            ..CytoScnPy::default()
+        };
 
         let result = analyzer.analyze_code(source, &std::path::PathBuf::from("test.py"));
 
@@ -56,8 +59,10 @@ mod tests {
         use std::path::PathBuf;
 
         let file_path = PathBuf::from("tests/python_files/suppression_case.py");
-        let mut analyzer = CytoScnPy::default();
-        analyzer.enable_danger = true;
+        let mut analyzer = CytoScnPy {
+            enable_danger: true,
+            ..CytoScnPy::default()
+        };
 
         let result = analyzer.analyze_paths(&[file_path]);
 

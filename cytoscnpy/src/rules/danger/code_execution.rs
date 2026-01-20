@@ -32,6 +32,7 @@ pub struct EvalRule {
 }
 impl EvalRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -68,6 +69,7 @@ pub struct ExecRule {
 }
 impl ExecRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -104,6 +106,7 @@ pub struct SubprocessRule {
 }
 impl SubprocessRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -188,6 +191,7 @@ pub struct AsyncSubprocessRule {
 }
 impl AsyncSubprocessRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }

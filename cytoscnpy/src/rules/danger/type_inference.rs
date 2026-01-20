@@ -36,6 +36,7 @@ pub struct MethodMisuseRule {
 
 impl MethodMisuseRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self {
             metadata,

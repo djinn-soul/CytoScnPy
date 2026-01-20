@@ -37,6 +37,7 @@ pub struct SqlInjectionRule {
 }
 impl SqlInjectionRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -52,17 +53,17 @@ impl Rule for SqlInjectionRule {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 // Common ORM patterns (Django .execute, etc.)
-                if name.ends_with(".execute") || name.ends_with(".executemany") {
-                    if !call.arguments.args.is_empty() && !is_literal_expr(&call.arguments.args[0])
-                    {
-                        return Some(vec![create_finding(
-                            "Potential SQL injection (dynamic query string)",
-                            self.metadata,
-                            context,
-                            call.range().start(),
-                            "CRITICAL",
-                        )]);
-                    }
+                if (name.ends_with(".execute") || name.ends_with(".executemany"))
+                    && !call.arguments.args.is_empty()
+                    && !is_literal_expr(&call.arguments.args[0])
+                {
+                    return Some(vec![create_finding(
+                        "Potential SQL injection (dynamic query string)",
+                        self.metadata,
+                        context,
+                        call.range().start(),
+                        "CRITICAL",
+                    )]);
                 }
             }
         }
@@ -77,6 +78,7 @@ pub struct SqlInjectionRawRule {
 }
 impl SqlInjectionRawRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -182,6 +184,7 @@ pub struct XSSRule {
 }
 impl XSSRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -226,10 +229,8 @@ impl Rule for XSSRule {
                 let mut is_dynamic = false;
 
                 // Check positional arguments
-                if !call.arguments.args.is_empty() {
-                    if !is_literal_expr(&call.arguments.args[0]) {
-                        is_dynamic = true;
-                    }
+                if !call.arguments.args.is_empty() && !is_literal_expr(&call.arguments.args[0]) {
+                    is_dynamic = true;
                 }
 
                 // Check relevant keywords
@@ -237,15 +238,14 @@ impl Rule for XSSRule {
                     for kw in &call.arguments.keywords {
                         if let Some(arg) = &kw.arg {
                             let s = arg.as_str();
-                            if s == "content"
+                            if (s == "content"
                                 || s == "template_string"
                                 || s == "source"
-                                || s == "html"
+                                || s == "html")
+                                && !is_literal_expr(&kw.value)
                             {
-                                if !is_literal_expr(&kw.value) {
-                                    is_dynamic = true;
-                                    break;
-                                }
+                                is_dynamic = true;
+                                break;
                             }
                         }
                     }
@@ -273,6 +273,7 @@ pub struct XmlRule {
 }
 impl XmlRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }

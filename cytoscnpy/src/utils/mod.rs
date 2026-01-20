@@ -159,6 +159,7 @@ pub fn parse_exclude_folders<S: std::hash::BuildHasher>(
 ///
 /// Returns true if the finding should be ignored.
 #[must_use]
+#[allow(clippy::implicit_hasher)]
 pub fn is_line_suppressed(
     ignored_lines: &FxHashMap<usize, Suppression>,
     line: usize,

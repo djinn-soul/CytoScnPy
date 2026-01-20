@@ -470,7 +470,9 @@ impl TaintAnalyzer {
                 sources: custom_sources,
                 sinks: custom_sinks,
             });
-            plugins.sources.push(dynamic.clone());
+            plugins
+                .sources
+                .push(Arc::clone(&dynamic) as Arc<dyn TaintSourcePlugin>);
             plugins.sinks.push(dynamic);
         }
 

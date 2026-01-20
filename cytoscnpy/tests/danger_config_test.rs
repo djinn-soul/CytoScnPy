@@ -1,4 +1,6 @@
 //! Integration tests for danger configuration and severity thresholding.
+#![allow(clippy::expect_used)]
+
 use cytoscnpy::analyzer::CytoScnPy;
 use cytoscnpy::config::Config;
 use std::path::Path;

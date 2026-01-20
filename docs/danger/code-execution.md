@@ -7,10 +7,8 @@ Rules in this category detect patterns that can lead to arbitrary code execution
 | **CSP-D001** | `eval(...)`                                   | HIGH         | Arbitrary code execution       | Use `ast.literal_eval` or a dedicated parser   |
 | **CSP-D002** | `exec(...)`                                   | HIGH         | Arbitrary code execution       | Remove or use explicit dispatch                |
 | **CSP-D003** | `os.system(...)` / `subprocess.*(shell=True)` | **CRITICAL** | Command injection              | `subprocess.run([cmd, ...])`; strict allowlist |
-| **CSP-D004** | Insecure Imports                              | HIGH / LOW   | Use of inherently unsafe libs  | Use modern/secure alternatives                 |
-| **CSP-D005** | `telnetlib.*` calls                           | HIGH         | Telnet is unencrypted          | Use SSH / Cryptography                         |
-| **CSP-D006** | `ftplib.*` calls                              | HIGH         | FTP is unencrypted             | Use SFTP / SCP                                 |
-| **CSP-D007** | `input()`                                     | HIGH         | Unsafe in Py2 (acts like eval) | Use `raw_input()` (Py2) or `input()` (Py3)     |
+| **CSP-D004** | Insecure Imports (`telnetlib`, `ftplib`, etc) | HIGH / LOW   | Use of inherently unsafe libs  | Use modern/secure alternatives                 |
+| **CSP-D007** | `input()`                                     | HIGH         | Unsafe in Py2 (acts like eval) | Use `raw_input()` (Py2) or validate in Py3     |
 
 ## In-depth: Command Injection (CSP-D003)
 

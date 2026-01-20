@@ -1,3 +1,7 @@
+// Note: We check Python method names like `.debug`, `.run` which clippy
+// incorrectly flags as file extension comparisons
+#![allow(clippy::case_sensitive_file_extension_comparisons)]
+
 use super::crypto::{check_ciphers_and_modes, check_marshal_and_hashes};
 use super::network::check_network_and_ssl;
 use super::utils::{contains_sensitive_names, create_finding, get_call_name};

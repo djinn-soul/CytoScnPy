@@ -15,6 +15,7 @@ use rustc_hash::FxHashMap;
 /// - Framework decorations (lowers confidence for framework-managed code).
 /// - Private naming conventions (lowers confidence for internal helpers).
 /// - Dunder methods (ignores magic methods).
+#[allow(clippy::implicit_hasher)]
 pub fn apply_penalties(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,

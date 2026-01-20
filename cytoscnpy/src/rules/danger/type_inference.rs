@@ -69,6 +69,7 @@ impl MethodMisuseRule {
         }
     }
 
+    #[allow(clippy::too_many_lines)] // This function lists all Python built-in type methods
     fn is_valid_method(type_name: &str, method_name: &str) -> bool {
         // Common protocol methods available on most types
         let protocol_methods = [

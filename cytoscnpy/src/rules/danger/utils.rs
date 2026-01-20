@@ -54,6 +54,7 @@ pub fn is_literal_expr(expr: &Expr) -> bool {
 }
 
 /// Creates a security finding with the specified details.
+#[must_use]
 pub fn create_finding(
     msg: &str,
     rule_id: &str,
@@ -194,6 +195,7 @@ pub fn contains_sensitive_names(expr: &Expr) -> bool {
 
 /// Checks if `haystack` contains `needle` as a substring, ignoring ASCII case.
 /// `needle` must be lowercase.
+#[must_use]
 pub fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
     let needle_len = needle.len();
     if needle_len > haystack.len() {

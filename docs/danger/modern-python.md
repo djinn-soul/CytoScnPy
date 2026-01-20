@@ -4,6 +4,7 @@ This category covers security rules for modern Python features (introduced in 20
 
 | Rule ID      | Pattern                                         | Severity     | Why it's risky                      | Safer alternative / Fix                        |
 | :----------- | :---------------------------------------------- | :----------- | :---------------------------------- | :--------------------------------------------- |
+| **CSP-D800** | Blacklisted calls (marshal, md5, ssl insecure)  | **VARIES**   | Known unsafe functions              | See pattern-specific recommendations           |
 | **CSP-D901** | `asyncio.create_subprocess_shell` (dynamic)     | **CRITICAL** | Async command injection             | Use `create_subprocess_exec` with list args    |
 | **CSP-D901** | `os.popen(dynamic)`                             | **HIGH**     | Legacy command injection            | Use `subprocess.run` with list args            |
 | **CSP-D901** | `pty.spawn(dynamic)`                            | **HIGH**     | PTY command injection               | Validate/allowlist commands                    |
@@ -11,6 +12,19 @@ This category covers security rules for modern Python features (introduced in 20
 | **CSP-D903** | Logging sensitive variables                     | **MEDIUM**   | Data leakage in logs                | Redact passwords, tokens, API keys             |
 | **CSP-D904** | Hardcoded `SECRET_KEY`                          | **CRITICAL** | Key exposure in Django              | Store in environment variables                 |
 | **CSP-D601** | Type-based method misuse                        | **HIGH**     | Logic errors / Type confusion       | Use static typing and validation               |
+
+## In-depth: Blacklisted Calls (CSP-D800)
+
+The `BlacklistCallRule` aggregates detection of various unsafe patterns:
+
+| Sub-pattern                       | Details                                   |
+| :-------------------------------- | :---------------------------------------- |
+| `marshal.load`/`loads`            | Unsafe deserialization for untrusted data |
+| `hashlib.sha1`, `md5` (new calls) | Weak cryptographic hashes                 |
+| `ssl._create_unverified_context`  | Bypasses certificate verification         |
+| `ssl.wrap_socket`                 | Deprecated, often insecure                |
+| `urllib.urlopen` (file scheme)    | `file://` URL scheme vulnerabilities      |
+| Insecure cipher modes (ECB, DES)  | Weak encryption algorithms                |
 
 ## In-depth: ML Model Deserialization (CSP-D902)
 

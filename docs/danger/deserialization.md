@@ -2,11 +2,13 @@
 
 Rules in this category detect unsafe deserialization of untrusted data, which can lead to Remote Code Execution (RCE).
 
-| Rule ID      | Pattern                                                        | Severity     | Why it's risky            | Safer alternative / Fix           |
-| :----------- | :------------------------------------------------------------- | :----------- | :------------------------ | :-------------------------------- |
-| **CSP-D201** | `pickle`, `dill`, `shelve`, `jsonpickle`, `pandas.read_pickle` | **CRITICAL** | Arbitrary code execution  | Use JSON, msgpack, or signed data |
-| **CSP-D202** | `yaml.load` (no SafeLoader)                                    | HIGH         | Arbitrary code execution  | `yaml.safe_load(...)`             |
-| **CSP-D203** | `marshal.load`/`loads`                                         | **MEDIUM**   | Unsafe for untrusted data | Use secure serialization          |
+| Rule ID      | Pattern                                                        | Severity     | Why it's risky           | Safer alternative / Fix           |
+| :----------- | :------------------------------------------------------------- | :----------- | :----------------------- | :-------------------------------- |
+| **CSP-D201** | `pickle`, `dill`, `shelve`, `jsonpickle`, `pandas.read_pickle` | **CRITICAL** | Arbitrary code execution | Use JSON, msgpack, or signed data |
+| **CSP-D202** | `yaml.load` (no SafeLoader)                                    | HIGH         | Arbitrary code execution | `yaml.safe_load(...)`             |
+
+> [!NOTE]
+> `marshal.load`/`loads` is covered by `CSP-D800` (Blacklisted Calls) in the [Modern Python](./modern-python.md) category.
 
 ## In-depth: Pickle Deserialization (CSP-D201)
 

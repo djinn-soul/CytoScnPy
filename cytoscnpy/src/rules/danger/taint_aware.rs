@@ -113,7 +113,6 @@ impl TaintAwareDangerAnalyzer {
     /// this method filters out findings where the input is not tainted (i.e., not from user input).
     #[must_use]
     pub fn filter_findings_with_taint(
-        &self,
         findings: Vec<Finding>,
         taint_context: &TaintContext,
     ) -> Vec<Finding> {
@@ -148,9 +147,9 @@ impl TaintAwareDangerAnalyzer {
             {
                 // Upgrade severity for tainted injection findings
                 if finding.severity == "HIGH" {
-                    finding.severity = "CRITICAL".to_owned();
+                    "CRITICAL".clone_into(&mut finding.severity);
                 } else if finding.severity == "MEDIUM" {
-                    finding.severity = "HIGH".to_owned();
+                    "HIGH".clone_into(&mut finding.severity);
                 }
             }
         }

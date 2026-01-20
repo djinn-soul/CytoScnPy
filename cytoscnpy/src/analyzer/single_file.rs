@@ -220,11 +220,7 @@ impl CytoScnPy {
 
                     // 1. Try full qualified name match (Preferred)
                     if let Some(count) = ref_counts.get(&def.full_name) {
-                        current_refs = if def.full_name.split('.').count() > 2 {
-                            *count
-                        } else {
-                            *count // Removed saturating_sub(1)
-                        };
+                        current_refs = *count;
                     }
 
                     // 2. Fallback strategies if not found
@@ -247,7 +243,7 @@ impl CytoScnPy {
                             "variable" | "parameter" => {
                                 // Check if parent scope is a Class
                                 if let Some((parent, _)) = def.full_name.rsplit_once('.') {
-                                    def_type_map.get(parent).map_or(false, |t| t == "class")
+                                    def_type_map.get(parent).is_some_and(|t| t == "class")
                                 } else {
                                     false
                                 }
@@ -277,11 +273,7 @@ impl CytoScnPy {
 
                         // Apply fallback result
                         if fallback_refs > 0 {
-                            current_refs = if def.full_name.split('.').count() > 2 {
-                                fallback_refs
-                            } else {
-                                fallback_refs // Removed saturating_sub(1)
-                            };
+                            current_refs = fallback_refs;
                         }
                     }
 
@@ -312,7 +304,7 @@ impl CytoScnPy {
                     // Skip secrets - they should be reported even if there is an eval.
                     if any_dynamic && !def.is_potential_secret {
                         if let Some(idx) = def.full_name.rfind('.') {
-                            if &def.full_name[..idx] == &module_name {
+                            if def.full_name[..idx] == module_name {
                                 def.references += 1;
                                 continue;
                             }
@@ -427,7 +419,10 @@ impl CytoScnPy {
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 
                         // Update filtering logic: remove findings without taint
-                        danger = taint_analyzer.filter_findings_with_taint(danger, &taint_context);
+                        danger = TaintAwareDangerAnalyzer::filter_findings_with_taint(
+                            danger,
+                            &taint_context,
+                        );
 
                         // Enhance severity for confirmed taint paths
                         TaintAwareDangerAnalyzer::enhance_severity_with_taint(
@@ -590,11 +585,7 @@ impl CytoScnPy {
                         == 1;
 
                     if let Some(count) = ref_counts.get(&def.full_name) {
-                        current_refs = if def.full_name.split('.').count() > 2 {
-                            *count
-                        } else {
-                            *count
-                        };
+                        current_refs = *count;
                     }
 
                     if current_refs == 0 {
@@ -610,7 +601,7 @@ impl CytoScnPy {
                             "method" | "class" | "class_variable" => true,
                             "variable" | "parameter" => {
                                 if let Some((parent, _)) = def.full_name.rsplit_once('.') {
-                                    def_type_map.get(parent).map_or(false, |t| t == "class")
+                                    def_type_map.get(parent).is_some_and(|t| t == "class")
                                 } else {
                                     false
                                 }
@@ -638,11 +629,7 @@ impl CytoScnPy {
                         }
 
                         if fallback_refs > 0 {
-                            current_refs = if def.full_name.split('.').count() > 2 {
-                                fallback_refs
-                            } else {
-                                fallback_refs
-                            };
+                            current_refs = fallback_refs;
                         }
                     }
                     def.references = current_refs;
@@ -667,7 +654,7 @@ impl CytoScnPy {
                     }
                     if any_dynamic {
                         if let Some(idx) = def.full_name.rfind('.') {
-                            if &def.full_name[..idx] == &module_name {
+                            if def.full_name[..idx] == module_name {
                                 def.references += 1;
                                 continue;
                             }
@@ -835,8 +822,10 @@ impl CytoScnPy {
                         let taint_context =
                             taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
 
-                        danger_res =
-                            taint_analyzer.filter_findings_with_taint(danger_res, &taint_context);
+                        danger_res = TaintAwareDangerAnalyzer::filter_findings_with_taint(
+                            danger_res,
+                            &taint_context,
+                        );
 
                         TaintAwareDangerAnalyzer::enhance_severity_with_taint(
                             &mut danger_res,

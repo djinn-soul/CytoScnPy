@@ -86,4 +86,6 @@ test_repo
 .index_cache
 htmlcov/
 .vscode-test/
-
+security_example/
+security_stats_report.md
+lcov.info

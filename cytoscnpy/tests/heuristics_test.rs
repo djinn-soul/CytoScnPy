@@ -216,7 +216,7 @@ class Button:
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let result = analyzer.analyze(dir.path());
 
-    let render_findings: Vec<_> = result
+    let _render_findings: Vec<_> = result
         .unused_methods
         .iter()
         .filter(|d| d.simple_name == "render")

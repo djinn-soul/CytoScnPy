@@ -796,8 +796,8 @@ pandas.read_pickle("file")
     // 6 findings: 2 imports (CSP-D004) + 4 calls (CSP-D201)
     assert_eq!(linter.findings.len(), 6);
     let ids: Vec<String> = linter.findings.iter().map(|f| f.rule_id.clone()).collect();
-    assert!(ids.contains(&"CSP-D004".to_string()));
-    assert!(ids.contains(&"CSP-D201".to_string()));
+    assert!(ids.contains(&"CSP-D004".to_owned()));
+    assert!(ids.contains(&"CSP-D201".to_owned()));
 }
 
 #[test]
@@ -831,10 +831,10 @@ six.moves.urllib.request.urlopen("http://evil.com")
     assert_eq!(linter.findings.len(), 6);
 
     let ids: Vec<String> = linter.findings.iter().map(|f| f.rule_id.clone()).collect();
-    assert!(ids.contains(&"CSP-D104".to_string())); // pulldom
-    assert!(ids.contains(&"CSP-D104".to_string())); // expatbuilder
-    assert!(ids.contains(&"CSP-D406".to_string())); // urllib2
-    assert!(ids.contains(&"CSP-D406".to_string())); // six.moves
+    assert!(ids.contains(&"CSP-D104".to_owned())); // pulldom
+    assert!(ids.contains(&"CSP-D104".to_owned())); // expatbuilder
+    assert!(ids.contains(&"CSP-D406".to_owned())); // urllib2
+    assert!(ids.contains(&"CSP-D406".to_owned())); // six.moves
 }
 
 #[test]

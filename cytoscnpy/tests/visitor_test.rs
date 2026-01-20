@@ -464,7 +464,7 @@ values = dictionary.values()
     let ref_names: HashSet<String> = visitor.references.iter().map(|(n, _)| n.clone()).collect();
 
     // Debug print
-    println!("References: {:?}", ref_names);
+    println!("References: {ref_names:?}");
 
     // "keys" (simple name) should NOT be referenced
     assert!(

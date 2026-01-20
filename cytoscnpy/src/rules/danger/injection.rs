@@ -1,3 +1,7 @@
+// Note: We check Python method names like `.parse`, `.fromstring` which clippy
+// incorrectly flags as file extension comparisons
+#![allow(clippy::case_sensitive_file_extension_comparisons)]
+
 use super::utils::{
     create_finding, get_call_name, is_arg_literal, is_likely_tarfile_receiver,
     is_likely_zipfile_receiver, is_literal_expr, SUBPROCESS_INJECTION_MSG,

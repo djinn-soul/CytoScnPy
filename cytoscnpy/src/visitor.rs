@@ -827,6 +827,8 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.protocol_class_stack.push(is_protocol);
 
                 // Check if this is an ABC class
+                // Note: .ABC is a Python class name pattern, not a file extension (false positive from clippy)
+                #[allow(clippy::case_sensitive_file_extension_comparisons)]
                 let is_abc = base_classes
                     .iter()
                     .any(|b| b == "ABC" || b == "abc.ABC" || b.ends_with(".ABC"));
@@ -1812,7 +1814,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         // s.value is a StringLiteralValue, convert to string
                         let val = s.value.to_string();
                         for m in re.find_iter(&val) {
-                            self.add_ref(m.as_str().to_string());
+                            self.add_ref(m.as_str().to_owned());
                         }
                         handled_as_literal = true;
                     }

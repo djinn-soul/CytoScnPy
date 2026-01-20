@@ -1,3 +1,6 @@
+//! Integration tests for extensive security corpus.
+#![allow(clippy::expect_used)]
+
 use cytoscnpy::config::Config;
 use cytoscnpy::linter::LinterVisitor;
 use cytoscnpy::rules::danger::get_danger_rules;

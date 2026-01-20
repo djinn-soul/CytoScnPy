@@ -2,13 +2,10 @@
 
 Rules in this category detect weak cryptographic algorithms and insecure random number generation.
 
-| Rule ID      | Pattern                                | Severity   | Why it's risky              | Safer alternative / Fix       |
-| :----------- | :------------------------------------- | :--------- | :-------------------------- | :---------------------------- |
-| **CSP-D301** | `hashlib.md5`, `hashlib.new('md5')`    | **MEDIUM** | Collision-prone weak hash   | Use SHA-256 or SHA-3          |
-| **CSP-D302** | `hashlib.sha1`, `hashlib.new('sha1')`  | **MEDIUM** | Weak cryptographic hash     | Use SHA-256 or SHA-3          |
-| **CSP-D304** | Insecure Ciphers (ARC4, DES, Blowfish) | **HIGH**   | Successfully broken ciphers | Use AES (GCM/CTR)             |
-| **CSP-D305** | Insecure Cipher Mode (ECB)             | **MEDIUM** | Pattern leakage             | Use CBC or GCM                |
-| **CSP-D311** | `random.*` (Standard PRNG)             | **LOW**    | Predictable for crypto use  | Use `secrets` or `os.urandom` |
+| Rule ID      | Pattern                             | Severity   | Why it's risky             | Safer alternative / Fix       |
+| :----------- | :---------------------------------- | :--------- | :------------------------- | :---------------------------- |
+| **CSP-D301** | `hashlib.md5`, `hashlib.new('md5')` | **MEDIUM** | Collision-prone weak hash  | Use SHA-256 or SHA-3          |
+| **CSP-D311** | `random.*` (Standard PRNG)          | **LOW**    | Predictable for crypto use | Use `secrets` or `os.urandom` |
 
 ## In-depth: Weak Hashing (CSP-D301)
 

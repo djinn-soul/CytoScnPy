@@ -1,3 +1,7 @@
+// Note: We check Python method names like `.get`, `.post` which clippy
+// incorrectly flags as file extension comparisons
+#![allow(clippy::case_sensitive_file_extension_comparisons)]
+
 use super::utils::{create_finding, get_call_name, is_arg_literal};
 use crate::rules::{Context, Finding, Rule};
 use ruff_python_ast::{self as ast, Expr, Stmt};

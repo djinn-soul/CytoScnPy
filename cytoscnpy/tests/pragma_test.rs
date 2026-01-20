@@ -24,7 +24,7 @@ fn test_unused_variable_suppression() {
     let mut file = File::create(&file_path).unwrap();
     write!(
         file,
-        r#"
+        r"
 def example():
     # This variable is unused, but should be ignored due to pragma
     x = 10  # pragma: no cytoscnpy
@@ -34,7 +34,7 @@ def unsuppressed():
     # This variable is unused and SHOULD be reported
     y = 20
     return 1
-"#
+"
     )
     .unwrap();
 
@@ -65,11 +65,11 @@ fn test_suppression_case_insensitivity() {
     let mut file = File::create(&file_path).unwrap();
     write!(
         file,
-        r#"
+        r"
 def example():
     x = 10  # PRAGMA: NO CYTOSCNPY
     return 1
-"#
+"
     )
     .unwrap();
 

@@ -37,6 +37,7 @@ pub struct HashlibRule {
 }
 impl HashlibRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -128,6 +129,7 @@ pub struct RandomRule {
 }
 impl RandomRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }

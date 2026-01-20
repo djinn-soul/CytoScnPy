@@ -8,7 +8,7 @@ pub mod deserialization;
 pub mod filesystem;
 /// Framework-specific security rules (Django, etc.).
 pub mod frameworks;
-/// Injection rules (SQLi, XSS, XML).
+/// Injection rules (`SQLi`, XSS, XML).
 pub mod injection;
 /// Miscellaneous rules (assert, blacklist, logging).
 pub mod misc;
@@ -43,28 +43,27 @@ use type_inference::MethodMisuseRule;
 // Category Names (Single Source of Truth)
 // ══════════════════════════════════════════════════════════════════════════════
 /// Category for code execution vulnerabilities.
-pub const CAT_CODE_EXEC: &'static str = "Code Execution";
+pub const CAT_CODE_EXEC: &str = "Code Execution";
 /// Category for injection vulnerabilities (SQL, XSS, etc.).
-pub const CAT_INJECTION: &'static str = "Injection Attacks";
+pub const CAT_INJECTION: &str = "Injection Attacks";
 /// Category for deserialization vulnerabilities.
-pub const CAT_DESERIALIZATION: &'static str = "Deserialization";
+pub const CAT_DESERIALIZATION: &str = "Deserialization";
 /// Category for cryptographic issues.
-pub const CAT_CRYPTO: &'static str = "Cryptography";
+pub const CAT_CRYPTO: &str = "Cryptography";
 /// Category for network-related issues.
-pub const CAT_NETWORK: &'static str = "Network & HTTP";
+pub const CAT_NETWORK: &str = "Network & HTTP";
 /// Category for filesystem operations.
-pub const CAT_FILESYSTEM: &'static str = "File Operations";
+pub const CAT_FILESYSTEM: &str = "File Operations";
 /// Category for type safety issues.
-pub const CAT_TYPE_SAFETY: &'static str = "Type Safety";
+pub const CAT_TYPE_SAFETY: &str = "Type Safety";
 /// Category for general best practices.
-pub const CAT_BEST_PRACTICES: &'static str = "Best Practices";
+pub const CAT_BEST_PRACTICES: &str = "Best Practices";
 /// Category for privacy concerns.
-pub const CAT_PRIVACY: &'static str = "Information Privacy";
+pub const CAT_PRIVACY: &str = "Information Privacy";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Rule Metadata Registry
 // ══════════════════════════════════════════════════════════════════════════════
-
 
 /// Returns a flat list of all security rules.
 #[must_use]
@@ -86,7 +85,9 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
                 Box::new(EvalRule::new(code_execution::META_EVAL)),
                 Box::new(ExecRule::new(code_execution::META_EXEC)),
                 Box::new(SubprocessRule::new(code_execution::META_SUBPROCESS)),
-                Box::new(AsyncSubprocessRule::new(code_execution::META_ASYNC_SUBPROCESS)),
+                Box::new(AsyncSubprocessRule::new(
+                    code_execution::META_ASYNC_SUBPROCESS,
+                )),
             ],
         ),
         (
@@ -104,7 +105,9 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
                 Box::new(PickleRule::new(deserialization::META_PICKLE)),
                 Box::new(YamlRule::new(deserialization::META_YAML)),
                 Box::new(MarshalRule::new(deserialization::META_MARSHAL)),
-                Box::new(ModelDeserializationRule::new(deserialization::META_MODEL_DESER)),
+                Box::new(ModelDeserializationRule::new(
+                    deserialization::META_MODEL_DESER,
+                )),
             ],
         ),
         (
@@ -136,7 +139,9 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
         ),
         (
             CAT_TYPE_SAFETY,
-            vec![Box::new(MethodMisuseRule::new(type_inference::META_METHOD_MISUSE))],
+            vec![Box::new(MethodMisuseRule::new(
+                type_inference::META_METHOD_MISUSE,
+            ))],
         ),
         (
             CAT_BEST_PRACTICES,

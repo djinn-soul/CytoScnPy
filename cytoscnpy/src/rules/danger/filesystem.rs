@@ -42,6 +42,7 @@ pub struct PathTraversalRule {
 }
 impl PathTraversalRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -120,6 +121,7 @@ pub struct TarfileExtractionRule {
 }
 impl TarfileExtractionRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -201,6 +203,7 @@ pub struct ZipfileExtractionRule {
 }
 impl ZipfileExtractionRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -255,6 +258,7 @@ pub struct TempfileRule {
 }
 impl TempfileRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -292,6 +296,7 @@ pub struct BadFilePermissionsRule {
 }
 impl BadFilePermissionsRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }

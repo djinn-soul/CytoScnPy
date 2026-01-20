@@ -67,6 +67,7 @@ pub struct RequestsRule {
 }
 impl RequestsRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -113,6 +114,7 @@ pub struct SSRFRule {
 }
 impl SSRFRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -199,6 +201,7 @@ pub struct HardcodedBindAllInterfacesRule {
 }
 impl HardcodedBindAllInterfacesRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -262,6 +265,8 @@ impl Rule for HardcodedBindAllInterfacesRule {
         None
     }
 
+    // This lint is a false positive - we're checking Python method names, not file extensions
+    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             // Check keywords for host/bind
@@ -316,6 +321,7 @@ pub struct RequestWithoutTimeoutRule {
 }
 impl RequestWithoutTimeoutRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -327,6 +333,8 @@ impl Rule for RequestWithoutTimeoutRule {
     fn metadata(&self) -> RuleMetadata {
         self.metadata
     }
+    // This lint is a false positive - we're checking Python method names, not file extensions
+    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {

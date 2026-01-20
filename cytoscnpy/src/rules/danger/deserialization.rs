@@ -32,6 +32,7 @@ pub struct PickleRule {
 }
 impl PickleRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -80,6 +81,7 @@ pub struct YamlRule {
 }
 impl YamlRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -130,6 +132,7 @@ pub struct MarshalRule {
 }
 impl MarshalRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -166,6 +169,7 @@ pub struct ModelDeserializationRule {
 }
 impl ModelDeserializationRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }

@@ -17,6 +17,7 @@ pub struct DjangoSecurityRule {
 }
 impl DjangoSecurityRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }

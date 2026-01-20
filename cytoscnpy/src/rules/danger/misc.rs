@@ -44,6 +44,7 @@ pub struct AssertUsedRule {
 }
 impl AssertUsedRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -76,6 +77,7 @@ pub struct DebugModeRule {
 }
 impl DebugModeRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -87,6 +89,8 @@ impl Rule for DebugModeRule {
     fn metadata(&self) -> RuleMetadata {
         self.metadata
     }
+    // This lint is a false positive - we're checking Python method names, not file extensions
+    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
@@ -122,6 +126,7 @@ pub struct Jinja2AutoescapeRule {
 }
 impl Jinja2AutoescapeRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -168,6 +173,7 @@ pub struct BlacklistCallRule {
 }
 impl BlacklistCallRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -243,6 +249,7 @@ pub struct LoggingSensitiveDataRule {
 }
 impl LoggingSensitiveDataRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }
@@ -254,6 +261,8 @@ impl Rule for LoggingSensitiveDataRule {
     fn metadata(&self) -> RuleMetadata {
         self.metadata
     }
+    // This lint is a false positive - we're checking Python method names, not file extensions
+    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
@@ -291,6 +300,7 @@ pub struct InsecureImportRule {
 }
 impl InsecureImportRule {
     /// Creates a new instance with the specified metadata.
+    #[must_use]
     pub fn new(metadata: RuleMetadata) -> Self {
         Self { metadata }
     }

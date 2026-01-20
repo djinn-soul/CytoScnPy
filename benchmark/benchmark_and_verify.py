@@ -184,7 +184,7 @@ def check_tool_availability(tools_config, env=None):
                  # String command
                  match = re.search(r'"([^"]+)"', command)
                  bin_path = Path(match.group(1)) if match else Path(command)
-                 
+
                  if bin_path.exists() or shutil.which(str(command)):
                     status = {"available": True, "reason": "Binary found"}
                     is_valid = True
@@ -1359,7 +1359,7 @@ def main():
                     )
                 except Exception:
                     continue
-                
+
                 if not base:
                     print(f"    [?] New tool found (no baseline): {current['name']}")
                     continue

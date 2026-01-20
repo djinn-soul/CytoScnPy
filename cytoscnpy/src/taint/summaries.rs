@@ -1,10 +1,8 @@
-//! Function summaries for interprocedural analysis.
-//!
-//! Caches taint behavior of functions to avoid re-analysis.
-
+use super::analyzer::TaintAnalyzer;
 use super::intraprocedural;
 use super::propagation::TaintState;
 use crate::taint::types::{FunctionSummary, TaintSource};
+use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Stmt};
 use rustc_hash::FxHashMap;
 use std::path::Path;
@@ -27,7 +25,9 @@ impl SummaryDatabase {
     pub fn get_or_compute(
         &mut self,
         func: &ast::StmtFunctionDef,
+        analyzer: &TaintAnalyzer,
         file_path: &Path,
+        line_index: &LineIndex,
     ) -> FunctionSummary {
         let name = func.name.to_string();
 
@@ -35,7 +35,7 @@ impl SummaryDatabase {
             return summary.clone();
         }
 
-        let summary = compute_summary(func, file_path);
+        let summary = compute_summary(func, analyzer, file_path, line_index);
         self.summaries.insert(name, summary.clone());
         summary
     }
@@ -69,7 +69,12 @@ impl SummaryDatabase {
 }
 
 /// Computes the summary for a function.
-fn compute_summary(func: &ast::StmtFunctionDef, file_path: &Path) -> FunctionSummary {
+fn compute_summary(
+    func: &ast::StmtFunctionDef,
+    analyzer: &TaintAnalyzer,
+    file_path: &Path,
+    line_index: &LineIndex,
+) -> FunctionSummary {
     let param_count = func.parameters.args.len();
     let mut summary = FunctionSummary::new(&func.name, param_count);
 
@@ -90,7 +95,7 @@ fn compute_summary(func: &ast::StmtFunctionDef, file_path: &Path) -> FunctionSum
             &param_name,
             super::types::TaintInfo::new(
                 TaintSource::FunctionParam(param_name.clone()),
-                func.range.start().to_u32() as usize,
+                line_index.line_index(func.range.start()),
             ),
         );
         param_taint_states.push(state);
@@ -102,7 +107,13 @@ fn compute_summary(func: &ast::StmtFunctionDef, file_path: &Path) -> FunctionSum
         let original_param_idx = param_indices[state_idx];
 
         // Analyze function with this param tainted
-        let findings = intraprocedural::analyze_function(func, file_path, Some(state.clone()));
+        let findings = intraprocedural::analyze_function(
+            func,
+            analyzer,
+            file_path,
+            line_index,
+            Some(state.clone()),
+        );
 
         // Record sinks reached
         for finding in findings {
@@ -118,7 +129,7 @@ fn compute_summary(func: &ast::StmtFunctionDef, file_path: &Path) -> FunctionSum
         if let Stmt::Return(ret) = stmt {
             if let Some(value) = &ret.value {
                 // Check if return value contains any taint sources
-                if contains_taint_source(value) {
+                if contains_taint_source(value, analyzer, line_index) {
                     summary.returns_tainted = true;
                 }
             }
@@ -129,8 +140,12 @@ fn compute_summary(func: &ast::StmtFunctionDef, file_path: &Path) -> FunctionSum
 }
 
 /// Checks if an expression contains a taint source.
-fn contains_taint_source(expr: &ast::Expr) -> bool {
-    super::sources::check_taint_source(expr).is_some()
+fn contains_taint_source(
+    expr: &ast::Expr,
+    analyzer: &TaintAnalyzer,
+    line_index: &LineIndex,
+) -> bool {
+    analyzer.plugins.check_sources(expr, line_index).is_some()
 }
 
 /// Prebuilt summaries for common library functions.

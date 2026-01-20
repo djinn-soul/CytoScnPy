@@ -2,11 +2,14 @@
 //!
 //! Tracks taint flow across module boundaries.
 
+use super::analyzer::TaintAnalyzer;
 use super::interprocedural;
 use super::summaries::{get_builtin_summaries, SummaryDatabase};
 use super::types::TaintFinding;
+use crate::utils::LineIndex;
+use ruff_python_ast::Stmt;
 use rustc_hash::FxHashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Cross-file taint analysis database.
 #[derive(Debug, Default)]
@@ -60,35 +63,33 @@ impl CrossFileAnalyzer {
     }
 
     /// Analyzes a file and caches the results.
-    pub fn analyze_file(&mut self, file_path: &PathBuf, source: &str) -> Vec<TaintFinding> {
+    pub fn analyze_file(
+        &mut self,
+        analyzer: &TaintAnalyzer,
+        file_path: &Path,
+        stmts: &[Stmt],
+        line_index: &LineIndex,
+    ) -> Vec<TaintFinding> {
         // Check cache
-        if let Some(findings) = self.findings_cache.get(file_path) {
+        if let Some(findings) = self.findings_cache.get(Path::new(file_path)) {
             return findings.clone();
         }
 
-        // Parse and analyze
-        // Parse and analyze
-        let findings = match ruff_python_parser::parse_module(source) {
-            Ok(parsed) => {
-                let module = parsed.into_syntax();
-                // Extract imports first
-                self.extract_imports(file_path, &module.body);
+        // Extract imports first
+        self.extract_imports(file_path, stmts);
 
-                // Perform interprocedural analysis
-                interprocedural::analyze_module(&module.body, file_path)
-            }
-            Err(_) => Vec::new(),
-        };
+        // Perform interprocedural analysis
+        let findings = interprocedural::analyze_module(stmts, analyzer, file_path, line_index);
 
         // Cache results
         self.findings_cache
-            .insert(file_path.clone(), findings.clone());
+            .insert(file_path.to_path_buf(), findings.clone());
 
         findings
     }
 
     /// Extracts import statements and registers them.
-    fn extract_imports(&mut self, file_path: &PathBuf, stmts: &[ruff_python_ast::Stmt]) {
+    fn extract_imports(&mut self, file_path: &Path, stmts: &[ruff_python_ast::Stmt]) {
         let module_name = file_path
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
@@ -167,12 +168,19 @@ impl CrossFileAnalyzer {
 
 /// Analyzes multiple files for cross-file taint flow.
 #[must_use]
-pub fn analyze_project(files: &[(PathBuf, String)]) -> Vec<TaintFinding> {
+pub fn analyze_project(
+    analyzer_ctx: &TaintAnalyzer,
+    files: &[(PathBuf, String)],
+) -> Vec<TaintFinding> {
     let mut analyzer = CrossFileAnalyzer::new();
 
     // First pass: build import maps and summaries
     for (path, source) in files {
-        analyzer.analyze_file(path, source);
+        if let Ok(parsed) = ruff_python_parser::parse_module(source) {
+            let module = parsed.into_syntax();
+            let line_index = LineIndex::new(source);
+            analyzer.analyze_file(analyzer_ctx, path, &module.body, &line_index);
+        }
     }
 
     // Collect all findings

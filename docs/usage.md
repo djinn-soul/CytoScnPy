@@ -48,7 +48,7 @@ Enable with `--secrets` and `--danger`.
 **Secret Scanning**: Finds hardcoded secrets (API keys, tokens) using regex and entropy analysis.
 **Dangerous Code**: Detects patterns known to cause vulnerabilities (SQLi, XSS, RCE, etc.).
 
-For detailed vulnerability rules (`CSP-Dxxx`), see [Security Analysis](security.md).
+For detailed vulnerability rules (`CSP-Dxxx`), see the **[Dangerous Code Rules Index](dangerous-code.md)** or the general [Security Analysis](security.md) overview.
 
 ### 📊 Code Quality Metrics
 
@@ -57,6 +57,8 @@ Enable with `--quality`.
 - **Cyclomatic Complexity (CC)**: Measures code branching.
 - **Maintainability Index (MI)**: 0-100 score (higher is better).
 - **Halstead Metrics**: Algorithmic complexity.
+
+For a full list of quality rules and their standard IDs (B006, E722, etc.), see the **[Code Quality Rules](quality.md)** reference.
 
 ### 🧩 Clone Detection
 
@@ -129,6 +131,7 @@ exclude_folders = ["venv", "build", "dist"]
 secrets = true
 danger = true
 quality = true
+include_ipynb = false
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code
@@ -305,21 +308,21 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
 - Use **inline comments** to suppress findings on a specific line:
 
-  | Comment                  | Effect                                                    |
-  | ------------------------ | --------------------------------------------------------- |
-  | `# pragma: no cytoscnpy` | Legacy format (suppresses all CytoScnPy findings)         |
-  | `# noqa`                 | Bare noqa (suppresses all CytoScnPy findings)             |
-  | `# ignore`               | Bare ignore (suppresses all CytoScnPy findings)           |
-  | `# noqa: CSP`            | Specific (suppresses only CytoScnPy)                      |
-  | `# noqa: E501, CSP`      | Mixed (suppresses CytoScnPy because `CSP` is in the list) |
+  | Comment                  | Effect                                            |
+  | ------------------------ | ------------------------------------------------- |
+  | `# pragma: no cytoscnpy` | Legacy format (suppresses all CytoScnPy findings) |
+  | `# noqa`                 | Bare noqa (suppresses all CytoScnPy findings)     |
+  | `# ignore`               | Bare ignore (suppresses all CytoScnPy findings)   |
+  | `# noqa` (for Quality)   | Use bare `# noqa` for quality rules for now       |
+  | `# noqa: CSP-Dxxx`       | Specific (suppresses only a specific Danger rule) |
 
   **Examples:**
 
   ```python
-  def unused_func():  # noqa
+  def mutable_default(arg=[]):  # noqa
       pass
 
-  x = value  # noqa: CSP, E501 -- suppress cytoscnpy and pycodestyle
+  x = [1, 2] == None # noqa -- suppress dangerous comparison
   y = api_key  # pragma: no cytoscnpy
   ```
 

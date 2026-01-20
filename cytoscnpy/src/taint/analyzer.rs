@@ -8,9 +8,12 @@
 use super::crossfile::CrossFileAnalyzer;
 use super::interprocedural;
 use super::intraprocedural;
+use super::sinks::check_sink as check_builtin_sink;
 use super::sources::check_taint_source;
-use super::types::{Severity, TaintFinding, TaintInfo, TaintSource, VulnType};
+use super::types::{Severity, SinkMatch, TaintFinding, TaintInfo, TaintSource, VulnType};
+use crate::utils::LineIndex;
 use ruff_python_ast::{Expr, Stmt};
+use ruff_text_size::Ranged;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -25,7 +28,7 @@ pub trait TaintSourcePlugin: Send + Sync {
 
     /// Checks if an expression is a taint source.
     /// Returns Some(TaintInfo) if the expression is a source, None otherwise.
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo>;
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo>;
 
     /// Returns the source patterns this plugin handles (for documentation).
     fn patterns(&self) -> Vec<String> {
@@ -48,20 +51,7 @@ pub trait TaintSinkPlugin: Send + Sync {
     }
 }
 
-/// Information about a matched sink.
-#[derive(Debug, Clone)]
-pub struct SinkMatch {
-    /// Name of the sink
-    pub name: String,
-    /// Vulnerability type
-    pub vuln_type: VulnType,
-    /// Severity
-    pub severity: Severity,
-    /// Which argument indices are dangerous (0-indexed)
-    pub dangerous_args: Vec<usize>,
-    /// Remediation advice
-    pub remediation: String,
-}
+// SinkMatch moved to types.rs
 
 /// Trait for custom sanitizer plugins.
 pub trait SanitizerPlugin: Send + Sync {
@@ -115,9 +105,9 @@ impl PluginRegistry {
     }
 
     /// Checks all source plugins for a match.
-    pub fn check_sources(&self, expr: &Expr) -> Option<TaintInfo> {
+    pub fn check_sources(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
         for plugin in &self.sources {
-            if let Some(info) = plugin.check_source(expr) {
+            if let Some(info) = plugin.check_source(expr, line_index) {
                 return Some(info);
             }
         }
@@ -157,8 +147,9 @@ impl TaintSourcePlugin for FlaskSourcePlugin {
         "Flask"
     }
 
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo> {
-        check_taint_source(expr).filter(|info| matches!(info.source, TaintSource::FlaskRequest(_)))
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        check_taint_source(expr, line_index)
+            .filter(|info| matches!(info.source, TaintSource::FlaskRequest(_)))
     }
 
     fn patterns(&self) -> Vec<String> {
@@ -181,8 +172,9 @@ impl TaintSourcePlugin for DjangoSourcePlugin {
         "Django"
     }
 
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo> {
-        check_taint_source(expr).filter(|info| matches!(info.source, TaintSource::DjangoRequest(_)))
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        check_taint_source(expr, line_index)
+            .filter(|info| matches!(info.source, TaintSource::DjangoRequest(_)))
     }
 
     fn patterns(&self) -> Vec<String> {
@@ -203,11 +195,15 @@ impl TaintSourcePlugin for BuiltinSourcePlugin {
         "Builtin"
     }
 
-    fn check_source(&self, expr: &Expr) -> Option<TaintInfo> {
-        check_taint_source(expr).filter(|info| {
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        check_taint_source(expr, line_index).filter(|info| {
             matches!(
                 info.source,
-                TaintSource::Input | TaintSource::Environment | TaintSource::CommandLine
+                TaintSource::Input
+                    | TaintSource::Environment
+                    | TaintSource::CommandLine
+                    | TaintSource::FileRead
+                    | TaintSource::ExternalData
             )
         })
     }
@@ -215,10 +211,130 @@ impl TaintSourcePlugin for BuiltinSourcePlugin {
     fn patterns(&self) -> Vec<String> {
         vec![
             "input()".to_owned(),
-            "os.environ".to_owned(),
-            "os.getenv()".to_owned(),
             "sys.argv".to_owned(),
+            "os.environ".to_owned(),
         ]
+    }
+}
+
+/// Azure Functions source plugin.
+pub struct AzureSourcePlugin;
+
+impl TaintSourcePlugin for AzureSourcePlugin {
+    fn name(&self) -> &'static str {
+        "AzureFunctions"
+    }
+
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        check_taint_source(expr, line_index)
+            .filter(|info| matches!(info.source, TaintSource::AzureFunctionsRequest(_)))
+    }
+
+    fn patterns(&self) -> Vec<String> {
+        vec![
+            "req.params".to_owned(),
+            "req.route_params".to_owned(),
+            "req.headers".to_owned(),
+            "req.form".to_owned(),
+            "req.get_json".to_owned(),
+            "req.get_body".to_owned(),
+        ]
+    }
+}
+
+/// Built-in sink plugin.
+pub struct BuiltinSinkPlugin;
+
+impl TaintSinkPlugin for BuiltinSinkPlugin {
+    fn name(&self) -> &'static str {
+        "Builtin"
+    }
+
+    fn check_sink(&self, call: &ruff_python_ast::ExprCall) -> Option<SinkMatch> {
+        check_builtin_sink(call).map(|info| SinkMatch {
+            name: info.name,
+            rule_id: info.rule_id,
+            vuln_type: info.vuln_type,
+            severity: info.severity,
+            dangerous_args: info.dangerous_args,
+            dangerous_keywords: info.dangerous_keywords,
+            remediation: info.remediation,
+        })
+    }
+
+    fn patterns(&self) -> Vec<String> {
+        super::sinks::SINK_PATTERNS
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect()
+    }
+}
+
+/// Plugin for dynamic patterns from configuration.
+pub struct DynamicPatternPlugin {
+    /// List of custom source patterns to match.
+    pub sources: Vec<String>,
+    /// List of custom sink patterns to match.
+    pub sinks: Vec<String>,
+}
+
+impl TaintSourcePlugin for DynamicPatternPlugin {
+    fn name(&self) -> &'static str {
+        "DynamicConfig"
+    }
+
+    fn check_source(&self, expr: &Expr, line_index: &LineIndex) -> Option<TaintInfo> {
+        use crate::rules::danger::utils::get_call_name;
+        let target = if let Expr::Call(call) = expr {
+            &call.func
+        } else {
+            expr
+        };
+        if let Some(call_name) = get_call_name(target) {
+            for pattern in &self.sources {
+                if &call_name == pattern {
+                    return Some(TaintInfo::new(
+                        TaintSource::Custom(pattern.clone()),
+                        line_index.line_index(expr.range().start()),
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    fn patterns(&self) -> Vec<String> {
+        self.sources.clone()
+    }
+}
+
+impl TaintSinkPlugin for DynamicPatternPlugin {
+    fn name(&self) -> &'static str {
+        "DynamicConfig"
+    }
+
+    fn check_sink(&self, call: &ruff_python_ast::ExprCall) -> Option<SinkMatch> {
+        use crate::rules::danger::utils::get_call_name;
+        if let Some(call_name) = get_call_name(&call.func) {
+            for pattern in &self.sinks {
+                if &call_name == pattern {
+                    return Some(SinkMatch {
+                        name: pattern.clone(),
+                        rule_id: "CSP-CUSTOM-SINK".to_owned(),
+                        vuln_type: VulnType::CodeInjection,
+                        severity: Severity::High,
+                        dangerous_args: vec![0], // Assume first arg is dangerous by default for custom sinks
+                        dangerous_keywords: Vec::new(),
+                        remediation: "Review data flow to this custom sink.".to_owned(),
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    fn patterns(&self) -> Vec<String> {
+        self.sinks.clone()
     }
 }
 
@@ -280,6 +396,29 @@ impl TaintConfig {
         }
     }
 
+    /// Creates a config with all analysis levels and custom patterns.
+    #[must_use]
+    pub fn with_custom(sources: Vec<String>, sinks: Vec<String>) -> Self {
+        let mut config = Self::all_levels();
+        for pattern in sources {
+            config.custom_sources.push(CustomSourceConfig {
+                name: format!("Custom: {pattern}"),
+                pattern,
+                severity: Severity::High,
+            });
+        }
+        for pattern in sinks {
+            config.custom_sinks.push(CustomSinkConfig {
+                name: format!("Custom: {pattern}"),
+                pattern,
+                vuln_type: VulnType::CodeInjection, // Default to code injection for custom patterns
+                severity: Severity::High,
+                remediation: "Review data flow from custom source to this sink.".to_owned(),
+            });
+        }
+        config
+    }
+
     /// Creates a config with only intraprocedural analysis.
     #[must_use]
     pub fn intraprocedural_only() -> Self {
@@ -313,6 +452,31 @@ impl TaintAnalyzer {
         plugins.register_source(FlaskSourcePlugin);
         plugins.register_source(DjangoSourcePlugin);
         plugins.register_source(BuiltinSourcePlugin);
+        plugins.register_source(AzureSourcePlugin);
+        plugins.register_sink(BuiltinSinkPlugin);
+
+        // Register custom patterns from config
+        let custom_sources: Vec<String> = config
+            .custom_sources
+            .iter()
+            .map(|s| s.pattern.clone())
+            .collect();
+        let custom_sinks: Vec<String> = config
+            .custom_sinks
+            .iter()
+            .map(|s| s.pattern.clone())
+            .collect();
+
+        if !custom_sources.is_empty() || !custom_sinks.is_empty() {
+            let dynamic = Arc::new(DynamicPatternPlugin {
+                sources: custom_sources,
+                sinks: custom_sinks,
+            });
+            plugins
+                .sources
+                .push(Arc::clone(&dynamic) as Arc<dyn TaintSourcePlugin>);
+            plugins.sinks.push(dynamic);
+        }
 
         let crossfile_analyzer = if config.crossfile {
             Some(CrossFileAnalyzer::new())
@@ -358,6 +522,8 @@ impl TaintAnalyzer {
             Err(_) => return findings,
         };
 
+        let line_index = LineIndex::new(source);
+
         // Level 1: Intraprocedural
         if self.config.intraprocedural {
             // Analyze module-level statements (not inside functions)
@@ -365,9 +531,11 @@ impl TaintAnalyzer {
             for stmt in &stmts {
                 intraprocedural::analyze_stmt_public(
                     stmt,
+                    self,
                     &mut module_state,
                     &mut findings,
                     file_path,
+                    &line_index,
                 );
             }
 
@@ -375,12 +543,22 @@ impl TaintAnalyzer {
             for stmt in &stmts {
                 if let Stmt::FunctionDef(func) = stmt {
                     if func.is_async {
-                        let func_findings =
-                            intraprocedural::analyze_async_function(func, file_path, None);
+                        let func_findings = intraprocedural::analyze_async_function(
+                            func,
+                            self,
+                            file_path,
+                            &line_index,
+                            None,
+                        );
                         findings.extend(func_findings);
                     } else {
-                        let func_findings =
-                            intraprocedural::analyze_function(func, file_path, None);
+                        let func_findings = intraprocedural::analyze_function(
+                            func,
+                            self,
+                            file_path,
+                            &line_index,
+                            None,
+                        );
                         findings.extend(func_findings);
                     }
                 }
@@ -388,12 +566,26 @@ impl TaintAnalyzer {
         }
 
         // Level 2: Interprocedural
+        // Level 2: Interprocedural
         if self.config.interprocedural {
-            let interprocedural_findings = interprocedural::analyze_module(&stmts, file_path);
+            let interprocedural_findings =
+                interprocedural::analyze_module(&stmts, self, file_path, &line_index);
             findings.extend(interprocedural_findings);
         }
 
+        // Level 3: Cross-file
+        if self.config.crossfile {
+            let mut cross_file = CrossFileAnalyzer::new();
+            let cross_file_findings = cross_file.analyze_file(self, file_path, &stmts, &line_index);
+            findings.extend(cross_file_findings);
+        }
+
         // Deduplicate findings
+        findings.sort_by(|a, b| {
+            a.sink_line
+                .cmp(&b.sink_line)
+                .then(a.source_line.cmp(&b.source_line))
+        });
         findings.dedup_by(|a, b| a.source_line == b.source_line && a.sink_line == b.sink_line);
 
         findings
@@ -402,11 +594,17 @@ impl TaintAnalyzer {
     /// Analyzes multiple files with cross-file tracking.
     pub fn analyze_project(&mut self, files: &[(PathBuf, String)]) -> Vec<TaintFinding> {
         if self.config.crossfile {
-            if let Some(ref mut analyzer) = self.crossfile_analyzer {
+            if let Some(mut analyzer) = self.crossfile_analyzer.take() {
                 for (path, source) in files {
-                    analyzer.analyze_file(path, source);
+                    if let Ok(parsed) = ruff_python_parser::parse_module(source) {
+                        let module = parsed.into_syntax();
+                        let line_index = LineIndex::new(source);
+                        analyzer.analyze_file(self, path, &module.body, &line_index);
+                    }
                 }
-                return analyzer.get_all_findings();
+                let findings = analyzer.get_all_findings();
+                self.crossfile_analyzer = Some(analyzer);
+                return findings;
             }
         }
 

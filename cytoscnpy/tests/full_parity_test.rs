@@ -21,7 +21,10 @@ fn test_mutable_default_argument() {
     let code = "def foo(x=[]): pass";
     let config = Config::default();
     let result = analyze_code(code, config);
-    assert!(result.quality.iter().any(|f| f.rule_id == "CSP-L001"));
+    assert!(result
+        .quality
+        .iter()
+        .any(|f| f.message.contains("Mutable default argument")));
 }
 
 #[test]
@@ -29,7 +32,10 @@ fn test_bare_except() {
     let code = "try: pass\nexcept: pass";
     let config = Config::default();
     let result = analyze_code(code, config);
-    assert!(result.quality.iter().any(|f| f.rule_id == "CSP-L002"));
+    assert!(result
+        .quality
+        .iter()
+        .any(|f| f.message.contains("Bare except block")));
 }
 
 #[test]
@@ -37,7 +43,10 @@ fn test_dangerous_comparison() {
     let code = "if x == True: pass";
     let config = Config::default();
     let result = analyze_code(code, config);
-    assert!(result.quality.iter().any(|f| f.rule_id == "CSP-L003"));
+    assert!(result
+        .quality
+        .iter()
+        .any(|f| f.message.contains("Dangerous comparison")));
 }
 
 #[test]
@@ -45,7 +54,10 @@ fn test_argument_count() {
     let code = "def foo(a, b, c, d, e, f): pass";
     let config = Config::default(); // default max_args is 5
     let result = analyze_code(code, config);
-    assert!(result.quality.iter().any(|f| f.rule_id == "CSP-C303"));
+    assert!(result
+        .quality
+        .iter()
+        .any(|f| f.message.contains("Too many arguments")));
 }
 
 #[test]
@@ -53,7 +65,10 @@ fn test_function_length() {
     let code = "def foo():\n".to_owned() + &"    pass\n".repeat(51);
     let config = Config::default(); // default max_lines is 50
     let result = analyze_code(&code, config);
-    assert!(result.quality.iter().any(|f| f.rule_id == "CSP-C304"));
+    assert!(result
+        .quality
+        .iter()
+        .any(|f| f.message.contains("Function too long")));
 }
 
 #[test]
@@ -73,7 +88,10 @@ def foo(x):
 ";
     let config = Config::default(); // default complexity is 10
     let result = analyze_code(code, config);
-    assert!(result.quality.iter().any(|f| f.rule_id == "CSP-Q301"));
+    assert!(result
+        .quality
+        .iter()
+        .any(|f| f.message.contains("Function is too complex")));
 }
 
 #[test]
@@ -88,12 +106,15 @@ def foo():
 ";
     let config = Config::default(); // default nesting is 3
     let result = analyze_code(code, config);
-    assert!(result.quality.iter().any(|f| f.rule_id == "CSP-Q302"));
+    assert!(result
+        .quality
+        .iter()
+        .any(|f| f.message.contains("Deeply nested code")));
 }
 
 #[test]
 fn test_path_traversal() {
-    let code = "open(user_input)";
+    let code = "user_input = input(); open(user_input)";
     let config = Config::default();
     let result = analyze_code(code, config);
     assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D501"));
@@ -101,7 +122,7 @@ fn test_path_traversal() {
 
 #[test]
 fn test_ssrf() {
-    let code = "requests.get(user_url)";
+    let code = "import os; user_url = os.getenv('URL'); requests.get(user_url)";
     let config = Config::default();
     let result = analyze_code(code, config);
     assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D402"));
@@ -109,7 +130,7 @@ fn test_ssrf() {
 
 #[test]
 fn test_sqli_raw() {
-    let code = "sqlalchemy.text(user_sql)";
+    let code = "user_sql = input(); sqlalchemy.text(user_sql)";
     let config = Config::default();
     let result = analyze_code(code, config);
     assert!(result.danger.iter().any(|f| f.rule_id == "CSP-D102"));
@@ -155,14 +176,17 @@ def complex_function(x, y):
     let result = analyze_code(code, config);
 
     assert!(
-        result.quality.iter().any(|f| f.rule_id == "CSP-Q301"),
+        result
+            .quality
+            .iter()
+            .any(|f| f.message.contains("Function is too complex")),
         "Should detect high complexity"
     );
 
     let finding = result
         .quality
         .iter()
-        .find(|f| f.rule_id == "CSP-Q301")
+        .find(|f| f.message.contains("Function is too complex"))
         .unwrap();
     assert!(
         finding.message.contains("McCabe="),

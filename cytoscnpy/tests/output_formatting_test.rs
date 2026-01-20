@@ -37,6 +37,9 @@ fn create_mock_result() -> AnalysisResult {
             is_self_referential: false,
             message: None,
             fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -48,6 +51,7 @@ fn create_mock_result() -> AnalysisResult {
         quality: vec![Finding {
             message: "Test finding".to_owned(),
             rule_id: "CSP-Q001".to_owned(),
+            category: "Maintainability".to_owned(),
             file: PathBuf::from("test.py"),
             line: 5,
             col: 0,
@@ -198,6 +202,7 @@ fn test_print_findings_with_items() {
     let findings = vec![Finding {
         message: "Test message".to_owned(),
         rule_id: "TEST-001".to_owned(),
+        category: "Security Issues".to_owned(),
         file: PathBuf::from("file.py"),
         line: 10,
         col: 0,
@@ -243,6 +248,9 @@ fn test_print_unused_items_with_items() {
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
     }];
     let result = print_unused_items(&mut buffer, "Unused Functions", &items, "Function");
     assert!(result.is_ok());
@@ -275,6 +283,9 @@ fn test_print_unused_parameters() {
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
     }];
     let result = print_unused_items(&mut buffer, "Unused Parameters", &items, "Parameter");
     assert!(result.is_ok());

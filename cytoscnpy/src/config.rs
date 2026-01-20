@@ -33,6 +33,9 @@ pub struct CytoScnPyConfig {
     pub danger: Option<bool>,
     /// Whether to scan for code quality issues.
     pub quality: Option<bool>,
+    /// Configuration for danger rules and taint analysis.
+    #[serde(default)]
+    pub danger_config: DangerConfig,
     // New fields for rule configuration
     /// Maximum allowed lines for a function.
     pub max_lines: Option<usize>,
@@ -150,6 +153,22 @@ impl Default for SecretsConfig {
             suspicious_names: Vec::new(),
         }
     }
+}
+
+/// Configuration for danger rules and taint analysis.
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct DangerConfig {
+    /// Whether to enable taint analysis for danger detection.
+    pub enable_taint: Option<bool>,
+    /// Severity threshold for reporting danger findings.
+    pub severity_threshold: Option<String>,
+    /// List of rule IDs to exclude from danger scanning.
+    pub excluded_rules: Option<Vec<String>>,
+    /// Custom taint sources.
+    pub custom_sources: Option<Vec<String>>,
+    /// Custom taint sinks.
+    /// Custom taint sinks.
+    pub custom_sinks: Option<Vec<String>>,
 }
 
 /// A custom secret pattern defined in TOML configuration.

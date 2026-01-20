@@ -1,0 +1,19 @@
+{
+  "rust-analyzer.cargo.extraEnv": {
+    "PYO3_PYTHON": "${workspaceFolder}/.venv/Scripts/python.exe"
+  },
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": [
+    "--all-features",
+    "--",
+    "-W",
+    "clippy::complexity",
+    "-W",
+    "clippy::pedantic",
+    "-W",
+    "clippy::perf"
+  ],
+  "coverage-gutters.coverageFileNames": ["lcov.info"],
+  "coverage-gutters.coverageBaseDir": ".",
+  "coverage-gutters.showLineCoverage": true
+}

@@ -41,6 +41,8 @@ pub struct SecretFinding {
     pub message: String,
     /// Unique rule identifier (e.g., "CSP-S101").
     pub rule_id: String,
+    /// Category of the rule.
+    pub category: String,
     /// File where the secret was found.
     pub file: PathBuf,
     /// Line number (1-indexed).
@@ -168,8 +170,15 @@ impl SecretScanner {
             }
 
             // Skip suppressed lines (pragma, noqa, ignore comments)
-            if crate::utils::is_line_suppressed(line_content) {
-                continue;
+            if let Some(suppression) = crate::utils::get_line_suppression(line_content) {
+                match suppression {
+                    crate::utils::Suppression::All => continue,
+                    crate::utils::Suppression::Specific(rules) => {
+                        if rules.contains(&finding.rule_id) {
+                            continue;
+                        }
+                    }
+                }
             }
 
             // Check if in docstring
@@ -215,6 +224,7 @@ impl SecretScanner {
             scored_findings.push(SecretFinding {
                 message: finding.message,
                 rule_id: finding.rule_id,
+                category: "Secrets".to_owned(),
                 file: file_path.clone(),
                 line: finding.line,
                 severity: finding.severity,
@@ -249,6 +259,7 @@ pub fn validate_secrets_config(
                     p.name, e
                 ),
                 rule_id: RULE_ID_CONFIG_ERROR.to_owned(),
+                category: "Secrets".to_owned(),
                 file: config_file_path.clone(),
                 line: 1,
                 severity: "CRITICAL".to_owned(),

@@ -3,8 +3,9 @@
 use crate::constants::{AUTO_CALLED, PENALTIES};
 use crate::framework::FrameworkAwareVisitor;
 use crate::test_utils::TestAwareVisitor;
+use crate::utils::Suppression;
 use crate::visitor::Definition;
-use std::collections::HashSet;
+use rustc_hash::FxHashMap;
 
 /// Applies penalty-based confidence adjustments to definitions.
 ///
@@ -14,18 +15,21 @@ use std::collections::HashSet;
 /// - Framework decorations (lowers confidence for framework-managed code).
 /// - Private naming conventions (lowers confidence for internal helpers).
 /// - Dunder methods (ignores magic methods).
-pub fn apply_penalties<S: ::std::hash::BuildHasher>(
+#[allow(clippy::implicit_hasher)]
+pub fn apply_penalties(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,
     tv: &TestAwareVisitor,
-    ignored_lines: &HashSet<usize, S>,
+    ignored_lines: &FxHashMap<usize, Suppression>,
     include_tests: bool,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)
     // If the line is marked to be ignored, set confidence to 0.
-    if ignored_lines.contains(&def.line) {
-        def.confidence = 0;
-        return;
+    if let Some(suppression) = ignored_lines.get(&def.line) {
+        if matches!(suppression, Suppression::All) {
+            def.confidence = 0;
+            return;
+        }
     }
 
     // Test files: confidence 0 (ignore)
@@ -51,6 +55,39 @@ pub fn apply_penalties<S: ::std::hash::BuildHasher>(
         def.confidence = def.confidence.saturating_sub(50);
     }
 
+    // Mixin penalty: Methods in *Mixin classes are often used implicitly
+    if def.def_type == "method" && def.full_name.contains("Mixin") {
+        def.confidence = def.confidence.saturating_sub(60);
+    }
+
+    // Base/Abstract/Interface penalty
+    // These are often overrides or interfaces with implicit usage.
+    if def.def_type == "method"
+        && (def.full_name.contains(".Base")
+            || def.full_name.contains("Base")
+            || def.full_name.contains("Abstract")
+            || def.full_name.contains("Interface"))
+    {
+        def.confidence = def.confidence.saturating_sub(50);
+    }
+
+    // Adapter penalty
+    // Adapters are also often used implicitly, but we want to be less aggressive than Base/Abstract
+    // to avoid false negatives on dead adapter methods (regression fix).
+    if def.def_type == "method" && def.full_name.contains("Adapter") {
+        def.confidence = def.confidence.saturating_sub(30);
+    }
+
+    // Framework lifecycle methods
+    if def.def_type == "method" || def.def_type == "function" {
+        if def.simple_name.starts_with("on_") || def.simple_name.starts_with("watch_") {
+            def.confidence = def.confidence.saturating_sub(30);
+        }
+        if def.simple_name == "compose" {
+            def.confidence = def.confidence.saturating_sub(40);
+        }
+    }
+
     // Private names
     // Names starting with _ are often internal and might not be used externally,
     // but might be used implicitly. We lower confidence.
@@ -73,6 +110,13 @@ pub fn apply_penalties<S: ::std::hash::BuildHasher>(
         def.confidence = def
             .confidence
             .saturating_sub(*PENALTIES().get("dunder_or_magic").unwrap_or(&100));
+    }
+
+    // Module-level constants
+    if def.is_constant {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("module_constant").unwrap_or(&80));
     }
 
     // In __init__.py

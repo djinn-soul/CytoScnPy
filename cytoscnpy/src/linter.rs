@@ -59,7 +59,6 @@ impl LinterVisitor {
                     self.visit_stmt(s);
                 }
                 for clause in &node.elif_else_clauses {
-                    self.visit_stmt(&clause.body[0]); // Hack: elif_else_clauses body is Vec<Stmt>, but visitor expects single Stmt recursion? No, loop over them.
                     for s in &clause.body {
                         self.visit_stmt(s);
                     }
@@ -147,7 +146,115 @@ impl LinterVisitor {
             }
         }
 
-        // Recursively visit sub-expressions if needed
-        // For now, rules check what they need
+        // Recursively visit sub-expressions
+        match expr {
+            Expr::Call(node) => {
+                self.visit_expr(&node.func);
+                for arg in &node.arguments.args {
+                    self.visit_expr(arg);
+                }
+                for keyword in &node.arguments.keywords {
+                    self.visit_expr(&keyword.value);
+                }
+            }
+            Expr::Attribute(node) => self.visit_expr(&node.value),
+            Expr::BinOp(node) => {
+                self.visit_expr(&node.left);
+                self.visit_expr(&node.right);
+            }
+            Expr::UnaryOp(node) => self.visit_expr(&node.operand),
+            Expr::BoolOp(node) => {
+                for value in &node.values {
+                    self.visit_expr(value);
+                }
+            }
+            Expr::Compare(node) => {
+                self.visit_expr(&node.left);
+                for val in &node.comparators {
+                    self.visit_expr(val);
+                }
+            }
+            Expr::List(node) => {
+                for elt in &node.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            Expr::Tuple(node) => {
+                for elt in &node.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            Expr::Set(node) => {
+                for elt in &node.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            Expr::Dict(node) => {
+                for item in &node.items {
+                    if let Some(key) = &item.key {
+                        self.visit_expr(key);
+                    }
+                    self.visit_expr(&item.value);
+                }
+            }
+            Expr::Subscript(node) => {
+                self.visit_expr(&node.value);
+                self.visit_expr(&node.slice);
+            }
+            Expr::Starred(node) => self.visit_expr(&node.value),
+            Expr::Yield(node) => {
+                if let Some(value) = &node.value {
+                    self.visit_expr(value);
+                }
+            }
+            Expr::YieldFrom(node) => self.visit_expr(&node.value),
+            Expr::Await(node) => self.visit_expr(&node.value),
+            Expr::Lambda(node) => self.visit_expr(&node.body),
+            Expr::ListComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.elt);
+            }
+            Expr::SetComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.elt);
+            }
+            Expr::DictComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.key);
+                self.visit_expr(&node.value);
+            }
+            Expr::Generator(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    for r in &gen.ifs {
+                        self.visit_expr(r);
+                    }
+                }
+                self.visit_expr(&node.elt);
+            }
+            _ => {}
+        }
+
+        // Call leave_expr for all rules
+        for rule in &mut self.rules {
+            if let Some(mut findings) = rule.leave_expr(expr, &self.context) {
+                self.findings.append(&mut findings);
+            }
+        }
     }
 }

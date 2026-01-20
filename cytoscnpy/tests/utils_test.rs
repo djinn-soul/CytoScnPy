@@ -18,8 +18,8 @@ class MyClass:  # pragma: no cytoscnpy
     let ignored = get_ignored_lines(source);
 
     // Lines 5 and 8 should be ignored (1-indexed)
-    assert!(ignored.contains(&5), "Should detect pragma on line 5");
-    assert!(ignored.contains(&8), "Should detect pragma on line 8");
+    assert!(ignored.contains_key(&5), "Should detect pragma on line 5");
+    assert!(ignored.contains_key(&8), "Should detect pragma on line 8");
     assert_eq!(ignored.len(), 2, "Should find exactly 2 pragma lines");
 }
 

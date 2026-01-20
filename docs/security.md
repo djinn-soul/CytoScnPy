@@ -29,6 +29,16 @@ Detects patterns known to cause vulnerabilities.
 
 For a complete list of all rules organized by category, see: **[Dangerous Code Rules](dangerous-code.md)**
 
+### Rule Categories
+
+- [Code Execution & Unsafe Calls](danger/code-execution.md) (CSP-D0xx)
+- [Injection & Logic Attacks](danger/injection.md) (CSP-D1xx)
+- [Deserialization](danger/deserialization.md) (CSP-D2xx)
+- [Cryptography & Randomness](danger/cryptography.md) (CSP-D3xx)
+- [Network & HTTP Security](danger/network.md) (CSP-D4xx)
+- [File Operations & Path Traversal](danger/filesystem.md) (CSP-D5xx)
+- [Modern Python & Frameworks](danger/modern-python.md) (CSP-D9xx)
+
 ---
 
 ## Taint Analysis

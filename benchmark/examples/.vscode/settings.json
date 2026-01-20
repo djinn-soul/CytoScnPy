@@ -1,0 +1,16 @@
+{
+    "cytoscnpy.enableSecretsScan": true,
+    "cytoscnpy.enableDangerScan": true,
+    "cytoscnpy.enableQualityScan": true,
+    "cytoscnpy.enableCloneScan": true,
+    "cytoscnpy.confidenceThreshold": 0,
+    "cytoscnpy.includeTests": false,
+    "cytoscnpy.includeIpynb": false,
+    "cytoscnpy.excludeFolders": [],
+    "cytoscnpy.includeFolders": [],
+    "cytoscnpy.maxComplexity": 10,
+    "cytoscnpy.minMaintainabilityIndex": 40,
+    "cytoscnpy.maxNesting": 3,
+    "cytoscnpy.maxArguments": 5,
+    "cytoscnpy.maxLines": 50
+}

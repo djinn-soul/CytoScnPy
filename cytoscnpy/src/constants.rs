@@ -20,6 +20,10 @@ pub const PYPROJECT_FILENAME: &str = "pyproject.toml";
 /// Rule ID for configuration-related errors.
 pub const RULE_ID_CONFIG_ERROR: &str = "CSP-CONFIG-ERROR";
 
+/// Default value for whether taint analysis is enabled when not explicitly configured.
+/// Set to `true` because taint analysis improves accuracy and reduces false positives.
+pub const TAINT_ENABLED_DEFAULT: bool = true;
+
 /// Suppression comment patterns that disable findings on a line.
 /// Supports both pragma format and noqa format.
 /// - `# pragma: no cytoscnpy` - Legacy format
@@ -67,6 +71,7 @@ pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
         m.insert("test_related", 100);
         m.insert("framework_magic", 40);
         m.insert("type_checking_import", 100); // TYPE_CHECKING imports are type-only
+        m.insert("module_constant", 80);
         m
     })
 }
@@ -360,6 +365,19 @@ pub fn get_pytest_hooks() -> &'static FxHashSet<&'static str> {
     })
 }
 
+/// Rules that are sensitive to taint analysis (injection, SSRF, path traversal).
+pub fn get_taint_sensitive_rules() -> &'static [&'static str] {
+    static RULES: OnceLock<Vec<&'static str>> = OnceLock::new();
+    RULES.get_or_init(|| {
+        vec![
+            crate::rules::ids::RULE_ID_SQL_INJECTION, // SQL Injection (ORM)
+            crate::rules::ids::RULE_ID_SQL_RAW,       // SQL Injection (Raw)
+            crate::rules::ids::RULE_ID_SSRF,          // SSRF
+            crate::rules::ids::RULE_ID_PATH_TRAVERSAL, // Path Traversal
+        ]
+    })
+}
+
 // Legacy aliases for backward compatibility
 // Callers using PENALTIES.get("key") can use get_penalties().get("key") instead
 pub use get_auto_called as AUTO_CALLED;
@@ -369,6 +387,7 @@ pub use get_penalties as PENALTIES;
 pub use get_pytest_hooks as PYTEST_HOOKS;
 pub use get_suppression_patterns as SUPPRESSION_PATTERNS;
 pub use get_suppression_re as SUPPRESSION_RE;
+pub use get_taint_sensitive_rules as TAINT_SENSITIVE_RULES;
 pub use get_test_decor_re as TEST_DECOR_RE;
 pub use get_test_file_re as TEST_FILE_RE;
 pub use get_test_import_re as TEST_IMPORT_RE;

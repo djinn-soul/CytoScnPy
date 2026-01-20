@@ -1,12 +1,16 @@
 //! Checks for subscript-based taint sources.
 
 use crate::taint::types::{TaintInfo, TaintSource};
+use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
 /// Checks if a subscript expression is a taint source.
-pub(crate) fn check_subscript_source(sub: &ast::ExprSubscript) -> Option<TaintInfo> {
-    let line = sub.range().start().to_u32() as usize;
+pub(crate) fn check_subscript_source(
+    sub: &ast::ExprSubscript,
+    line_index: &LineIndex,
+) -> Option<TaintInfo> {
+    let line = line_index.line_index(sub.range().start());
 
     // Check for request.args['key'] or request['key']
     if let Expr::Attribute(attr) = &*sub.value {

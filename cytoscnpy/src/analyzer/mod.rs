@@ -9,7 +9,7 @@
 mod aggregation;
 mod builder;
 mod heuristics;
-mod single_file;
+pub mod single_file;
 mod traversal;
 mod utils;
 
@@ -44,8 +44,6 @@ pub struct CytoScnPy {
     pub include_ipynb: bool,
     /// Whether to report findings at cell level for notebooks.
     pub ipynb_cells: bool,
-    /// Whether to enable taint analysis.
-    pub enable_taint: bool,
     /// Total number of files analyzed.
     pub total_files_analyzed: usize,
     /// Total number of lines analyzed.
@@ -74,7 +72,6 @@ impl Default for CytoScnPy {
             include_folders: Vec::new(),
             include_ipynb: false,
             ipynb_cells: false,
-            enable_taint: false,
             total_files_analyzed: 0,
             total_lines_analyzed: 0,
             config: Config::default(),

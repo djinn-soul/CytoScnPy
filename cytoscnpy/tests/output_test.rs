@@ -35,6 +35,9 @@ fn test_print_report_formatting() {
             is_self_referential: false,
             message: Some("'unused_func' is defined but never used".to_owned()),
             fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -45,6 +48,7 @@ fn test_print_report_formatting() {
         danger: vec![Finding {
             message: "Dangerous eval".to_owned(),
             rule_id: "CSP-D001".to_owned(),
+            category: "Code Execution".to_owned(),
             file: PathBuf::from("danger.py"),
             line: 5,
             col: 0,

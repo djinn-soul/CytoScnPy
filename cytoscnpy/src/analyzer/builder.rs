@@ -17,7 +17,6 @@ impl CytoScnPy {
         include_folders: Vec<String>,
         include_ipynb: bool,
         ipynb_cells: bool,
-        enable_taint: bool,
         config: Config,
     ) -> Self {
         #[allow(deprecated)]
@@ -31,7 +30,6 @@ impl CytoScnPy {
             include_folders,
             include_ipynb,
             ipynb_cells,
-            enable_taint,
             total_files_analyzed: 0,
             total_lines_analyzed: 0,
             config,
@@ -70,7 +68,7 @@ impl CytoScnPy {
         self
     }
 
-    /// Builder-style method to enable danger scanning.
+    /// Builder-style method to enable danger (security) scanning.
     #[must_use]
     pub fn with_danger(mut self, enabled: bool) -> Self {
         self.enable_danger = enabled;
@@ -116,13 +114,6 @@ impl CytoScnPy {
     #[must_use]
     pub fn with_ipynb_cells(mut self, enabled: bool) -> Self {
         self.ipynb_cells = enabled;
-        self
-    }
-
-    /// Builder-style method to enable taint analysis.
-    #[must_use]
-    pub fn with_taint(mut self, enabled: bool) -> Self {
-        self.enable_taint = enabled;
         self
     }
 

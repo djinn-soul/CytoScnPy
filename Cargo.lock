@@ -408,7 +408,7 @@ dependencies = [
 
 [[package]]
 name = "cytoscnpy"
-version = "1.2.6"
+version = "1.2.7"
 dependencies = [
  "anyhow",
  "askama",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "cytoscnpy-cli"
-version = "1.2.6"
+version = "1.2.7"
 dependencies = [
  "anyhow",
  "cytoscnpy",
@@ -452,7 +452,7 @@ dependencies = [
 
 [[package]]
 name = "cytoscnpy-mcp"
-version = "1.2.6"
+version = "1.2.7"
 dependencies = [
  "cytoscnpy",
  "rmcp",

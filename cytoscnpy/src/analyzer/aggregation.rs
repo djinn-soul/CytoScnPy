@@ -8,7 +8,7 @@ use crate::rules::secrets::SecretFinding;
 use crate::rules::Finding;
 use crate::visitor::Definition;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::fs;
 
 impl CytoScnPy {
@@ -19,6 +19,7 @@ impl CytoScnPy {
         results: Vec<(
             Vec<Definition>,
             FxHashMap<String, usize>,
+            FxHashMap<String, FxHashSet<String>>, // Protocol methods
             Vec<SecretFinding>,
             Vec<Finding>,
             Vec<Finding>,
@@ -50,11 +51,14 @@ impl CytoScnPy {
         let mut all_halstead_metrics = HalsteadMetrics::default();
         let mut file_metrics = Vec::new();
 
+        let mut all_protocols: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+
         for (
             i,
             (
                 defs,
                 refs,
+                proto_methods,
                 secrets,
                 danger,
                 quality,
@@ -110,6 +114,11 @@ impl CytoScnPy {
             for (name, count) in refs {
                 *ref_counts.entry(name).or_insert(0) += count;
             }
+            // Merge protocol definitions
+            for (proto, methods) in proto_methods {
+                all_protocols.entry(proto).or_default().extend(methods);
+            }
+
             all_secrets.extend(secrets);
             all_danger.extend(danger);
             all_quality.extend(quality);
@@ -120,6 +129,41 @@ impl CytoScnPy {
                 total_complexity += complexity;
                 total_mi += mi;
                 files_with_quality_metrics += 1;
+            }
+        }
+
+        // --- Phase 2: Duck Typing Logic ---
+        // 1. Map Class -> Function Names
+        let mut class_methods: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+        for def in &all_defs {
+            if def.def_type == "method" {
+                if let Some(parent) = def.full_name.rfind('.').map(|i| &def.full_name[..i]) {
+                    class_methods
+                        .entry(parent.to_owned())
+                        .or_default()
+                        .insert(def.simple_name.clone());
+                }
+            }
+        }
+
+        // 2. Identification of implicit implementations
+        let mut implicitly_used_methods: FxHashSet<String> = FxHashSet::default();
+
+        for (class_name, methods) in &class_methods {
+            for proto_methods in all_protocols.values() {
+                let intersection_count = methods.intersection(proto_methods).count();
+                let proto_len = proto_methods.len();
+
+                // Heuristic: >= 70% overlap and at least 3 methods matches
+                if proto_len > 0 && intersection_count >= 3 {
+                    let ratio = intersection_count as f64 / proto_len as f64;
+                    if ratio >= 0.7 {
+                        // Match! Mark overlapping methods as implicitly used
+                        for method in methods.intersection(proto_methods) {
+                            implicitly_used_methods.insert(format!("{class_name}.{method}"));
+                        }
+                    }
+                }
             }
         }
 
@@ -142,22 +186,63 @@ impl CytoScnPy {
 
         for mut def in all_defs {
             if let Some(count) = ref_counts.get(&def.full_name) {
-                // For variables and parameters, if they were already marked as unused
-                // (e.g. by flow-sensitive analysis), we respect that 0 count.
+                // For variables and parameters, if the cross-file count is 0,
+                // stay at 0 to avoid false negatives from flow-sensitive analysis.
+                // FIX: Previously checked def.references == 0 which blocked ALL
+                // variables since references starts at 0. Now check *count == 0.
                 if (def.def_type == "variable" || def.def_type == "parameter")
-                    && def.references == 0
+                    && !def.is_enum_member
+                    && *count == 0
                 {
-                    // Stay at 0
+                    // Stay at 0 - no references found
                 } else {
                     def.references = *count;
                 }
-            } else if def.def_type != "variable" {
-                if let Some(count) = ref_counts.get(&def.simple_name) {
-                    def.references = *count;
+            } else {
+                // full_name didn't match - try fallback strategies
+                let mut matched = false;
+
+                // For enum members, prefer qualified class.member matching
+                if def.is_enum_member {
+                    if let Some(dot_idx) = def.full_name.rfind('.') {
+                        let parent = &def.full_name[..dot_idx];
+                        if let Some(class_dot) = parent.rfind('.') {
+                            let class_member =
+                                format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
+                            if let Some(count) = ref_counts.get(&class_member) {
+                                def.references = *count;
+                                matched = true;
+                            }
+                        }
+                    }
+                    // For enum members, do NOT use bare-name fallback to prevent
+                    // unrelated attributes from marking enum members as used
+                }
+
+                // Fallback to simple name for all non-enum types (including variables)
+                // This fixes cross-file references like `module.CONSTANT` where the
+                // reference is tracked as simple name but def has full qualified path
+                //
+                // EXCEPTION: Do not do this for variables to avoid conflating local variables
+                // (e.g. 'a', 'i', 'x') with global references. Variables should rely on
+                // full_name matching or scope resolution in visitor.
+                if !matched && !def.is_enum_member {
+                    let should_fallback = def.def_type != "variable" && def.def_type != "parameter";
+
+                    if should_fallback {
+                        if let Some(count) = ref_counts.get(&def.simple_name) {
+                            def.references = *count;
+                        }
+                    }
                 }
             }
 
             apply_heuristics(&mut def);
+
+            // 3. Duck Typing / Implicit Implementation Check
+            if implicitly_used_methods.contains(&def.full_name) {
+                def.references = std::cmp::max(def.references, 1);
+            }
 
             // Collect methods with references for class-method linking
             if def.def_type == "method" && def.references > 0 {
@@ -205,8 +290,30 @@ impl CytoScnPy {
         }
 
         // Run taint analysis if enabled
-        let taint_findings = if self.enable_taint {
-            let taint_config = crate::taint::analyzer::TaintConfig::all_levels();
+        let taint_findings = if self.enable_danger
+            && self
+                .config
+                .cytoscnpy
+                .danger_config
+                .enable_taint
+                .unwrap_or(crate::constants::TAINT_ENABLED_DEFAULT)
+        {
+            let custom_sources = self
+                .config
+                .cytoscnpy
+                .danger_config
+                .custom_sources
+                .clone()
+                .unwrap_or_default();
+            let custom_sinks = self
+                .config
+                .cytoscnpy
+                .danger_config
+                .custom_sinks
+                .clone()
+                .unwrap_or_default();
+            let taint_config =
+                crate::taint::analyzer::TaintConfig::with_custom(custom_sources, custom_sinks);
             let taint_analyzer = crate::taint::analyzer::TaintAnalyzer::new(taint_config);
 
             let file_sources: Vec<_> = files
@@ -228,11 +335,12 @@ impl CytoScnPy {
                 .flat_map(|(path, source)| {
                     let path_ignored = crate::utils::get_ignored_lines(source);
                     let findings = taint_analyzer.analyze_file(source, path);
-                    findings
-                        .into_iter()
-                        .filter(move |f| !path_ignored.contains(&f.sink_line))
+                    findings.into_iter().filter(move |f| {
+                        !crate::utils::is_line_suppressed(&path_ignored, f.sink_line, &f.rule_id)
+                    })
                 })
                 .collect::<Vec<_>>();
+
             file_taint
         } else {
             Vec::new()

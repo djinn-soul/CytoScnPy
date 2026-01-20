@@ -348,7 +348,7 @@ pub fn generate_clone_findings(
             // Check if the line containing this finding has a suppression comment
             if let Some(content) = file_contents.get(&finding.file) {
                 if let Some(line) = content.lines().nth(finding.line.saturating_sub(1)) {
-                    if crate::utils::is_line_suppressed(line) {
+                    if crate::utils::get_line_suppression(line).is_some() {
                         return false;
                     }
                 }

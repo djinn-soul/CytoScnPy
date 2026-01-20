@@ -51,6 +51,9 @@ fn test_generate_report_full() {
             is_self_referential: false,
             message: Some("unused".to_owned()),
             fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -62,6 +65,7 @@ fn test_generate_report_full() {
         quality: vec![Finding {
             message: "Function is too complex (McCabe=15)".to_owned(),
             rule_id: "CSP-Q001".to_owned(),
+            category: "Maintainability".to_owned(),
             file: PathBuf::from("test.py"),
             line: 5,
             col: 0,
@@ -191,6 +195,9 @@ fn test_calculate_score_logic() {
             is_self_referential: false,
             message: None,
             fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
         });
     }
     generate_report(&result, analysis_root, output_dir).unwrap();

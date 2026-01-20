@@ -11,6 +11,12 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import xml.sax
 import lxml.etree
+import dill
+import shelve
+import xmlrpc
+import xmlrpc.client
+from Crypto.PublicKey import RSA
+from wsgiref.handlers import CGIHandler
 
 # CSP-D001: Eval
 eval("1 + 1")
@@ -85,3 +91,142 @@ z.extractall()
 tf = tarfile.TarFile("archive.tar")
 tf.extractall()
 self.tar.extractall()
+
+# ════════════════════════════════════════════════════════════════════════
+# Category 9: Modern Python Patterns (CSP-D9xx) - 2025/2026 Security
+# ════════════════════════════════════════════════════════════════════════
+
+# CSP-D901: Async subprocess security
+import asyncio
+asyncio.create_subprocess_shell(user_cmd)  # Unsafe - dynamic
+asyncio.create_subprocess_shell("ls -la")  # Safe - static
+
+os.popen(user_cmd)  # Unsafe
+os.popen("ls")  # Safe
+
+import pty
+pty.spawn(user_shell)  # Unsafe
+
+# CSP-D902: ML model deserialization
+import torch
+torch.load("model.pt")  # Unsafe - no weights_only
+torch.load("model.pt", weights_only=True)  # Safe
+torch.load("model.pt", weights_only=False)  # Unsafe
+
+import joblib
+joblib.load("model.pkl")  # Unsafe - always risky
+
+from keras.models import load_model
+load_model("model.h5")  # Unsafe - no safe_mode
+load_model("model.h5", safe_mode=True)  # Safe
+keras.models.load_model("model.h5")  # Unsafe
+keras.load_model("model.h5")  # Unsafe - Added for CSP-D902
+keras.load_model("trusted_model.h5", safe_mode=True) # Safe - Added negative case
+
+# CSP-D903: Sensitive data in logs
+import logging
+password = "secret123"
+token = "abc123"
+api_key = "key123"
+
+logging.debug(f"User password: {password}")  # Unsafe
+logging.info("Processing token: " + token)  # Unsafe
+logger.warning(api_key)  # Unsafe
+logging.info("User logged in")  # Safe
+
+# ════════════════════════════════════════════════════════════════════════
+# New Security Gap Closures (2026-01-17)
+# ════════════════════════════════════════════════════════════════════════
+
+# CSP-D409: ssl.wrap_socket (deprecated and often insecure)
+import ssl
+ssl.wrap_socket(sock)  # Unsafe
+
+# CSP-D004: wsgiref imports (httpoxy vulnerability)
+import wsgiref  # Low severity audit
+from wsgiref.handlers import CGIHandler  # High severity (already in imports above)
+
+# CSP-D004: xmlrpclib (Python 2 legacy)
+import xmlrpclib  # Unsafe - Python 2 XML-RPC
+
+# CSP-D504: mktemp direct import
+from tempfile import mktemp
+mktemp()  # Unsafe - race condition
+
+# CSP-D904: Django SECRET_KEY hardcoding
+# CSP-D501: Modern Path Traversal (pathlib / zipfile)
+import pathlib
+import zipfile
+pathlib.Path(user_input)  # Unsafe
+pathlib.Path("safe/path")  # Safe - Negative case
+from pathlib import Path, PurePath, PosixPath, WindowsPath
+Path(user_input)  # Unsafe (if imported as Path)
+PurePath(user_input) # Unsafe
+PosixPath(user_input) # Unsafe
+WindowsPath(user_input) # Unsafe
+
+zipfile.Path("archive.zip", at=sys.argv[1])  # Unsafe (dynamic path inside zip)
+zipfile.Path("archive.zip", path=sys.argv[1]) # Unsafe (keyword 'path')
+zipfile.Path("archive.zip", filename=sys.argv[1]) # Unsafe (keyword 'filename')
+zipfile.Path("archive.zip", filepath=sys.argv[1]) # Unsafe (keyword 'filepath')
+tarfile.TarFile("archive.tar").extractall(member=sys.argv[1]) # Unsafe (keyword 'member')
+zipfile.Path(sys.argv[1]) # Unsafe (positional)
+# Negative cases (literals)
+Path("/etc/passwd") # Safe (literal)
+PurePath("C:\\Windows") # Safe (literal)
+zipfile.Path("archive.zip", at="data/file.txt") # Safe (literal)
+# Multi-argument path traversal (Comment 1)
+pathlib.Path("safe_prefix", sys.argv[1]) # Unsafe (dynamic second arg)
+os.path.join("safe", sys.argv[1]) # Unsafe
+os.path.abspath(sys.argv[1]) # Unsafe (Comment 1)
+# Multi-line cases for SSRF (Comment 1)
+requests.get(
+    url=user_input
+)
+
+# Expand SQLi/XSS# Template and JinjaSQL (Comment 1)
+from string import Template
+user_sql = input()
+user_params = {"id": input()}
+Template(user_sql).substitute(user_params) # Unsafe
+Template("$sql").substitute(sql=user_sql) # Unsafe
+
+from jinjasql import JinjaSql
+j = JinjaSql()
+query, params = j.prepare_query(user_sql, user_params) # Unsafe
+j.prepare_query("SELECT * FROM table WHERE id={{id}}", user_params) # Unsafe (params dynamic)
+
+import flask
+flask.Markup(user_html)  # CSP-D103
+from django.utils.html import format_html
+format_html("<b>{}</b>", user_html)  # CSP-D103
+from fastapi import HTMLResponse
+HTMLResponse(content=user_html)  # CSP-D103
+
+# Refined Literal Argument Checking (Regression Tests)
+import requests
+import os
+import subprocess
+t = 10
+d = {"key": "value"}
+requests.get("https://safe.com", timeout=t) # Safe: URL is literal
+requests.post("https://safe.com", data=d) # Safe: URL is literal
+os.system("ls") # Safe: Literal command
+subprocess.run(["ls"], shell=True, timeout=t) # Safe: Command is literal list
+
+# Further Security Rule Refinements (Regression Tests)
+import asyncio
+from fastapi import HTMLResponse
+import os
+
+# Comment 1: Path Traversal focuses on index 0
+open("literal.txt", mode=os.environ.get("MODE", "r")) # Safe
+asyncio.run(asyncio.create_subprocess_shell("ls", stdout=asyncio.PIPE)) # Safe
+
+# Comment 2: XSS restricts keywords
+HTMLResponse(content="<b>Safe</b>", status_code=os.getpid()) # Safe
+HTMLResponse(content=os.environ.get("HTML"), status_code=200) # Unsafe (content is dynamic)
+
+# Comment 3: os.path track all positional args (Taint analysis)
+# This is better verified in dedicated taint tests, but we'll add the pattern here.
+os.path.join("a", "b", os.environ.get("TAINTED")) # Should be flagged in taint mode

@@ -3,8 +3,9 @@
 
 use cytoscnpy::taint::analyzer::{
     BuiltinSourcePlugin, DjangoSourcePlugin, FlaskSourcePlugin, PluginRegistry, SanitizerPlugin,
-    SinkMatch, TaintAnalyzer, TaintConfig, TaintSinkPlugin, TaintSourcePlugin,
+    TaintAnalyzer, TaintConfig, TaintSinkPlugin, TaintSourcePlugin,
 };
+use cytoscnpy::taint::types::SinkMatch;
 use std::path::PathBuf;
 
 // ============================================================================
@@ -145,8 +146,8 @@ fn test_builtin_source_plugin_patterns() {
 fn test_taint_analyzer_new() {
     let config = TaintConfig::all_levels();
     let analyzer = TaintAnalyzer::new(config);
-    // Should have 3 built-in source plugins
-    assert_eq!(analyzer.plugins.sources.len(), 3);
+    // Should have 4 built-in source plugins (Flask, Django, Builtin, Azure)
+    assert_eq!(analyzer.plugins.sources.len(), 4);
 }
 
 #[test]
@@ -160,7 +161,7 @@ fn test_taint_analyzer_empty() {
 #[test]
 fn test_taint_analyzer_default() {
     let analyzer = TaintAnalyzer::default();
-    assert_eq!(analyzer.plugins.sources.len(), 3);
+    assert_eq!(analyzer.plugins.sources.len(), 4);
 }
 
 #[test]

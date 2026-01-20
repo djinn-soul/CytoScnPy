@@ -25,7 +25,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 ### Scan Types
 
 - `--secrets`, `-s`: Actively scans for high-entropy strings, API keys, and hardcoded credentials. It checks variables, strings, and even comments (depending on configuration).
-- `--danger`, `-d`: Enables security scanning for dangerous patterns like `eval()`, `exec()`, and insecure temporary file creation. It also activates **taint analysis** to track user-controlled data flowing into dangerous sinks (e.g., SQL injection or command injection points).
+- `--danger`, `-d`: Enables security scanning for dangerous patterns like `eval()`, `exec()`, and insecure temporary file creation. It also activates **taint analysis** to track user-controlled data flowing into dangerous sinks (e.g., SQL injection or command injection points). See [Dangerous Code](dangerous-code.md) for a full rule list.
 - `--quality`, `-q`: Runs code quality checks including Cyclomatic Complexity, Maintainability Index, block nesting depth, and function length/argument counts.
 - `--no-dead`, `-n`: Skips the default dead code detection. Use this if you only care about security vulnerabilities or quality metrics and want to speed up the analysis.
 
@@ -170,7 +170,8 @@ secrets = true
 danger = true
 quality = true
 include_tests = false
-# Note: include_ipynb and ipynb_cells are CLI-only options
+include_ipynb = false
+# Note: ipynb_cells is currently a CLI-only option
 
 # Quality thresholds
 max_complexity = 10        # Max cyclomatic complexity

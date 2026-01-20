@@ -64,6 +64,9 @@ fn test_definition_with_fix() {
         is_self_referential: false,
         message: Some("unused function".to_owned()),
         fix: Some(Box::new(FixSuggestion::deletion(50, 100))),
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
     };
 
     assert!(def.fix.is_some());
@@ -101,6 +104,9 @@ fn test_definition_without_fix_serializes() {
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");
@@ -142,6 +148,9 @@ fn test_definition_with_fix_serializes() {
             end_byte: 350,
             replacement: String::new(),
         })),
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");

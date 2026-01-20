@@ -36,7 +36,6 @@ Cargo.toml.bak
 
 # Depending on your IDE or editor, you might want to ignore these:
 .idea/
-.vscode/
 *.iml
 *.swp
 *.swo
@@ -87,3 +86,6 @@ test_repo
 .index_cache
 htmlcov/
 .vscode-test/
+security_example/
+security_stats_report.md
+lcov.info

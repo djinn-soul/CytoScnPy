@@ -12,6 +12,156 @@
           "reason": "Imported inside TYPE_CHECKING but never used in annotations"
         }
       ]
+    },
+    "protocols_demo.py": {
+      "dead_items": [],
+      "expected_not_dead": [
+        {
+          "type": "method",
+          "name": "render",
+          "reason": "Protocol method - should NOT be flagged"
+        },
+        {
+          "type": "method",
+          "name": "render",
+          "class": "Button",
+          "reason": "Implements Protocol via duck typing"
+        }
+      ]
+    },
+    "abc_demo.py": {
+      "dead_items": [],
+      "expected_not_dead": [
+        {
+          "type": "method",
+          "name": "process",
+          "reason": "ABC abstract method"
+        }
+      ]
+    },
+    "enum_def.py": {
+      "dead_items": [
+        {
+          "type": "variable",
+          "name": "INACTIVE",
+          "class": "Status",
+          "line_start": 5,
+          "reason": "Unused enum member"
+        }
+      ]
+    },
+    "enum_user.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "check_status",
+          "line_start": 3,
+          "reason": "Top-level exported function unused in slice"
+        }
+      ]
+    },
+    "features_demo.py": {
+      "dead_items": [
+        {
+          "type": "import",
+          "name": "NamedTuple",
+          "line_start": 2,
+          "reason": "Unused import"
+        },
+        {
+          "type": "class",
+          "name": "AccessMixin",
+          "line_start": 5,
+          "reason": "Unused class"
+        },
+        {
+          "type": "method",
+          "name": "check_access",
+          "class": "AccessMixin",
+          "line_start": 6,
+          "reason": "Mixin method unused"
+        },
+        {
+          "type": "class",
+          "name": "NotificationBase",
+          "line_start": 10,
+          "reason": "Unused class"
+        },
+        {
+          "type": "class",
+          "name": "Color",
+          "line_start": 16,
+          "reason": "Unused class"
+        },
+        {
+          "type": "variable",
+          "name": "RED",
+          "class": "Color",
+          "line_start": 17,
+          "reason": "Unused enum member"
+        },
+        {
+          "type": "variable",
+          "name": "GREEN",
+          "class": "Color",
+          "line_start": 18,
+          "reason": "Unused enum member"
+        },
+        {
+          "type": "import",
+          "name": "pd",
+          "line_start": 22,
+          "reason": "Unused optional import alias"
+        },
+        {
+          "type": "import",
+          "name": "np",
+          "line_start": 23,
+          "reason": "Unused optional import alias"
+        },
+        {
+          "type": "class",
+          "name": "Widget",
+          "line_start": 28,
+          "reason": "Unused class"
+        }
+      ],
+      "expected_not_dead": [
+        {
+          "type": "method",
+          "name": "send",
+          "class": "NotificationBase",
+          "reason": "Base method with NotImplementedError"
+        },
+        {
+          "type": "method",
+          "name": "on_click",
+          "class": "Widget",
+          "reason": "Lifecycle method"
+        },
+        {
+          "type": "method",
+          "name": "watch_value",
+          "class": "Widget",
+          "reason": "Lifecycle method"
+        },
+        {
+          "type": "method",
+          "name": "compose",
+          "class": "Widget",
+          "reason": "Lifecycle method"
+        }
+      ]
+    },
+    "typealias_demo.py": {
+      "dead_items": [
+        {
+          "type": "function",
+          "name": "process_data",
+          "line_start": 13,
+          "reason": "Unused function"
+        }
+      ]
     }
   }
 }

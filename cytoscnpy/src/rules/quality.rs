@@ -1,7 +1,48 @@
 use crate::config::Config;
-use crate::rules::{Context, Finding, Rule};
+use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
+
+/// Category constants for quality rules
+pub const CAT_BEST_PRACTICES: &str = "Best Practices";
+/// Category constants for maintainability rules
+pub const CAT_MAINTAINABILITY: &str = "Maintainability";
+
+/// Metadata for `MutableDefaultArgumentRule`
+pub const META_MUTABLE_DEFAULT: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_BEST_PRACTICES,
+};
+/// Metadata for `BareExceptRule`
+pub const META_BARE_EXCEPT: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_BEST_PRACTICES,
+};
+/// Metadata for `DangerousComparisonRule`
+pub const META_DANGEROUS_COMPARISON: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_BEST_PRACTICES,
+};
+/// Metadata for `ArgumentCountRule`
+pub const META_ARGUMENT_COUNT: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_MAINTAINABILITY,
+};
+/// Metadata for `FunctionLengthRule`
+pub const META_FUNCTION_LENGTH: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_MAINTAINABILITY,
+};
+/// Metadata for `ComplexityRule`
+pub const META_COMPLEXITY: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_MAINTAINABILITY,
+};
+/// Metadata for ``NestingRule``
+pub const META_NESTING: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_MAINTAINABILITY,
+};
 
 /// Returns a list of all quality rules based on configuration.
 #[must_use]
@@ -28,8 +69,8 @@ impl Rule for MutableDefaultArgumentRule {
     fn name(&self) -> &'static str {
         "MutableDefaultArgumentRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-L001"
+    fn metadata(&self) -> RuleMetadata {
+        META_MUTABLE_DEFAULT
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         let parameters = match stmt {
@@ -44,7 +85,7 @@ impl Rule for MutableDefaultArgumentRule {
                 if is_mutable(default) {
                     findings.push(create_finding(
                         "Mutable default argument (use None and check inside function)",
-                        self.code(),
+                        META_MUTABLE_DEFAULT,
                         context,
                         default.range().start(),
                         "MEDIUM",
@@ -89,8 +130,8 @@ impl Rule for BareExceptRule {
     fn name(&self) -> &'static str {
         "BareExceptRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-L002"
+    fn metadata(&self) -> RuleMetadata {
+        META_BARE_EXCEPT
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         if let Stmt::Try(t) = stmt {
@@ -99,7 +140,7 @@ impl Rule for BareExceptRule {
                 if h.type_.is_none() {
                     return Some(vec![create_finding(
                         "Bare except block (catch specific exceptions)",
-                        self.code(),
+                        META_BARE_EXCEPT,
                         context,
                         h.range().start(),
                         "LOW",
@@ -116,8 +157,8 @@ impl Rule for DangerousComparisonRule {
     fn name(&self) -> &'static str {
         "DangerousComparisonRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-L003"
+    fn metadata(&self) -> RuleMetadata {
+        META_DANGEROUS_COMPARISON
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Compare(comp) = expr {
@@ -130,7 +171,7 @@ impl Rule for DangerousComparisonRule {
                     if is_dangerous {
                         return Some(vec![create_finding(
                             "Dangerous comparison to True/False/None (use 'is' or 'is not')",
-                            self.code(),
+                            META_DANGEROUS_COMPARISON,
                             context,
                             comparator.range().start(),
                             "LOW",
@@ -155,8 +196,8 @@ impl Rule for ArgumentCountRule {
     fn name(&self) -> &'static str {
         "ArgumentCountRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-C303"
+    fn metadata(&self) -> RuleMetadata {
+        META_ARGUMENT_COUNT
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         let (parameters, name_start) = match stmt {
@@ -173,7 +214,7 @@ impl Rule for ArgumentCountRule {
         if total_args > self.max_args {
             return Some(vec![create_finding(
                 &format!("Too many arguments ({total_args} > {})", self.max_args),
-                self.code(),
+                META_ARGUMENT_COUNT,
                 context,
                 name_start,
                 "LOW",
@@ -195,8 +236,8 @@ impl Rule for FunctionLengthRule {
     fn name(&self) -> &'static str {
         "FunctionLengthRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-C304"
+    fn metadata(&self) -> RuleMetadata {
+        META_FUNCTION_LENGTH
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         if let Stmt::FunctionDef(f) = stmt {
@@ -209,7 +250,7 @@ impl Rule for FunctionLengthRule {
             if length > self.max_lines {
                 return Some(vec![create_finding(
                     &format!("Function too long ({length} > {} lines)", self.max_lines),
-                    self.code(),
+                    META_FUNCTION_LENGTH,
                     context,
                     name_start,
                     "LOW",
@@ -232,8 +273,8 @@ impl Rule for ComplexityRule {
     fn name(&self) -> &'static str {
         "ComplexityRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-Q301"
+    fn metadata(&self) -> RuleMetadata {
+        META_COMPLEXITY
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
@@ -261,7 +302,7 @@ impl ComplexityRule {
             };
             Some(vec![create_finding(
                 &format!("Function is too complex (McCabe={complexity})"),
-                self.code(),
+                META_COMPLEXITY,
                 context,
                 name_start,
                 severity,
@@ -330,14 +371,13 @@ impl NestingRule {
                 return None;
             }
             self.reported_lines.insert(line);
-            Some(Finding {
-                message: format!("Deeply nested code (depth {})", self.current_depth),
-                rule_id: self.code().to_owned(),
-                file: context.filename.clone(),
-                line,
-                col: 0,
-                severity: "LOW".to_owned(),
-            })
+            Some(create_finding(
+                &format!("Deeply nested code (depth {})", self.current_depth),
+                META_NESTING,
+                context,
+                location,
+                "LOW",
+            ))
         } else {
             None
         }
@@ -361,8 +401,8 @@ impl Rule for NestingRule {
     fn name(&self) -> &'static str {
         "NestingRule"
     }
-    fn code(&self) -> &'static str {
-        "CSP-Q302"
+    fn metadata(&self) -> RuleMetadata {
+        META_NESTING
     }
 
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
@@ -386,7 +426,7 @@ impl Rule for NestingRule {
 
 fn create_finding(
     msg: &str,
-    rule_id: &str,
+    metadata: RuleMetadata,
     context: &Context,
     location: ruff_text_size::TextSize,
     severity: &str,
@@ -394,7 +434,8 @@ fn create_finding(
     let line = context.line_index.line_index(location);
     Finding {
         message: msg.to_owned(),
-        rule_id: rule_id.to_owned(),
+        rule_id: metadata.id.to_owned(),
+        category: metadata.category.to_owned(),
         file: context.filename.clone(),
         line,
         col: 0,

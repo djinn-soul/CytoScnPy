@@ -70,12 +70,23 @@ nav:
       - Pre-commit Hooks: pre-commit.md
   - Reference:
       - CLI Reference: CLI.md
+      - Quality Rules: quality.md
       - Migration Guide: migration.md
-
+  - Changelog: https://github.com/djinn09/CytoScnPy/releases
   - Roadmap: roadmap.md
   - Security:
       - Overview: security.md
-      - Dangerous Code Rules: dangerous-code.md
+      - Dangerous Code Rules:
+          - Overview: dangerous-code.md
+          - Code Execution: danger/code-execution.md
+          - Injection & Logic: danger/injection.md
+          - Deserialization: danger/deserialization.md
+          - Cryptography: danger/cryptography.md
+          - Network & HTTP: danger/network.md
+          - File Operations: danger/filesystem.md
+          - Type Safety: danger/type-safety.md
+          - Best Practices: danger/best-practices.md
+          - Privacy & Frameworks: danger/modern-python.md
   - Integrations: integrations.md
   - Blog:
       - blog/index.md

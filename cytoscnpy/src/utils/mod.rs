@@ -12,7 +12,7 @@ pub use paths::{
 
 use crate::constants::{DEFAULT_EXCLUDE_FOLDERS, FRAMEWORK_FILE_RE, TEST_FILE_RE};
 use ruff_text_size::TextSize;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// A utility struct to convert byte offsets to line numbers.
 ///
@@ -52,54 +52,65 @@ impl LineIndex {
     }
 }
 
-/// Detects if a line should be ignored based on suppression comments.
+/// Suppression specification.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Suppression {
+    /// Suppress all findings.
+    All,
+    /// Suppress findings for specific rule IDs.
+    Specific(FxHashSet<String>),
+}
+
+/// Detects suppression specification for a line.
 ///
 /// Supports multiple formats:
-/// - `# pragma: no cytoscnpy` - Legacy format
-/// - `# noqa` or `# ignore` - Bare ignore (ignores all)
-/// - `# noqa: CSP, E501` - Specific codes (ignores if CSP is present)
+/// - `# pragma: no cytoscnpy` - Legacy format (All)
+/// - `# noqa` or `# ignore` - Bare ignore (All)
+/// - `# noqa: CSP-D101, CSP-Q202` - Specific codes
 #[must_use]
-pub fn is_line_suppressed(line: &str) -> bool {
+pub fn get_line_suppression(line: &str) -> Option<Suppression> {
     let re = crate::constants::SUPPRESSION_RE();
 
     if let Some(caps) = re.captures(line) {
         // Case 1: # pragma: no cytoscnpy -> Always ignore
         if line.to_lowercase().contains("pragma: no cytoscnpy") {
-            return true;
+            return Some(Suppression::All);
         }
 
         // Case 2: Specific codes
         if let Some(codes_match) = caps.get(1) {
             let codes_str = codes_match.as_str();
-            // If it's something like # noqa: E501, we only ignore if CSP is in the list
-            return codes_str.split(',').map(str::trim).any(|code| {
+            let mut specific_rules = FxHashSet::default();
+            for code in codes_str.split(',').map(str::trim) {
                 let c = code.to_uppercase();
-                c == "CSP" || c.starts_with("CSP")
-            });
+                if c == "CSP" {
+                    return Some(Suppression::All); // Treat generic "CSP" as suppress all
+                }
+                specific_rules.insert(c);
+            }
+            if !specific_rules.is_empty() {
+                return Some(Suppression::Specific(specific_rules));
+            }
+            // If codes exist but none are CSP-related, we don't suppress CSP findings
+            return None;
         }
 
         // Case 3: Bare ignore (no colon/codes) -> Always ignore
-        return true;
+        return Some(Suppression::All);
     }
 
-    false
+    None
 }
 
 /// Detects lines with suppression comments in a source file.
 ///
-/// Returns a set of line numbers (1-indexed) that should be ignored by the analyzer.
+/// Returns a map of line numbers (1-indexed) to suppression specs.
 #[must_use]
-pub fn get_ignored_lines(source: &str) -> FxHashSet<usize> {
+pub fn get_ignored_lines(source: &str) -> FxHashMap<usize, Suppression> {
     source
         .lines()
         .enumerate()
-        .filter_map(|(i, line)| {
-            if is_line_suppressed(line) {
-                Some(i + 1)
-            } else {
-                None
-            }
-        })
+        .filter_map(|(i, line)| get_line_suppression(line).map(|suppression| (i + 1, suppression)))
         .collect()
 }
 
@@ -140,4 +151,31 @@ pub fn parse_exclude_folders<S: std::hash::BuildHasher>(
     }
 
     exclude_folders
+}
+
+/// Checks if a specific line and rule are suppressed.
+///
+/// Returns true if the finding should be ignored.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn is_line_suppressed(
+    ignored_lines: &FxHashMap<usize, Suppression>,
+    line: usize,
+    rule_id: &str,
+) -> bool {
+    if let Some(suppression) = ignored_lines.get(&line) {
+        match suppression {
+            Suppression::All => return true,
+            Suppression::Specific(rules) => {
+                if rules.contains(rule_id) {
+                    return true;
+                }
+                // Check for generic prefix suppression (e.g. CSP ignores CSP-D101)
+                // Although get_line_suppression already handles generic CSP,
+                // we check here if the rule matches any stored prefix if we ever support that.
+                // Currently Specific stores full codes or "CSP" is mapped to All.
+            }
+        }
+    }
+    false
 }

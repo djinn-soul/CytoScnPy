@@ -16,7 +16,7 @@ use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
 
 use ruff_python_parser::parse_module;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::fs;
 use std::path::Path;
 
@@ -27,13 +27,15 @@ impl CytoScnPy {
     /// Processes a single file (from disk or notebook) and returns analysis results.
     /// Used by the directory traversal for high-performance scanning.
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
-    pub(crate) fn process_single_file(
+    #[must_use]
+    pub fn process_single_file(
         &self,
         file_path: &Path,
         root_path: &Path,
     ) -> (
         Vec<Definition>,
         FxHashMap<String, usize>,
+        FxHashMap<String, FxHashSet<String>>, // Protocol methods
         Vec<SecretFinding>,
         Vec<Finding>,
         Vec<Finding>,
@@ -61,6 +63,7 @@ impl CytoScnPy {
                     return (
                         Vec::new(),
                         FxHashMap::default(),
+                        FxHashMap::default(), // protocol methods
                         Vec::new(),
                         Vec::new(),
                         Vec::new(),
@@ -84,6 +87,7 @@ impl CytoScnPy {
                     return (
                         Vec::new(),
                         FxHashMap::default(),
+                        FxHashMap::default(), // protocol methods
                         Vec::new(),
                         Vec::new(),
                         Vec::new(),
@@ -190,14 +194,91 @@ impl CytoScnPy {
 
                 // 1. Synchronize reference counts from visitor's bag before refinement
                 let ref_counts = visitor.references.clone();
+
+                // Pre-compute simple name uniqueness to safely use fallback
+                let mut simple_name_counts: rustc_hash::FxHashMap<String, usize> =
+                    rustc_hash::FxHashMap::default();
+                for def in &visitor.definitions {
+                    *simple_name_counts
+                        .entry(def.simple_name.clone())
+                        .or_insert(0) += 1;
+                }
+
+                // Pre-compute full_name -> def_type for scope lookups
+                let mut def_type_map: rustc_hash::FxHashMap<String, String> =
+                    rustc_hash::FxHashMap::default();
+                for def in &visitor.definitions {
+                    def_type_map.insert(def.full_name.clone(), def.def_type.clone());
+                }
+
                 for def in &mut visitor.definitions {
+                    let mut current_refs = 0;
+                    let is_unique = simple_name_counts
+                        .get(&def.simple_name)
+                        .copied()
+                        .unwrap_or(0)
+                        == 1;
+
+                    // 1. Try full qualified name match (Preferred)
                     if let Some(count) = ref_counts.get(&def.full_name) {
-                        def.references = *count;
-                    } else if def.def_type != "variable" && def.def_type != "parameter" {
-                        if let Some(count) = ref_counts.get(&def.simple_name) {
-                            def.references = *count;
+                        current_refs = *count;
+                    }
+
+                    // 2. Fallback strategies if not found
+                    if current_refs == 0 {
+                        let mut fallback_refs = 0;
+
+                        // Strategy A: Simple name match (Variables/Imports)
+                        // Only safe if the name is unique to avoid ambiguity
+                        if is_unique && !def.is_enum_member {
+                            if let Some(count) = ref_counts.get(&def.simple_name) {
+                                fallback_refs += *count;
+                            }
+                        }
+
+                        // Strategy B: Dot-prefixed attribute match (.attr)
+                        // Used for methods and attributes where `obj.attr` is used but `obj` type is unknown.
+                        // We check this ONLY if the definition is likely an attribute/method.
+                        let is_attribute_like = match def.def_type.as_str() {
+                            "method" | "class" | "class_variable" => true,
+                            "variable" | "parameter" => {
+                                // Check if parent scope is a Class
+                                if let Some((parent, _)) = def.full_name.rsplit_once('.') {
+                                    def_type_map.get(parent).is_some_and(|t| t == "class")
+                                } else {
+                                    false
+                                }
+                            }
+                            _ => false,
+                        };
+
+                        if is_attribute_like {
+                            if let Some(count) = ref_counts.get(&format!(".{}", def.simple_name)) {
+                                fallback_refs += *count;
+                            }
+                        }
+
+                        // Strategy C: Enum Member special fallback
+                        if def.is_enum_member {
+                            if let Some(dot_idx) = def.full_name.rfind('.') {
+                                let parent = &def.full_name[..dot_idx];
+                                if let Some(class_dot) = parent.rfind('.') {
+                                    let class_member =
+                                        format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
+                                    if let Some(count) = ref_counts.get(&class_member) {
+                                        fallback_refs = fallback_refs.max(*count);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Apply fallback result
+                        if fallback_refs > 0 {
+                            current_refs = fallback_refs;
                         }
                     }
+
+                    def.references = current_refs;
                 }
 
                 // 1.5. Populate is_captured and mark as used if captured
@@ -209,17 +290,50 @@ impl CytoScnPy {
                 }
 
                 // 2. Dynamic code handling
-                if visitor.is_dynamic {
-                    for def in &mut visitor.definitions {
+                // 2. Dynamic code handling
+                let any_dynamic = !visitor.dynamic_scopes.is_empty();
+                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
+
+                for def in &mut visitor.definitions {
+                    // 1. Global eval affects everything (conservative)
+                    if module_is_dynamic {
                         def.references += 1;
+                        continue;
+                    }
+
+                    // 2. Any local eval affects module-level variables (globals)
+                    // Skip secrets - they should be reported even if there is an eval.
+                    if any_dynamic && !def.is_potential_secret {
+                        if let Some(idx) = def.full_name.rfind('.') {
+                            if def.full_name[..idx] == module_name {
+                                def.references += 1;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // 3. Scoped eval usage (locals)
+                    for scope in &visitor.dynamic_scopes {
+                        if def.full_name.starts_with(scope) {
+                            let scope_len = scope.len();
+                            // Ensure boundary match
+                            if def.full_name.len() > scope_len
+                                && def.full_name.as_bytes()[scope_len] == b'.'
+                            {
+                                def.references += 1;
+                                break;
+                            }
+                        }
                     }
                 }
 
                 // 3. Flow-sensitive refinement
                 #[cfg(feature = "cfg")]
-                if !visitor.is_dynamic {
-                    Self::refine_flow_sensitive(&source, &mut visitor.definitions);
-                }
+                Self::refine_flow_sensitive(
+                    &source,
+                    &mut visitor.definitions,
+                    &visitor.dynamic_scopes,
+                );
 
                 // 3. Apply penalties and heuristics
                 for def in &mut visitor.definitions {
@@ -259,7 +373,11 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
-                        if ignored_lines.contains(&finding.line) {
+                        if crate::utils::is_line_suppressed(
+                            &ignored_lines,
+                            finding.line,
+                            &finding.rule_id,
+                        ) {
                             continue;
                         }
                         if finding.rule_id.starts_with("CSP-D") {
@@ -267,9 +385,82 @@ impl CytoScnPy {
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
+                            || finding.category == "Best Practices"
+                            || finding.category == "Maintainability"
                         {
+                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality.push(finding);
                         }
+                    }
+
+                    // Apply taint analysis if enabled
+                    if self.enable_danger
+                        && self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .enable_taint
+                            .unwrap_or(crate::constants::TAINT_ENABLED_DEFAULT)
+                    {
+                        use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
+                        let custom_sources = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sources
+                            .clone()
+                            .unwrap_or_default();
+                        let custom_sinks = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sinks
+                            .clone()
+                            .unwrap_or_default();
+                        let taint_analyzer =
+                            TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks);
+
+                        let taint_context =
+                            taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
+
+                        // Update filtering logic: remove findings without taint
+                        danger = TaintAwareDangerAnalyzer::filter_findings_with_taint(
+                            danger,
+                            &taint_context,
+                        );
+
+                        // Enhance severity for confirmed taint paths
+                        TaintAwareDangerAnalyzer::enhance_severity_with_taint(
+                            &mut danger,
+                            &taint_context,
+                        );
+                    }
+
+                    // Filter based on excluded_rules
+                    if let Some(excluded) = &self.config.cytoscnpy.danger_config.excluded_rules {
+                        danger.retain(|f| !excluded.contains(&f.rule_id));
+                    }
+
+                    // Filter based on severity_threshold
+                    if let Some(threshold) = &self.config.cytoscnpy.danger_config.severity_threshold
+                    {
+                        let threshold_val = match threshold.to_uppercase().as_str() {
+                            "CRITICAL" => 4,
+                            "HIGH" => 3,
+                            "MEDIUM" => 2,
+                            "LOW" => 1,
+                            _ => 0,
+                        };
+                        danger.retain(|f| {
+                            let severity_val = match f.severity.to_uppercase().as_str() {
+                                "CRITICAL" => 4,
+                                "HIGH" => 3,
+                                "MEDIUM" => 2,
+                                "LOW" => 1,
+                                _ => 0,
+                            };
+                            severity_val >= threshold_val
+                        });
                     }
                 }
 
@@ -289,6 +480,7 @@ impl CytoScnPy {
                                     "Maintainability Index too low ({file_mi:.2} < {min_mi:.2})"
                                 ),
                                 rule_id: "CSP-Q303".to_owned(),
+                                category: "Maintainability".to_owned(),
                                 file: file_path.to_path_buf(),
                                 line: 1,
                                 col: 0,
@@ -323,6 +515,7 @@ impl CytoScnPy {
         (
             visitor.definitions,
             visitor.references,
+            visitor.protocol_methods,
             secrets,
             danger,
             quality,
@@ -354,7 +547,8 @@ impl CytoScnPy {
             .to_string_lossy()
             .to_string();
 
-        let mut visitor = CytoScnPyVisitor::new(file_path.to_path_buf(), module_name, &line_index);
+        let mut visitor =
+            CytoScnPyVisitor::new(file_path.to_path_buf(), module_name.clone(), &line_index);
         let mut framework_visitor = FrameworkAwareVisitor::new(&line_index);
         let mut test_visitor = TestAwareVisitor::new(file_path, &line_index);
 
@@ -375,14 +569,76 @@ impl CytoScnPy {
 
                 // Sync and Refine
                 let ref_counts = visitor.references.clone();
+                // Pre-compute maps
+                let mut def_type_map: rustc_hash::FxHashMap<String, String> =
+                    rustc_hash::FxHashMap::default();
+                let mut simple_name_counts: rustc_hash::FxHashMap<String, usize> =
+                    rustc_hash::FxHashMap::default();
+
+                for def in &visitor.definitions {
+                    def_type_map.insert(def.full_name.clone(), def.def_type.clone());
+                    *simple_name_counts
+                        .entry(def.simple_name.clone())
+                        .or_insert(0) += 1;
+                }
+
                 for def in &mut visitor.definitions {
+                    let mut current_refs = 0;
+                    let is_unique = simple_name_counts
+                        .get(&def.simple_name)
+                        .copied()
+                        .unwrap_or(0)
+                        == 1;
+
                     if let Some(count) = ref_counts.get(&def.full_name) {
-                        def.references = *count;
-                    } else if def.def_type != "variable" && def.def_type != "parameter" {
-                        if let Some(count) = ref_counts.get(&def.simple_name) {
-                            def.references = *count;
+                        current_refs = *count;
+                    }
+
+                    if current_refs == 0 {
+                        let mut fallback_refs = 0;
+
+                        if is_unique && !def.is_enum_member {
+                            if let Some(count) = ref_counts.get(&def.simple_name) {
+                                fallback_refs += *count;
+                            }
+                        }
+
+                        let is_attribute_like = match def.def_type.as_str() {
+                            "method" | "class" | "class_variable" => true,
+                            "variable" | "parameter" => {
+                                if let Some((parent, _)) = def.full_name.rsplit_once('.') {
+                                    def_type_map.get(parent).is_some_and(|t| t == "class")
+                                } else {
+                                    false
+                                }
+                            }
+                            _ => false,
+                        };
+
+                        if is_attribute_like {
+                            if let Some(count) = ref_counts.get(&format!(".{}", def.simple_name)) {
+                                fallback_refs += *count;
+                            }
+                        }
+
+                        if def.is_enum_member {
+                            if let Some(dot_idx) = def.full_name.rfind('.') {
+                                let parent = &def.full_name[..dot_idx];
+                                if let Some(class_dot) = parent.rfind('.') {
+                                    let class_member =
+                                        format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
+                                    if let Some(count) = ref_counts.get(&class_member) {
+                                        fallback_refs = fallback_refs.max(*count);
+                                    }
+                                }
+                            }
+                        }
+
+                        if fallback_refs > 0 {
+                            current_refs = fallback_refs;
                         }
                     }
+                    def.references = current_refs;
                 }
 
                 // 1.5. Populate is_captured and mark as used if captured
@@ -394,16 +650,41 @@ impl CytoScnPy {
                 }
 
                 // 1.5. Dynamic code handling
-                if visitor.is_dynamic {
-                    for def in &mut visitor.definitions {
+                let any_dynamic = !visitor.dynamic_scopes.is_empty();
+                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
+
+                for def in &mut visitor.definitions {
+                    if module_is_dynamic {
                         def.references += 1;
+                        continue;
+                    }
+                    if any_dynamic {
+                        if let Some(idx) = def.full_name.rfind('.') {
+                            if def.full_name[..idx] == module_name {
+                                def.references += 1;
+                                continue;
+                            }
+                        }
+                    }
+                    for scope in &visitor.dynamic_scopes {
+                        if def.full_name.starts_with(scope) {
+                            let scope_len = scope.len();
+                            if def.full_name.len() > scope_len
+                                && def.full_name.as_bytes()[scope_len] == b'.'
+                            {
+                                def.references += 1;
+                                break;
+                            }
+                        }
                     }
                 }
 
                 #[cfg(feature = "cfg")]
-                if !visitor.is_dynamic {
-                    Self::refine_flow_sensitive(&source, &mut visitor.definitions);
-                }
+                Self::refine_flow_sensitive(
+                    &source,
+                    &mut visitor.definitions,
+                    &visitor.dynamic_scopes,
+                );
 
                 for def in &mut visitor.definitions {
                     apply_penalties(
@@ -414,6 +695,52 @@ impl CytoScnPy {
                         self.include_tests,
                     );
                     apply_heuristics(def);
+                }
+
+                // --- Duck Typing Logic (same as aggregate_results) ---
+                // 1. Map Class -> Method Names
+                let mut class_methods: rustc_hash::FxHashMap<
+                    String,
+                    rustc_hash::FxHashSet<String>,
+                > = rustc_hash::FxHashMap::default();
+                for def in &visitor.definitions {
+                    if def.def_type == "method" {
+                        if let Some(parent) = def.full_name.rfind('.').map(|i| &def.full_name[..i])
+                        {
+                            class_methods
+                                .entry(parent.to_owned())
+                                .or_default()
+                                .insert(def.simple_name.clone());
+                        }
+                    }
+                }
+
+                // 2. Identification of implicit implementations
+                let mut implicitly_used_methods: rustc_hash::FxHashSet<String> =
+                    rustc_hash::FxHashSet::default();
+
+                for (class_name, methods) in &class_methods {
+                    for proto_methods in visitor.protocol_methods.values() {
+                        let intersection_count = methods.intersection(proto_methods).count();
+                        let proto_len = proto_methods.len();
+
+                        if proto_len > 0 && intersection_count >= 3 {
+                            let ratio = intersection_count as f64 / proto_len as f64;
+                            if ratio >= 0.7 {
+                                for method in methods.intersection(proto_methods) {
+                                    implicitly_used_methods
+                                        .insert(format!("{class_name}.{method}"));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Apply implicit usage
+                for def in &mut visitor.definitions {
+                    if implicitly_used_methods.contains(&def.full_name) {
+                        def.references = std::cmp::max(def.references, 1);
+                    }
                 }
 
                 if self.enable_secrets {
@@ -450,17 +777,97 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
-                        if ignored_lines.contains(&finding.line) {
-                            continue;
+                        // Check for suppression
+                        if let Some(suppression) = ignored_lines.get(&finding.line) {
+                            match suppression {
+                                crate::utils::Suppression::All => continue,
+                                crate::utils::Suppression::Specific(rules) => {
+                                    if rules.contains(&finding.rule_id) {
+                                        continue;
+                                    }
+                                }
+                            }
                         }
+
                         if finding.rule_id.starts_with("CSP-D") {
                             danger_res.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
+                            || finding.category == "Best Practices"
+                            || finding.category == "Maintainability"
                         {
+                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality_res.push(finding);
                         }
+                    }
+
+                    // Apply taint analysis if enabled
+                    if self.enable_danger
+                        && self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .enable_taint
+                            .unwrap_or(crate::constants::TAINT_ENABLED_DEFAULT)
+                    {
+                        use crate::rules::danger::taint_aware::TaintAwareDangerAnalyzer;
+                        let custom_sources = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sources
+                            .clone()
+                            .unwrap_or_default();
+                        let custom_sinks = self
+                            .config
+                            .cytoscnpy
+                            .danger_config
+                            .custom_sinks
+                            .clone()
+                            .unwrap_or_default();
+                        let taint_analyzer =
+                            TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks);
+
+                        let taint_context =
+                            taint_analyzer.build_taint_context(&source, &file_path.to_path_buf());
+
+                        danger_res = TaintAwareDangerAnalyzer::filter_findings_with_taint(
+                            danger_res,
+                            &taint_context,
+                        );
+
+                        TaintAwareDangerAnalyzer::enhance_severity_with_taint(
+                            &mut danger_res,
+                            &taint_context,
+                        );
+                    }
+
+                    // Filter based on excluded_rules
+                    if let Some(excluded) = &self.config.cytoscnpy.danger_config.excluded_rules {
+                        danger_res.retain(|f| !excluded.contains(&f.rule_id));
+                    }
+
+                    // Filter based on severity_threshold
+                    if let Some(threshold) = &self.config.cytoscnpy.danger_config.severity_threshold
+                    {
+                        let threshold_val = match threshold.to_uppercase().as_str() {
+                            "CRITICAL" => 4,
+                            "HIGH" => 3,
+                            "MEDIUM" => 2,
+                            "LOW" => 1,
+                            _ => 0,
+                        };
+                        danger_res.retain(|f| {
+                            let severity_val = match f.severity.to_uppercase().as_str() {
+                                "CRITICAL" => 4,
+                                "HIGH" => 3,
+                                "MEDIUM" => 2,
+                                "LOW" => 1,
+                                _ => 0,
+                            };
+                            severity_val >= threshold_val
+                        });
                     }
                 }
             }
@@ -491,6 +898,13 @@ impl CytoScnPy {
 
         for def in visitor.definitions {
             if def.confidence >= self.confidence_threshold && def.references == 0 {
+                // Check for valid suppression
+                // Note: is_line_suppressed handles "no cytoscnpy" and specific rules if we supported them for variables
+                // For now, we assume any suppression on the line applies to the unused variable finding
+                if crate::utils::is_line_suppressed(&ignored_lines, def.line, "CSP-V001") {
+                    continue;
+                }
+
                 match def.def_type.as_str() {
                     "function" => unused_functions.push(def),
                     "method" => unused_methods.push(def),
@@ -527,7 +941,11 @@ impl CytoScnPy {
     }
 
     #[cfg(feature = "cfg")]
-    fn refine_flow_sensitive(source: &str, definitions: &mut [Definition]) {
+    fn refine_flow_sensitive(
+        source: &str,
+        definitions: &mut [Definition],
+        dynamic_scopes: &FxHashSet<String>,
+    ) {
         let mut function_scopes: FxHashMap<String, (usize, usize)> = FxHashMap::default();
         for def in definitions.iter() {
             if def.def_type == "function" || def.def_type == "method" {
@@ -536,13 +954,16 @@ impl CytoScnPy {
         }
 
         for (func_name, (start_line, end_line)) in function_scopes {
+            let simple_name = func_name.split('.').next_back().unwrap_or(&func_name);
+            if dynamic_scopes.contains(&func_name) || dynamic_scopes.contains(simple_name) {
+                continue;
+            }
             let lines: Vec<&str> = source
                 .lines()
                 .skip(start_line.saturating_sub(1))
                 .take(end_line.saturating_sub(start_line) + 1)
                 .collect();
             let func_source = lines.join("\n");
-            let simple_name = func_name.split('.').next_back().unwrap_or(&func_name);
 
             if let Some(cfg) = Cfg::from_source(&func_source, simple_name) {
                 let flow_results = analyze_reaching_definitions(&cfg);
@@ -551,12 +972,10 @@ impl CytoScnPy {
                         && def.full_name.starts_with(&func_name)
                     {
                         let relative_name = &def.full_name[func_name.len()..];
-                        if let Some(var_name) = relative_name.strip_prefix('.') {
+                        if let Some(var_key) = relative_name.strip_prefix('.') {
                             let rel_line = def.line.saturating_sub(start_line) + 1;
-                            if !flow_results.is_def_used(&cfg, var_name, rel_line)
-                                && def.references > 0
-                                && !def.is_captured
-                            {
+                            let is_used = flow_results.is_def_used(&cfg, var_key, rel_line);
+                            if !is_used && def.references > 0 && !def.is_captured {
                                 def.references = 0;
                             }
                         }

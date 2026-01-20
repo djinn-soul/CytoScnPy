@@ -3,6 +3,7 @@ use cytoscnpy::taint::analyzer::{TaintAnalyzer, TaintConfig, TaintSourcePlugin};
 use cytoscnpy::taint::call_graph::CallGraph;
 use cytoscnpy::taint::sources::check_taint_source;
 use cytoscnpy::taint::TaintInfo;
+use cytoscnpy::utils::LineIndex;
 use ruff_python_ast::Expr;
 use ruff_python_parser::{parse_expression, parse_module};
 use std::path::PathBuf;
@@ -12,7 +13,7 @@ impl TaintSourcePlugin for DummySourcePlugin {
     fn name(&self) -> &'static str {
         "Dummy"
     }
-    fn check_source(&self, _expr: &Expr) -> Option<TaintInfo> {
+    fn check_source(&self, _expr: &Expr, _line_index: &LineIndex) -> Option<TaintInfo> {
         None
     }
 }
@@ -43,7 +44,8 @@ fn test_attr_checks_coverage() -> Result<(), Box<dyn std::error::Error>> {
             parse_expression(expr_str).map_err(|e| format!("Failed to parse {expr_str}: {e:?}"))?;
         let expr = parsed.into_syntax();
         let body = expr.body;
-        let result = check_taint_source(&body);
+        let line_index = LineIndex::new(expr_str);
+        let result = check_taint_source(&body, &line_index);
         if should_match {
             assert!(result.is_some(), "Expected match for {expr_str}");
         } else {
@@ -88,7 +90,7 @@ fn test_taint_analyzer_full_corpus() {
 #[test]
 fn test_taint_analyzer_project() {
     let source = include_str!("taint_corpus.py");
-    let mut analyzer = TaintAnalyzer::default();
+    let mut analyzer = TaintAnalyzer::new(TaintConfig::all_levels());
     let files = vec![(PathBuf::from("taint_corpus.py"), source.to_owned())];
 
     let findings = analyzer.analyze_project(&files);

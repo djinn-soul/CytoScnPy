@@ -1,0 +1,54 @@
+---
+source: cytoscnpy/tests/output_snapshot_test.rs
+expression: output
+---
+[
+  {
+    "check_name": "func",
+    "description": "Unused function: unused_func",
+    "fingerprint": "unused-func-0",
+    "location": {
+      "lines": {
+        "begin": 5
+      },
+      "path": "[FILE]"
+    },
+    "severity": "minor"
+  },
+  {
+    "check_name": "import",
+    "description": "Unused import: os",
+    "fingerprint": "unused-import-0",
+    "location": {
+      "lines": {
+        "begin": 2
+      },
+      "path": "[FILE]"
+    },
+    "severity": "info"
+  },
+  {
+    "check_name": "import",
+    "description": "Unused import: sys",
+    "fingerprint": "unused-import-1",
+    "location": {
+      "lines": {
+        "begin": 3
+      },
+      "path": "[FILE]"
+    },
+    "severity": "info"
+  },
+  {
+    "check_name": "var",
+    "description": "Unused variable: main.unused_var",
+    "fingerprint": "unused-var-0",
+    "location": {
+      "lines": {
+        "begin": 9
+      },
+      "path": "[FILE]"
+    },
+    "severity": "info"
+  }
+]

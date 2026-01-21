@@ -21,6 +21,7 @@ fn test_print_report_formatting() {
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
             end_line: 10,
+            col: 0,
             start_byte: 0,
             end_byte: 0,
             confidence: 100,
@@ -82,6 +83,8 @@ fn test_print_report_formatting() {
     // Capture output in a buffer
     let mut buffer = Vec::new();
     cytoscnpy::output::print_report(&mut buffer, &result).unwrap();
+    cytoscnpy::output::print_summary_pills(&mut buffer, &result).unwrap();
+    cytoscnpy::output::print_analysis_stats(&mut buffer, &result.analysis_summary).unwrap();
 
     // Convert buffer to string (ignoring color codes for simple assertions)
     let output = String::from_utf8_lossy(&buffer);

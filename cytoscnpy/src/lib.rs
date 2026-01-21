@@ -24,7 +24,6 @@ pub static CANCELLED: AtomicBool = AtomicBool::new(false);
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;
-#[cfg(feature = "html_report")]
 pub mod report;
 
 /// Module containing the AST visitor implementation.

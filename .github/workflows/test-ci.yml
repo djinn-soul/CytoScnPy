@@ -64,6 +64,42 @@ jobs:
       - name: Run Python tests
         run: pytest python/tests/ -v
 
+
+      - name: Verify Output Formats
+        run: |
+          # Use the debug binary built in previous steps
+          BIN="./target/debug/cytoscnpy-bin"
+
+          echo "### CytoScnPy Analysis Report" >> $GITHUB_STEP_SUMMARY
+
+          # 1. Text Output
+          $BIN benchmark/examples/quality/basic_dead_code.py --format text > output.txt || true
+
+          # 2. GitHub Annotations (produces inline errors/warnings)
+          $BIN benchmark/examples/quality/basic_dead_code.py --format github || true
+
+          # 3. Markdown Summary (Job Summary)
+          $BIN benchmark/examples/quality/basic_dead_code.py --format markdown > summary.md || true
+          cat summary.md >> $GITHUB_STEP_SUMMARY
+
+          # 4. Generate other formats for artifacts
+          $BIN benchmark/examples/quality/basic_dead_code.py --format junit > junit.xml || true
+          $BIN benchmark/examples/quality/basic_dead_code.py --format sarif > results.sarif || true
+          $BIN benchmark/examples/quality/basic_dead_code.py --format gitlab > gitlab.json || true
+          $BIN benchmark/examples/quality/basic_dead_code.py --format json > output.json || true
+
+      - name: Upload Analysis Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-reports
+          path: |
+            output.txt
+            summary.md
+            junit.xml
+            results.sarif
+            gitlab.json
+            output.json
+
   vscode-test:
     name: VS Code Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

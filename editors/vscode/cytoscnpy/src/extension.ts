@@ -104,6 +104,21 @@ function getCytoScnPyConfiguration(
 
   const userSetPath = pathSetting?.globalValue || pathSetting?.workspaceValue;
 
+  // Helper to get value only if explicitly set (Global, Workspace, or Folder)
+  // If not set, return undefined so the analyzer uses values from pyproject.toml/.cytoscnpy.toml
+  const getIfSet = <T>(key: string): T | undefined => {
+    const inspect = config.inspect<T>(key);
+    if (
+      inspect &&
+      (inspect.globalValue !== undefined ||
+        inspect.workspaceValue !== undefined ||
+        inspect.workspaceFolderValue !== undefined)
+    ) {
+      return config.get<T>(key);
+    }
+    return undefined;
+  };
+
   return {
     path: userSetPath || getExecutablePath(context),
     analysisMode:
@@ -112,17 +127,16 @@ function getCytoScnPyConfiguration(
     enableDangerScan: config.get<boolean>("enableDangerScan") || false,
     enableQualityScan: config.get<boolean>("enableQualityScan") || false,
     enableCloneScan: config.get<boolean>("enableCloneScan") || false,
-    confidenceThreshold: config.get<number>("confidenceThreshold") || 0,
-    excludeFolders: config.get<string[]>("excludeFolders") || [],
-    includeFolders: config.get<string[]>("includeFolders") || [],
-    includeTests: config.get<boolean>("includeTests") || false,
-    includeIpynb: config.get<boolean>("includeIpynb") || false,
-    maxComplexity: config.get<number>("maxComplexity") || 10,
-    minMaintainabilityIndex:
-      config.get<number>("minMaintainabilityIndex") || 40,
-    maxNesting: config.get<number>("maxNesting") || 3,
-    maxArguments: config.get<number>("maxArguments") || 5,
-    maxLines: config.get<number>("maxLines") || 50,
+    confidenceThreshold: getIfSet<number>("confidenceThreshold"),
+    excludeFolders: getIfSet<string[]>("excludeFolders"),
+    includeFolders: getIfSet<string[]>("includeFolders"),
+    includeTests: getIfSet<boolean>("includeTests"),
+    includeIpynb: getIfSet<boolean>("includeIpynb"),
+    maxComplexity: getIfSet<number>("maxComplexity"),
+    minMaintainabilityIndex: getIfSet<number>("minMaintainabilityIndex"),
+    maxNesting: getIfSet<number>("maxNesting"),
+    maxArguments: getIfSet<number>("maxArguments"),
+    maxLines: getIfSet<number>("maxLines"),
   };
 }
 

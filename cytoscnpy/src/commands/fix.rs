@@ -356,6 +356,7 @@ mod tests {
             file: Arc::new(file),
             line,
             end_line: line + 1,
+            col: 0,
             start_byte: 0,
             end_byte: 10,
             confidence: 100,

@@ -38,6 +38,7 @@ fn test_generate_report_full_coverage() -> Result<(), Box<dyn std::error::Error>
         full_name: "test.unused_func".to_owned(),
         def_type: "function".to_owned(),
         confidence: 100,
+        col: 0,
         ..Definition::default()
     });
 

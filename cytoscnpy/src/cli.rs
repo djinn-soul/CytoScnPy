@@ -51,6 +51,19 @@ pub struct ScanOptions {
     pub no_dead: bool,
 }
 
+#[derive(Debug, Clone, clap::ValueEnum, Default, PartialEq, Eq)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+    Grouped,
+    Junit,
+    Github,
+    Gitlab,
+    Markdown,
+    Sarif,
+}
+
 /// Options for output formatting and verbosity.
 #[derive(Args, Debug, Default, Clone)]
 #[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
@@ -58,6 +71,10 @@ pub struct OutputOptions {
     /// Output raw JSON.
     #[arg(long)]
     pub json: bool,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    pub format: OutputFormat,
 
     /// Enable verbose output for debugging (shows files being analyzed).
     #[arg(short, long)]
@@ -354,6 +371,8 @@ pub enum Commands {
     /// Start MCP server for LLM integration (Claude Desktop, VS Code Copilot, etc.)
     #[command(name = "mcp-server")]
     McpServer,
+    /// Initialize CytoScnPy configuration (pyproject.toml/.cytoscnpy.toml and .gitignore)
+    Init,
     /// Generate comprehensive project statistics report
     Stats {
         /// Path options (path vs root).

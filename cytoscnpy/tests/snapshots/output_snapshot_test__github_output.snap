@@ -1,0 +1,8 @@
+---
+source: cytoscnpy/tests/output_snapshot_test.rs
+expression: output
+---
+::warning file=[FILE],line=5,col=5,title=UnusedFunction::Unused identifier 'unused_func'
+::warning file=[FILE],line=2,col=8,title=UnusedImport::Unused identifier 'os'
+::warning file=[FILE],line=3,col=8,title=UnusedImport::Unused identifier 'sys'
+::warning file=[FILE],line=9,col=5,title=UnusedVariable::Unused identifier 'main.unused_var'

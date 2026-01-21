@@ -20,12 +20,17 @@ pub fn apply_penalties(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,
     tv: &TestAwareVisitor,
+    // Map of ignored lines to their suppression type.
+    // Uses `FxHashMap` (Rustc's fast hash map) for performance optimization,
+    // as strict cryptographic security is not needed for integer line keys and small datasets.
     ignored_lines: &FxHashMap<usize, Suppression>,
     include_tests: bool,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)
     // If the line is marked to be ignored, set confidence to 0.
     if let Some(suppression) = ignored_lines.get(&def.line) {
+        // Use `matches!` for conciseness: we only need to check the variant type
+        // and don't need to extract any inner data for the `All` case.
         if matches!(suppression, Suppression::All) {
             def.confidence = 0;
             return;

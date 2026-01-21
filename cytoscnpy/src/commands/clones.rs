@@ -144,7 +144,6 @@ pub fn run_clones<W: Write>(
         let mut table = Table::new();
         table
             .load_preset(comfy_table::presets::UTF8_FULL)
-            .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
             .set_header(vec![
                 "Type",
                 "Name",
@@ -348,6 +347,8 @@ pub fn generate_clone_findings(
             // Check if the line containing this finding has a suppression comment
             if let Some(content) = file_contents.get(&finding.file) {
                 if let Some(line) = content.lines().nth(finding.line.saturating_sub(1)) {
+                    // Use `get_line_suppression` to check for inline pragmas (e.g. `pragma: no cytoscnpy`).
+                    // This ensures we respect user directives to ignore specific lines even for clone detection.
                     if crate::utils::get_line_suppression(line).is_some() {
                         return false;
                     }

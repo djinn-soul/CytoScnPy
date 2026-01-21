@@ -44,11 +44,22 @@ impl LineIndex {
     #[must_use]
     pub fn line_index(&self, offset: TextSize) -> usize {
         let offset = offset.to_usize();
-        // Binary search to find which line range the offset falls into.
         match self.line_starts.binary_search(&offset) {
             Ok(line) => line + 1,
             Err(line) => line,
         }
+    }
+
+    /// Converts a `TextSize` (byte offset) to a 1-indexed column number.
+    #[must_use]
+    pub fn column_index(&self, offset: TextSize) -> usize {
+        let offset_usize = offset.to_usize();
+        let line = self.line_index(offset);
+        if line == 0 {
+            return 1;
+        }
+        let line_start = self.line_starts[line - 1];
+        offset_usize - line_start + 1
     }
 }
 

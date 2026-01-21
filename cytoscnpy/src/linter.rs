@@ -138,6 +138,11 @@ impl LinterVisitor {
     }
 
     /// Visits an expression node and applies rules.
+    ///
+    /// This function implements comprehensive recursion for all expression types
+    /// (Calls, `BinOps`, Comprehensions, etc.) to ensure that linter rules
+    /// can inspect strictly nested nodes.
+    /// Verified by `analyzer_test` and `quality_test` suites.
     pub fn visit_expr(&mut self, expr: &Expr) {
         // Call visit_expr for all rules
         for rule in &mut self.rules {

@@ -100,6 +100,8 @@ pub struct DefinitionInfo {
     pub line: usize,
     /// The ending line number (1-indexed).
     pub end_line: usize,
+    /// The starting column number (1-indexed).
+    pub col: usize,
     /// The starting byte offset.
     pub start_byte: usize,
     /// The ending byte offset.
@@ -136,6 +138,8 @@ pub struct Definition {
     pub line: usize,
     /// The line number where this definition ends.
     pub end_line: usize,
+    /// The starting column number (1-indexed).
+    pub col: usize,
     /// The starting byte offset (0-indexed).
     pub start_byte: usize,
     /// The ending byte offset (exclusive).
@@ -306,15 +310,16 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
     }
 
-    /// Helper to extract range info (`start_line`, `end_line`, `start_byte`, `end_byte`) from a node.
-    fn get_range_info<T: Ranged>(&self, node: &T) -> (usize, usize, usize, usize) {
+    /// Helper to extract range info (`start_line`, `end_line`, `col`, `start_byte`, `end_byte`) from a node.
+    fn get_range_info<T: Ranged>(&self, node: &T) -> (usize, usize, usize, usize, usize) {
         let range = node.range();
         let start_byte = range.start().to_usize();
         let end_byte = range.end().to_usize();
         // line_index uses 1-based indexing for lines
         let start_line = self.line_index.line_index(range.start());
         let end_line = self.line_index.line_index(range.end());
-        (start_line, end_line, start_byte, end_byte)
+        let col = self.line_index.column_index(range.start());
+        (start_line, end_line, col, start_byte, end_byte)
     }
 
     /// Helper to add a definition using the info struct.
@@ -446,6 +451,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             file: Arc::clone(&self.file_path), // O(1) Arc clone instead of O(n) PathBuf clone
             line: info.line,
             end_line: info.end_line,
+            col: info.col,
             start_byte: info.start_byte,
             end_byte: info.end_byte,
             confidence: 100,
@@ -785,8 +791,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                 let qualified_name = self.get_qualified_name(name.as_str());
                 // Use the name's range for the finding line (skips decorators)
                 let name_line = self.line_index.line_index(name.range().start());
+                let name_col = self.line_index.column_index(name.range().start());
                 // Use full node range for end_line and fix ranges (includes decorators)
-                let (_, end_line, start_byte, end_byte) = self.get_range_info(node);
+                let (_, end_line, _, start_byte, end_byte) = self.get_range_info(node);
 
                 // Extract base class names to check for inheritance patterns later.
                 // In ruff, node.bases() returns an iterator over base class expressions
@@ -853,6 +860,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     def_type: "class".to_owned(),
                     line: name_line,
                     end_line,
+                    col: name_col,
                     start_byte: node.name.range.start().to_usize(),
                     end_byte,
                     full_start_byte: start_byte,
@@ -945,13 +953,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for alias in &node.names {
                     // imports often don't have AS names, so we check
                     let simple_name = alias.asname.as_ref().unwrap_or(&alias.name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(alias);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
                     self.add_definition(DefinitionInfo {
                         name: simple_name.to_string(),
                         def_type: "import".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
                         full_start_byte: start_byte,
@@ -992,13 +1001,14 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 for alias in &node.names {
                     let asname = alias.asname.as_ref().unwrap_or(&alias.name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(alias);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
                     self.add_definition(DefinitionInfo {
                         name: asname.to_string(),
                         def_type: "import".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
                         full_start_byte: start_byte,
@@ -1084,7 +1094,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                                 }
                             } else {
                                 let qualified_name = self.get_qualified_name(&name_node.id);
-                                let (line, end_line, start_byte, end_byte) =
+                                let (line, end_line, col, start_byte, end_byte) =
                                     self.get_range_info(name_node);
                                 // Clone for add_def, move to add_local_def (last use)
                                 self.add_definition(DefinitionInfo {
@@ -1092,6 +1102,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                                     def_type: "variable".to_owned(),
                                     line,
                                     end_line,
+                                    col,
                                     start_byte,
                                     end_byte,
                                     full_start_byte: start_byte,
@@ -1146,12 +1157,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Track variable definition
                 if let Expr::Name(name_node) = &*node.target {
                     let qualified_name = self.get_qualified_name(&name_node.id);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(name_node);
+                    let (line, end_line, col, start_byte, end_byte) =
+                        self.get_range_info(name_node);
                     self.add_definition(DefinitionInfo {
                         name: qualified_name.clone(),
                         def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
                         full_start_byte: start_byte,
@@ -1428,6 +1441,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         let def_range = name_node.range;
         let start_byte = def_range.start().into();
         let line = self.line_index.line_index(def_range.start());
+        let col = self.line_index.column_index(def_range.start());
 
         // Use full stmt range for the end position/line (to cover the body for analysis)
         let end_byte = range.end().into();
@@ -1438,6 +1452,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             def_type: def_type.to_owned(),
             line,
             end_line,
+            col,
             start_byte,
             end_byte,
             full_start_byte: range.start().into(),
@@ -1617,12 +1632,14 @@ impl<'a> CytoScnPyVisitor<'a> {
             // Skip self and cls - they're implicit
             // Also skip if we are in an abstract method or protocol
             if !skip_parameters && param_name != "self" && param_name != "cls" {
-                let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
+                let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                    self.get_range_info(arg);
                 self.add_definition(DefinitionInfo {
                     name: param_qualified,
                     def_type: "parameter".to_owned(),
                     line: p_line,
                     end_line: p_end_line,
+                    col: p_col,
                     start_byte: p_start_byte,
                     end_byte: p_end_byte,
                     full_start_byte: p_start_byte,
@@ -1645,12 +1662,14 @@ impl<'a> CytoScnPyVisitor<'a> {
             // Skip self and cls
             // Also skip if we are in an abstract method or protocol
             if !skip_parameters && param_name != "self" && param_name != "cls" {
-                let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
+                let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                    self.get_range_info(arg);
                 self.add_definition(DefinitionInfo {
                     name: param_qualified,
                     def_type: "parameter".to_owned(),
                     line: p_line,
                     end_line: p_end_line,
+                    col: p_col,
                     start_byte: p_start_byte,
                     end_byte: p_end_byte,
                     full_start_byte: p_start_byte,
@@ -1665,7 +1684,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name.clone(), param_qualified.clone());
-            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
+            let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) = self.get_range_info(arg);
 
             if !skip_parameters {
                 self.add_definition(DefinitionInfo {
@@ -1673,6 +1692,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     def_type: "parameter".to_owned(),
                     line: p_line,
                     end_line: p_end_line,
+                    col: p_col,
                     start_byte: p_start_byte,
                     end_byte: p_end_byte,
                     full_start_byte: p_start_byte,
@@ -1687,7 +1707,8 @@ impl<'a> CytoScnPyVisitor<'a> {
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
-            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(&**vararg);
+            let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                self.get_range_info(&**vararg);
 
             if !skip_parameters {
                 self.add_definition(DefinitionInfo {
@@ -1695,6 +1716,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     def_type: "parameter".to_owned(),
                     line: p_line,
                     end_line: p_end_line,
+                    col: p_col,
                     start_byte: p_start_byte,
                     end_byte: p_end_byte,
                     full_start_byte: p_start_byte,
@@ -1709,7 +1731,8 @@ impl<'a> CytoScnPyVisitor<'a> {
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
-            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(&**kwarg);
+            let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                self.get_range_info(&**kwarg);
 
             if !skip_parameters {
                 self.add_definition(DefinitionInfo {
@@ -1717,6 +1740,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     def_type: "parameter".to_owned(),
                     line: p_line,
                     end_line: p_end_line,
+                    col: p_col,
                     start_byte: p_start_byte,
                     end_byte: p_end_byte,
                     full_start_byte: p_start_byte,
@@ -2144,13 +2168,14 @@ impl<'a> CytoScnPyVisitor<'a> {
             Expr::Name(node) => {
                 let name = node.id.to_string();
                 let qualified_name = self.get_qualified_name(&name);
-                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
 
                 self.add_definition(DefinitionInfo {
                     name: qualified_name.clone(),
                     def_type: "variable".to_owned(),
                     line,
                     end_line,
+                    col,
                     start_byte,
                     end_byte,
                     full_start_byte: start_byte,
@@ -2217,13 +2242,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // Wait, `rest` is Identifier. In ruff_python_ast Identifier wraps string and range.
                     // But looking at code `if let Some(rest) = &node.rest`, rest type is `Identifier`.
                     // Does Identifier impl Ranged? Yes.
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
                     // Using node range because rest match captures the rest
                     self.add_definition(DefinitionInfo {
                         name: qualified_name.clone(),
                         def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
                         full_start_byte: start_byte,
@@ -2245,12 +2271,13 @@ impl<'a> CytoScnPyVisitor<'a> {
             ast::Pattern::MatchStar(node) => {
                 if let Some(name) = &node.name {
                     let qualified_name = self.get_qualified_name(name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
                     self.add_definition(DefinitionInfo {
                         name: qualified_name.clone(),
                         def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
                         full_start_byte: start_byte,
@@ -2266,12 +2293,13 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
                 if let Some(name) = &node.name {
                     let qualified_name = self.get_qualified_name(name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
                     self.add_definition(DefinitionInfo {
                         name: qualified_name.clone(),
                         def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
                         full_start_byte: start_byte,

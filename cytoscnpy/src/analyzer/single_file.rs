@@ -204,7 +204,12 @@ impl CytoScnPy {
                         .or_insert(0) += 1;
                 }
 
-                // Pre-compute full_name -> def_type for scope lookups
+                // Pre-compute full_name -> def_type for scope lookups.
+                // These maps enable "safe" fallback strategies when exact full-name matching fails:
+                // 1. Uniqueness (checked via simple_name_counts above) ensures we only fallback to
+                //    simple names when they are unambiguous in the file.
+                // 2. Context awareness (via def_type_map) ensures we only attempt attribute-style
+                //    matches (.attr) when the parent scope is a class, avoiding invalid variable matches.
                 let mut def_type_map: rustc_hash::FxHashMap<String, String> =
                     rustc_hash::FxHashMap::default();
                 for def in &visitor.definitions {
@@ -302,7 +307,9 @@ impl CytoScnPy {
                     }
 
                     // 2. Any local eval affects module-level variables (globals)
-                    // Skip secrets - they should be reported even if there is an eval.
+                    // We explicitly SKIP secrets here (don't mark them as used).
+                    // Why: Even if `eval` exists, a hardcoded secret identifying as "unused" is highly suspicious
+                    // and should be reported to the user rather than suppressed by dynamic code heuristics.
                     if any_dynamic && !def.is_potential_secret {
                         if let Some(idx) = def.full_name.rfind('.') {
                             if def.full_name[..idx] == module_name {
@@ -373,6 +380,8 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
+                        // Check for inline suppression (pragma: no cytoscnpy or pragma: no cytoscnpy(RULE_ID))
+                        // This helper handles both broad suppressions (Suppress::All) and specific rule exclusions.
                         if crate::utils::is_line_suppressed(
                             &ignored_lines,
                             finding.line,
@@ -442,6 +451,8 @@ impl CytoScnPy {
                     }
 
                     // Filter based on severity_threshold
+                    // This acts as a global suppression mechanism for lower-priority issues,
+                    // allowing users to focus only on findings that meet a minimum risk level (e.g., HIGH+).
                     if let Some(threshold) = &self.config.cytoscnpy.danger_config.severity_threshold
                     {
                         let threshold_val = match threshold.to_uppercase().as_str() {
@@ -547,6 +558,8 @@ impl CytoScnPy {
             .to_string_lossy()
             .to_string();
 
+        // Clone is necessary: Visitor takes ownership to build full names,
+        // but we need `module_name` later for dynamic scope checks.
         let mut visitor =
             CytoScnPyVisitor::new(file_path.to_path_buf(), module_name.clone(), &line_index);
         let mut framework_visitor = FrameworkAwareVisitor::new(&line_index);
@@ -575,6 +588,10 @@ impl CytoScnPy {
                 let mut simple_name_counts: rustc_hash::FxHashMap<String, usize> =
                     rustc_hash::FxHashMap::default();
 
+                // Pre-compute maps for Safe Fallback Strategy:
+                // 1. simple_name_counts: Ensures we only fallback to simple names if they are unique in the file/scope.
+                // 2. def_type_map: Allows checking parent types (e.g. is this a class?) to validate attribute lookups.
+                // These are critical for handling dynamic Python where clear imports might be missing.
                 for def in &visitor.definitions {
                     def_type_map.insert(def.full_name.clone(), def.def_type.clone());
                     *simple_name_counts
@@ -716,6 +733,12 @@ impl CytoScnPy {
                 }
 
                 // 2. Identification of implicit implementations
+                // Heuristic for Duck Typing / Implicit Interfaces:
+                // We assume a class implements a protocol/interface if it matches a significant portion of its methods.
+                // - Thresholds: At least 3 matching methods AND >= 70% overlap.
+                // - Why: This reduces false positives where classes share 1-2 common method names (like "get" or "save")
+                //   but aren't truly interchangeable, while correctly catching implementation-heavy patterns
+                //   without explicit inheritance.
                 let mut implicitly_used_methods: rustc_hash::FxHashSet<String> =
                     rustc_hash::FxHashSet::default();
 
@@ -777,7 +800,8 @@ impl CytoScnPy {
                     }
 
                     for finding in linter.findings {
-                        // Check for suppression
+                        // Check for suppression (pragma: no cytoscnpy)
+                        // This handles both blanket suppressions and rule-specific exclusions.
                         if let Some(suppression) = ignored_lines.get(&finding.line) {
                             match suppression {
                                 crate::utils::Suppression::All => continue,
@@ -797,6 +821,8 @@ impl CytoScnPy {
                             || finding.category == "Best Practices"
                             || finding.category == "Maintainability"
                         {
+                            // Route "Maintainability" issues (like low MI score) to the quality report.
+                            // This ensures they are grouped with other code quality metrics rather than security vulnerabilities.
                             // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality_res.push(finding);
                         }

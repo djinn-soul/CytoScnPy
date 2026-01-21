@@ -13,6 +13,12 @@ pub mod generator;
 #[cfg(feature = "html_report")]
 pub mod templates;
 
+pub mod github;
+pub mod gitlab;
+pub mod junit;
+pub mod markdown;
+pub mod sarif;
+
 // Public API re-exports or stubs if needed when feature is disabled
 #[cfg(not(feature = "html_report"))]
 pub mod generator {

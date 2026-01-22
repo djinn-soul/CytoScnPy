@@ -1,38 +1,15 @@
-# Category 5: Network & HTTP (CSP-D4xx)
+# Network Rules
 
-Rules in this category detect insecure network configurations, SSRF vulnerabilities, and missing timeouts.
+This section details rules related to insecure network communication practices.
 
-| Rule ID      | Pattern                             | Severity     | Why it's risky              | Safer alternative / Fix               |
-| :----------- | :---------------------------------- | :----------- | :-------------------------- | :------------------------------------ |
-| **CSP-D401** | `requests.*(verify=False)`          | **HIGH**     | MITM attacks                | Keep `verify=True`                    |
-| **CSP-D402** | Unvalidated URLs in network calls   | **CRITICAL** | SSRF (Request forgery)      | Allowlist domains; validate host/port |
-| **CSP-D403** | `app.run(debug=True)`               | **HIGH**     | Possible RCE in production  | Set `debug=False`                     |
-| **CSP-D404** | Hardcoded bind to `0.0.0.0` or `::` | **MEDIUM**   | Exposes service to external | Bind to `127.0.0.1` locally           |
-| **CSP-D405** | Request without timeout             | **MEDIUM**   | Thread/Process exhaustion   | Set `timeout=5.0` (or similar)        |
-| **CSP-D406** | `ftplib.*`                          | **MEDIUM**   | Cleartext FTP traffic       | Use SFTP or FTPS                      |
-| **CSP-D407** | `HTTPSConnection` without context   | **MEDIUM**   | MITM on legacy Python       | Provide a secure SSL context          |
-| **CSP-D408** | `ssl._create_unverified_context`    | **MEDIUM**   | Bypasses SSL verification   | Use default secure context            |
-| **CSP-D409** | `telnetlib.*`                       | **MEDIUM**   | Cleartext Telnet traffic    | Use SSH (`paramiko`)                  |
-| **CSP-D410** | `urllib.urlopen` (audit schemes)    | **MEDIUM**   | `file://` scheme exploits   | Validate/restrict schemes             |
-| **CSP-D411** | `ssl.wrap_socket` (deprecated)      | **MEDIUM**   | Often insecure/deprecated   | Use `SSLContext.wrap_socket`          |
-
-## In-depth: SSRF (CSP-D402)
-
-Server-Side Request Forgery (SSRF) allows an attacker to make the server perform requests to internal or external resources.
-
-### Dangerous Pattern
-
-```python
-import requests
-url = request.args.get("url")
-requests.get(url) # VULNERABLE to SSRF
-```
-
-### Safe Alternative
-
-```python
-VALID_DOMAINS = ["api.example.com"]
-url = request.args.get("url")
-if get_domain(url) in VALID_DOMAINS:
-    requests.get(url) # SAFE: Validated
-```
+- [CSP-D401: Insecure Requests (verify=False)](../rule/CSP-D401.md)
+- [CSP-D402: Server-Side Request Forgery (SSRF)](../rule/CSP-D402.md)
+- [CSP-D403: Debug Mode in Production](../rule/CSP-D403.md)
+- [CSP-D404: Hardcoded Binding to 0.0.0.0](../rule/CSP-D404.md)
+- [CSP-D405: Requests Without Timeout](../rule/CSP-D405.md)
+- [CSP-D406: Insecure FTP](../rule/CSP-D406.md)
+- [CSP-D407: HTTPSConnection Without Context](../rule/CSP-D407.md)
+- [CSP-D408: Unverified SSL Context](../rule/CSP-D408.md)
+- [CSP-D409: Insecure Telnet](../rule/CSP-D409.md)
+- [CSP-D410: Insecure URL Opening](../rule/CSP-D410.md)
+- [CSP-D411: `ssl.wrap_socket` Usage](../rule/CSP-D411.md)

@@ -1,29 +1,9 @@
-# Category 2: Injection & Logic Attacks (CSP-D1xx)
+# Injection Rules
 
-Rules in this category detect SQL injection, Cross-Site Scripting (XSS), and insecure XML processing.
+This section details rules related to injection vulnerabilities.
 
-| Rule ID      | Pattern                                 | Severity     | Why it's risky             | Safer alternative / Fix                  |
-| :----------- | :-------------------------------------- | :----------- | :------------------------- | :--------------------------------------- |
-| **CSP-D101** | `cursor.execute` (f-string/concat)      | **CRITICAL** | SQL injection (cursor)     | Use parameterized queries (`?`, `%s`)    |
-| **CSP-D102** | `sqlalchemy.text`, `read_sql` (dynamic) | **CRITICAL** | SQL injection (raw)        | Use bound parameters / ORM builders      |
-| **CSP-D103** | Flask/Jinja dynamic templates           | **CRITICAL** | XSS (Cross-site scripting) | Use static templates; escape content     |
-| **CSP-D104** | `xml.etree`, `minidom`, `sax`, `lxml`   | HIGH / MED   | XXE / DoS                  | Use `defusedxml`                         |
-| **CSP-D105** | `django.utils.safestring.mark_safe`     | **MEDIUM**   | XSS bypass                 | Avoid unless content is strictly trusted |
-
-## In-depth: SQL Injection (CSP-D101)
-
-SQL injection occurs when user input is directly concatenated into a SQL string.
-
-### Dangerous Pattern
-
-```python
-query = f"SELECT * FROM users WHERE username = '{user_input}'"
-cursor.execute(query) # VULNERABLE
-```
-
-### Safe Alternative
-
-```python
-query = "SELECT * FROM users WHERE username = %s"
-cursor.execute(query, (user_input,)) # SAFE: Parameterized
-```
+- [CSP-D101: SQL Injection](../rule/CSP-D101.md)
+- [CSP-D102: Raw SQL String Concatenation](../rule/CSP-D102.md)
+- [CSP-D103: Cross-Site Scripting (XSS)](../rule/CSP-D103.md)
+- [CSP-D104: Insecure XML Parsing (XXE)](../rule/CSP-D104.md)
+- [CSP-D105: Use of `mark_safe`](../rule/CSP-D105.md)

@@ -1,7 +1,6 @@
 {
   "recommendations": [
     "usernamehw.errorlens",
-    "serayuzgur.crates",
     "tion.evenbettercomments",
     "tamasfe.even-better-toml",
     "rust-lang.rust-analyzer",
@@ -10,6 +9,7 @@
     "ryanluker.vscode-coverage-gutters",
     "vadimcn.vscode-lldb",
     "donjayamanne.githistory",
-    "eamodio.gitlens"
+    "eamodio.gitlens",
+    "fill-labs.dependi"
   ]
 }

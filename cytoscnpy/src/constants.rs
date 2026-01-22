@@ -70,8 +70,14 @@ pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
         m.insert("dynamic_module", 40);
         m.insert("test_related", 100);
         m.insert("framework_magic", 40);
+        m.insert("framework_managed", 50);
+        m.insert("mixin_class", 60);
+        m.insert("base_abstract_interface", 50);
+        m.insert("adapter_class", 30);
+        m.insert("lifecycle_hook", 30);
+        m.insert("compose_method", 40);
         m.insert("type_checking_import", 100); // TYPE_CHECKING imports are type-only
-        m.insert("module_constant", 80);
+        m.insert("module_constant", 30);
         m
     })
 }

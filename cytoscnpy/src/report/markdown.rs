@@ -3,6 +3,15 @@ use std::io::Write;
 
 /// Generates a Markdown summary of findings.
 pub fn print_markdown(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
+    print_markdown_with_root(writer, result, None)
+}
+
+/// Generates a Markdown summary of findings with an optional root path.
+pub fn print_markdown_with_root(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+    _root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
     writeln!(writer, "# CytoScnPy Analysis Report\n")?;
 
     // Summary Table

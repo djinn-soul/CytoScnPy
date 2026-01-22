@@ -73,7 +73,6 @@ impl CytoScnPy {
         ) in results.into_iter().enumerate()
         {
             let file_path: &std::path::PathBuf = &files[i];
-
             total_size_bytes += size;
 
             // Aggregate Raw Metrics

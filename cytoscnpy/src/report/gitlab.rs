@@ -6,6 +6,15 @@ use std::io::Write;
 ///
 /// See: https://docs.gitlab.com/ee/ci/testing/code_quality.html#implementing-a-custom-tool
 pub fn print_gitlab(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
+    print_gitlab_with_root(writer, result, None)
+}
+
+/// Generates GitLab Code Quality JSON report with an optional root for path normalization.
+pub fn print_gitlab_with_root(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+    root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
     let mut issues = Vec::new();
 
     // Helper to add issue
@@ -25,14 +34,20 @@ pub fn print_gitlab(writer: &mut impl Write, result: &AnalysisResult) -> std::io
             }));
         };
 
+    // Helper to normalize paths for fingerprints and locations (ensures stability across CI workspaces)
+    let normalize = |path: &std::path::Path| -> String {
+        let normalized = if let Some(r) = root {
+            path.strip_prefix(r).unwrap_or(path)
+        } else {
+            path
+        };
+        normalized.to_string_lossy().replace('\\', "/")
+    };
+
     // Security Findings
     for (i, finding) in result.danger.iter().enumerate() {
-        let fingerprint = format!(
-            "danger-{}-{}-{}",
-            finding.rule_id,
-            finding.file.display(),
-            i
-        ); // quick fingerprint
+        let normalized_path = normalize(&finding.file);
+        let fingerprint = format!("danger-{}-{}-{}", finding.rule_id, normalized_path, i);
         let severity = match finding.severity.as_str() {
             "CRITICAL" | "HIGH" => "critical",
             "MEDIUM" => "major",
@@ -41,7 +56,7 @@ pub fn print_gitlab(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         add_issue(
             finding.message.clone(),
             fingerprint,
-            &finding.file.to_string_lossy(),
+            &normalized_path,
             finding.line,
             severity,
         );
@@ -49,7 +64,8 @@ pub fn print_gitlab(writer: &mut impl Write, result: &AnalysisResult) -> std::io
 
     // Taint Findings
     for (i, finding) in result.taint_findings.iter().enumerate() {
-        let fingerprint = format!("taint-{}-{}-{}", finding.rule_id, finding.file.display(), i);
+        let normalized_path = normalize(&finding.file);
+        let fingerprint = format!("taint-{}-{}-{}", finding.rule_id, normalized_path, i);
         let severity = match finding.severity.to_string().as_str() {
             "CRITICAL" | "HIGH" => "critical",
             "MEDIUM" => "major",
@@ -58,7 +74,7 @@ pub fn print_gitlab(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         add_issue(
             format!("{} (Source: {})", finding.vuln_type, finding.source),
             fingerprint,
-            &finding.file.to_string_lossy(),
+            &normalized_path,
             finding.sink_line,
             severity,
         );
@@ -66,71 +82,87 @@ pub fn print_gitlab(writer: &mut impl Write, result: &AnalysisResult) -> std::io
 
     // Secrets
     for (i, secret) in result.secrets.iter().enumerate() {
-        let fingerprint = format!("secret-{}-{}-{}", secret.rule_id, secret.file.display(), i);
+        let normalized_path = normalize(&secret.file);
+        let fingerprint = format!("secret-{}-{}-{}", secret.rule_id, normalized_path, i);
         add_issue(
             secret.message.clone(),
             fingerprint,
-            &secret.file.to_string_lossy(),
+            &normalized_path,
             secret.line,
             "critical",
         );
     }
 
     // Unused Code
-    for (i, func) in result.unused_functions.iter().enumerate() {
+    for func in &result.unused_functions {
+        let normalized_path = normalize(&func.file);
         add_issue(
             format!("Unused function: {}", func.name),
-            format!("unused-func-{}", i),
-            &func.file.to_string_lossy(),
+            format!(
+                "unused-func-{}-{}-{}",
+                func.name, normalized_path, func.line
+            ),
+            &normalized_path,
             func.line,
             "minor",
         );
     }
 
-    // ... (Add other unused types similarly if verbose needed, or keep minimal)
-    // For brevity in initial implementation, covering minimal set.
-    // Expanding to all unused types:
-    for (i, cls) in result.unused_classes.iter().enumerate() {
+    for cls in &result.unused_classes {
+        let normalized_path = normalize(&cls.file);
         add_issue(
             format!("Unused class: {}", cls.name),
-            format!("unused-class-{}", i),
-            &cls.file.to_string_lossy(),
+            format!("unused-class-{}-{}-{}", cls.name, normalized_path, cls.line),
+            &normalized_path,
             cls.line,
             "minor",
         );
     }
-    for (i, imp) in result.unused_imports.iter().enumerate() {
+    for imp in &result.unused_imports {
+        let normalized_path = normalize(&imp.file);
         add_issue(
             format!("Unused import: {}", imp.name),
-            format!("unused-import-{}", i),
-            &imp.file.to_string_lossy(),
+            format!(
+                "unused-import-{}-{}-{}",
+                imp.name, normalized_path, imp.line
+            ),
+            &normalized_path,
             imp.line,
             "info",
         );
     }
-    for (i, var) in result.unused_variables.iter().enumerate() {
+    for var in &result.unused_variables {
+        let normalized_path = normalize(&var.file);
         add_issue(
             format!("Unused variable: {}", var.name),
-            format!("unused-var-{}", i),
-            &var.file.to_string_lossy(),
+            format!("unused-var-{}-{}-{}", var.name, normalized_path, var.line),
+            &normalized_path,
             var.line,
             "info",
         );
     }
-    for (i, method) in result.unused_methods.iter().enumerate() {
+    for method in &result.unused_methods {
+        let normalized_path = normalize(&method.file);
         add_issue(
             format!("Unused method: {}", method.name),
-            format!("unused-method-{}", i),
-            &method.file.to_string_lossy(),
+            format!(
+                "unused-method-{}-{}-{}",
+                method.name, normalized_path, method.line
+            ),
+            &normalized_path,
             method.line,
             "minor",
         );
     }
-    for (i, param) in result.unused_parameters.iter().enumerate() {
+    for param in &result.unused_parameters {
+        let normalized_path = normalize(&param.file);
         add_issue(
             format!("Unused parameter: {}", param.name),
-            format!("unused-param-{}", i),
-            &param.file.to_string_lossy(),
+            format!(
+                "unused-param-{}-{}-{}",
+                param.name, normalized_path, param.line
+            ),
+            &normalized_path,
             param.line,
             "info",
         );
@@ -138,11 +170,12 @@ pub fn print_gitlab(writer: &mut impl Write, result: &AnalysisResult) -> std::io
 
     // Parse Errors
     for (i, error) in result.parse_errors.iter().enumerate() {
+        let normalized_path = normalize(&error.file);
         add_issue(
             format!("Parse Error: {}", error.error),
-            format!("parse-error-{}", i),
-            &error.file.to_string_lossy(),
-            0, // Parse errors usually apply to the whole file if line 0
+            format!("parse-error-{i}"),
+            &normalized_path,
+            1, // Parse errors usually apply to the whole file if line 0, but GitLab schema requires >= 1
             "critical",
         );
     }

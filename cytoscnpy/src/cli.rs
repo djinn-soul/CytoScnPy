@@ -51,16 +51,25 @@ pub struct ScanOptions {
     pub no_dead: bool,
 }
 
+/// Supported output formats for scan results.
 #[derive(Debug, Clone, clap::ValueEnum, Default, PartialEq, Eq)]
 pub enum OutputFormat {
+    /// Standard plain text table.
     #[default]
     Text,
+    /// Raw JSON format.
     Json,
+    /// Grouped findings (deprecated, use Text instead).
     Grouped,
+    /// `JUnit` XML format for CI/CD.
     Junit,
+    /// `GitHub` Annotations (via workflow commands).
     Github,
+    /// `GitLab` Code Quality JSON.
     Gitlab,
+    /// Markdown document.
     Markdown,
+    /// SARIF (Static Analysis Results Interchange Format).
     Sarif,
 }
 

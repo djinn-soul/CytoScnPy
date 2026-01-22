@@ -53,13 +53,22 @@ fail_threshold = 5.0       # Exit 1 if >N% unused code
 "#;
 
 /// Run the init command to initialize CytoScnPy configuration.
+/// Executes the init command.
+///
+/// This creates or updates configuration files in the current directory.
 pub fn run_init<W: Write>(writer: &mut W) -> Result<()> {
     let current_dir = std::env::current_dir().context("Failed to get current directory")?;
+    run_init_in(&current_dir, writer)
+}
 
+/// Executes the init command in a specific directory.
+///
+/// This is primarily used for testing.
+pub fn run_init_in<W: Write>(root: &Path, writer: &mut W) -> Result<()> {
     writeln!(writer, "Initializing CytoScnPy configuration...")?;
 
-    handle_config_file(&current_dir, writer)?;
-    handle_gitignore(&current_dir, writer)?;
+    handle_config_file(root, writer)?;
+    handle_gitignore(root, writer)?;
 
     writeln!(writer, "Initialization complete!")?;
     Ok(())
@@ -69,29 +78,35 @@ fn handle_config_file<W: Write>(root: &Path, writer: &mut W) -> Result<()> {
     let pyproject_path = root.join("pyproject.toml");
     let cytoscnpy_toml_path = root.join(".cytoscnpy.toml");
 
+    // 1. Check if .cytoscnpy.toml already exists (highest priority)
+    if cytoscnpy_toml_path.exists() {
+        writeln!(writer, "  • .cytoscnpy.toml already exists - skipping.")?;
+        return Ok(());
+    }
+
+    // 2. Check if pyproject.toml already contains the section
     if pyproject_path.exists() {
-        // Check if [tool.cytoscnpy] already exists
         let content = fs::read_to_string(&pyproject_path)?;
         if content.contains("[tool.cytoscnpy]") {
             writeln!(
                 writer,
                 "  • pyproject.toml already contains [tool.cytoscnpy] - skipping."
             )?;
-        } else {
-            let mut file = fs::OpenOptions::new().append(true).open(&pyproject_path)?;
-
-            // Add a newline before appending if the file doesn't end with one
-            if !content.ends_with('\n') {
-                writeln!(file)?;
-            }
-
-            writeln!(file, "\n{}", DEFAULT_PYPROJECT_CONFIG.trim())?;
-            writeln!(writer, "  • Added default configuration to pyproject.toml.")?;
+            return Ok(());
         }
-    } else if cytoscnpy_toml_path.exists() {
-        writeln!(writer, "  • .cytoscnpy.toml already exists - skipping.")?;
+
+        // 3. pyproject.toml exists but no [tool.cytoscnpy]: Append to it
+        let mut file = fs::OpenOptions::new().append(true).open(&pyproject_path)?;
+
+        // Add a newline before appending if the file doesn't end with one
+        if !content.ends_with('\n') {
+            writeln!(file)?;
+        }
+
+        writeln!(file, "\n{}", DEFAULT_PYPROJECT_CONFIG.trim())?;
+        writeln!(writer, "  • Added default configuration to pyproject.toml.")?;
     } else {
-        // Create .cytoscnpy.toml
+        // 4. Neither exists: Create .cytoscnpy.toml
         let mut file = fs::File::create(&cytoscnpy_toml_path)?;
         writeln!(file, "{}", DEFAULT_CONFIG.trim())?;
         writeln!(

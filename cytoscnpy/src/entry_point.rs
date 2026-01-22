@@ -1,8 +1,7 @@
 use crate::cli::{Cli, Commands};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
-use rayon::prelude::*;
 
 use ruff_python_ast::{Expr, Stmt};
 use rustc_hash::FxHashSet;
@@ -342,7 +341,6 @@ fn setup_configuration(effective_paths: &[std::path::PathBuf], cli: &Cli) -> App
     }
 }
 
-#[allow(clippy::too_many_lines)]
 /// Runs the analyzer with the given arguments using stdout as the writer.
 ///
 /// # Errors
@@ -1033,19 +1031,31 @@ fn handle_analysis<W: std::io::Write>(
                 crate::output::print_report_grouped(writer, &result)?;
             }
             crate::cli::OutputFormat::Junit => {
-                crate::report::junit::print_junit(writer, &result)?;
+                crate::report::junit::print_junit_with_root(writer, &result, Some(&analysis_root))?;
             }
             crate::cli::OutputFormat::Github => {
-                crate::report::github::print_github(writer, &result)?;
+                crate::report::github::print_github_with_root(
+                    writer,
+                    &result,
+                    Some(&analysis_root),
+                )?;
             }
             crate::cli::OutputFormat::Gitlab => {
-                crate::report::gitlab::print_gitlab(writer, &result)?;
+                crate::report::gitlab::print_gitlab_with_root(
+                    writer,
+                    &result,
+                    Some(&analysis_root),
+                )?;
             }
             crate::cli::OutputFormat::Markdown => {
-                crate::report::markdown::print_markdown(writer, &result)?;
+                crate::report::markdown::print_markdown_with_root(
+                    writer,
+                    &result,
+                    Some(&analysis_root),
+                )?;
             }
             crate::cli::OutputFormat::Sarif => {
-                crate::report::sarif::print_sarif(writer, &result)?;
+                crate::report::sarif::print_sarif_with_root(writer, &result, Some(&analysis_root))?;
             }
             crate::cli::OutputFormat::Json => unreachable!("Handled in if block above"),
         }

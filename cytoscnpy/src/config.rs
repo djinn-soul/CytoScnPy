@@ -27,7 +27,7 @@ pub struct CytoScnPyConfig {
     pub include_folders: Option<Vec<String>>,
     /// Whether to include test files.
     pub include_tests: Option<bool>,
-    /// Whether to include IPython notebooks.
+    /// Whether to include `IPython` notebooks.
     pub include_ipynb: Option<bool>,
     /// Whether to scan for secrets.
     pub secrets: Option<bool>,

@@ -12,7 +12,17 @@ use std::io::Write;
 ///     </testcase>
 ///   </testsuite>
 /// </testsuites>
+/// Generates a JUnit XML report.
 pub fn print_junit(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
+    print_junit_with_root(writer, result, None)
+}
+
+/// Generates a JUnit XML report with an optional root path.
+pub fn print_junit_with_root(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+    _root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
     writeln!(writer, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")?;
     writeln!(writer, "<testsuites>")?;
 

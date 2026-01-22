@@ -6,6 +6,15 @@ use std::io::Write;
 ///
 /// See: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions
 pub fn print_github(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
+    print_github_with_root(writer, result, None)
+}
+
+/// Generates GitHub Actions workflow commands with an optional root path.
+pub fn print_github_with_root(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+    _root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
     // Security Findings
     for finding in &result.danger {
         write_annotation(writer, "error", finding)?;

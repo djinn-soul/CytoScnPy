@@ -5,7 +5,7 @@
 use super::{AnalysisResult, CytoScnPy};
 use crate::rules::secrets::{validate_secrets_config, SecretFinding};
 use std::path::Path;
-
+use std::io::Write;
 use crate::constants::{CHUNK_SIZE, CONFIG_FILENAME};
 use rayon::prelude::*;
 
@@ -108,7 +108,6 @@ impl CytoScnPy {
             if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
                 break;
             }
-
             let chunk_results: Vec<_> = chunk
                 .par_iter()
                 .map(|file_path| {
@@ -135,11 +134,26 @@ impl CytoScnPy {
                 .collect();
             all_results.extend(chunk_results);
         }
+        // let mut file = std::fs::File::create("test.log").unwrap();
 
-        // Aggregate and return results (same as analyze method)
+        // for (i, r) in all_results.iter().enumerate() {
+        //     writeln!(file, "=== Result {} ===", i).unwrap();
+        //     writeln!(file, "definitions: {:?}", r.0).unwrap();
+        //     writeln!(file, "counts: {:?}", r.1).unwrap();
+        //     writeln!(file, "protocol_methods: {:?}", r.2).unwrap();
+        //     writeln!(file, "secret_findings: {:?}", r.3).unwrap();
+        //     writeln!(file, "findings_a: {:?}", r.4).unwrap();
+        //     writeln!(file, "findings_b: {:?}", r.5).unwrap();
+        //     writeln!(file, "parse_errors: {:?}", r.6).unwrap();
+        //     writeln!(file, "files: {:?}", r.7).unwrap();
+        //     writeln!(file, "raw_metrics: {:?}", r.8).unwrap();
+        //     writeln!(file, "halstead_metrics: {:?}", r.9).unwrap();
+        //     writeln!(file, "score1: {:?}", r.10).unwrap();
+        //     writeln!(file, "score2: {:?}", r.11).unwrap();
+        //     writeln!(file, "issues: {:?}", r.12).unwrap();
+        // }
         let mut result = self.aggregate_results(all_results, files, total_files, total_directories);
 
-        // Prepend config validation errors to secrets (reported once, not per-file)
         if !config_errors.is_empty() {
             config_errors.extend(result.secrets);
             result.secrets = config_errors;
@@ -161,7 +175,7 @@ impl CytoScnPy {
     pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
         // Collect files and count directories using shared logic
         let (files, dir_count) = self.collect_python_files(root_path);
-
+        // println!("FILES{files:?}");
         self.total_files_analyzed = files.len();
 
         // Analyze the collected files

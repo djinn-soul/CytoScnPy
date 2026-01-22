@@ -43,7 +43,7 @@ impl FixSuggestion {
 }
 
 /// Represents a parsing error in a file.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 
 pub struct ParseError {
     /// The file where the error occurred.

@@ -109,9 +109,72 @@ cytoscnpy . --html --secrets --danger
 
 ---
 
-### ⚓ Pre-commit Hooks
+---
 
-Automate your analysis on every commit. See the [Pre-commit Guide](pre-commit.md) for installation and configuration.
+## 🚀 CI/CD Integration
+
+CytoScnPy is designed to work seamlessly with modern CI/CD pipelines. Using the `--root` flag and specific `--format` options, you can integrate analysis results directly into your build process.
+
+> [!IMPORTANT]
+> Always use `--root .` (or your project path) in CI/CD. This ensures that:
+>
+> 1. Absolute paths are correctly normalized to relative paths in reports.
+> 2. Security containment boundaries are correctly established.
+> 3. Fingerprints (for GitLab/GitHub) remain stable across different build runners.
+
+### GitLab Code Quality
+
+Generate a report that GitLab can display directly in Merge Requests.
+
+```yaml
+# .gitlab-ci.yml
+code_quality:
+  stage: test
+  image: python:3.9
+  script:
+    - pip install cytoscnpy
+    - cytoscnpy --root . --format gitlab --danger --secrets > gl-code-quality-report.json
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json
+```
+
+### GitHub Actions
+
+Generate inline annotations for your Pull Requests.
+
+```yaml
+# .github/workflows/scan.yml
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CytoScnPy
+        run: pip install cytoscnpy
+      - name: Run Scan
+        run: cytoscnpy --root . --format github --danger --secrets
+```
+
+### SARIF (GitHub Security / GitLab Security)
+
+Export results in the standard Static Analysis Results Interchange Format (SARIF).
+
+```bash
+cytoscnpy --root . --format sarif --danger > results.sarif
+```
+
+### JUnit XML
+
+Integration with test runners and CI platforms that support JUnit (Azure DevOps, Jenkins).
+
+```bash
+cytoscnpy --root . --format junit --quality > test-results.xml
+```
+
+---
+
+### ⚓ Pre-commit Hooks
 
 ---
 
@@ -179,12 +242,13 @@ cytoscnpy [PATHS]... [OPTIONS]
 
 ### Output Formatting
 
-| Flag               | Description                       |
-| ------------------ | --------------------------------- |
-| `--json`           | Output detection results as JSON. |
-| `--html`           | Generate interactive HTML report. |
-| `--quiet`          | Summary only, no detailed tables. |
-| `--verbose` (`-v`) | Debug output.                     |
+| Flag               | Description                                                                      |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `--format <FMT>`   | Output format: `text`, `json`, `junit`, `github`, `gitlab`, `markdown`, `sarif`. |
+| `--json`           | Output detection results as JSON (shorthand for `--format json`).                |
+| `--html`           | Generate interactive HTML report.                                                |
+| `--quiet`          | Summary only, no detailed tables.                                                |
+| `--verbose` (`-v`) | Debug output.                                                                    |
 
 ### Filtering
 

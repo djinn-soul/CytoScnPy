@@ -13,10 +13,9 @@ cytoscnpy [OPTIONS] [COMMAND]
 ### Input & Output
 
 - `[paths]`: One or more paths to analyze (files or directories). If omitted, CytoScnPy defaults to the current working directory.
-- `--root <PATH>`: Explicitly sets the project root. This is **highly recommended for CI/CD environments** to ensure that path-based security containment is correctly applied and that relative imports are resolved consistently. When `--root` is used, positional `[paths]` are not allowed.
-- `--exclude-folder <FOLDER>`: Specifies a folder name to skip during analysis (e.g., `venv`, `node_modules`). This flag can be provided multiple times to exclude multiple directories.
-- `--include-folder <FOLDER>`: Force-includes a folder that might otherwise be ignored by default rules (like some hidden directories).
-- `--json`: Format the result as a raw JSON object. This is ideal for piping into tools like `jq` or for consumption by CI/CD scripts.
+- `--root <PATH>`: Explicitly sets the project root. This is **highly recommended for CI/CD environments** to ensure that path-based security containment is correctly applied and that relative imports are resolved consistently. When `--root` is used, positional `[paths]` are not allowed. It also ensures that reports (SARIF, GitLab, etc.) use paths relative to this root.
+- `--format <FORMAT>`: Specifies the output format. Supported values: `text` (default), `json`, `junit`, `github`, `gitlab`, `markdown`, `sarif`.
+- `--json`: Format the result as a raw JSON object. Shorthand for `--format json`. This is ideal for piping into tools like `jq` or for consumption by CI/CD scripts.
 - `--verbose`, `-v`: Prints detailed logs during the analysis process, including which files are being scanned and any non-fatal issues encountered.
 - `--quiet`: Minimalist output. Only the final summary table (or JSON) is displayed, suppressing the per-file findings table.
 - `--fail-on-quality`: Causes the process to exit with code `1` if _any_ code quality issues (like high complexity or deep nesting) are detected.

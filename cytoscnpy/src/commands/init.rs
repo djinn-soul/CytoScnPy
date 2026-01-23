@@ -98,7 +98,7 @@ fn handle_config_file<W: Write>(root: &Path, writer: &mut W) -> Result<()> {
         if content.contains("[tool.cytoscnpy]") {
             writeln!(
                 writer,
-                "  • pyproject.toml already contains [tool.cytoscnpy] - skipping."
+                "  - pyproject.toml already contains [tool.cytoscnpy] - skipping."
             )?;
             return Ok(());
         }
@@ -112,14 +112,14 @@ fn handle_config_file<W: Write>(root: &Path, writer: &mut W) -> Result<()> {
         }
 
         writeln!(file, "\n{}", DEFAULT_PYPROJECT_CONFIG.trim())?;
-        writeln!(writer, "  • Added default configuration to pyproject.toml.")?;
+        writeln!(writer, "  - Added default configuration to pyproject.toml.")?;
     } else {
         // 4. Neither exists: Create .cytoscnpy.toml
         let mut file = fs::File::create(&cytoscnpy_toml_path)?;
         writeln!(file, "{}", DEFAULT_CONFIG.trim())?;
         writeln!(
             writer,
-            "  • Created .cytoscnpy.toml with default configuration."
+            "  - Created .cytoscnpy.toml with default configuration."
         )?;
     }
 
@@ -137,7 +137,7 @@ fn handle_gitignore<W: Write>(root: &Path, writer: &mut W) -> Result<()> {
         if content.contains(ignore_entry) {
             writeln!(
                 writer,
-                "  • .gitignore already contains {ignore_entry} - skipping."
+                "  - .gitignore already contains {ignore_entry} - skipping."
             )?;
         } else {
             let mut file = fs::OpenOptions::new().append(true).open(&gitignore_path)?;

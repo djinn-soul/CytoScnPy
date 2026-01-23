@@ -62,15 +62,15 @@ fn test_call_graph_coverage() -> Result<(), Box<dyn std::error::Error>> {
     let module = parsed.into_syntax();
 
     let mut cg = CallGraph::new();
-    cg.build_from_module(&module.body);
+    cg.build_from_module(&module.body, "taint_corpus");
 
     // Check nodes exist
-    assert!(cg.nodes.contains_key("a"));
-    assert!(cg.nodes.contains_key("process_data"));
+    assert!(cg.nodes.contains_key("taint_corpus.a"));
+    assert!(cg.nodes.contains_key("taint_corpus.process_data"));
 
     // Check edges
-    let node = cg.nodes.get("a").ok_or("Node 'a' not found")?;
-    assert!(node.calls.contains("process_data"));
+    let node = cg.nodes.get("taint_corpus.a").ok_or("Node 'a' not found")?;
+    assert!(node.calls.contains("taint_corpus.process_data"));
     Ok(())
 }
 

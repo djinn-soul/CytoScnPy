@@ -400,19 +400,27 @@ impl<'a> CfgBuilder<'a> {
             _ => {
                 self.collect_stmt_names(stmt, line);
                 match stmt {
-                    Stmt::Return(_) => self.add_stmt(StmtKind::Return, line),
-                    Stmt::Raise(_) => self.add_stmt(StmtKind::Raise, line),
+                    Stmt::Return(_) => {
+                        self.add_stmt(StmtKind::Return, line);
+                        self.current_block = self.new_block();
+                    }
+                    Stmt::Raise(_) => {
+                        self.add_stmt(StmtKind::Raise, line);
+                        self.current_block = self.new_block();
+                    }
                     Stmt::Break(_) => {
                         self.add_stmt(StmtKind::Break, line);
                         if let Some(&(_, exit_id)) = self.loop_stack.last() {
                             self.add_edge(self.current_block, exit_id);
                         }
+                        self.current_block = self.new_block();
                     }
                     Stmt::Continue(_) => {
                         self.add_stmt(StmtKind::Continue, line);
                         if let Some(&(header_id, _)) = self.loop_stack.last() {
                             self.add_edge(self.current_block, header_id);
                         }
+                        self.current_block = self.new_block();
                     }
                     Stmt::Expr(expr_stmt) => {
                         if matches!(expr_stmt.value.as_ref(), ast::Expr::Call(_)) {
@@ -674,6 +682,30 @@ impl Cfg {
         None
     }
 
+    /// Identifies all basic blocks that are not reachable from the entry point.
+    #[must_use]
+    pub fn find_unreachable_blocks(&self) -> Vec<usize> {
+        let mut reachable = vec![false; self.blocks.len()];
+        let mut stack = vec![self.entry];
+
+        while let Some(block_id) = stack.pop() {
+            if block_id >= reachable.len() || reachable[block_id] {
+                continue;
+            }
+            reachable[block_id] = true;
+            for &successor in &self.blocks[block_id].successors {
+                stack.push(successor);
+            }
+        }
+
+        self.blocks
+            .iter()
+            .enumerate()
+            .filter(|(id, _)| !reachable[*id])
+            .map(|(id, _)| id)
+            .collect()
+    }
+
     /// Generates a fingerprint representing the control flow of this graph.
     #[must_use]
     pub fn fingerprint(&self) -> CfgFingerprint {
@@ -840,5 +872,24 @@ mod tests {
 
         // Check that 'x' usage is captured in the entry block
         assert!(cfg.blocks[0].uses.iter().any(|(n, _)| n == "x"));
+    }
+
+    #[test]
+    fn test_unreachable_code_after_return() {
+        let source = "def unreachable_func():\n    return 1\n    x = 2\n    return x\n";
+        let cfg = Cfg::from_source(source, "unreachable_func").expect("Should parse");
+        let unreachable = cfg.find_unreachable_blocks();
+        assert!(!unreachable.is_empty(), "Should find unreachable blocks");
+
+        // The block containing 'x = 2' (Line 3) should be unreachable
+        let mut found_x_block = false;
+        for &block_id in &unreachable {
+            let block = &cfg.blocks[block_id];
+            if block.statements.iter().any(|s| s.line == 3) {
+                found_x_block = true;
+                break;
+            }
+        }
+        assert!(found_x_block, "The block at line 3 should be unreachable");
     }
 }

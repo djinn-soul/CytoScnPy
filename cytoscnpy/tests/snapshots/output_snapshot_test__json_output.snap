@@ -1,6 +1,6 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 118
+assertion_line: 108
 expression: output
 ---
 {
@@ -33,7 +33,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     }
   ],
   "unused_methods": [],
@@ -66,7 +67,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     },
     {
       "name": "sys",
@@ -96,7 +98,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     }
   ],
   "unused_classes": [],
@@ -129,7 +132,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     }
   ],
   "unused_parameters": [],

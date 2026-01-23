@@ -191,6 +191,9 @@ pub struct Definition {
     /// Whether this definition is a potential secret/key.
     #[serde(default)]
     pub is_potential_secret: bool,
+    /// Whether this definition is unreachable from entry points.
+    #[serde(default)]
+    pub is_unreachable: bool,
 }
 
 // apply_penalties method removed as it was redundant with heuristics.rs
@@ -470,6 +473,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             fix,
             is_constant,
             is_potential_secret,
+            is_unreachable: false,
         };
 
         self.definitions.push(definition);

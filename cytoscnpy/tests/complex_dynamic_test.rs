@@ -7,9 +7,9 @@ use std::io::Write;
 use tempfile::TempDir;
 
 fn project_tempdir() -> TempDir {
-    let mut target_dir = std::env::current_dir().unwrap();
-    target_dir.push("target");
-    target_dir.push("test-complex-dynamic-tmp");
+    let target_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join("test-complex-dynamic-tmp");
     fs::create_dir_all(&target_dir).unwrap();
     tempfile::Builder::new()
         .prefix("complex_dynamic_test_")

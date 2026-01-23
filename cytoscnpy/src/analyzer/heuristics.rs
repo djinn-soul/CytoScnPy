@@ -177,6 +177,8 @@ pub fn apply_heuristics(def: &mut Definition) {
     {
         // Mark as used by incrementing references
         def.references += 1;
+        // Mark as root by setting confidence to 0 (immune to reachability zero-out)
+        def.confidence = 0;
     }
 
     // 3. TYPE_CHECKING imports: only suppress if actually USED in annotations

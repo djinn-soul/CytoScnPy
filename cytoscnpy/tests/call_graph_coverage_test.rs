@@ -74,24 +74,24 @@ def nested():
     let module = parsed.into_syntax();
 
     let mut cg = CallGraph::new();
-    cg.build_from_module(&module.body);
+    cg.build_from_module(&module.body, "complex_test");
 
     // assert nodes exist
-    assert!(cg.nodes.contains_key("complex_flow"));
+    assert!(cg.nodes.contains_key("complex_test.complex_flow"));
 
     // assert edges exist
     let node = cg
         .nodes
-        .get("complex_flow")
-        .ok_or("Node 'complex_flow' not found")?;
-    assert!(node.calls.contains("target"));
-    assert!(node.calls.contains("other"));
+        .get("complex_test.complex_flow")
+        .ok_or("Node 'complex_test.complex_flow' not found")?;
+    assert!(node.calls.contains("complex_test.target"));
+    assert!(node.calls.contains("complex_test.other"));
 
     let expr_node = cg
         .nodes
-        .get("complex_exprs")
-        .ok_or("Node 'complex_exprs' not found")?;
-    assert!(expr_node.calls.contains("target"));
-    assert!(expr_node.calls.contains("other"));
+        .get("complex_test.complex_exprs")
+        .ok_or("Node 'complex_test.complex_exprs' not found")?;
+    assert!(expr_node.calls.contains("complex_test.target"));
+    assert!(expr_node.calls.contains("complex_test.other"));
     Ok(())
 }

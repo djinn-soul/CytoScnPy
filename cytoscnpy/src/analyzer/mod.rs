@@ -18,7 +18,7 @@ pub mod types;
 
 // Re-export types for public API
 pub use heuristics::{apply_heuristics, apply_penalties};
-pub use types::{AnalysisResult, AnalysisSummary, ParseError};
+pub use types::{AnalysisResult, AnalysisSummary, FileAnalysisResult, ParseError};
 
 use crate::config::Config;
 

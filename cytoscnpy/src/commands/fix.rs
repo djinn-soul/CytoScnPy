@@ -374,6 +374,7 @@ mod tests {
             is_enum_member: false,
             is_constant: false,
             is_potential_secret: false,
+            is_unreachable: false,
         }
     }
 

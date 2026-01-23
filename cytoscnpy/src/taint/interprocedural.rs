@@ -22,10 +22,14 @@ pub fn analyze_module(
     let mut summaries = SummaryDatabase::new();
 
     // Phase 1: Build call graph
-    call_graph.build_from_module(stmts);
+    let module_name = file_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    call_graph.build_from_module(stmts, &module_name);
 
     // Phase 2: Collect all function definitions
-    let functions = collect_functions(stmts);
+    let functions = collect_functions(stmts, &module_name);
 
     // Phase 3: Analyze in topological order (callees before callers)
     let analysis_order = call_graph.get_analysis_order();
@@ -114,22 +118,30 @@ enum FunctionDef<'a> {
 }
 
 /// Collects all function definitions from statements.
-fn collect_functions(stmts: &[Stmt]) -> FxHashMap<String, FunctionDef<'_>> {
+fn collect_functions<'a>(
+    stmts: &'a [Stmt],
+    module_name: &str,
+) -> FxHashMap<String, FunctionDef<'a>> {
     let mut functions = FxHashMap::default();
 
     for stmt in stmts {
         match stmt {
             Stmt::FunctionDef(func) => {
+                let qualified_name = qualify_name(module_name, None, func.name.as_str());
                 if func.is_async {
-                    functions.insert(func.name.to_string(), FunctionDef::Async(func));
+                    functions.insert(qualified_name, FunctionDef::Async(func));
                 } else {
-                    functions.insert(func.name.to_string(), FunctionDef::Sync(func));
+                    functions.insert(qualified_name, FunctionDef::Sync(func));
                 }
             }
             Stmt::ClassDef(class) => {
                 for s in &class.body {
                     if let Stmt::FunctionDef(method) = s {
-                        let qualified_name = format!("{}.{}", class.name, method.name);
+                        let qualified_name = qualify_name(
+                            module_name,
+                            Some(class.name.as_str()),
+                            method.name.as_str(),
+                        );
                         if method.is_async {
                             functions.insert(qualified_name, FunctionDef::Async(method));
                         } else {
@@ -143,6 +155,20 @@ fn collect_functions(stmts: &[Stmt]) -> FxHashMap<String, FunctionDef<'_>> {
     }
 
     functions
+}
+
+fn qualify_name(module_name: &str, class_name: Option<&str>, func_name: &str) -> String {
+    let mut qualified = String::new();
+    if !module_name.is_empty() {
+        qualified.push_str(module_name);
+        qualified.push('.');
+    }
+    if let Some(class_name) = class_name {
+        qualified.push_str(class_name);
+        qualified.push('.');
+    }
+    qualified.push_str(func_name);
+    qualified
 }
 
 /// Analyzes a function with interprocedural context.

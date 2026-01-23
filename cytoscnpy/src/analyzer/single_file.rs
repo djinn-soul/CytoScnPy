@@ -1,6 +1,6 @@
 //! Single file analysis logic.
 
-use super::{AnalysisResult, AnalysisSummary, CytoScnPy, ParseError};
+use super::{AnalysisResult, AnalysisSummary, CytoScnPy, FileAnalysisResult, ParseError};
 #[cfg(feature = "cfg")]
 use crate::cfg::flow::analyze_reaching_definitions;
 #[cfg(feature = "cfg")]
@@ -9,8 +9,9 @@ use crate::framework::FrameworkAwareVisitor;
 use crate::halstead::{analyze_halstead, HalsteadMetrics};
 use crate::metrics::mi_compute;
 use crate::raw_metrics::{analyze_raw, RawMetrics};
-use crate::rules::secrets::{scan_secrets, SecretFinding};
+use crate::rules::secrets::scan_secrets;
 use crate::rules::Finding;
+use crate::taint::call_graph::CallGraph;
 use crate::test_utils::TestAwareVisitor;
 use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
@@ -28,25 +29,7 @@ impl CytoScnPy {
     /// Used by the directory traversal for high-performance scanning.
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     #[must_use]
-    pub fn process_single_file(
-        &self,
-        file_path: &Path,
-        root_path: &Path,
-    ) -> (
-        Vec<Definition>,
-        FxHashMap<String, usize>,
-        FxHashMap<String, FxHashSet<String>>, // Protocol methods
-        Vec<SecretFinding>,
-        Vec<Finding>,
-        Vec<Finding>,
-        Vec<ParseError>,
-        usize,
-        RawMetrics,
-        HalsteadMetrics,
-        f64,
-        f64,
-        usize, // File size in bytes
-    ) {
+    pub fn process_single_file(&self, file_path: &Path, root_path: &Path) -> FileAnalysisResult {
         let is_notebook = file_path.extension().is_some_and(|e| e == "ipynb");
 
         if let Some(delay_ms) = self.debug_delay_ms {
@@ -60,23 +43,9 @@ impl CytoScnPy {
             match crate::ipynb::extract_notebook_code(file_path, Some(&self.analysis_root)) {
                 Ok(code) => code,
                 Err(e) => {
-                    return (
-                        Vec::new(),
-                        FxHashMap::default(),
-                        FxHashMap::default(), // protocol methods
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        vec![ParseError {
-                            file: file_path.to_path_buf(),
-                            error: format!("Failed to parse notebook: {e}"),
-                        }],
-                        0,
-                        RawMetrics::default(),
-                        HalsteadMetrics::default(),
-                        0.0,
-                        0.0,
-                        0,
+                    return FileAnalysisResult::error(
+                        file_path,
+                        format!("Failed to parse notebook: {e}"),
                     );
                 }
             }
@@ -84,23 +53,9 @@ impl CytoScnPy {
             match fs::read_to_string(file_path) {
                 Ok(code) => code,
                 Err(e) => {
-                    return (
-                        Vec::new(),
-                        FxHashMap::default(),
-                        FxHashMap::default(), // protocol methods
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        vec![ParseError {
-                            file: file_path.to_path_buf(),
-                            error: format!("Failed to read file: {e}"),
-                        }],
-                        0,
-                        RawMetrics::default(),
-                        HalsteadMetrics::default(),
-                        0.0,
-                        0.0,
-                        0,
+                    return FileAnalysisResult::error(
+                        file_path,
+                        format!("Failed to read file: {e}"),
                     );
                 }
             }
@@ -140,6 +95,7 @@ impl CytoScnPy {
         let mut danger = Vec::new();
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
+        let mut call_graph = CallGraph::new();
 
         match parse_module(&source) {
             Ok(parsed) => {
@@ -158,6 +114,8 @@ impl CytoScnPy {
                         Some(&docstring_lines),
                     );
                 }
+
+                call_graph.build_from_module(&module.body, &module_name);
 
                 let entry_point_calls = crate::entry_point::detect_entry_point_calls(&module.body);
 
@@ -523,25 +481,26 @@ impl CytoScnPy {
             pb.inc(1);
         }
 
-        (
-            visitor.definitions,
-            visitor.references,
-            visitor.protocol_methods,
+        FileAnalysisResult {
+            definitions: visitor.definitions,
+            references: visitor.references,
+            protocol_methods: visitor.protocol_methods,
             secrets,
             danger,
             quality,
             parse_errors,
-            source.lines().count(),
-            if self.enable_quality {
+            line_count: source.lines().count(),
+            raw_metrics: if self.enable_quality {
                 analyze_raw(&source)
             } else {
                 RawMetrics::default()
             },
-            HalsteadMetrics::default(), // Computed later if needed
-            file_complexity,
-            file_mi,
+            halstead_metrics: HalsteadMetrics::default(), // Computed later if needed
+            complexity: file_complexity,
+            mi: file_mi,
             file_size,
-        )
+            call_graph,
+        }
     }
 
     /// Analyzes a single string of code (mostly for testing).

@@ -1,13 +1,12 @@
 //! Aggregation of analysis results.
 
-use super::{apply_heuristics, AnalysisResult, AnalysisSummary, CytoScnPy, ParseError};
+use super::{apply_heuristics, AnalysisResult, AnalysisSummary, CytoScnPy, FileAnalysisResult};
 use crate::analyzer::types::FileMetrics;
 use crate::halstead::HalsteadMetrics;
 use crate::raw_metrics::RawMetrics;
-use crate::rules::secrets::SecretFinding;
-use crate::rules::Finding;
 use crate::visitor::Definition;
 
+use crate::taint::call_graph::CallGraph;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::fs;
 
@@ -16,21 +15,7 @@ impl CytoScnPy {
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     pub(crate) fn aggregate_results(
         &mut self,
-        results: Vec<(
-            Vec<Definition>,
-            FxHashMap<String, usize>,
-            FxHashMap<String, FxHashSet<String>>, // Protocol methods
-            Vec<SecretFinding>,
-            Vec<Finding>,
-            Vec<Finding>,
-            Vec<ParseError>,
-            usize,
-            RawMetrics,
-            HalsteadMetrics,
-            f64,
-            f64,
-            usize,
-        )>,
+        results: Vec<FileAnalysisResult>,
         files: &[std::path::PathBuf],
         total_files: usize,
         total_directories: usize,
@@ -52,26 +37,26 @@ impl CytoScnPy {
         let mut file_metrics = Vec::new();
 
         let mut all_protocols: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+        let mut global_call_graph = CallGraph::new();
 
-        for (
-            i,
-            (
-                defs,
-                refs,
-                proto_methods,
+        for (i, res) in results.into_iter().enumerate() {
+            let FileAnalysisResult {
+                definitions: defs,
+                references: refs,
+                protocol_methods: proto_methods,
                 secrets,
                 danger,
                 quality,
                 parse_errors,
-                lines,
-                raw,
-                halstead,
+                line_count: lines,
+                raw_metrics: raw,
+                halstead_metrics: halstead,
                 complexity,
                 mi,
-                size,
-            ),
-        ) in results.into_iter().enumerate()
-        {
+                file_size: size,
+                call_graph,
+            } = res;
+            global_call_graph.merge(call_graph);
             let file_path: &std::path::PathBuf = &files[i];
             total_size_bytes += size;
 
@@ -166,6 +151,76 @@ impl CytoScnPy {
             }
         }
 
+        // --- Phase 3: Whole-Program Reachability ---
+        let mut roots = FxHashSet::default();
+        let mut method_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
+
+        for def in &all_defs {
+            if def.def_type == "method" {
+                method_simple_to_full
+                    .entry(def.simple_name.clone())
+                    .or_default()
+                    .push(def.full_name.clone());
+            }
+
+            if def.is_exported
+                || def.is_framework_managed
+                || def.confidence == 0
+                || implicitly_used_methods.contains(&def.full_name)
+            {
+                roots.insert(def.full_name.clone());
+
+                // If this is a class, also treat its non-internal methods as roots (Public API)
+                if def.def_type == "class" {
+                    if let Some(methods) = class_methods.get(&def.full_name) {
+                        for method in methods {
+                            // Don't treat clearly internal methods as roots even if the class is exported.
+                            if !method.starts_with('_') {
+                                roots.insert(format!("{}.{}", def.full_name, method));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add roots from call graph (e.g., module-level entry points)
+        for (name, node) in &global_call_graph.nodes {
+            if node.is_root {
+                roots.insert(name.clone());
+            }
+        }
+
+        let mut reachable_nodes = FxHashSet::default();
+        let mut stack: Vec<String> = roots.into_iter().collect();
+
+        while let Some(current) = stack.pop() {
+            if !reachable_nodes.insert(current.clone()) {
+                continue;
+            }
+
+            if let Some(node) = global_call_graph.nodes.get(&current) {
+                for call in &node.calls {
+                    if call.starts_with('.') {
+                        // Loose attribute hint - visit all matching methods
+                        let attr_name = &call[1..];
+                        if let Some(methods) = method_simple_to_full.get(attr_name) {
+                            for method_full in methods {
+                                if !reachable_nodes.contains(method_full) {
+                                    stack.push(method_full.clone());
+                                }
+                            }
+                        }
+                    } else if global_call_graph.nodes.contains_key(call) {
+                        // Explicit node call
+                        if !reachable_nodes.contains(call) {
+                            stack.push(call.clone());
+                        }
+                    }
+                }
+            }
+        }
+
         let mut unused_functions = Vec::new();
         let mut unused_methods = Vec::new();
         let mut unused_classes = Vec::new();
@@ -243,6 +298,18 @@ impl CytoScnPy {
                 def.references = std::cmp::max(def.references, 1);
             }
 
+            // --- Phase 4: Reachability Refinement ---
+            // If it's a function or class, it must be reachable from roots.
+            // UNLESS it's an entry point itself.
+            if (def.def_type == "function" || def.def_type == "method" || def.def_type == "class")
+                && !reachable_nodes.contains(&def.full_name)
+            {
+                // Mark as unreachable
+                def.is_unreachable = true;
+                // It's not reachable. zero out references
+                def.references = 0;
+            }
+
             // Collect methods with references for class-method linking
             if def.def_type == "method" && def.references > 0 {
                 methods_with_refs.push(def.clone());
@@ -252,6 +319,18 @@ impl CytoScnPy {
                 // Only filter by confidence if it's actually unused and we are about to report it.
                 // Suggestions (confidence < threshold) are often still valuable in JSON, but benchmark usually focuses on thresholded items.
                 if def.confidence >= self.confidence_threshold {
+                    // Customize message if unreachable
+                    if def.is_unreachable {
+                        let type_label = match def.def_type.as_str() {
+                            "function" => "function",
+                            "method" => "method",
+                            "class" => "class",
+                            _ => &def.def_type,
+                        };
+                        def.message =
+                            Some(format!("Unreachable {}: `{}`", type_label, def.simple_name));
+                    }
+
                     match def.def_type.as_str() {
                         "function" => unused_functions.push(def),
                         "method" => unused_methods.push(def),
@@ -268,6 +347,10 @@ impl CytoScnPy {
         // Class-method linking: ALL methods of unused classes should be flagged as unused.
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
+        let unreachable_class_names: std::collections::HashSet<_> =
+            unused_classes.iter()
+                .filter(|c| c.is_unreachable)
+                .map(|c| c.full_name.clone()).collect();
 
         for def in &methods_with_refs {
             if def.confidence >= self.confidence_threshold {
@@ -279,10 +362,23 @@ impl CytoScnPy {
                     continue;
                 }
 
+                // Skip lifecycle methods (framework callbacks)
+                if def.simple_name.starts_with("on_")
+                    || def.simple_name.starts_with("watch_")
+                    || def.simple_name == "compose"
+                {
+                    continue;
+                }
+
                 if let Some(last_dot) = def.full_name.rfind('.') {
                     let parent_class = &def.full_name[..last_dot];
                     if unused_class_names.contains(parent_class) {
-                        unused_methods.push(def.clone());
+                        let mut m_def = def.clone();
+                        // If the class is unreachable, the method is too.
+                        if unreachable_class_names.contains(parent_class) {
+                            m_def.is_unreachable = true;
+                        }
+                        unused_methods.push(m_def);
                     }
                 }
             }

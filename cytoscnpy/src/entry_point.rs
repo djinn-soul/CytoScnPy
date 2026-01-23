@@ -1031,31 +1031,31 @@ fn handle_analysis<W: std::io::Write>(
                 crate::output::print_report_grouped(writer, &result)?;
             }
             crate::cli::OutputFormat::Junit => {
-                crate::report::junit::print_junit_with_root(writer, &result, Some(&analysis_root))?;
+                crate::report::junit::print_junit_with_root(writer, &result, Some(analysis_root))?;
             }
             crate::cli::OutputFormat::Github => {
                 crate::report::github::print_github_with_root(
                     writer,
                     &result,
-                    Some(&analysis_root),
+                    Some(analysis_root),
                 )?;
             }
             crate::cli::OutputFormat::Gitlab => {
                 crate::report::gitlab::print_gitlab_with_root(
                     writer,
                     &result,
-                    Some(&analysis_root),
+                    Some(analysis_root),
                 )?;
             }
             crate::cli::OutputFormat::Markdown => {
                 crate::report::markdown::print_markdown_with_root(
                     writer,
                     &result,
-                    Some(&analysis_root),
+                    Some(analysis_root),
                 )?;
             }
             crate::cli::OutputFormat::Sarif => {
-                crate::report::sarif::print_sarif_with_root(writer, &result, Some(&analysis_root))?;
+                crate::report::sarif::print_sarif_with_root(writer, &result, Some(analysis_root))?;
             }
             crate::cli::OutputFormat::Json => unreachable!("Handled in if block above"),
         }

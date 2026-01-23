@@ -1,20 +1,25 @@
-use anyhow::Result;
+//! Tests for various output formats.
+
+use anyhow::{Context, Result};
 use std::io::Write;
-use tempfile::NamedTempFile;
 
 // Helper to run analysis and return output
 fn run_analysis(format: &str) -> Result<String> {
     let mut file = tempfile::Builder::new().suffix(".py").tempfile()?;
     // Write sample code with issues
     writeln!(file, "import os\ndef unused_func():\n    pass\n")?;
-    let path = file.path().to_str().unwrap().to_string();
+    let path = file
+        .path()
+        .to_str()
+        .context("Failed to get file path")?
+        .to_owned();
 
     let mut output = Vec::new();
     let args = vec![
         path,
-        "--format".to_string(),
-        format.to_string(),
-        // "--no-dead".to_string(), // Removed to ensure findings
+        "--format".to_owned(),
+        format.to_owned(),
+        // "--no-dead".to_owned(), // Removed to ensure findings
     ];
 
     // Note: run_with_args_to captures stdout.
@@ -48,15 +53,13 @@ fn test_github_output() -> Result<()> {
     // Pattern: ::(error|warning) file=...,line=...,col=...,title=...::message
     let re = regex::Regex::new(
         r"^::(error|warning|notice|debug) file=.+,line=\d+,col=\d+,title=[^:]+::.+$",
-    )
-    .unwrap();
+    )?;
 
     // Check that at least one line matches the full format
     let has_valid_command = output.lines().any(|line| re.is_match(line));
     assert!(
         has_valid_command,
-        "Output should contain at least one valid GitHub Actions command: {}",
-        output
+        "Output should contain at least one valid GitHub Actions command: {output}"
     );
 
     // Verify paths use forward slashes (no backslashes allowed in file path part)
@@ -65,8 +68,7 @@ fn test_github_output() -> Result<()> {
         .any(|line| line.contains("file=") && line.contains('\\'));
     assert!(
         !has_backslash,
-        "GitHub output should use forward slashes for paths: {}",
-        output
+        "GitHub output should use forward slashes for paths: {output}"
     );
 
     Ok(())

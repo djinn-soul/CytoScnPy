@@ -285,7 +285,7 @@ pub fn print_taint_findings(
 
         table.add_row(vec![
             Cell::new(&f.rule_id).add_attribute(Attribute::Dim),
-            Cell::new(&format!("{} (Source: {})", f.vuln_type, f.source))
+            Cell::new(format!("{} (Source: {})", f.vuln_type, f.source))
                 .add_attribute(Attribute::Bold),
             Cell::new(location),
             Cell::new(&severity_str).fg(severity_color),
@@ -487,9 +487,9 @@ pub fn print_report_grouped(
     // Collect all issues by file
     let mut add = |file: &str, line: usize, msg: String, severity: &str| {
         bindings
-            .entry(file.to_string())
+            .entry(file.to_owned())
             .or_insert_with(Vec::new)
-            .push((line, msg, severity.to_string()));
+            .push((line, msg, severity.to_owned()));
     };
 
     for f in &result.danger {

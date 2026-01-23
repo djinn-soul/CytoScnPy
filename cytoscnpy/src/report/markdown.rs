@@ -2,11 +2,19 @@ use crate::analyzer::AnalysisResult;
 use std::io::Write;
 
 /// Generates a Markdown summary of findings.
+///
+/// # Errors
+///
+/// Returns an error if writing to the `writer` fails.
 pub fn print_markdown(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     print_markdown_with_root(writer, result, None)
 }
 
 /// Generates a Markdown summary of findings with an optional root path.
+///
+/// # Errors
+///
+/// Returns an error if writing to the `writer` fails.
 pub fn print_markdown_with_root(
     writer: &mut impl Write,
     result: &AnalysisResult,
@@ -14,7 +22,18 @@ pub fn print_markdown_with_root(
 ) -> std::io::Result<()> {
     writeln!(writer, "# CytoScnPy Analysis Report\n")?;
 
-    // Summary Table
+    write_summary(writer, result)?;
+    write_security_issues(writer, result)?;
+    write_secrets(writer, result)?;
+    write_quality_issues(writer, result)?;
+    write_taint_issues(writer, result)?;
+    write_unused_code(writer, result)?;
+    write_parse_errors(writer, result)?;
+
+    Ok(())
+}
+
+fn write_summary(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     writeln!(writer, "## Summary\n")?;
     writeln!(writer, "| Category | Count |")?;
     writeln!(writer, "| --- | ---: |")?;
@@ -54,8 +73,10 @@ pub fn print_markdown_with_root(
     )?;
     writeln!(writer, "| Parse Errors | {} |", result.parse_errors.len())?;
     writeln!(writer)?;
+    Ok(())
+}
 
-    // Security Details
+fn write_security_issues(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     if !result.danger.is_empty() {
         writeln!(writer, "## Security Issues\n")?;
         writeln!(writer, "| Rule | File | Line | Message | Severity |")?;
@@ -73,8 +94,10 @@ pub fn print_markdown_with_root(
         }
         writeln!(writer)?;
     }
+    Ok(())
+}
 
-    // Secrets Details
+fn write_secrets(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     if !result.secrets.is_empty() {
         writeln!(writer, "## Secrets Detected\n")?;
         writeln!(writer, "| Rule | File | Line | Message |")?;
@@ -91,8 +114,10 @@ pub fn print_markdown_with_root(
         }
         writeln!(writer)?;
     }
+    Ok(())
+}
 
-    // Quality Details
+fn write_quality_issues(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     if !result.quality.is_empty() {
         writeln!(writer, "## Quality Issues\n")?;
         writeln!(writer, "| Rule | File | Line | Message | Severity |")?;
@@ -110,8 +135,10 @@ pub fn print_markdown_with_root(
         }
         writeln!(writer)?;
     }
+    Ok(())
+}
 
-    // Taint Details
+fn write_taint_issues(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     if !result.taint_findings.is_empty() {
         writeln!(writer, "## Taint Issues\n")?;
         writeln!(writer, "| Rule | File | Line | Message | Severity |")?;
@@ -125,13 +152,15 @@ pub fn print_markdown_with_root(
                 f.sink_line,
                 f.vuln_type,
                 f.source,
-                f.severity.to_string()
+                f.severity
             )?;
         }
         writeln!(writer)?;
     }
+    Ok(())
+}
 
-    // Unused Code Details
+fn write_unused_code(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     if !result.unused_functions.is_empty()
         || !result.unused_methods.is_empty()
         || !result.unused_classes.is_empty()
@@ -199,8 +228,10 @@ pub fn print_markdown_with_root(
         }
         writeln!(writer)?;
     }
+    Ok(())
+}
 
-    // Parse Errors
+fn write_parse_errors(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     if !result.parse_errors.is_empty() {
         writeln!(writer, "## Parse Errors\n")?;
         writeln!(writer, "| File | Error |")?;
@@ -210,6 +241,5 @@ pub fn print_markdown_with_root(
         }
         writeln!(writer)?;
     }
-
     Ok(())
 }

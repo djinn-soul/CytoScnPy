@@ -1,5 +1,5 @@
 //! Snapshot tests for output formatting
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::io::Write;
 
 // Helper to run analysis and return output
@@ -35,35 +35,35 @@ if __name__ == "__main__":
     let file_name = file
         .path()
         .file_name()
-        .unwrap()
+        .context("Failed to get filename")?
         .to_str()
-        .unwrap()
-        .to_string();
-    let relative_path = format!("{}/{}", temp_dir, file_name);
+        .context("Invalid UTF-8 filename")?
+        .to_owned();
+    let relative_path = format!("{temp_dir}/{file_name}");
 
     let mut output = Vec::new();
     let args = vec![
         relative_path.clone(),
-        "--format".to_string(),
-        format.to_string(),
-        "--quality".to_string(), // Force quality check
+        "--format".to_owned(),
+        format.to_owned(),
+        "--quality".to_owned(), // Force quality check
     ];
 
     // Note: run_with_args_to captures stdout.
     cytoscnpy::entry_point::run_with_args_to(args, &mut output)?;
 
-    let output_str = String::from_utf8_lossy(&output).to_string();
+    let output_str = String::from_utf8_lossy(&output).into_owned();
 
     // Sanitize output to make it stable across runs/machines
-    let sanitized = sanitize_output(&output_str, &relative_path, format);
+    let sanitized = sanitize_output(&output_str, &relative_path, format)?;
 
     Ok(sanitized)
 }
 
-fn sanitize_output(output: &str, file_path: &str, _format: &str) -> String {
+fn sanitize_output(output: &str, file_path: &str, _format: &str) -> Result<String> {
     // 0. Strip ANSI escape codes
-    let ansi_re = regex::Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap();
-    let mut s = ansi_re.replace_all(output, "").to_string();
+    let ansi_re = regex::Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").context("Invalid ANSI regex")?;
+    let mut s = ansi_re.replace_all(output, "").into_owned();
 
     // 1. Normalize line endings and slashes globally first
     s = s
@@ -73,9 +73,9 @@ fn sanitize_output(output: &str, file_path: &str, _format: &str) -> String {
     let normalized_path = file_path.replace('\\', "/");
     let filename = std::path::Path::new(&normalized_path)
         .file_name()
-        .unwrap()
+        .context("Failed to get filename for sanitization")?
         .to_str()
-        .unwrap();
+        .context("Invalid UTF-8 filename for sanitization")?;
 
     // 2. Replace temporary file path or filename with [FILE]
     // We replace the full path first, then any remaining instances of the random filename.
@@ -83,55 +83,63 @@ fn sanitize_output(output: &str, file_path: &str, _format: &str) -> String {
     s = s.replace(filename, "[FILE]");
 
     // 3. Sanitize timing info
-    let re_time = regex::Regex::new(r"(Analysis completed|Completed) in \d+\.\d+s").unwrap();
-    s = re_time.replace_all(&s, "$1 in [TIME]s").to_string();
+    let re_time = regex::Regex::new(r"(Analysis completed|Completed) in \d+\.\d+s")
+        .context("Invalid timing regex")?;
+    s = re_time.replace_all(&s, "$1 in [TIME]s").into_owned();
 
-    s
+    Ok(s)
 }
 
 #[test]
-fn snapshot_text() {
-    let output = run_analysis("text").unwrap();
+fn snapshot_text() -> Result<()> {
+    let output = run_analysis("text")?;
     insta::assert_snapshot!("text_output", output);
+    Ok(())
 }
 
 #[test]
-fn snapshot_json() {
-    let output = run_analysis("json").unwrap();
+fn snapshot_json() -> Result<()> {
+    let output = run_analysis("json")?;
     // JSON might have non-deterministic order of fields or list items if not sorted.
     // CytoScnPy implementation usually pushes to vectors, so order should be stable if traversal is stable.
     // Parallel traversal (Rayon) might make order unstable!
     // However, for a single file, rayon might not split much or at all.
     // If unstable, we'll need to deserialize and sort. Check if output is stable first.
     insta::assert_snapshot!("json_output", output);
+    Ok(())
 }
 
 #[test]
-fn snapshot_junit() {
-    let output = run_analysis("junit").unwrap();
+fn snapshot_junit() -> Result<()> {
+    let output = run_analysis("junit")?;
     insta::assert_snapshot!("junit_output", output);
+    Ok(())
 }
 
 #[test]
-fn snapshot_github() {
-    let output = run_analysis("github").unwrap();
+fn snapshot_github() -> Result<()> {
+    let output = run_analysis("github")?;
     insta::assert_snapshot!("github_output", output);
+    Ok(())
 }
 
 #[test]
-fn snapshot_gitlab() {
-    let output = run_analysis("gitlab").unwrap();
+fn snapshot_gitlab() -> Result<()> {
+    let output = run_analysis("gitlab")?;
     insta::assert_snapshot!("gitlab_output", output);
+    Ok(())
 }
 
 #[test]
-fn snapshot_markdown() {
-    let output = run_analysis("markdown").unwrap();
+fn snapshot_markdown() -> Result<()> {
+    let output = run_analysis("markdown")?;
     insta::assert_snapshot!("markdown_output", output);
+    Ok(())
 }
 
 #[test]
-fn snapshot_sarif() {
-    let output = run_analysis("sarif").unwrap();
+fn snapshot_sarif() -> Result<()> {
+    let output = run_analysis("sarif")?;
     insta::assert_snapshot!("sarif_output", output);
+    Ok(())
 }

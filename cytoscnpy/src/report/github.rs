@@ -2,14 +2,22 @@ use crate::analyzer::AnalysisResult;
 use crate::rules::Finding;
 use std::io::Write;
 
-/// Generates GitHub Actions workflow commands.
+/// Generates `GitHub Actions` workflow commands.
 ///
-/// See: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions
+/// See: <https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions>
+///
+/// # Errors
+///
+/// Returns an error if writing to the `writer` fails.
 pub fn print_github(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     print_github_with_root(writer, result, None)
 }
 
-/// Generates GitHub Actions workflow commands with an optional root path.
+/// Generates `GitHub Actions` workflow commands with an optional root path.
+///
+/// # Errors
+///
+/// Returns an error if writing to the `writer` fails.
 pub fn print_github_with_root(
     writer: &mut impl Write,
     result: &AnalysisResult,

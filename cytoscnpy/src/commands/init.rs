@@ -56,6 +56,10 @@ fail_threshold = 5.0       # Exit 1 if >N% unused code
 /// Executes the init command.
 ///
 /// This creates or updates configuration files in the current directory.
+///
+/// # Errors
+///
+/// Returns an error if the current directory cannot be determined or if writing to the configuration file fails.
 pub fn run_init<W: Write>(writer: &mut W) -> Result<()> {
     let current_dir = std::env::current_dir().context("Failed to get current directory")?;
     run_init_in(&current_dir, writer)
@@ -64,6 +68,10 @@ pub fn run_init<W: Write>(writer: &mut W) -> Result<()> {
 /// Executes the init command in a specific directory.
 ///
 /// This is primarily used for testing.
+///
+/// # Errors
+///
+/// Returns an error if writing to the configuration file or .gitignore fails.
 pub fn run_init_in<W: Write>(root: &Path, writer: &mut W) -> Result<()> {
     writeln!(writer, "Initializing CytoScnPy configuration...")?;
 

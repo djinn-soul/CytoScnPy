@@ -9,7 +9,7 @@ fn test_init_creates_cytoscnpy_toml() -> Result<()> {
     let mut buffer = Vec::new();
 
     // Run init in a clean directory
-    cytoscnpy::commands::run_init_in(&temp.path(), &mut buffer)?;
+    cytoscnpy::commands::run_init_in(temp.path(), &mut buffer)?;
 
     let config_path = temp.path().join(".cytoscnpy.toml");
     assert!(config_path.exists());
@@ -28,7 +28,7 @@ fn test_init_skips_if_cytoscnpy_toml_exists() -> Result<()> {
     fs::write(&config_path, original_content)?;
 
     let mut buffer = Vec::new();
-    cytoscnpy::commands::run_init_in(&temp.path(), &mut buffer)?;
+    cytoscnpy::commands::run_init_in(temp.path(), &mut buffer)?;
 
     // Content should be unchanged
     let content = fs::read_to_string(&config_path)?;
@@ -47,7 +47,7 @@ fn test_init_appends_to_pyproject_toml() -> Result<()> {
     fs::write(&pyproject_path, "[project]\nname = \"test\"")?;
 
     let mut buffer = Vec::new();
-    cytoscnpy::commands::run_init_in(&temp.path(), &mut buffer)?;
+    cytoscnpy::commands::run_init_in(temp.path(), &mut buffer)?;
 
     let content = fs::read_to_string(&pyproject_path)?;
     assert!(content.contains("[tool.cytoscnpy]"));
@@ -66,7 +66,7 @@ fn test_init_skips_pyproject_if_already_configured() -> Result<()> {
     fs::write(&pyproject_path, original_content)?;
 
     let mut buffer = Vec::new();
-    cytoscnpy::commands::run_init_in(&temp.path(), &mut buffer)?;
+    cytoscnpy::commands::run_init_in(temp.path(), &mut buffer)?;
 
     let content = fs::read_to_string(&pyproject_path)?;
     assert_eq!(content, original_content);
@@ -88,7 +88,7 @@ fn test_init_skips_pyproject_if_cytoscnpy_toml_exists() -> Result<()> {
     fs::write(&pyproject_path, pyproject_content)?;
 
     let mut buffer = Vec::new();
-    cytoscnpy::commands::run_init_in(&temp.path(), &mut buffer)?;
+    cytoscnpy::commands::run_init_in(temp.path(), &mut buffer)?;
 
     // pyproject.toml should be UNTOUCHED
     let content = fs::read_to_string(&pyproject_path)?;

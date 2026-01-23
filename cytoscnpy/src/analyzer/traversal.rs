@@ -3,11 +3,10 @@
 //! Contains: `process_single_file`, `aggregate_results`, `analyze`, `analyze_code`
 
 use super::{AnalysisResult, CytoScnPy};
-use crate::rules::secrets::{validate_secrets_config, SecretFinding};
-use std::path::Path;
-use std::io::Write;
 use crate::constants::{CHUNK_SIZE, CONFIG_FILENAME};
+use crate::rules::secrets::{validate_secrets_config, SecretFinding};
 use rayon::prelude::*;
+use std::path::Path;
 
 impl CytoScnPy {
     /// Runs the analysis on multiple paths (files or directories).

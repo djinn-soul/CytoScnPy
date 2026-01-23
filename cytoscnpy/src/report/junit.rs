@@ -2,7 +2,7 @@ use crate::analyzer::AnalysisResult;
 use crate::rules::Finding;
 use std::io::Write;
 
-/// Generates a JUnit XML report.
+/// Generates a `JUnit` XML report.
 ///
 /// Schema:
 /// <testsuites>
@@ -12,12 +12,19 @@ use std::io::Write;
 ///     </testcase>
 ///   </testsuite>
 /// </testsuites>
-/// Generates a JUnit XML report.
+///
+/// # Errors
+///
+/// Returns an error if writing to the `writer` fails.
 pub fn print_junit(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     print_junit_with_root(writer, result, None)
 }
 
-/// Generates a JUnit XML report with an optional root path.
+/// Generates a `JUnit` XML report with an optional root path.
+///
+/// # Errors
+///
+/// Returns an error if writing to the `writer` fails.
 pub fn print_junit_with_root(
     writer: &mut impl Write,
     result: &AnalysisResult,
@@ -26,7 +33,23 @@ pub fn print_junit_with_root(
     writeln!(writer, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")?;
     writeln!(writer, "<testsuites>")?;
 
-    let total_findings = result.danger.len()
+    let total_findings = count_total_findings(result);
+
+    // We treat every finding as a failure for now
+    writeln!(
+        writer,
+        "  <testsuite name=\"CytoScnPy\" tests=\"{total_findings}\" failures=\"{total_findings}\" errors=\"0\">"
+    )?;
+
+    write_findings_to_junit(writer, result)?;
+
+    writeln!(writer, "  </testsuite>")?;
+    writeln!(writer, "</testsuites>")?;
+    Ok(())
+}
+
+fn count_total_findings(result: &AnalysisResult) -> usize {
+    result.danger.len()
         + result.secrets.len()
         + result.quality.len()
         + result.taint_findings.len()
@@ -36,22 +59,19 @@ pub fn print_junit_with_root(
         + result.unused_imports.len()
         + result.unused_variables.len()
         + result.unused_methods.len()
-        + result.parse_errors.len();
+        + result.parse_errors.len()
+}
 
-    // We treat every finding as a failure for now
-    writeln!(
-        writer,
-        "  <testsuite name=\"CytoScnPy\" tests=\"{total_findings}\" failures=\"{total_findings}\" errors=\"0\">"
-    )?;
-
+fn write_findings_to_junit(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+) -> std::io::Result<()> {
     // Security Findings
     for finding in &result.danger {
         write_testcase(writer, "Security", finding)?;
     }
     // Secrets
     for secret in &result.secrets {
-        // Convert SecretFinding to Finding-like structure or handle manually
-        // Since struct is different, handle manually
         writeln!(
             writer,
             "    <testcase name=\"{}\" classname=\"{}\">",
@@ -90,7 +110,31 @@ pub fn print_junit_with_root(
         writeln!(writer, "    </testcase>")?;
     }
 
-    // Unused Code (Group by type for cleaner output)
+    // Unused Code
+    write_unused_code_to_junit(writer, result)?;
+
+    // Parse Errors
+    for error in &result.parse_errors {
+        writeln!(
+            writer,
+            "    <testcase name=\"ParseError\" classname=\"{}\">",
+            escape_xml(&error.file.to_string_lossy())
+        )?;
+        writeln!(
+            writer,
+            "      <failure message=\"{}\">{}</failure>",
+            escape_xml(&error.error),
+            escape_xml(&error.error)
+        )?;
+        writeln!(writer, "    </testcase>")?;
+    }
+    Ok(())
+}
+
+fn write_unused_code_to_junit(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+) -> std::io::Result<()> {
     for func in &result.unused_functions {
         write_unused(
             writer,
@@ -145,25 +189,6 @@ pub fn print_junit_with_root(
             param.line,
         )?;
     }
-
-    // Parse Errors
-    for error in &result.parse_errors {
-        writeln!(
-            writer,
-            "    <testcase name=\"ParseError\" classname=\"{}\">",
-            escape_xml(&error.file.to_string_lossy())
-        )?;
-        writeln!(
-            writer,
-            "      <failure message=\"{}\">{}</failure>",
-            escape_xml(&error.error),
-            escape_xml(&error.error)
-        )?;
-        writeln!(writer, "    </testcase>")?;
-    }
-
-    writeln!(writer, "  </testsuite>")?;
-    writeln!(writer, "</testsuites>")?;
     Ok(())
 }
 

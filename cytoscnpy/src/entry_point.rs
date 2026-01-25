@@ -520,7 +520,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
                 handle_files(args, &exclude_folders, cli_var.output.verbose, writer)
             }
             Commands::Init => {
-                crate::commands::run_init(writer)?;
+                crate::commands::run_init_in(&analysis_root, writer)?;
                 Ok(0)
             }
         }

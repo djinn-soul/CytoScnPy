@@ -27,7 +27,7 @@ use crate::constants::RULE_ID_CONFIG_ERROR;
 use crate::utils::LineIndex;
 use ruff_python_ast::Stmt;
 use rustc_hash::FxHashSet;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 // ============================================================================
@@ -35,7 +35,7 @@ use std::path::PathBuf;
 // ============================================================================
 
 /// Represents a secret finding with confidence scoring.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecretFinding {
     /// Description of the finding.
     pub message: String,

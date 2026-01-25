@@ -97,15 +97,26 @@ pub fn validate_output_path(
     path: &std::path::Path,
     root: Option<&std::path::Path>,
 ) -> anyhow::Result<std::path::PathBuf> {
-    let current_dir = std::env::current_dir()?;
-    let root_dir = root.unwrap_or(&current_dir);
-    let canonical_root = root_dir.canonicalize().map_err(|e| {
-        anyhow::anyhow!(
-            "Failed to canonicalize root directory {}: {}",
-            root_dir.display(),
-            e
-        )
-    })?;
+    let canonical_root = if let Some(r) = root {
+        r.canonicalize().map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to canonicalize root directory {}: {}",
+                r.display(),
+                e
+            )
+        })?
+    } else {
+        let current_dir = std::env::current_dir().map_err(|e| {
+            anyhow::anyhow!("Failed to get current working directory: {e}. Hint: Your current directory might have been deleted.")
+        })?;
+        current_dir.canonicalize().map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to canonicalize current directory {}: {}",
+                current_dir.display(),
+                e
+            )
+        })?
+    };
 
     // 1. Resolve to an absolute path.
     // Use the provided root (canonicalized) to resolve relative paths.

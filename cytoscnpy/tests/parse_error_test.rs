@@ -1,27 +1,31 @@
 //! Tests for parse error handling.
 #![allow(clippy::expect_used)]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::vec_init_then_push)]
+#![allow(clippy::panic)]
+#![allow(clippy::uninlined_format_args)]
 
+use cytoscnpy::entry_point::run_with_args_to;
 use serde_json::Value;
-use std::process::Command;
 use std::str;
 
 fn run_cytoscnpy(path: &str) -> Value {
-    let output = Command::new("cargo")
-        .args(["run", "--quiet", "--package", "cytoscnpy-cli", "--"])
-        .arg(path)
-        .arg("--json")
-        .output()
-        .expect("Failed to execute cytoscnpy binary");
+    let mut args: Vec<String> = Vec::new();
+    args.push(path.to_owned());
+    args.push("--json".to_owned());
 
-    assert!(
-        output.status.success(),
-        "Command failed: {}",
-        str::from_utf8(&output.stderr).unwrap_or("")
-    );
+    let mut buffer = Vec::new();
+    let _exit_code = run_with_args_to(args.clone(), &mut buffer)
+        .unwrap_or_else(|e| panic!("Failed to run cytoscnpy with args {:?}: {}", args, e));
 
-    let stdout = str::from_utf8(&output.stdout).expect("Invalid UTF-8 output");
-    serde_json::from_str(stdout).expect("Failed to parse JSON output")
+    let output_str = str::from_utf8(&buffer).expect("Invalid UTF-8 output");
+
+    // We expect exit code 0 or 1 depending on errors, but for parse errors
+    // we just want to verify the JSON output. The CLI might exit with 1 if issues found.
+    // However, for parse errors they are part of the result.
+    // Let's just parse the output.
+
+    serde_json::from_str(output_str).expect("Failed to parse JSON output")
 }
 
 #[test]

@@ -43,7 +43,7 @@ impl FixSuggestion {
 }
 
 /// Represents a parsing error in a file.
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 
 pub struct ParseError {
     /// The file where the error occurred.
@@ -53,7 +53,7 @@ pub struct ParseError {
 }
 
 /// Metrics for a single file.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FileMetrics {
     /// The file path.
     pub file: std::path::PathBuf,
@@ -71,7 +71,7 @@ pub struct FileMetrics {
 
 /// Holds the results of the analysis.
 /// This struct is serialized to JSON if requested.
-#[derive(Serialize, Default)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct AnalysisResult {
     /// List of functions that were defined but never used.
     pub unused_functions: Vec<Definition>,
@@ -105,7 +105,7 @@ pub struct AnalysisResult {
 }
 
 /// Summary statistics for the analysis result.
-#[derive(Serialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct AnalysisSummary {
     /// Total number of files scanned.
     pub total_files: usize,

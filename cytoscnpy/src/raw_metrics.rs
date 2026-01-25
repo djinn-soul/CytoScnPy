@@ -4,9 +4,9 @@ use ruff_python_ast::Expr;
 use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, Clone, PartialEq, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 /// Raw metrics gathered from source code analysis.
 pub struct RawMetrics {
     /// Total lines of code.

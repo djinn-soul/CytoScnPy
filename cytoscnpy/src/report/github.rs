@@ -158,11 +158,17 @@ pub fn print_github_with_root(
 
 fn normalize_path(path: &std::path::Path, root: Option<&std::path::Path>) -> String {
     let normalized = if let Some(r) = root {
-        path.strip_prefix(r).unwrap_or(path)
+        // Handle common root cases robustly
+        if r.as_os_str() == "." || r.as_os_str().is_empty() {
+            path
+        } else {
+            path.strip_prefix(r).unwrap_or(path)
+        }
     } else {
         path
     };
-    normalized.to_string_lossy().replace('\\', "/")
+    let s = normalized.to_string_lossy().replace('\\', "/");
+    s.strip_prefix("./").unwrap_or(&s).to_owned()
 }
 
 fn write_annotation(

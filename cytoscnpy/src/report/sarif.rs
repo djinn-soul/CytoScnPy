@@ -264,21 +264,17 @@ fn make_sarif_result(
     // Normalize path to URI
     let path = std::path::Path::new(file);
     let normalized_path = if let Some(r) = root {
-        path.strip_prefix(r).unwrap_or(path)
+        if r.as_os_str() == "." || r.as_os_str().is_empty() {
+            path
+        } else {
+            path.strip_prefix(r).unwrap_or(path)
+        }
     } else {
         path
     };
 
-    let uri = if normalized_path.is_absolute() {
-        let s = normalized_path.to_string_lossy().replace('\\', "/");
-        if s.starts_with('/') {
-            format!("file://{s}")
-        } else {
-            format!("file:///{s}")
-        }
-    } else {
-        normalized_path.to_string_lossy().replace('\\', "/")
-    };
+    let s = normalized_path.to_string_lossy().replace('\\', "/");
+    let uri = s.strip_prefix("./").unwrap_or(&s).to_owned();
 
     SarifResult {
         rule_id: id.to_owned(),

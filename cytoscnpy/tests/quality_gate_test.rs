@@ -262,6 +262,7 @@ def simple_function():
 }
 
 #[test]
+#[ignore = "Covered by python/tests/test_quality_gates.py"]
 fn test_max_complexity_gate_fails() {
     let temp_dir = project_tempdir();
 
@@ -315,6 +316,7 @@ def complex_function(a, b, c, d, e):
 }
 
 #[test]
+#[ignore = "Covered by python/tests/test_quality_gates.py"]
 fn test_min_mi_gate_passes() {
     let temp_dir = project_tempdir();
 
@@ -341,6 +343,7 @@ def simple_function():
 }
 
 #[test]
+#[ignore = "Covered by python/tests/test_quality_gates.py"]
 fn test_min_mi_gate_fails() {
     let temp_dir = project_tempdir();
 
@@ -367,6 +370,7 @@ def function():
 }
 
 #[test]
+#[ignore = "Covered by python/tests/test_quality_gates.py"]
 fn test_quiet_mode_omits_detailed_tables() {
     let temp_dir = project_tempdir();
 
@@ -407,6 +411,7 @@ def deeply_nested():
 }
 
 #[test]
+#[ignore = "Covered by python/tests/test_quality_gates.py"]
 fn test_quiet_mode_shows_gate_result() {
     let temp_dir = project_tempdir();
 
@@ -436,6 +441,7 @@ def function():
 }
 
 #[test]
+#[ignore = "Covered by python/tests/test_quality_gates.py"]
 fn test_auto_enable_quality_with_min_mi() {
     let temp_dir = project_tempdir();
 
@@ -463,6 +469,7 @@ def function():
 }
 
 #[test]
+#[ignore = "Covered by python/tests/test_quality_gates.py"]
 fn test_auto_enable_quality_with_max_complexity() {
     let temp_dir = project_tempdir();
 

@@ -1,16 +1,17 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
+assertion_line: 157
 expression: output
 ---
 {
-  "version": "2.1.0",
+  "version": "[VERSION]",
   "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
   "runs": [
     {
       "tool": {
         "driver": {
           "name": "CytoScnPy",
-          "version": "1.2.7"
+          "version": "[VERSION]"
         }
       },
       "results": [

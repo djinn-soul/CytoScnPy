@@ -87,6 +87,20 @@ fn sanitize_output(output: &str, file_path: &str, _format: &str) -> Result<Strin
         .context("Invalid timing regex")?;
     s = re_time.replace_all(&s, "$1 in [TIME]s").into_owned();
 
+    // 4. Sanitize version string (e.g., "1.2.8" -> "[VERSION]")
+    let re_version =
+        regex::Regex::new(r#""version":\s*"\d+\.\d+\.\d+""#).context("Invalid version regex")?;
+    s = re_version
+        .replace_all(&s, r#""version": "[VERSION]""#)
+        .into_owned();
+
+    // Also handle non-JSON version strings if any (e.g. "CytoScnPy 1.2.8")
+    let re_version_text =
+        regex::Regex::new(r"CytoScnPy \d+\.\d+\.\d+").context("Invalid text version regex")?;
+    s = re_version_text
+        .replace_all(&s, "CytoScnPy [VERSION]")
+        .into_owned();
+
     Ok(s)
 }
 

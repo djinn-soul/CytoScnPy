@@ -1,0 +1,21 @@
+---
+source: cytoscnpy/tests/output_snapshot_test.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="CytoScnPy" tests="4" failures="4" errors="0">
+    <testcase name="UnusedFunction" classname="[FILE]">
+      <failure message="Unused: unused_func">Line 5: Unused UnusedFunction 'unused_func'</failure>
+    </testcase>
+    <testcase name="UnusedImport" classname="[FILE]">
+      <failure message="Unused: os">Line 2: Unused UnusedImport 'os'</failure>
+    </testcase>
+    <testcase name="UnusedImport" classname="[FILE]">
+      <failure message="Unused: sys">Line 3: Unused UnusedImport 'sys'</failure>
+    </testcase>
+    <testcase name="UnusedVariable" classname="[FILE]">
+      <failure message="Unused: main.unused_var">Line 9: Unused UnusedVariable 'main.unused_var'</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

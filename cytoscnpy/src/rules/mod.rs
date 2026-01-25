@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::utils::LineIndex;
 use ruff_python_ast::{Expr, Stmt};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -15,7 +15,7 @@ pub struct Context {
     pub config: Config,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// A single issue found by a rule.
 pub struct Finding {
     /// ID of the rule that triggered the finding.

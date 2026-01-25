@@ -8,7 +8,7 @@ use cytoscnpy::commands::{run_cc, run_mi};
 use rmcp::{
     handler::server::tool::ToolRouter,
     handler::server::wrapper::Parameters,
-    model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
+    model::{CallToolResult, ServerCapabilities, ServerInfo},
     tool, tool_router, ErrorData as McpError, ServerHandler,
 };
 use schemars::JsonSchema;
@@ -209,12 +209,16 @@ impl CytoScnPyServer {
     }
 
     /// Calculate cyclomatic complexity for Python code.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path doesn't exist or if analysis fails.
     #[tool(
         description = "Calculate McCabe cyclomatic complexity for Python functions.\n\
         Rankings: A (1-5 simple), B (6-10 moderate), C (11-20 complex), D (21-30 very complex), E/F (30+ unmaintainable).\n\
         High complexity indicates code that is hard to test and maintain. Aim for ≤10 per function."
     )]
-    fn cyclomatic_complexity(
+    pub fn cyclomatic_complexity(
         &self,
         params: Parameters<MetricsRequest>,
     ) -> Result<CallToolResult, McpError> {
@@ -250,12 +254,16 @@ impl CytoScnPyServer {
     }
 
     /// Calculate Maintainability Index for Python code.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path doesn't exist or if analysis fails.
     #[tool(
         description = "Calculate Maintainability Index (MI) for Python files.\n\
         Scale: 0-100 where higher is better. Rankings: A (≥20 good), B (10-19 moderate), C (<10 poor).\n\
         MI combines Halstead volume, cyclomatic complexity, and lines of code. Aim for MI ≥ 40."
     )]
-    fn maintainability_index(
+    pub fn maintainability_index(
         &self,
         params: Parameters<MetricsRequest>,
     ) -> Result<CallToolResult, McpError> {
@@ -318,3 +326,5 @@ impl ServerHandler for CytoScnPyServer {
         }
     }
 }
+
+pub use rmcp::model::Content;

@@ -112,3 +112,18 @@ Add to `claude_desktop_config.json`:
 #### GitHub Copilot (VS Code)
 
 Automatically enabled when the [VS Code Extension](#vs-code-extension) is installed. No extra config needed.
+
+---
+
+## CI/CD Integrations
+
+CytoScnPy supports a wide variety of CI/CD environments through structured output formats (JSON, GitLab, SARIF, GitHub Annotations).
+
+For detailed setup guides and examples for:
+
+- **GitLab Code Quality**
+- **GitHub Actions Annotations**
+- **SARIF Security Dashboards**
+- **JUnit Test Reports**
+
+See the **[CI/CD Integration Guide](usage.md#-cicd-integration)** in our User Guide.

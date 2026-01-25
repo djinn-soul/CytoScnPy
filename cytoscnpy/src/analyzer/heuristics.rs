@@ -20,12 +20,17 @@ pub fn apply_penalties(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,
     tv: &TestAwareVisitor,
+    // Map of ignored lines to their suppression type.
+    // Uses `FxHashMap` (Rustc's fast hash map) for performance optimization,
+    // as strict cryptographic security is not needed for integer line keys and small datasets.
     ignored_lines: &FxHashMap<usize, Suppression>,
     include_tests: bool,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)
     // If the line is marked to be ignored, set confidence to 0.
     if let Some(suppression) = ignored_lines.get(&def.line) {
+        // Use `matches!` for conciseness: we only need to check the variant type
+        // and don't need to extract any inner data for the `All` case.
         if matches!(suppression, Suppression::All) {
             def.confidence = 0;
             return;
@@ -52,12 +57,16 @@ pub fn apply_penalties(
     // Framework managed scope (e.g. inside a decorated function)
     // Variables here might be used for debugging or framework side-effects
     if def.is_framework_managed {
-        def.confidence = def.confidence.saturating_sub(50);
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("framework_managed").unwrap_or(&50));
     }
 
     // Mixin penalty: Methods in *Mixin classes are often used implicitly
     if def.def_type == "method" && def.full_name.contains("Mixin") {
-        def.confidence = def.confidence.saturating_sub(60);
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("mixin_class").unwrap_or(&60));
     }
 
     // Base/Abstract/Interface penalty
@@ -68,23 +77,31 @@ pub fn apply_penalties(
             || def.full_name.contains("Abstract")
             || def.full_name.contains("Interface"))
     {
-        def.confidence = def.confidence.saturating_sub(50);
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("base_abstract_interface").unwrap_or(&50));
     }
 
     // Adapter penalty
     // Adapters are also often used implicitly, but we want to be less aggressive than Base/Abstract
     // to avoid false negatives on dead adapter methods (regression fix).
     if def.def_type == "method" && def.full_name.contains("Adapter") {
-        def.confidence = def.confidence.saturating_sub(30);
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("adapter_class").unwrap_or(&30));
     }
 
     // Framework lifecycle methods
     if def.def_type == "method" || def.def_type == "function" {
         if def.simple_name.starts_with("on_") || def.simple_name.starts_with("watch_") {
-            def.confidence = def.confidence.saturating_sub(30);
+            def.confidence = def
+                .confidence
+                .saturating_sub(*PENALTIES().get("lifecycle_hook").unwrap_or(&30));
         }
         if def.simple_name == "compose" {
-            def.confidence = def.confidence.saturating_sub(40);
+            def.confidence = def
+                .confidence
+                .saturating_sub(*PENALTIES().get("compose_method").unwrap_or(&40));
         }
     }
 

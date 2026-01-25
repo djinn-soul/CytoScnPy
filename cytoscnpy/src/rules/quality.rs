@@ -432,13 +432,14 @@ fn create_finding(
     severity: &str,
 ) -> Finding {
     let line = context.line_index.line_index(location);
+    let col = context.line_index.column_index(location);
     Finding {
         message: msg.to_owned(),
         rule_id: metadata.id.to_owned(),
         category: metadata.category.to_owned(),
         file: context.filename.clone(),
         line,
-        col: 0,
+        col,
         severity: severity.to_owned(),
     }
 }

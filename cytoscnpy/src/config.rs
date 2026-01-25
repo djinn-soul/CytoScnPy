@@ -27,6 +27,8 @@ pub struct CytoScnPyConfig {
     pub include_folders: Option<Vec<String>>,
     /// Whether to include test files.
     pub include_tests: Option<bool>,
+    /// Whether to include `IPython` notebooks.
+    pub include_ipynb: Option<bool>,
     /// Whether to scan for secrets.
     pub secrets: Option<bool>,
     /// Whether to scan for dangerous code patterns.
@@ -156,6 +158,13 @@ impl Default for SecretsConfig {
 }
 
 /// Configuration for danger rules and taint analysis.
+///
+/// Note: This struct uses `Option` fields to distinguish between "explicitly disabled" (Some(false))
+/// and "not configured" (None).
+/// We use this pattern to enforce **secure-by-default** behavior:
+/// - `enable_taint`: Defaults to `true` if unused, ensuring security analysis runs unless explicitly disabled.
+/// - `severity_threshold`: Defaults to "LOW" to catch all potential issues by default.
+/// - `excluded_rules`: Defaults to empty, ensuring no rules are silently skipped.
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct DangerConfig {
     /// Whether to enable taint analysis for danger detection.
@@ -166,7 +175,6 @@ pub struct DangerConfig {
     pub excluded_rules: Option<Vec<String>>,
     /// Custom taint sources.
     pub custom_sources: Option<Vec<String>>,
-    /// Custom taint sinks.
     /// Custom taint sinks.
     pub custom_sinks: Option<Vec<String>>,
 }

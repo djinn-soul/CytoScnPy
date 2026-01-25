@@ -34,16 +34,16 @@ export interface CytoScnPyConfig {
   enableDangerScan: boolean;
   enableQualityScan: boolean;
   enableCloneScan: boolean; // Enable code clone detection (--clones flag)
-  confidenceThreshold: number;
-  excludeFolders: string[];
-  includeFolders: string[];
-  includeTests: boolean;
-  includeIpynb: boolean;
-  maxComplexity: number;
-  minMaintainabilityIndex: number;
-  maxNesting: number;
-  maxArguments: number;
-  maxLines: number;
+  confidenceThreshold?: number;
+  excludeFolders?: string[];
+  includeFolders?: string[];
+  includeTests?: boolean;
+  includeIpynb?: boolean;
+  maxComplexity?: number;
+  minMaintainabilityIndex?: number;
+  maxNesting?: number;
+  maxArguments?: number;
+  maxLines?: number;
 }
 
 // This is the structure of the raw output from the cytoscnpy tool
@@ -326,8 +326,10 @@ export function runCytoScnPyAnalysis(
     if (config.enableCloneScan) {
       args.push("--clones");
     }
-
-    if (config.confidenceThreshold > 0) {
+    if (
+      config.confidenceThreshold !== undefined &&
+      config.confidenceThreshold > 0
+    ) {
       args.push("--confidence", config.confidenceThreshold.toString());
     }
     if (config.excludeFolders && config.excludeFolders.length > 0) {
@@ -349,19 +351,19 @@ export function runCytoScnPyAnalysis(
 
     if (config.enableQualityScan) {
       args.push("--quality");
-      if (config.maxComplexity) {
+      if (config.maxComplexity !== undefined) {
         args.push("--max-complexity", config.maxComplexity.toString());
       }
-      if (config.minMaintainabilityIndex) {
+      if (config.minMaintainabilityIndex !== undefined) {
         args.push("--min-mi", config.minMaintainabilityIndex.toString());
       }
-      if (config.maxNesting) {
+      if (config.maxNesting !== undefined) {
         args.push("--max-nesting", config.maxNesting.toString());
       }
-      if (config.maxArguments) {
+      if (config.maxArguments !== undefined) {
         args.push("--max-args", config.maxArguments.toString());
       }
-      if (config.maxLines) {
+      if (config.maxLines !== undefined) {
         args.push("--max-lines", config.maxLines.toString());
       }
     }
@@ -438,7 +440,10 @@ export function runWorkspaceAnalysis(
     if (config.enableCloneScan) {
       args.push("--clones");
     }
-    if (config.confidenceThreshold > 0) {
+    if (
+      config.confidenceThreshold !== undefined &&
+      config.confidenceThreshold > 0
+    ) {
       args.push("--confidence", config.confidenceThreshold.toString());
     }
     if (config.excludeFolders && config.excludeFolders.length > 0) {
@@ -460,19 +465,19 @@ export function runWorkspaceAnalysis(
 
     if (config.enableQualityScan) {
       args.push("--quality");
-      if (config.maxComplexity) {
+      if (config.maxComplexity !== undefined) {
         args.push("--max-complexity", config.maxComplexity.toString());
       }
-      if (config.minMaintainabilityIndex) {
+      if (config.minMaintainabilityIndex !== undefined) {
         args.push("--min-mi", config.minMaintainabilityIndex.toString());
       }
-      if (config.maxNesting) {
+      if (config.maxNesting !== undefined) {
         args.push("--max-nesting", config.maxNesting.toString());
       }
-      if (config.maxArguments) {
+      if (config.maxArguments !== undefined) {
         args.push("--max-args", config.maxArguments.toString());
       }
-      if (config.maxLines) {
+      if (config.maxLines !== undefined) {
         args.push("--max-lines", config.maxLines.toString());
       }
     }

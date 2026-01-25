@@ -12,7 +12,6 @@ theme:
   features:
     - content.code.copy
     - content.tooltips
-    - navigation.expand
     - navigation.sections
     - navigation.top
     - search.highlight
@@ -77,16 +76,79 @@ nav:
   - Security:
       - Overview: security.md
       - Dangerous Code Rules:
-          - Overview: dangerous-code.md
-          - Code Execution: danger/code-execution.md
-          - Injection & Logic: danger/injection.md
-          - Deserialization: danger/deserialization.md
-          - Cryptography: danger/cryptography.md
-          - Network & HTTP: danger/network.md
-          - File Operations: danger/filesystem.md
-          - Type Safety: danger/type-safety.md
-          - Best Practices: danger/best-practices.md
-          - Privacy & Frameworks: danger/modern-python.md
+          - "Basics & Guidance":
+              - Overview: dangerous-code.md
+              - "Modern Python Security": danger/modern-python.md
+          - "Critical Vulnerabilities":
+              - "Code Execution":
+                  - Overview: danger/code-execution.md
+                  - "CSP-D001: Eval": rule/CSP-D001.md
+                  - "CSP-D002: Exec": rule/CSP-D002.md
+                  - "CSP-D003: Command Injection": rule/CSP-D003.md
+                  - "CSP-D004: Async Command Injection": rule/CSP-D004.md
+                  - "CSP-D005: Unsafe input() in Python 2": rule/CSP-D005.md
+              - "Injection":
+                  - Overview: danger/injection.md
+                  - "CSP-D101: SQL Injection": rule/CSP-D101.md
+                  - "CSP-D102: Raw SQL String Concatenation": rule/CSP-D102.md
+                  - "CSP-D103: Cross-Site Scripting (XSS)": rule/CSP-D103.md
+                  - "CSP-D104: Insecure XML Parsing (XXE)": rule/CSP-D104.md
+                  - "CSP-D105: Use of `mark_safe`": rule/CSP-D105.md
+              - "Deserialization":
+                  - Overview: danger/deserialization.md
+                  - "CSP-D201: Insecure Deserialization with Pickle": rule/CSP-D201.md
+                  - "CSP-D202: Unsafe YAML Load": rule/CSP-D202.md
+                  - "CSP-D203: `marshal.load()`": rule/CSP-D203.md
+                  - "CSP-D204: ML Model Loading": rule/CSP-D204.md
+              - "Open Redirect":
+                  - Overview: danger/open-redirect.md
+                  - "CSP-D801: Open Redirect": rule/CSP-D801.md
+          - "Domain Specific":
+              - "Network & HTTP":
+                  - Overview: danger/network.md
+                  - "CSP-D401: Insecure Requests (verify=False)": rule/CSP-D401.md
+                  - "CSP-D402: Server-Side Request Forgery (SSRF)": rule/CSP-D402.md
+                  - "CSP-D403: Debug Mode in Production": rule/CSP-D403.md
+                  - "CSP-D404: Hardcoded Binding to 0.0.0.0": rule/CSP-D404.md
+                  - "CSP-D405: Requests Without Timeout": rule/CSP-D405.md
+                  - "CSP-D406: Insecure FTP": rule/CSP-D406.md
+                  - "CSP-D407: HTTPSConnection Without Context": rule/CSP-D407.md
+                  - "CSP-D408: Unverified SSL Context": rule/CSP-D408.md
+                  - "CSP-D409: Insecure Telnet": rule/CSP-D409.md
+                  - "CSP-D410: Insecure URL Opening": rule/CSP-D410.md
+                  - "CSP-D411: `ssl.wrap_socket` Usage": rule/CSP-D411.md
+              - "File Operations":
+                  - Overview: danger/filesystem.md
+                  - "CSP-D501: Path Traversal": rule/CSP-D501.md
+                  - "CSP-D502: Insecure Tarfile Extraction": rule/CSP-D502.md
+                  - "CSP-D503: Insecure Zipfile Extraction": rule/CSP-D503.md
+                  - "CSP-D504: Insecure Temporary File Creation": rule/CSP-D504.md
+                  - "CSP-D505: Bad File Permissions": rule/CSP-D505.md
+                  - "CSP-D506: `os.tempnam`/`os.tmpnam`": rule/CSP-D506.md
+              - "Cryptography":
+                  - Overview: danger/cryptography.md
+                  - "CSP-D301: Weak Hashing (MD5)": rule/CSP-D301.md
+                  - "CSP-D302: Weak Hashing (SHA1)": rule/CSP-D302.md
+                  - "CSP-D304: Insecure Ciphers": rule/CSP-D304.md
+                  - "CSP-D305: Insecure Cipher Mode": rule/CSP-D305.md
+                  - "CSP-D311: Weak PRNG": rule/CSP-D311.md
+          - "Operational & Privacy":
+              - "Best Practices":
+                  - Overview: danger/best-practices.md
+                  - "CSP-D701: Use of `assert` in Production": rule/CSP-D701.md
+                  - "CSP-D702: Insecure Module Import": rule/CSP-D702.md
+                  - "CSP-D703: Disabled Jinja2 Autoescaping": rule/CSP-D703.md
+                  - "CSP-D704: Blacklisted Function Calls": rule/CSP-D704.md
+              - "Privacy":
+                  - Overview: danger/privacy.md
+                  - "CSP-D901: Logging of Sensitive Data": rule/CSP-D901.md
+                  - "CSP-D902: Hardcoded Django `SECRET_KEY`": rule/CSP-D902.md
+              - "Type Safety":
+                  - Overview: danger/type-safety.md
+                  - "CSP-D601: Method Misuse": rule/CSP-D601.md
+              - "Generic":
+                  - Overview: danger/generic.md
+                  - "CSP-X001: Generic XSS": rule/CSP-X001.md
   - Integrations: integrations.md
   - Blog:
       - blog/index.md

@@ -356,6 +356,7 @@ mod tests {
             file: Arc::new(file),
             line,
             end_line: line + 1,
+            col: 0,
             start_byte: 0,
             end_byte: 10,
             confidence: 100,
@@ -530,5 +531,62 @@ def unused_function():
 
         let content = std::fs::read_to_string(&file_path).unwrap();
         assert!(content.trim().is_empty());
+    }
+
+    #[test]
+    fn test_collect_items_to_fix() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.py");
+        let def = create_definition("test", "function", file_path.clone(), 1);
+
+        let mut results = create_empty_analysis_result();
+        results.unused_functions.push(def);
+        results
+            .unused_classes
+            .push(create_definition("Class", "class", file_path.clone(), 10));
+        results
+            .unused_imports
+            .push(create_definition("imp", "import", file_path, 20));
+
+        let options = DeadCodeFixOptions {
+            min_confidence: 60,
+            fix_functions: true,
+            fix_classes: true,
+            fix_imports: true,
+            ..DeadCodeFixOptions::default()
+        };
+
+        let collected = collect_items_to_fix(&results, &options);
+        assert_eq!(collected.values().next().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_find_def_range_import_from_multi() {
+        let source = "from mod import a, b, c";
+        let parsed = ruff_python_parser::parse_module(source).unwrap();
+        let body = parsed.into_syntax().body;
+
+        let range = find_def_range(&body, "a", "import");
+        assert!(range.is_none());
+    }
+
+    #[test]
+    fn test_apply_fix_parse_error() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.py");
+        std::fs::write(&file_path, "invalid python code (((( (").unwrap();
+
+        let def = create_definition("f", "function", file_path.clone(), 1);
+        let options = DeadCodeFixOptions {
+            analysis_root: dir.path().to_path_buf(),
+            ..DeadCodeFixOptions::default()
+        };
+
+        let mut buffer = Vec::new();
+        let res =
+            apply_dead_code_fix_to_file(&mut buffer, &file_path, &[("function", &def)], &options)
+                .unwrap();
+        assert!(res.is_none());
+        assert!(String::from_utf8(buffer).unwrap().contains("Parse error:"));
     }
 }

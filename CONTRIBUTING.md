@@ -155,7 +155,6 @@ act -W .github/workflows/rust-ci.yml
    ```
 
 2. **Make Your Changes:**
-
    - Follow Rust best practices and idioms.
    - Use `rustfmt` for formatting: `cargo fmt`.
    - Use `clippy` for linting: `cargo clippy`.
@@ -250,7 +249,6 @@ CytoScnPy uses **PyO3** to expose Rust functionality to Python, enabling hybrid 
 The Python integration is modular and lives in two places:
 
 1. **`cytoscnpy/src/python_bindings.rs`** - PyO3 implementation
-
    - Contains all `#[pyfunction]` decorated functions
    - Handles Python↔Rust type conversions
    - Manages GIL (Global Interpreter Lock)
@@ -641,7 +639,6 @@ RUST_LOG=debug cargo test
 - **Control Flow Graph**: CFG construction, behavioral validation
 
 See [`cytoscnpy/tests/README.md`](cytoscnpy/tests/README.md) for detailed test documentation.
-
 
 ## ❓ Getting Help
 

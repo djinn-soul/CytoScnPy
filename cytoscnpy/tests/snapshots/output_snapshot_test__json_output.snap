@@ -1,0 +1,191 @@
+---
+source: cytoscnpy/tests/output_snapshot_test.rs
+assertion_line: 118
+expression: output
+---
+{
+  "unused_functions": [
+    {
+      "name": "unused_func",
+      "full_name": "unused_func",
+      "simple_name": "unused_func",
+      "def_type": "function",
+      "file": "[FILE]",
+      "line": 5,
+      "end_line": 6,
+      "col": 5,
+      "start_byte": 27,
+      "end_byte": 66,
+      "confidence": 100,
+      "references": 0,
+      "is_exported": true,
+      "in_init": false,
+      "is_framework_managed": false,
+      "base_classes": [],
+      "is_type_checking": false,
+      "is_captured": false,
+      "is_self_referential": false,
+      "message": "'unused_func' is defined but never used",
+      "fix": {
+        "start_byte": 23,
+        "end_byte": 66,
+        "replacement": ""
+      },
+      "is_enum_member": false,
+      "is_constant": false,
+      "is_potential_secret": false
+    }
+  ],
+  "unused_methods": [],
+  "unused_imports": [
+    {
+      "name": "os",
+      "full_name": "os",
+      "simple_name": "os",
+      "def_type": "import",
+      "file": "[FILE]",
+      "line": 2,
+      "end_line": 2,
+      "col": 8,
+      "start_byte": 8,
+      "end_byte": 10,
+      "confidence": 100,
+      "references": 0,
+      "is_exported": true,
+      "in_init": false,
+      "is_framework_managed": false,
+      "base_classes": [],
+      "is_type_checking": false,
+      "is_captured": false,
+      "is_self_referential": false,
+      "message": "'os' is imported but never used",
+      "fix": {
+        "start_byte": 8,
+        "end_byte": 10,
+        "replacement": ""
+      },
+      "is_enum_member": false,
+      "is_constant": false,
+      "is_potential_secret": false
+    },
+    {
+      "name": "sys",
+      "full_name": "sys",
+      "simple_name": "sys",
+      "def_type": "import",
+      "file": "[FILE]",
+      "line": 3,
+      "end_line": 3,
+      "col": 8,
+      "start_byte": 18,
+      "end_byte": 21,
+      "confidence": 100,
+      "references": 0,
+      "is_exported": true,
+      "in_init": false,
+      "is_framework_managed": false,
+      "base_classes": [],
+      "is_type_checking": false,
+      "is_captured": false,
+      "is_self_referential": false,
+      "message": "'sys' is imported but never used",
+      "fix": {
+        "start_byte": 18,
+        "end_byte": 21,
+        "replacement": ""
+      },
+      "is_enum_member": false,
+      "is_constant": false,
+      "is_potential_secret": false
+    }
+  ],
+  "unused_classes": [],
+  "unused_variables": [
+    {
+      "name": "main.unused_var",
+      "full_name": "main.unused_var",
+      "simple_name": "unused_var",
+      "def_type": "variable",
+      "file": "[FILE]",
+      "line": 9,
+      "end_line": 9,
+      "col": 5,
+      "start_byte": 84,
+      "end_byte": 94,
+      "confidence": 100,
+      "references": 0,
+      "is_exported": true,
+      "in_init": false,
+      "is_framework_managed": false,
+      "base_classes": [],
+      "is_type_checking": false,
+      "is_captured": false,
+      "is_self_referential": false,
+      "message": "Variable 'unused_var' is assigned but never used",
+      "fix": {
+        "start_byte": 84,
+        "end_byte": 94,
+        "replacement": ""
+      },
+      "is_enum_member": false,
+      "is_constant": false,
+      "is_potential_secret": false
+    }
+  ],
+  "unused_parameters": [],
+  "secrets": [],
+  "danger": [],
+  "quality": [],
+  "taint_findings": [],
+  "parse_errors": [],
+  "clones": [],
+  "file_metrics": [
+    {
+      "file": "[FILE]",
+      "loc": 15,
+      "sloc": 9,
+      "complexity": 2.0,
+      "mi": 100.0,
+      "total_issues": 4
+    }
+  ],
+  "analysis_summary": {
+    "total_files": 1,
+    "secrets_count": 0,
+    "danger_count": 0,
+    "quality_count": 0,
+    "taint_count": 0,
+    "parse_errors_count": 0,
+    "total_lines_analyzed": 14,
+    "total_definitions": 5,
+    "average_complexity": 2.0,
+    "average_mi": 100.0,
+    "total_directories": 0,
+    "total_size": 0.154296875,
+    "functions_count": 2,
+    "classes_count": 0,
+    "raw_metrics": {
+      "loc": 15,
+      "lloc": 9,
+      "sloc": 9,
+      "comments": 0,
+      "multi": 0,
+      "blank": 6,
+      "single_comments": 0
+    },
+    "halstead_metrics": {
+      "h1": 0,
+      "h2": 0,
+      "n1": 0,
+      "n2": 0,
+      "vocabulary": 0.0,
+      "length": 0.0,
+      "calculated_length": 0.0,
+      "volume": 0.0,
+      "difficulty": 0.0,
+      "effort": 0.0,
+      "time": 0.0,
+      "bugs": 0.0
+    }
+  }
+}

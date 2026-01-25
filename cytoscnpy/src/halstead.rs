@@ -1,9 +1,9 @@
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use rustc_hash::FxHashSet;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, Clone, PartialEq, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 /// Metrics calculated using Halstead's Complexity Measures.
 pub struct HalsteadMetrics {
     /// N1: Total number of operators.

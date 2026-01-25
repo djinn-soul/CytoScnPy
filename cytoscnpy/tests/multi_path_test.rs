@@ -3,6 +3,7 @@
 #![allow(clippy::redundant_clone)]
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::uninlined_format_args)]
 //!
 //! These tests verify that the `analyze_paths` method correctly handles:
 //! - Single directory paths (delegating to standard analyze)
@@ -37,9 +38,10 @@ fn project_tempdir() -> TempDir {
 fn test_analyze_paths_single_directory() {
     let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
-    let mut file = File::create(&file_path).unwrap();
+    {
+        let mut file = File::create(&file_path).unwrap();
 
-    let content = r#"
+        let content = r#"
 def used_function():
     return "used"
 
@@ -48,7 +50,8 @@ def unused_function():
 
 result = used_function()
 "#;
-    write!(file, "{content}").unwrap();
+        write!(file, "{}", content).unwrap();
+    }
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let paths = vec![dir.path().to_path_buf()];
@@ -72,24 +75,30 @@ fn test_analyze_paths_multiple_files() {
     let dir = project_tempdir();
 
     // Create file1.py
-    let file1_path = dir.path().join("file1.py");
-    let mut file1 = File::create(&file1_path).unwrap();
-    write!(file1, "def unused_in_file1(): pass").unwrap();
+    {
+        let file1_path = dir.path().join("file1.py");
+        let mut file1 = File::create(&file1_path).unwrap();
+        write!(file1, "def unused_in_file1(): pass").unwrap();
+    }
 
     // Create file2.py
-    let file2_path = dir.path().join("file2.py");
-    let mut file2 = File::create(&file2_path).unwrap();
-    write!(file2, "def unused_in_file2(): pass").unwrap();
+    {
+        let file2_path = dir.path().join("file2.py");
+        let mut file2 = File::create(&file2_path).unwrap();
+        write!(file2, "def unused_in_file2(): pass").unwrap();
+    }
 
     // Create file3.py (not included in paths)
-    let file3_path = dir.path().join("file3.py");
-    let mut file3 = File::create(&file3_path).unwrap();
-    write!(file3, "def unused_in_file3(): pass").unwrap();
+    {
+        let file3_path = dir.path().join("file3.py");
+        let mut file3 = File::create(&file3_path).unwrap();
+        write!(file3, "def unused_in_file3(): pass").unwrap();
+    }
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
     // Only analyze file1 and file2
-    let paths = vec![file1_path.clone(), file2_path.clone()];
+    let paths = vec![dir.path().join("file1.py"), dir.path().join("file2.py")];
     let result = analyzer.analyze_paths(&paths);
 
     let unused_funcs: Vec<String> = result
@@ -114,19 +123,17 @@ fn test_analyze_paths_multiple_files() {
 fn test_analyze_paths_empty_defaults_to_current_dir() {
     let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
-    let mut file = File::create(&file_path).unwrap();
-    write!(file, "def unused_func(): pass").unwrap();
+    {
+        let mut file = File::create(&file_path).unwrap();
+        write!(file, "def unused_func(): pass").unwrap();
+    }
 
-    // Change to temp directory context
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(dir.path()).unwrap();
+    // Change to temp directory context using RAII guard
+    let _guard = cytoscnpy::test_utils::CwdGuard::new(dir.path()).unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let paths: Vec<PathBuf> = vec![];
     let result = analyzer.analyze_paths(&paths);
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).unwrap();
 
     assert_eq!(result.analysis_summary.total_files, 1);
 }
@@ -138,21 +145,27 @@ fn test_analyze_paths_mixed_files_and_directories() {
 
     // Create a file in root
     let file1_path = dir.path().join("root_file.py");
-    let mut file1 = File::create(&file1_path).unwrap();
-    write!(file1, "def func_in_root(): pass").unwrap();
+    {
+        let mut file1 = File::create(&file1_path).unwrap();
+        write!(file1, "def func_in_root(): pass").unwrap();
+    }
 
     // Create a subdirectory with files
     let subdir = dir.path().join("subdir");
     fs::create_dir(&subdir).unwrap();
 
     let file2_path = subdir.join("subdir_file.py");
-    let mut file2 = File::create(&file2_path).unwrap();
-    write!(file2, "def func_in_subdir(): pass").unwrap();
+    {
+        let mut file2 = File::create(&file2_path).unwrap();
+        write!(file2, "def func_in_subdir(): pass").unwrap();
+    }
 
     // Create another file in root (not included)
     let file3_path = dir.path().join("excluded_file.py");
-    let mut file3 = File::create(&file3_path).unwrap();
-    write!(file3, "def func_excluded(): pass").unwrap();
+    {
+        let mut file3 = File::create(&file3_path).unwrap();
+        write!(file3, "def func_excluded(): pass").unwrap();
+    }
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
@@ -178,18 +191,24 @@ fn test_analyze_paths_filters_non_python() {
 
     // Create a Python file
     let py_path = dir.path().join("script.py");
-    let mut py_file = File::create(&py_path).unwrap();
-    write!(py_file, "def python_func(): pass").unwrap();
+    {
+        let mut py_file = File::create(&py_path).unwrap();
+        write!(py_file, "def python_func(): pass").unwrap();
+    }
 
     // Create a non-Python file
     let txt_path = dir.path().join("readme.txt");
-    let mut txt_file = File::create(&txt_path).unwrap();
-    write!(txt_file, "This is a text file").unwrap();
+    {
+        let mut txt_file = File::create(&txt_path).unwrap();
+        write!(txt_file, "This is a text file").unwrap();
+    }
 
     // Create a JS file
     let js_path = dir.path().join("script.js");
-    let mut js_file = File::create(&js_path).unwrap();
-    write!(js_file, "function jsFunc() {{}}").unwrap();
+    {
+        let mut js_file = File::create(&js_path).unwrap();
+        write!(js_file, "function jsFunc() {{}}").unwrap();
+    }
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
@@ -219,16 +238,20 @@ fn test_analyze_paths_respects_exclusions() {
     fs::create_dir(&venv_dir).unwrap();
 
     let venv_file = venv_dir.join("venv_script.py");
-    let mut venv_f = File::create(&venv_file).unwrap();
-    write!(venv_f, "def venv_func(): pass").unwrap();
+    {
+        let mut venv_f = File::create(&venv_file).unwrap();
+        write!(venv_f, "def venv_func(): pass").unwrap();
+    }
 
     // Create a src directory (should be included)
     let src_dir = dir.path().join("src");
     fs::create_dir(&src_dir).unwrap();
 
     let src_file = src_dir.join("main.py");
-    let mut src_f = File::create(&src_file).unwrap();
-    write!(src_f, "def src_func(): pass").unwrap();
+    {
+        let mut src_f = File::create(&src_file).unwrap();
+        write!(src_f, "def src_func(): pass").unwrap();
+    }
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
 
@@ -257,8 +280,10 @@ fn test_analyze_paths_with_secrets_scanning() {
 
     // Create a file with a secret
     let file_path = dir.path().join("config.py");
-    let mut file = File::create(&file_path).unwrap();
-    write!(file, r#"API_KEY = "AKIAIOSFODNN7EXAMPLE""#).unwrap();
+    {
+        let mut file = File::create(&file_path).unwrap();
+        write!(file, r#"API_KEY = "AKIAIOSFODNN7EXAMPLE""#).unwrap();
+    }
 
     let mut analyzer = CytoScnPy::default()
         .with_confidence(60)
@@ -347,10 +372,11 @@ fn test_analyze_paths_with_notebooks() {
 
     // Create a simple notebook file
     let notebook_path = dir.path().join("notebook.ipynb");
-    let mut notebook = File::create(&notebook_path).unwrap();
-    write!(
-        notebook,
-        r#"{{
+    {
+        let mut notebook = File::create(&notebook_path).unwrap();
+        write!(
+            notebook,
+            r#"{{
         "cells": [
             {{
                 "cell_type": "code",
@@ -361,8 +387,9 @@ fn test_analyze_paths_with_notebooks() {
         "nbformat": 4,
         "nbformat_minor": 4
     }}"#
-    )
-    .unwrap();
+        )
+        .unwrap();
+    }
 
     let mut analyzer = CytoScnPy::default()
         .with_confidence(60)

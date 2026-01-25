@@ -149,11 +149,12 @@ pub fn print_summary_pills(
     // Second row: Security and Quality
     writeln!(
         writer,
-        "{}  {}  {}  {}",
+        "{}  {}  {}  {}  {}",
         pill("Security", result.danger.len()),
         pill("Secrets", result.secrets.len()),
         pill("Quality", result.quality.len()),
         pill("Taint", result.taint_findings.len()),
+        pill("Parse Errors", result.parse_errors.len()),
     )?;
 
     writeln!(writer)?;
@@ -252,6 +253,42 @@ pub fn print_findings(
             Cell::new(&f.message).add_attribute(Attribute::Bold),
             Cell::new(location),
             Cell::new(&f.severity).fg(severity_color),
+        ]);
+    }
+
+    writeln!(writer, "{table}")?;
+    Ok(())
+}
+
+/// Print a list of taint analysis findings.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
+pub fn print_taint_findings(
+    writer: &mut impl Write,
+    title: &str,
+    findings: &[crate::taint::TaintFinding],
+) -> std::io::Result<()> {
+    if findings.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(writer, "\n{}", title.bold().underline())?;
+
+    let mut table = create_table(vec!["Rule ID", "Message", "Location", "Severity"]);
+
+    for f in findings {
+        let location = format!("{}:{}", normalize_display_path(&f.file), f.sink_line);
+        let severity_str = f.severity.to_string();
+        let severity_color = get_severity_color(&severity_str);
+
+        table.add_row(vec![
+            Cell::new(&f.rule_id).add_attribute(Attribute::Dim),
+            Cell::new(format!("{} (Source: {})", f.vuln_type, f.source))
+                .add_attribute(Attribute::Bold),
+            Cell::new(location),
+            Cell::new(&severity_str).fg(severity_color),
         ]);
     }
 
@@ -381,9 +418,6 @@ pub fn print_parse_errors(
 /// Returns an error if writing to the writer fails.
 pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     print_header(writer)?;
-    print_summary_pills(writer, result)?;
-    print_analysis_stats(writer, &result.analysis_summary)?;
-    writeln!(writer)?;
 
     // Check if there are any issues
     let total_issues = result.unused_functions.len()
@@ -395,6 +429,7 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         + result.danger.len()
         + result.secrets.len()
         + result.quality.len()
+        + result.taint_findings.len()
         + result.parse_errors.len();
 
     if total_issues == 0 {
@@ -428,9 +463,147 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
     print_findings(writer, "Security Issues", &result.danger)?;
     print_secrets(writer, "Secrets", &result.secrets)?;
     print_findings(writer, "Quality Issues", &result.quality)?;
+    print_taint_findings(writer, "Taint Analysis Findings", &result.taint_findings)?;
     print_parse_errors(writer, &result.parse_errors)?;
 
     // Note: Summary is printed by entry_point to support combined clone summary
+
+    Ok(())
+}
+
+/// Print a list of findings grouped by file.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
+pub fn print_report_grouped(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+) -> std::io::Result<()> {
+    print_header(writer)?;
+
+    let mut bindings = std::collections::BTreeMap::new();
+
+    // Collect all issues by file
+    let mut add = |file: &str, line: usize, msg: String, severity: &str| {
+        bindings
+            .entry(file.to_owned())
+            .or_insert_with(Vec::new)
+            .push((line, msg, severity.to_owned()));
+    };
+
+    for f in &result.danger {
+        add(
+            &f.file.to_string_lossy(),
+            f.line,
+            format!("[SECURITY] {}", f.message),
+            &f.severity,
+        );
+    }
+    for s in &result.secrets {
+        add(
+            &s.file.to_string_lossy(),
+            s.line,
+            format!("[SECRET] {}", s.message),
+            &s.severity,
+        );
+    }
+    for q in &result.quality {
+        add(
+            &q.file.to_string_lossy(),
+            q.line,
+            format!("[QUALITY] {}", q.message),
+            &q.severity,
+        );
+    }
+    for t in &result.taint_findings {
+        add(
+            &t.file.to_string_lossy(),
+            t.sink_line,
+            format!("[TAINT] {} (Source: {})", t.vuln_type, t.source),
+            &t.severity.to_string(),
+        );
+    }
+    for f in &result.unused_functions {
+        add(
+            &f.file.to_string_lossy(),
+            f.line,
+            format!("[UNUSED] Function '{}'", f.name),
+            "LOW",
+        );
+    }
+    for m in &result.unused_methods {
+        add(
+            &m.file.to_string_lossy(),
+            m.line,
+            format!("[UNUSED] Method '{}'", m.name),
+            "LOW",
+        );
+    }
+    for c in &result.unused_classes {
+        add(
+            &c.file.to_string_lossy(),
+            c.line,
+            format!("[UNUSED] Class '{}'", c.name),
+            "LOW",
+        );
+    }
+    for i in &result.unused_imports {
+        add(
+            &i.file.to_string_lossy(),
+            i.line,
+            format!("[UNUSED] Import '{}'", i.name),
+            "LOW",
+        );
+    }
+    for v in &result.unused_variables {
+        add(
+            &v.file.to_string_lossy(),
+            v.line,
+            format!("[UNUSED] Variable '{}'", v.simple_name),
+            "LOW",
+        );
+    }
+    for p in &result.unused_parameters {
+        add(
+            &p.file.to_string_lossy(),
+            p.line,
+            format!("[UNUSED] Parameter '{}'", p.simple_name),
+            "LOW",
+        );
+    }
+    for e in &result.parse_errors {
+        add(
+            &e.file.to_string_lossy(),
+            0,
+            format!("[ERROR] Parse Error: {}", e.error),
+            "HIGH",
+        );
+    }
+
+    for (file, issues) in bindings {
+        writeln!(
+            writer,
+            "\nFile: {}",
+            normalize_display_path(std::path::Path::new(&file))
+                .bold()
+                .underline()
+        )?;
+        for (line, msg, severity) in issues {
+            let color = match severity.to_uppercase().as_str() {
+                "CRITICAL" | "HIGH" => colored::Color::Red,
+                "MEDIUM" => colored::Color::Yellow,
+                "LOW" => colored::Color::Blue,
+                _ => colored::Color::White,
+            };
+            writeln!(
+                writer,
+                "  Line {}: {}",
+                line.to_string().cyan(),
+                msg.color(color)
+            )?;
+        }
+    }
 
     Ok(())
 }
@@ -442,8 +615,6 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
 /// Returns an error if writing to the output fails.
 pub fn print_report_quiet(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     writeln!(writer)?; // Just a newline instead of header box
-    print_summary_pills(writer, result)?;
-    print_analysis_stats(writer, &result.analysis_summary)?;
 
     // Summary recap
     let total = result.unused_functions.len()
@@ -452,7 +623,10 @@ pub fn print_report_quiet(writer: &mut impl Write, result: &AnalysisResult) -> s
         + result.unused_parameters.len()
         + result.unused_classes.len()
         + result.unused_variables.len();
-    let security = result.danger.len() + result.secrets.len() + result.quality.len();
+    let security = result.danger.len()
+        + result.secrets.len()
+        + result.quality.len()
+        + result.taint_findings.len();
     writeln!(
         writer,
         "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"

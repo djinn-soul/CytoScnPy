@@ -1,6 +1,7 @@
 use crate::cli::{Cli, Commands};
 use anyhow::Result;
 use clap::Parser;
+use colored::Colorize;
 
 use ruff_python_ast::{Expr, Stmt};
 use rustc_hash::FxHashSet;
@@ -254,7 +255,7 @@ fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
                     all_target_paths.extend(paths.paths.iter().cloned());
                 }
             }
-            Commands::McpServer => {}
+            Commands::McpServer | Commands::Init => {}
         }
     }
     all_target_paths
@@ -340,7 +341,6 @@ fn setup_configuration(effective_paths: &[std::path::PathBuf], cli: &Cli) -> App
     }
 }
 
-#[allow(clippy::too_many_lines)]
 /// Runs the analyzer with the given arguments using stdout as the writer.
 ///
 /// # Errors
@@ -518,6 +518,10 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             ),
             Commands::Files { args } => {
                 handle_files(args, &exclude_folders, cli_var.output.verbose, writer)
+            }
+            Commands::Init => {
+                crate::commands::run_init_in(&analysis_root, writer)?;
+                Ok(0)
             }
         }
     } else {
@@ -785,7 +789,10 @@ fn handle_analysis<W: std::io::Write>(
         }
     }
 
-    let include_tests = cli_var.include.include_tests;
+    let include_tests =
+        cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
+    let include_ipynb =
+        cli_var.include.include_ipynb || config.cytoscnpy.include_ipynb.unwrap_or(false);
     let confidence = cli_var
         .confidence
         .or(config.cytoscnpy.confidence)
@@ -818,12 +825,23 @@ fn handle_analysis<W: std::io::Write>(
     // Use the inclusion list provided by the caller
     let include_folders = base_include_folders.to_vec();
 
-    if !cli_var.output.json {
+    let is_structured = cli_var.output.json
+        || matches!(
+            cli_var.output.format,
+            crate::cli::OutputFormat::Json
+                | crate::cli::OutputFormat::Junit
+                | crate::cli::OutputFormat::Sarif
+                | crate::cli::OutputFormat::Gitlab
+                | crate::cli::OutputFormat::Github
+                | crate::cli::OutputFormat::Markdown
+        );
+
+    if !is_structured {
         crate::output::print_exclusion_list(writer, &exclude_folders).ok();
     }
 
     // Print verbose configuration info (before progress bar)
-    if cli_var.output.verbose && !cli_var.output.json {
+    if cli_var.output.verbose && !is_structured {
         eprintln!("[VERBOSE] CytoScnPy v{}", env!("CARGO_PKG_VERSION"));
         eprintln!("[VERBOSE] Using {} threads", rayon::current_num_threads());
         eprintln!("[VERBOSE] Configuration:");
@@ -847,7 +865,7 @@ fn handle_analysis<W: std::io::Write>(
         include_tests,
         exclude_folders.clone(),
         include_folders,
-        cli_var.include.include_ipynb,
+        include_ipynb,
         cli_var.include.ipynb_cells,
         config.clone(),
     )
@@ -863,7 +881,7 @@ fn handle_analysis<W: std::io::Write>(
     let total_files = analyzer.count_files(effective_paths);
 
     // Create progress bar with file count for visual feedback
-    let progress: Option<indicatif::ProgressBar> = if cli_var.output.json {
+    let progress: Option<indicatif::ProgressBar> = if is_structured {
         None
     } else if total_files > 0 {
         Some(crate::output::create_progress_bar(total_files as u64))
@@ -896,7 +914,7 @@ fn handle_analysis<W: std::io::Write>(
     }
 
     // Print verbose timing info
-    if cli_var.output.verbose && !cli_var.output.json {
+    if cli_var.output.verbose && !is_structured {
         let elapsed = start_time.elapsed();
         eprintln!(
             "[VERBOSE] Analysis completed in {:.2}s",
@@ -965,7 +983,7 @@ fn handle_analysis<W: std::io::Write>(
     }
 
     // Print JSON or report (but defer the summary and time for combined output later)
-    if cli_var.output.json {
+    if cli_var.output.json || cli_var.output.format == crate::cli::OutputFormat::Json {
         // If clones are enabled, include clone_findings in the JSON output
         if cli_var.clones {
             // Run clone detection
@@ -993,18 +1011,53 @@ fn handle_analysis<W: std::io::Write>(
             writeln!(writer, "{}", serde_json::to_string_pretty(&result)?)?;
         }
     } else {
-        // Determine if we should show standard CLI output
-        #[cfg(feature = "html_report")]
-        let show_cli = !cli_var.output.html;
-        #[cfg(not(feature = "html_report"))]
-        let show_cli = true;
+        match cli_var.output.format {
+            crate::cli::OutputFormat::Text => {
+                // Determine if we should show standard CLI output
+                #[cfg(feature = "html_report")]
+                let show_cli = !cli_var.output.html;
+                #[cfg(not(feature = "html_report"))]
+                let show_cli = true;
 
-        if show_cli {
-            if cli_var.output.quiet {
-                crate::output::print_report_quiet(writer, &result)?;
-            } else {
-                crate::output::print_report(writer, &result)?;
+                if show_cli {
+                    if cli_var.output.quiet {
+                        crate::output::print_report_quiet(writer, &result)?;
+                    } else {
+                        crate::output::print_report(writer, &result)?;
+                    }
+                }
             }
+            crate::cli::OutputFormat::Grouped => {
+                crate::output::print_report_grouped(writer, &result)?;
+            }
+            crate::cli::OutputFormat::Junit => {
+                crate::report::junit::print_junit_with_root(writer, &result, Some(analysis_root))?;
+            }
+            crate::cli::OutputFormat::Github => {
+                crate::report::github::print_github_with_root(
+                    writer,
+                    &result,
+                    Some(analysis_root),
+                )?;
+            }
+            crate::cli::OutputFormat::Gitlab => {
+                crate::report::gitlab::print_gitlab_with_root(
+                    writer,
+                    &result,
+                    Some(analysis_root),
+                )?;
+            }
+            crate::cli::OutputFormat::Markdown => {
+                crate::report::markdown::print_markdown_with_root(
+                    writer,
+                    &result,
+                    Some(analysis_root),
+                )?;
+            }
+            crate::cli::OutputFormat::Sarif => {
+                crate::report::sarif::print_sarif_with_root(writer, &result, Some(analysis_root))?;
+            }
+            crate::cli::OutputFormat::Json => unreachable!("Handled in if block above"),
         }
 
         // Track clone count for combined summary
@@ -1040,11 +1093,12 @@ fn handle_analysis<W: std::io::Write>(
                 with_cst: true, // CST is always enabled by default
             };
 
-            let (count, findings) = if cli_var.clones {
-                // Explicit run: print to stdout
+            let (count, findings) = if cli_var.clones && !is_structured {
+                // Explicit run with Text output: print to stdout
                 crate::commands::run_clones(effective_paths, &clone_options, &mut *writer)?
             } else {
-                // Implicit run for HTML: suppress output
+                // Structured output (JSON/SARIF/etc) OR implicit run: suppress stdout table
+                // We likely want the findings for the report, but NOT the text table.
                 let mut sink = std::io::sink();
                 crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?
             };
@@ -1056,7 +1110,8 @@ fn handle_analysis<W: std::io::Write>(
         // Print summary and time (only for non-JSON output)
         // Note: In quiet mode, print_report_quiet already prints the summary,
         // so we only print here if clone pairs were found (to add the clone count)
-        if !cli_var.output.json {
+        // Print summary and time (only for non-structured text/grouped output)
+        if !is_structured {
             let total = result.unused_functions.len()
                 + result.unused_methods.len()
                 + result.unused_imports.len()
@@ -1079,10 +1134,19 @@ fn handle_analysis<W: std::io::Write>(
                 )?;
             }
 
+            // Defer combined summary until here so it tracks total time including clones
             let elapsed = start_time.elapsed();
+
+            // Pills and stats are "extra sections" - suppress in quiet mode
+            if !cli_var.output.quiet {
+                crate::output::print_summary_pills(writer, &result)?;
+                crate::output::print_analysis_stats(writer, &result.analysis_summary)?;
+            }
+
             writeln!(
                 writer,
-                "\n[TIME] Completed in {:.2}s",
+                "{} in {:.2}s",
+                "Analysis completed".green().bold(),
                 elapsed.as_secs_f64()
             )?;
         }
@@ -1166,14 +1230,14 @@ fn handle_analysis<W: std::io::Write>(
         let show_gate = fail_threshold < 100.0;
 
         if percentage > fail_threshold {
-            if !cli_var.output.json {
+            if !is_structured {
                 eprintln!(
                         "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - FAILED"
                     );
             }
 
             exit_code = 1;
-        } else if show_gate && !cli_var.output.json {
+        } else if show_gate && !is_structured {
             writeln!(
                 writer,
                 "\n[GATE] Unused code: {percentage:.1}% (threshold: {fail_threshold:.1}%) - PASSED"

@@ -114,22 +114,14 @@ fn test_root_flag_allows_absolute_paths_from_different_cwd() {
     let project_root = temp_dir.path().join("myproject");
     create_test_project(&project_root);
 
-    // Save current dir
-    let original_dir = std::env::current_dir().unwrap();
-
-    // Change to a DIFFERENT directory (not the project)
+    // Change to a DIFFERENT directory (not the project) using RAII guard
     let other_dir = temp_dir.path().join("other");
     fs::create_dir_all(&other_dir).unwrap();
-    std::env::set_current_dir(&other_dir).unwrap();
+    let _guard = cytoscnpy::test_utils::CwdGuard::new(&other_dir).unwrap();
 
     // Now run with --root pointing to the project
     let project_path = project_root.to_string_lossy().to_string();
-    let result = run_cytoscnpy(vec!["--root", &project_path, "--json"]);
-
-    // Restore original dir before assertions
-    std::env::set_current_dir(original_dir).unwrap();
-
-    let (exit_code, output) = result;
+    let (exit_code, output) = run_cytoscnpy(vec!["--root", &project_path, "--json"]);
 
     // Should succeed even though CWD is different
     assert_eq!(

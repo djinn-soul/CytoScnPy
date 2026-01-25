@@ -31,10 +31,9 @@ fn test_absolute_path_from_different_cwd() -> anyhow::Result<()> {
     }"#;
     fs::write(&notebook_path, notebook_json)?;
 
-    // Create a different directory for CWD
+    // Create a different directory for CWD using RAII guard
     let other_dir = tempdir()?;
-    let original_cwd = std::env::current_dir()?;
-    std::env::set_current_dir(other_dir.path())?;
+    let _guard = cytoscnpy::test_utils::CwdGuard::new(other_dir.path())?;
 
     let mut buffer = Vec::new();
     // Provide absolute path to the notebook
@@ -46,8 +45,7 @@ fn test_absolute_path_from_different_cwd() -> anyhow::Result<()> {
     // This should NOT fail with "Path traversal detected" or similar
     let result = run_with_args_to(args, &mut buffer);
 
-    // Restore CWD
-    let _ = std::env::set_current_dir(original_cwd);
+    // RAII guard will restore CWD automatically
 
     match result {
         Ok(code) => {
@@ -71,8 +69,7 @@ fn test_absolute_path_fix_from_different_cwd() -> anyhow::Result<()> {
     fs::write(&file_path, "def unused():\n    pass\n")?;
 
     let other_dir = tempdir()?;
-    let original_cwd = std::env::current_dir()?;
-    std::env::set_current_dir(other_dir.path())?;
+    let _guard = cytoscnpy::test_utils::CwdGuard::new(other_dir.path())?;
 
     let mut buffer = Vec::new();
     let args = vec![
@@ -82,7 +79,7 @@ fn test_absolute_path_fix_from_different_cwd() -> anyhow::Result<()> {
     ];
 
     let result = run_with_args_to(args, &mut buffer);
-    let _ = std::env::set_current_dir(original_cwd);
+    // RAII guard restores CWD here
 
     assert!(
         result.is_ok(),

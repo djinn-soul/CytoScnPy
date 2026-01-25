@@ -29,9 +29,16 @@ fn test_cli_invalid_path_coverage() {
 #[test]
 fn test_cli_init_coverage() {
     let dir = tempdir().unwrap();
-    std::env::set_current_dir(&dir).unwrap();
     let mut buffer = Vec::new();
-    let result = run_with_args_to(vec!["init".to_owned()], &mut buffer).unwrap();
+    let result = run_with_args_to(
+        vec![
+            "--root".to_owned(),
+            dir.path().to_string_lossy().to_string(),
+            "init".to_owned(),
+        ],
+        &mut buffer,
+    )
+    .unwrap();
     assert_eq!(result, 0);
     assert!(dir.path().join(".cytoscnpy.toml").exists());
 }

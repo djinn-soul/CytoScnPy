@@ -69,6 +69,7 @@ fn test_definition_with_fix() {
         is_constant: false,
         is_potential_secret: false,
         is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     };
 
     assert!(def.fix.is_some());
@@ -111,6 +112,7 @@ fn test_definition_without_fix_serializes() {
         is_constant: false,
         is_potential_secret: false,
         is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");
@@ -157,6 +159,7 @@ fn test_definition_with_fix_serializes() {
         is_constant: false,
         is_potential_secret: false,
         is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");

@@ -112,6 +112,19 @@ pub struct DefinitionInfo {
     pub base_classes: SmallVec<[String; 2]>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum UnusedCategory {
+    /// High confidence (90-100) that this is unused.
+    #[default]
+    DefinitelyUnused,
+    /// Moderate confidence (60-89).
+    ProbablyUnused,
+    /// Low confidence (40-59), possibly intentional (e.g. API stub).
+    PossiblyIntentional,
+    /// A configuration-shaped constant that appears unused.
+    ConfigurationConstant,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[allow(clippy::struct_excessive_bools)]
 /// A fully resolved definition found during analysis.
@@ -148,6 +161,9 @@ pub struct Definition {
     /// A confidence score (0-100) indicating how certain we are that this is unused.
     /// Higher means more likely to be a valid finding.
     pub confidence: u8,
+    /// The confidence category, derived from the score and other factors.
+    #[serde(default)]
+    pub category: UnusedCategory,
     /// The number of times this definition is referenced in the codebase.
     pub references: usize,
     /// Whether this definition is considered exported (implicitly used).
@@ -458,6 +474,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             start_byte: info.start_byte,
             end_byte: info.end_byte,
             confidence: 100,
+            category: UnusedCategory::default(),
             references,
             is_exported,
             in_init,
@@ -1855,6 +1872,27 @@ impl<'a> CytoScnPyVisitor<'a> {
             } else if name == "exec" || name == "globals" || name == "locals" {
                 let scope_id = self.get_current_scope_id();
                 self.dynamic_scopes.insert(scope_id);
+            } else if name == "getattr" {
+                // Handle getattr(obj, "attr") -> specific reference
+                // Handle getattr(obj, var) -> dynamic reflection
+                if node.arguments.args.len() >= 2 {
+                    if let (Expr::Name(obj_name), Expr::StringLiteral(attr_str)) =
+                        (&node.arguments.args[0], &node.arguments.args[1])
+                    {
+                        let attr_value = attr_str.value.to_string();
+                        let attr_ref = format!("{}.{}", obj_name.id, attr_value);
+                        self.add_ref(attr_ref);
+                        if !self.module_name.is_empty() {
+                            let full_attr_ref =
+                                format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
+                            self.add_ref(full_attr_ref);
+                        }
+                    } else {
+                        // Non-literal getattr is dynamic
+                        let scope_id = self.get_current_scope_id();
+                        self.dynamic_scopes.insert(scope_id);
+                    }
+                }
             }
 
             // Special handling for hasattr(obj, "attr") to detect attribute usage

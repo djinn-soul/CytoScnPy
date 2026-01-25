@@ -25,6 +25,8 @@ pub fn apply_penalties(
     // as strict cryptographic security is not needed for integer line keys and small datasets.
     ignored_lines: &FxHashMap<usize, Suppression>,
     include_tests: bool,
+    dynamic_scopes: &rustc_hash::FxHashSet<String>,
+    module_name: &str,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)
     // If the line is marked to be ignored, set confidence to 0.
@@ -129,11 +131,67 @@ pub fn apply_penalties(
             .saturating_sub(*PENALTIES().get("dunder_or_magic").unwrap_or(&100));
     }
 
-    // Module-level constants
+    // Dynamic/Reflection Penalty
+    // If the definition is in a scope that uses reflection (getattr, globals, etc),
+    // we significantly lower confidence because we can't be sure it's unused.
+    if !dynamic_scopes.is_empty() {
+        if dynamic_scopes.contains(module_name) {
+            // Module-level reflection makes everything in the module suspect
+            def.confidence = def.confidence.saturating_sub(60);
+        } else {
+            // Check if definition is inside a dynamic scope
+            for scope in dynamic_scopes {
+                if def.full_name.starts_with(scope) {
+                    if def.full_name.len() > scope.len()
+                        && def.full_name.as_bytes()[scope.len()] == b'.'
+                    {
+                        def.confidence = def.confidence.saturating_sub(50);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Module-level constants: Evidence-based scoring
     if def.is_constant {
-        def.confidence = def
-            .confidence
-            .saturating_sub(*PENALTIES().get("module_constant").unwrap_or(&80));
+        // Start with the base penalty from constants.rs (usually 15)
+        let base_penalty = *PENALTIES().get("module_constant").unwrap_or(&15);
+        let mut extra_penalty = 0;
+
+        // Evidence: Config-shaped names (less likely to be bugs)
+        // Optimization: case-sensitive check is fine here because constants are typically UPPERCASE
+        if def.simple_name.contains("CONFIG")
+            || def.simple_name.contains("SETTING")
+            || def.simple_name.contains("OPTION")
+            || def.simple_name.contains("FLAG")
+            || def.simple_name.contains("DEFAULT")
+            || def.simple_name.ends_with("_ENV")
+        {
+            extra_penalty = 25;
+        }
+
+        def.confidence = def.confidence.saturating_sub(base_penalty + extra_penalty);
+    }
+
+    // Confidence BOOSTERS: Suspicious names are MORE likely to be bugs
+    // Short-circuit: only check variables
+    if def.def_type == "variable" {
+        // Optimization: Check for common lowercase debug patterns without allocating lowercased string.
+        // Most variables are snake_case (lowercase), so direct match works for detecting 'temp', 'foo', etc.
+        // We handle mixed-case "Debug" or "Temp" simplistically or ignore them to save cycles.
+        if def.simple_name.contains("temp")
+            || def.simple_name.contains("tmp")
+            || def.simple_name.contains("foo")
+            || def.simple_name.contains("bar")
+            || def.simple_name.starts_with("debug")
+        {
+            def.confidence = def.confidence.saturating_add(15);
+        }
+        // Single-letter non-private vars (x, y, i, j)
+        else if def.simple_name.len() <= 2 && !def.simple_name.starts_with('_') {
+            def.confidence = def.confidence.saturating_add(10);
+        }
     }
 
     // In __init__.py
@@ -142,6 +200,9 @@ pub fn apply_penalties(
             .confidence
             .saturating_sub(*PENALTIES().get("in_init_file").unwrap_or(&15));
     }
+
+    // Ensure confidence never exceeds 100 (boosters might push it over)
+    def.confidence = def.confidence.min(100);
 
     // Note: TYPE_CHECKING import penalty moved to apply_heuristics()
     // because it needs def.references to be accurate (after cross-file merge)
@@ -189,4 +250,34 @@ pub fn apply_heuristics(def: &mut Definition) {
             .confidence
             .saturating_sub(*PENALTIES().get("type_checking_import").unwrap_or(&100));
     }
+
+    update_category(def);
+}
+
+/// Updates the confidence category based on the final confidence score and other factors.
+fn update_category(def: &mut crate::visitor::Definition) {
+    use crate::visitor::UnusedCategory;
+
+    // Special case: Config-like constants
+    if def.is_constant && def.confidence < 90 {
+        // If it was penalized heavily for being config-like, mark it as such
+        let upper = def.simple_name.to_ascii_uppercase();
+        if upper.contains("CONFIG")
+            || upper.contains("SETTING")
+            || upper.contains("OPTION")
+            || upper.contains("FLAG")
+            || upper.contains("DEFAULT")
+            || upper.ends_with("_ENV")
+        {
+            def.category = UnusedCategory::ConfigurationConstant;
+            return;
+        }
+    }
+
+    def.category = match def.confidence {
+        90..=100 => UnusedCategory::DefinitelyUnused,
+        60..=89 => UnusedCategory::ProbablyUnused,
+        40..=59 => UnusedCategory::PossiblyIntentional,
+        _ => UnusedCategory::PossiblyIntentional, // Fallback for very low confidence but still reported (e.g. if threshold is 0)
+    };
 }

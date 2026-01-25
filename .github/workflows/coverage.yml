@@ -3,8 +3,6 @@ name: Code Coverage
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,59 +11,17 @@ concurrency:
 jobs:
   coverage:
     name: Generate Code Coverage
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      - name: Set up Rust environment
-        uses: ./.github/actions/setup-rust
-        with:
-          components: llvm-tools-preview
-          workspaces: "cytoscnpy -> target"
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Generate coverage
-        working-directory: cytoscnpy
-        run: |
-          cargo llvm-cov --all-features --workspace --lcov --output-path ../lcov.info --fail-under-lines 83 --ignore-filename-regex 'quality_gate_test'
-          cargo llvm-cov report --summary-only --ignore-filename-regex 'quality_gate_test' | tee coverage-summary.txt
-        env:
-          PYO3_PYTHON: python3
-          CARGO_PROFILE_DEV_DEBUG: 0
-          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
-
-      - name: Generate workflow summary
-        run: |
-          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          cat cytoscnpy/coverage-summary.txt >> $GITHUB_STEP_SUMMARY
-
-      - name: Upload coverage to Codecov
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: codecov/codecov-action@v5
-        with:
-          files: lcov.info
-          fail_ci_if_error: false
-          verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Upload coverage report as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: |
-            lcov.info
-            cytoscnpy/target/llvm-cov/html/
-          retention-days: 30
+    uses: ./.github/workflows/rust-llvm-cov.yml
+    with:
+      workspaces: "cytoscnpy -> target"
+      working-directory: cytoscnpy
+      fail-under-lines: 83
+      ignore-filename-regex: quality_gate_test
+      lcov-output-path: lcov.info
+      run-python-coverage: true
+      python-tests-path: python/tests
+      python-coverage-package: cytoscnpy
+      upload-codecov: true
+      upload-artifacts: true
+      artifact-name: coverage-report
+    secrets: inherit

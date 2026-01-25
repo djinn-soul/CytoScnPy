@@ -56,6 +56,7 @@ fn test_generate_report_full() {
             is_constant: false,
             is_potential_secret: false,
             is_unreachable: false,
+            category: cytoscnpy::visitor::UnusedCategory::default(),
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -202,6 +203,7 @@ fn test_calculate_score_logic() {
             is_constant: false,
             is_potential_secret: false,
             is_unreachable: false,
+            category: cytoscnpy::visitor::UnusedCategory::default(),
         });
     }
     generate_report(&result, analysis_root, output_dir).unwrap();

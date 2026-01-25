@@ -115,6 +115,8 @@ fn create_mock_result() -> AnalysisResult {
         is_enum_member: false,
         is_constant: false,
         is_potential_secret: false,
+        is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     };
 
     result.unused_functions.push(Definition {

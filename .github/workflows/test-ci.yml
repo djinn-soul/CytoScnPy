@@ -29,6 +29,10 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -47,23 +51,14 @@ jobs:
             cytoscnpy-mcp -> target
             cytoscnpy-cli -> target
 
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
       - name: Build all crates
         run: cargo build --all-features --verbose
-
-      - name: Run Rust tests with nextest
-        run: cargo nextest run --all-features --verbose
-        env:
-          PYO3_PYTHON: python3
 
       - name: Install Python dependencies
         run: pip install -e ".[dev]"
 
       - name: Run Python tests
         run: pytest python/tests/ -v
-
 
       - name: Verify Output Formats
         run: |
@@ -99,6 +94,30 @@ jobs:
             results.sarif
             gitlab.json
             output.json
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: success() || failure()
+        with:
+          sarif_file: results.sarif
+          category: cytoscnpy-analysis
+
+  rust-coverage:
+    name: Rust Coverage (llvm-cov)
+    uses: ./.github/workflows/rust-llvm-cov.yml
+    with:
+      workspaces: |
+        cytoscnpy -> target
+        cytoscnpy-mcp -> target
+        cytoscnpy-cli -> target
+      working-directory: .
+      fail-under-lines: 83
+      ignore-filename-regex: quality_gate_test
+      lcov-output-path: lcov.info
+      run-python-coverage: false
+      upload-codecov: false
+      upload-artifacts: false
+      artifact-name: coverage-report
 
   vscode-test:
     name: VS Code Test (${{ matrix.os }})

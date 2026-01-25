@@ -1,6 +1,6 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 108
+assertion_line: 122
 expression: output
 ---
 {
@@ -17,6 +17,7 @@ expression: output
       "start_byte": 27,
       "end_byte": 66,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,
@@ -51,6 +52,7 @@ expression: output
       "start_byte": 8,
       "end_byte": 10,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,
@@ -82,6 +84,7 @@ expression: output
       "start_byte": 18,
       "end_byte": 21,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,
@@ -116,6 +119,7 @@ expression: output
       "start_byte": 84,
       "end_byte": 94,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,

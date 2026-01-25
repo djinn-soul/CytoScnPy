@@ -253,44 +253,8 @@ impl CytoScnPy {
                 }
 
                 // 2. Dynamic code handling
-                // 2. Dynamic code handling
-                let any_dynamic = !visitor.dynamic_scopes.is_empty();
-                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
+                // 2. Dynamic code handling removed (logic moved to heuristics for scoring)
 
-                for def in &mut visitor.definitions {
-                    // 1. Global eval affects everything (conservative)
-                    if module_is_dynamic {
-                        def.references += 1;
-                        continue;
-                    }
-
-                    // 2. Any local eval affects module-level variables (globals)
-                    // We explicitly SKIP secrets here (don't mark them as used).
-                    // Why: Even if `eval` exists, a hardcoded secret identifying as "unused" is highly suspicious
-                    // and should be reported to the user rather than suppressed by dynamic code heuristics.
-                    if any_dynamic && !def.is_potential_secret {
-                        if let Some(idx) = def.full_name.rfind('.') {
-                            if def.full_name[..idx] == module_name {
-                                def.references += 1;
-                                continue;
-                            }
-                        }
-                    }
-
-                    // 3. Scoped eval usage (locals)
-                    for scope in &visitor.dynamic_scopes {
-                        if def.full_name.starts_with(scope) {
-                            let scope_len = scope.len();
-                            // Ensure boundary match
-                            if def.full_name.len() > scope_len
-                                && def.full_name.as_bytes()[scope_len] == b'.'
-                            {
-                                def.references += 1;
-                                break;
-                            }
-                        }
-                    }
-                }
 
                 // 3. Flow-sensitive refinement
                 #[cfg(feature = "cfg")]
@@ -308,6 +272,8 @@ impl CytoScnPy {
                         &test_visitor,
                         &ignored_lines,
                         self.include_tests,
+                        &visitor.dynamic_scopes,
+                        &module_name,
                     );
                     apply_heuristics(def);
 
@@ -625,35 +591,8 @@ impl CytoScnPy {
                     }
                 }
 
-                // 1.5. Dynamic code handling
-                let any_dynamic = !visitor.dynamic_scopes.is_empty();
-                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
+                // 1.5. Dynamic code handling removed (logic moved to heuristics for scoring)
 
-                for def in &mut visitor.definitions {
-                    if module_is_dynamic {
-                        def.references += 1;
-                        continue;
-                    }
-                    if any_dynamic {
-                        if let Some(idx) = def.full_name.rfind('.') {
-                            if def.full_name[..idx] == module_name {
-                                def.references += 1;
-                                continue;
-                            }
-                        }
-                    }
-                    for scope in &visitor.dynamic_scopes {
-                        if def.full_name.starts_with(scope) {
-                            let scope_len = scope.len();
-                            if def.full_name.len() > scope_len
-                                && def.full_name.as_bytes()[scope_len] == b'.'
-                            {
-                                def.references += 1;
-                                break;
-                            }
-                        }
-                    }
-                }
 
                 #[cfg(feature = "cfg")]
                 Self::refine_flow_sensitive(
@@ -669,6 +608,8 @@ impl CytoScnPy {
                         &test_visitor,
                         &ignored_lines,
                         self.include_tests,
+                        &visitor.dynamic_scopes,
+                        &module_name,
                     );
                     apply_heuristics(def);
                 }

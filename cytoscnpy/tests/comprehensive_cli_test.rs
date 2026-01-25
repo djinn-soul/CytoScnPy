@@ -96,10 +96,18 @@ fn test_cli_deprecated_keys_coverage() {
     let dir = tempdir().unwrap();
     let config_path = dir.path().join(".cytoscnpy.toml");
     std::fs::write(&config_path, "[cytoscnpy]\ncomplexity = 10\n").unwrap();
-    std::env::set_current_dir(&dir).unwrap();
 
     let mut buffer = Vec::new();
-    let _ = run_with_args_to(vec!["stats".to_owned(), ".".to_owned()], &mut buffer).unwrap();
+    let _ = run_with_args_to(
+        vec![
+            "--root".to_owned(),
+            dir.path().to_string_lossy().to_string(),
+            "stats".to_owned(),
+            ".".to_owned(),
+        ],
+        &mut buffer,
+    )
+    .unwrap();
 }
 
 #[test]

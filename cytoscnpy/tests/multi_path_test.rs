@@ -128,16 +128,12 @@ fn test_analyze_paths_empty_defaults_to_current_dir() {
         write!(file, "def unused_func(): pass").unwrap();
     }
 
-    // Change to temp directory context
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(dir.path()).unwrap();
+    // Change to temp directory context using RAII guard
+    let _guard = cytoscnpy::test_utils::CwdGuard::new(dir.path()).unwrap();
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     let paths: Vec<PathBuf> = vec![];
     let result = analyzer.analyze_paths(&paths);
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).unwrap();
 
     assert_eq!(result.analysis_summary.total_files, 1);
 }

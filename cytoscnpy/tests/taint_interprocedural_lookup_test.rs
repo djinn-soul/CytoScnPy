@@ -1,6 +1,6 @@
 //! Interprocedural lookup regression tests.
 
-use cytoscnpy::taint::{interprocedural, analyzer::TaintAnalyzer};
+use cytoscnpy::taint::{analyzer::TaintAnalyzer, interprocedural};
 use cytoscnpy::utils::LineIndex;
 use ruff_python_parser::parse_module;
 use std::path::Path;

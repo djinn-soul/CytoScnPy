@@ -347,10 +347,11 @@ impl CytoScnPy {
         // Class-method linking: ALL methods of unused classes should be flagged as unused.
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
-        let unreachable_class_names: std::collections::HashSet<_> =
-            unused_classes.iter()
-                .filter(|c| c.is_unreachable)
-                .map(|c| c.full_name.clone()).collect();
+        let unreachable_class_names: std::collections::HashSet<_> = unused_classes
+            .iter()
+            .filter(|c| c.is_unreachable)
+            .map(|c| c.full_name.clone())
+            .collect();
 
         for def in &methods_with_refs {
             if def.confidence >= self.confidence_threshold {

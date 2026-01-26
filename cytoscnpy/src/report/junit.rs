@@ -102,10 +102,12 @@ fn write_findings_to_junit(
         )?;
         writeln!(
             writer,
-            "      <failure message=\"{}\">Line {}: {}</failure>",
+            "      <failure message=\"{}\">Line {}: {} ({}:{})</failure>",
             escape_xml(&msg),
             finding.sink_line,
-            escape_xml(&msg)
+            escape_xml(&msg),
+            escape_xml(&finding.file.to_string_lossy()),
+            finding.sink_line
         )?;
         writeln!(writer, "    </testcase>")?;
     }
@@ -205,10 +207,12 @@ fn write_testcase(
     )?;
     writeln!(
         writer,
-        "      <failure message=\"{}\">Line {}: {}</failure>",
+        "      <failure message=\"{}\">Line {}: {} ({}:{})</failure>",
         escape_xml(&finding.message),
         finding.line,
-        escape_xml(&finding.message)
+        escape_xml(&finding.message),
+        escape_xml(&finding.file.to_string_lossy()),
+        finding.line
     )?;
     writeln!(writer, "    </testcase>")?;
     Ok(())
@@ -229,11 +233,13 @@ fn write_unused(
     )?;
     writeln!(
         writer,
-        "      <failure message=\"Unused: {}\">Line {}: Unused {} '{}'</failure>",
+        "      <failure message=\"Unused: {}\">Line {}: Unused {} '{}' ({}:{})</failure>",
         escape_xml(name),
         line,
         rule_id,
-        escape_xml(name)
+        escape_xml(name),
+        escape_xml(file),
+        line
     )?;
     writeln!(writer, "    </testcase>")?;
     Ok(())

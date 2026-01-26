@@ -2,7 +2,7 @@
 source: cytoscnpy/tests/output_snapshot_test.rs
 expression: output
 ---
-::warning file=[FILE],line=5,col=5,title=UnusedFunction::Unused identifier 'unused_func'
-::warning file=[FILE],line=2,col=8,title=UnusedImport::Unused identifier 'os'
-::warning file=[FILE],line=3,col=8,title=UnusedImport::Unused identifier 'sys'
-::warning file=[FILE],line=9,col=5,title=UnusedVariable::Unused identifier 'main.unused_var'
+::warning file=[FILE],line=5,col=5,title=UnusedFunction::Unused identifier 'unused_func' in [FILE]:5
+::warning file=[FILE],line=2,col=8,title=UnusedImport::Unused identifier 'os' in [FILE]:2
+::warning file=[FILE],line=3,col=8,title=UnusedImport::Unused identifier 'sys' in [FILE]:3
+::warning file=[FILE],line=9,col=5,title=UnusedVariable::Unused identifier 'main.unused_var' in [FILE]:9

@@ -1,3 +1,6 @@
+pub mod cognitive_complexity;
+pub mod lcom4;
+
 use std::f64;
 
 /// Computes the Maintainability Index (MI).

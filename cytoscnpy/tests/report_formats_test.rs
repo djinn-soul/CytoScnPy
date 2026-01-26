@@ -203,7 +203,7 @@ fn test_github_report_coverage() {
     github::print_github(&mut buffer, &result).unwrap();
     let output = String::from_utf8(buffer).unwrap();
     assert!(output
-        .contains("::error file=test.py,line=10,col=5,title=CSP-D001::Dangerous function call"));
+        .contains("::error file=test.py,line=10,col=5,title=CSP-D001::Dangerous function call (test.py:10)"));
     assert!(output.contains("UnusedMethod"));
     assert!(output.contains("UnusedClass"));
     assert!(output.contains("UnusedImport"));
@@ -220,7 +220,7 @@ fn test_junit_report_coverage() {
     // mock_result has: 1 danger + 1 secret + 1 quality + 1 taint + 1 parse_error + 6 unused = 11 findings
     assert!(output.contains(r#"<testsuite name="CytoScnPy" tests="11" failures="11" errors="0">"#));
     // The current implementation does not include the 'type' attribute in the failure tag
-    assert!(output.contains(r#"<failure message="Dangerous function call">"#));
+    assert!(output.contains(r#"<failure message="Dangerous function call">Line 10: Dangerous function call (test.py:10)</failure>"#));
 }
 
 #[test]
@@ -242,7 +242,7 @@ fn test_gitlab_report_coverage() {
     let mut buffer = Vec::new();
     gitlab::print_gitlab(&mut buffer, &result).unwrap();
     let output = String::from_utf8(buffer).unwrap();
-    assert!(output.contains(r#""description": "Dangerous function call""#));
+    assert!(output.contains(r#""description": "Dangerous function call (test.py:10)""#));
     // Implementation uses: danger-{rule_id}-{normalized_path}-{index}
     // Result has rule_id="CSP-D001", file="test.py", index=0 (first danger finding)
     // "fingerprint": "danger-CSP-D001-test.py-0"
@@ -258,6 +258,8 @@ fn test_sarif_report_coverage() {
     assert!(output.contains(r#""version": "2.1.0""#));
     // SARIF uses "ruleId" for results
     assert!(output.contains(r#""ruleId": "CSP-D001""#));
+    // Check path in message
+    assert!(output.contains(r#""text": "Dangerous function call (test.py:10)""#));
 }
 
 #[test]

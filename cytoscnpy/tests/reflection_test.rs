@@ -51,10 +51,10 @@ import sys
 "#
     )
     .unwrap();
-    
+
     // We can't easily distinguish who added the ref, but we can verify the outcome.
     // Actually, "USED_VIA_GETATTR" usage via getattr might rely on string literal visitor mostly.
-    
+
     // Let's rely on the Dynamic Penalty test which is the new logic.
 }
 
@@ -89,11 +89,11 @@ getattr(object(), "dynamic_attr_" + "var")
     // Base 15 check.
     // Penalty 60.
     // Resulting confidence 100 - 15 - 60 = 25.
-    
+
     // If we filter with confidence 50, findings should disappear.
     let mut analyzer = CytoScnPy::default().with_confidence(50).with_tests(false);
     let result = analyzer.analyze(dir.path());
-    
+
     let unused_vars: Vec<String> = result
         .unused_variables
         .iter()
@@ -104,11 +104,10 @@ getattr(object(), "dynamic_attr_" + "var")
     assert!(!unused_vars.contains(&"CONST_A".to_owned()));
     assert!(!unused_vars.contains(&"CONST_B".to_owned()));
 
-
     // 2. Run with loose confidence (Low threshold).
     let mut analyzer_loose = CytoScnPy::default().with_confidence(10).with_tests(false);
     let result_loose = analyzer_loose.analyze(dir.path());
-    
+
     let unused_vars_loose: Vec<String> = result_loose
         .unused_variables
         .iter()
@@ -116,6 +115,9 @@ getattr(object(), "dynamic_attr_" + "var")
         .collect();
 
     // Should contain CONST_A because confidence (25) > threshold (10)
-    assert!(unused_vars_loose.contains(&"CONST_A".to_owned()), "Should be reported at low confidence");
+    assert!(
+        unused_vars_loose.contains(&"CONST_A".to_owned()),
+        "Should be reported at low confidence"
+    );
     assert!(unused_vars_loose.contains(&"CONST_B".to_owned()));
 }

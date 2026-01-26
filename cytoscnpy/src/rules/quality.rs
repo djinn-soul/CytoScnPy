@@ -2,6 +2,8 @@ use crate::config::Config;
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
+use crate::metrics::cognitive_complexity::calculate_cognitive_complexity;
+use crate::metrics::lcom4::calculate_lcom4;
 
 /// Category constants for quality rules
 pub const CAT_BEST_PRACTICES: &str = "Best Practices";
@@ -43,6 +45,16 @@ pub const META_NESTING: RuleMetadata = RuleMetadata {
     id: "",
     category: CAT_MAINTAINABILITY,
 };
+/// Metadata for `CognitiveComplexityRule`
+pub const META_COGNITIVE_COMPLEXITY: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_MAINTAINABILITY,
+};
+/// Metadata for `CohesionRule`
+pub const META_COHESION: RuleMetadata = RuleMetadata {
+    id: "",
+    category: CAT_MAINTAINABILITY,
+};
 
 /// Returns a list of all quality rules based on configuration.
 #[must_use]
@@ -59,6 +71,12 @@ pub fn get_quality_rules(config: &Config) -> Vec<Box<dyn Rule>> {
         )),
         Box::new(ComplexityRule::new(
             config.cytoscnpy.max_complexity.unwrap_or(10),
+        )),
+        Box::new(CognitiveComplexityRule::new(
+            15, // Standard threshold
+        )),
+        Box::new(CohesionRule::new(
+            1, // Ideal LCOM4 is 1
         )),
         Box::new(NestingRule::new(config.cytoscnpy.max_nesting.unwrap_or(3))),
     ]
@@ -441,5 +459,74 @@ fn create_finding(
         line,
         col,
         severity: severity.to_owned(),
+    }
+}
+
+struct CognitiveComplexityRule {
+    threshold: usize,
+}
+impl CognitiveComplexityRule {
+    fn new(threshold: usize) -> Self {
+        Self { threshold }
+    }
+}
+impl Rule for CognitiveComplexityRule {
+    fn name(&self) -> &'static str {
+        "CognitiveComplexityRule"
+    }
+    fn metadata(&self) -> RuleMetadata {
+        META_COGNITIVE_COMPLEXITY
+    }
+    fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
+        if let Stmt::FunctionDef(f) = stmt {
+            let complexity = calculate_cognitive_complexity(&f.body);
+            if complexity > self.threshold {
+                let severity = if complexity > 25 {
+                    "CRITICAL"
+                } else {
+                    "HIGH"
+                };
+                return Some(vec![create_finding(
+                    &format!("Cognitive Complexity is too high ({complexity} > {})", self.threshold),
+                    META_COGNITIVE_COMPLEXITY,
+                    context,
+                    f.name.range().start(),
+                    severity,
+                )]);
+            }
+        }
+        None
+    }
+}
+
+struct CohesionRule {
+    threshold: usize,
+}
+impl CohesionRule {
+    fn new(threshold: usize) -> Self {
+        Self { threshold }
+    }
+}
+impl Rule for CohesionRule {
+    fn name(&self) -> &'static str {
+        "CohesionRule"
+    }
+    fn metadata(&self) -> RuleMetadata {
+        META_COHESION
+    }
+    fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
+        if let Stmt::ClassDef(c) = stmt {
+             let lcom4 = calculate_lcom4(&c.body);
+             if lcom4 > self.threshold {
+                 return Some(vec![create_finding(
+                     &format!("Class lacks cohesion (LCOM4={lcom4}). Consider splitting into {lcom4} classes."),
+                     META_COHESION,
+                     context,
+                     c.name.range().start(),
+                     "HIGH",
+                 )]);
+             }
+        }
+        None
     }
 }

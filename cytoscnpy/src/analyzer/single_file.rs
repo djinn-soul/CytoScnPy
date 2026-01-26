@@ -255,7 +255,6 @@ impl CytoScnPy {
                 // 2. Dynamic code handling
                 // 2. Dynamic code handling removed (logic moved to heuristics for scoring)
 
-
                 // 3. Flow-sensitive refinement
                 #[cfg(feature = "cfg")]
                 Self::refine_flow_sensitive(
@@ -592,7 +591,6 @@ impl CytoScnPy {
                 }
 
                 // 1.5. Dynamic code handling removed (logic moved to heuristics for scoring)
-
 
                 #[cfg(feature = "cfg")]
                 Self::refine_flow_sensitive(

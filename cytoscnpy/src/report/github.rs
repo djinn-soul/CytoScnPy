@@ -188,8 +188,8 @@ fn write_annotation(
 
     writeln!(
         writer,
-        "::{} file={},line={},col={},title={}::{}",
-        gh_level, path, finding.line, finding.col, finding.rule_id, finding.message
+        "::{} file={},line={},col={},title={}::{} ({}:{})",
+        gh_level, path, finding.line, finding.col, finding.rule_id, finding.message, path, finding.line
     )?;
     Ok(())
 }
@@ -207,7 +207,7 @@ fn write_unused(
     let path = normalize_path(file, root);
     writeln!(
         writer,
-        "::{level} file={path},line={line},col={col},title={title}::Unused identifier '{name}'"
+        "::{level} file={path},line={line},col={col},title={title}::Unused identifier '{name}' in {path}:{line}"
     )?;
     Ok(())
 }

@@ -53,13 +53,19 @@ temp_var = "debug"
     let methods = &result.unused_methods;
 
     // Check UNUSED_PLAIN -> DefinitelyUnused
-    let unused_plain = vars.iter().find(|d| d.simple_name == "UNUSED_PLAIN").unwrap();
+    let unused_plain = vars
+        .iter()
+        .find(|d| d.simple_name == "UNUSED_PLAIN")
+        .unwrap();
     assert!(unused_plain.confidence >= 90);
     assert_eq!(unused_plain.category, UnusedCategory::DefinitelyUnused);
 
     // Check CONFIG_VALUE -> ConfigurationConstant
     // It should have confidence ~70 (95 - 25)
-    let config_val = vars.iter().find(|d| d.simple_name == "CONFIG_VALUE").unwrap();
+    let config_val = vars
+        .iter()
+        .find(|d| d.simple_name == "CONFIG_VALUE")
+        .unwrap();
     // Base penalty for constant 15? -> 85.
     // Config penalty 25? -> 60?
     // Let's print confidence to be sure if test fails.

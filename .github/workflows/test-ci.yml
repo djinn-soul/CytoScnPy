@@ -114,7 +114,7 @@ jobs:
       fail-under-lines: 83
       ignore-filename-regex: quality_gate_test
       lcov-output-path: lcov.info
-      run-python-coverage: false
+      run-python-coverage: true
       upload-codecov: false
       upload-artifacts: false
       artifact-name: coverage-report

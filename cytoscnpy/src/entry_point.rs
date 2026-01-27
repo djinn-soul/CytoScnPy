@@ -322,7 +322,27 @@ fn setup_configuration(effective_paths: &[std::path::PathBuf], cli: &Cli) -> App
     let config_path = effective_paths
         .first()
         .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
-    let config = crate::config::Config::load_from_path(config_path);
+    let mut config = crate::config::Config::load_from_path(config_path);
+
+    // CLI rule thresholds override config so analysis and gates stay consistent.
+    if let Some(value) = cli.max_complexity {
+        config.cytoscnpy.max_complexity = Some(value);
+    }
+    if let Some(value) = cli.max_nesting {
+        config.cytoscnpy.max_nesting = Some(value);
+    }
+    if let Some(value) = cli.max_args {
+        config.cytoscnpy.max_args = Some(value);
+    }
+    if let Some(value) = cli.max_lines {
+        config.cytoscnpy.max_lines = Some(value);
+    }
+    if let Some(value) = cli.min_mi {
+        config.cytoscnpy.min_mi = Some(value);
+    }
+    if let Some(value) = cli.fail_threshold {
+        config.cytoscnpy.fail_threshold = Some(value);
+    }
 
     let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
     exclude_folders.extend(cli.exclude_folders.clone());
@@ -1252,7 +1272,7 @@ fn handle_analysis<W: std::io::Write>(
         let complexity_violations: Vec<usize> = result
             .quality
             .iter()
-            .filter(|f| f.rule_id == "CSP-Q301")
+            .filter(|f| f.rule_id == crate::rules::ids::RULE_ID_COMPLEXITY)
             .filter_map(|f| {
                 // Extract complexity value from message like "Function is too complex (McCabe=15)"
                 f.message
@@ -1366,3 +1386,4 @@ fn run_clone_detection_for_json(
     // Generate findings
     crate::commands::generate_clone_findings(&result.pairs, &matched_files, true)
 }
+

@@ -35,11 +35,23 @@
           "line_start": 7,
           "reason": "Imported in TYPE_CHECKING block but never used"
         },
-         {
+        {
           "type": "import",
           "name": "re",
           "line_start": 30,
           "reason": "Imported locally but only used in string annotation (if tool doesn't resolve string hints locally, this is dead. If it does, strictly speaking 're' name is not loaded at runtime so it IS dead at runtime, but alive for static analysis? Usually considered dead code if not used at runtime or effectively for type checkers. Let's mark as dead for now as it's a tricky edge case)"
+        },
+        {
+          "type": "variable",
+          "name": "p",
+          "line_start": 9,
+          "reason": "Parameter to process_path is unused"
+        },
+        {
+          "type": "variable",
+          "name": "parent",
+          "line_start": 14,
+          "reason": "Parameter to set_parent is unused"
         }
       ]
     },
@@ -52,12 +64,12 @@
           "reason": "Global y is shadowed by local y in f2, and global y is never used"
         },
         {
-            "type": "variable",
-            "name": "val",
-            "line_start": 64,
-            "reason": "Local val defined in method but self.val is returned. Local val is unused shadowing."
+          "type": "variable",
+          "name": "val",
+          "line_start": 64,
+          "reason": "Local val defined in method but self.val is returned. Local val is unused shadowing."
         },
-         {
+        {
           "type": "variable",
           "name": "x",
           "line_start": 52,

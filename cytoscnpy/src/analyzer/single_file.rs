@@ -413,7 +413,7 @@ impl CytoScnPy {
                                 message: format!(
                                     "Maintainability Index too low ({file_mi:.2} < {min_mi:.2})"
                                 ),
-                                rule_id: "CSP-Q303".to_owned(),
+                                rule_id: crate::rules::ids::RULE_ID_MIN_MI.to_owned(),
                                 category: "Maintainability".to_owned(),
                                 file: file_path.to_path_buf(),
                                 line: 1,
@@ -909,3 +909,4 @@ impl CytoScnPy {
         }
     }
 }
+

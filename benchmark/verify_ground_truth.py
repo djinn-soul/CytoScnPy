@@ -46,7 +46,10 @@ def verify_item(file_path, item, lines):
     elif item_type == "variable":
         # loose check for variable assignment or usage
         if name not in line_content:
-            return f"NAME NOT FOUND: Expected variable '{name}' at line {line_start}, found: {line_content}"
+            # Try simple name (e.g. MultiKeywordClass.name -> name)
+            simple_name = name.split(".")[-1]
+            if simple_name not in line_content:
+                return f"NAME NOT FOUND: Expected variable '{name}' at line {line_start}, found: {line_content}"
 
     return None
 
@@ -79,6 +82,8 @@ def verify_ground_truth(gt_path):
 
         dead_items = file_data.get("dead_items", [])
         for item in dead_items:
+            if item.get("suppressed"):
+                continue
             issue = verify_item(py_path, item, lines)
             if issue:
                 issues.append(f"{filename}: {issue}")

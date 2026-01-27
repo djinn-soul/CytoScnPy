@@ -976,8 +976,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let simple_name = alias.asname.as_ref().unwrap_or(&alias.name);
                     let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
+                    // Use qualified name for imports to prevent collisions between files
+                    // e.g. "re" in file A vs "re" in file B
+                    // If we use simple_name "re", they share the same reference count.
+                    // By using qualified name, we isolate them.
+                    let qualified_name = self.get_qualified_name(simple_name.as_str());
+
                     self.add_definition(DefinitionInfo {
-                        name: simple_name.to_string(),
+                        name: qualified_name.clone(),
                         def_type: "import".to_owned(),
                         line,
                         end_line,
@@ -988,10 +994,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         base_classes: SmallVec::new(),
                     });
 
-                    self.add_local_def(
-                        simple_name.as_str().to_owned(),
-                        simple_name.as_str().to_owned(),
-                    );
+                    self.add_local_def(simple_name.as_str().to_owned(), qualified_name);
 
                     // Add alias mapping: asname -> name
                     self.alias_map
@@ -1024,8 +1027,11 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let asname = alias.asname.as_ref().unwrap_or(&alias.name);
                     let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
+                    // Use qualified name for imports
+                    let qualified_name = self.get_qualified_name(asname.as_str());
+
                     self.add_definition(DefinitionInfo {
-                        name: asname.to_string(),
+                        name: qualified_name.clone(),
                         def_type: "import".to_owned(),
                         line,
                         end_line,
@@ -1035,7 +1041,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         full_start_byte: start_byte,
                         base_classes: SmallVec::new(),
                     });
-                    self.add_local_def(asname.to_string(), asname.to_string());
+                    self.add_local_def(asname.to_string(), qualified_name);
 
                     // Add alias mapping: asname -> module.name (if module exists) or just name
                     if let Some(module) = &node.module {
@@ -2006,6 +2012,11 @@ impl<'a> CytoScnPyVisitor<'a> {
         if !s.contains(' ') && !s.is_empty() {
             self.add_ref(s.clone());
 
+            // Also add qualified reference for the whole string if it's likely a type path
+            if !self.module_name.is_empty() {
+                self.add_ref(format!("{}.{}", self.module_name, s));
+            }
+
             // Enhanced: Extract type names from string type annotations
             // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
             // Extract alphanumeric identifiers (type names)
@@ -2017,6 +2028,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // Check if it looks like a type name (starts with uppercase)
                     if current_word.chars().next().is_some_and(char::is_uppercase) {
                         self.add_ref(current_word.clone());
+                        if !self.module_name.is_empty() {
+                            self.add_ref(format!("{}.{}", self.module_name, current_word));
+                        }
                     }
                     current_word.clear();
                 }
@@ -2025,7 +2039,10 @@ impl<'a> CytoScnPyVisitor<'a> {
             if !current_word.is_empty()
                 && current_word.chars().next().is_some_and(char::is_uppercase)
             {
-                self.add_ref(current_word);
+                self.add_ref(current_word.clone());
+                if !self.module_name.is_empty() {
+                    self.add_ref(format!("{}.{}", self.module_name, current_word));
+                }
             }
         }
     }

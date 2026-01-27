@@ -7,7 +7,7 @@ from pathlib import Path
 
 def normalize_path(p):
     """Normalize path separator."""
-    return str(Path(p).as_posix()).strip("/")
+    return str(Path(p).as_posix()).strip("/").lower()
 
 
 def load_ground_truth(base_dir):
@@ -26,6 +26,8 @@ def load_ground_truth(base_dir):
             covered_files.add(norm_path)
 
             for item in content.get("dead_items", []):
+                if item.get("suppressed"):
+                    continue
                 key = (norm_path, item["type"], item["name"], item.get("line_start"))
                 truth[key] = item
 
@@ -39,15 +41,21 @@ def load_cytoscnpy_output(target_dir):
         capture_output=True,
         text=True,
     )
+    
+    if not result.stdout:
+        print(f"Error: No output from tool. Stderr: {result.stderr}")
+        return {}
+
     data = json.loads(result.stdout)
 
     findings = {}
     type_map = {
         "unused_functions": "function",
-        "unused_classes": "class",
-        "unused_imports": "import",
         "unused_methods": "method",
+        "unused_imports": "import",
+        "unused_classes": "class",
         "unused_variables": "variable",
+        "unused_parameters": "variable",
     }
 
     for key, def_type in type_map.items():
@@ -56,6 +64,8 @@ def load_cytoscnpy_output(target_dir):
             name = item.get("simple_name") or item.get("name", "").split(".")[-1]
             line = item.get("line")
             actual_type = item.get("def_type", def_type)
+            if actual_type == "parameter":
+                actual_type = "variable"
 
             fkey = (norm_path, actual_type, name, line)
             findings[fkey] = item
@@ -89,14 +99,20 @@ def match_items(finding_key, truth_keys):
         # Name match
         f_simple = f_name.split(".")[-1]
         t_simple = t_name.split(".")[-1]
-        if f_simple != t_simple:
+        
+        # Determine if we have a match
+        is_match = False
+        if f_simple == t_simple:
+            # Check line if available
+            if f_line is not None and t_line is not None:
+                if abs(f_line - t_line) <= 2:
+                    is_match = True
+            else:
+                 is_match = True
+        
+        if not is_match:
             continue
-
-        # Line match (within margin)
-        if f_line is not None and t_line is not None:
-            if abs(f_line - t_line) > 2:
-                continue
-
+            
         return t_key
 
     return None
@@ -134,6 +150,7 @@ def main():
 
     for f_key in filtered_findings:
         match = match_items(f_key, truth.keys())
+        
         if match:
             matched_truth.add(match)
             matched_findings.add(f_key)

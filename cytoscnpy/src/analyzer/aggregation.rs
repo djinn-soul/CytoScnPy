@@ -273,15 +273,17 @@ impl CytoScnPy {
                     // unrelated attributes from marking enum members as used
                 }
 
-                // Fallback to simple name for all non-enum types (including variables)
+                // Fallback to simple name for all non-enum types
                 // This fixes cross-file references like `module.CONSTANT` where the
                 // reference is tracked as simple name but def has full qualified path
                 //
-                // EXCEPTION: Do not do this for variables to avoid conflating local variables
-                // (e.g. 'a', 'i', 'x') with global references. Variables should rely on
-                // full_name matching or scope resolution in visitor.
+                // EXCEPTION: Do not do this for variables or imports to avoid conflating
+                // local/scoped items (e.g. 'a', 'i', 'x', or local 'import re')
+                // with global references to the same name.
                 if !matched && !def.is_enum_member {
-                    let should_fallback = def.def_type != "variable" && def.def_type != "parameter";
+                    let should_fallback = def.def_type != "variable"
+                        && def.def_type != "parameter"
+                        && def.def_type != "import";
 
                     if should_fallback {
                         if let Some(count) = ref_counts.get(&def.simple_name) {
@@ -343,8 +345,6 @@ impl CytoScnPy {
                 }
             }
         }
-
-        // Class-method linking: ALL methods of unused classes should be flagged as unused.
         let unused_class_names: std::collections::HashSet<_> =
             unused_classes.iter().map(|c| c.full_name.clone()).collect();
         let unreachable_class_names: std::collections::HashSet<_> = unused_classes

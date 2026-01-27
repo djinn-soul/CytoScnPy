@@ -100,3 +100,23 @@ pub const RULE_ID_DJANGO_SECURITY: &str = "CSP-D902";
 
 /// XSS (Generic fallback for taint analysis)
 pub const RULE_ID_XSS_GENERIC: &str = "CSP-X001";
+/// Quality: Mutable default argument (use None + initialize inside)
+pub const RULE_ID_MUTABLE_DEFAULT: &str = "CSP-L001";
+/// Quality: Bare except block
+pub const RULE_ID_BARE_EXCEPT: &str = "CSP-L002";
+/// Quality: Dangerous comparison to True/False/None with ==/!=
+pub const RULE_ID_DANGEROUS_COMPARISON: &str = "CSP-L003";
+/// Quality: Cyclomatic complexity threshold exceeded (McCabe)
+pub const RULE_ID_COMPLEXITY: &str = "CSP-Q301";
+/// Quality: Block nesting depth exceeded
+pub const RULE_ID_NESTING: &str = "CSP-Q302";
+/// Quality: Maintainability Index too low
+pub const RULE_ID_MIN_MI: &str = "CSP-Q303";
+/// Quality: Cognitive complexity threshold exceeded
+pub const RULE_ID_COGNITIVE_COMPLEXITY: &str = "CSP-Q304";
+/// Quality: Lack of cohesion (LCOM4)
+pub const RULE_ID_COHESION: &str = "CSP-Q305";
+/// Quality: Too many function arguments
+pub const RULE_ID_ARGUMENT_COUNT: &str = "CSP-C303";
+/// Quality: Function too long (line count)
+pub const RULE_ID_FUNCTION_LENGTH: &str = "CSP-C304";

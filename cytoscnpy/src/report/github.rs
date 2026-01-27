@@ -189,7 +189,14 @@ fn write_annotation(
     writeln!(
         writer,
         "::{} file={},line={},col={},title={}::{} ({}:{})",
-        gh_level, path, finding.line, finding.col, finding.rule_id, finding.message, path, finding.line
+        gh_level,
+        path,
+        finding.line,
+        finding.col,
+        finding.rule_id,
+        finding.message,
+        path,
+        finding.line
     )?;
     Ok(())
 }

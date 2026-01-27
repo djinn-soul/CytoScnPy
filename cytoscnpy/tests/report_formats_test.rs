@@ -202,8 +202,9 @@ fn test_github_report_coverage() {
     let mut buffer = Vec::new();
     github::print_github(&mut buffer, &result).unwrap();
     let output = String::from_utf8(buffer).unwrap();
-    assert!(output
-        .contains("::error file=test.py,line=10,col=5,title=CSP-D001::Dangerous function call (test.py:10)"));
+    assert!(output.contains(
+        "::error file=test.py,line=10,col=5,title=CSP-D001::Dangerous function call (test.py:10)"
+    ));
     assert!(output.contains("UnusedMethod"));
     assert!(output.contains("UnusedClass"));
     assert!(output.contains("UnusedImport"));

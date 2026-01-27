@@ -1,9 +1,9 @@
 use crate::config::Config;
+use crate::metrics::cognitive_complexity::calculate_cognitive_complexity;
+use crate::metrics::lcom4::calculate_lcom4;
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
-use crate::metrics::cognitive_complexity::calculate_cognitive_complexity;
-use crate::metrics::lcom4::calculate_lcom4;
 
 /// Category constants for quality rules
 pub const CAT_BEST_PRACTICES: &str = "Best Practices";
@@ -481,13 +481,12 @@ impl Rule for CognitiveComplexityRule {
         if let Stmt::FunctionDef(f) = stmt {
             let complexity = calculate_cognitive_complexity(&f.body);
             if complexity > self.threshold {
-                let severity = if complexity > 25 {
-                    "CRITICAL"
-                } else {
-                    "HIGH"
-                };
+                let severity = if complexity > 25 { "CRITICAL" } else { "HIGH" };
                 return Some(vec![create_finding(
-                    &format!("Cognitive Complexity is too high ({complexity} > {})", self.threshold),
+                    &format!(
+                        "Cognitive Complexity is too high ({complexity} > {})",
+                        self.threshold
+                    ),
                     META_COGNITIVE_COMPLEXITY,
                     context,
                     f.name.range().start(),
@@ -516,16 +515,16 @@ impl Rule for CohesionRule {
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         if let Stmt::ClassDef(c) = stmt {
-             let lcom4 = calculate_lcom4(&c.body);
-             if lcom4 > self.threshold {
-                 return Some(vec![create_finding(
+            let lcom4 = calculate_lcom4(&c.body);
+            if lcom4 > self.threshold {
+                return Some(vec![create_finding(
                      &format!("Class lacks cohesion (LCOM4={lcom4}). Consider splitting into {lcom4} classes."),
                      META_COHESION,
                      context,
                      c.name.range().start(),
                      "HIGH",
                  )]);
-             }
+            }
         }
         None
     }

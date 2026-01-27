@@ -24,24 +24,24 @@ pub fn calculate_lcom4(class_body: &[Stmt]) -> usize {
             if method_name.starts_with("__") && method_name.ends_with("__") {
                 continue;
             }
-            
-            // Check visibility - ignore privates? No, standard LCOM includes them. 
+
+            // Check visibility - ignore privates? No, standard LCOM includes them.
             // Often getters/setters are excluded, but let's keep it simple for now.
-            
+
             methods.insert(method_name.clone());
-            
+
             let mut visitor = LcomVisitor::new();
             for s in &func.body {
                 visitor.visit_stmt(s);
             }
-            
+
             method_usage.insert(method_name.clone(), visitor.used_fields);
             method_calls.insert(method_name, visitor.called_methods);
         }
     }
 
     if methods.is_empty() {
-        return 0; 
+        return 0;
     }
 
     // 2. Build Graph (Adjacency List)
@@ -49,7 +49,7 @@ pub fn calculate_lcom4(class_body: &[Stmt]) -> usize {
     // Edge: if intersection of fields > 0 OR calls exists
     let method_list: Vec<String> = methods.iter().cloned().collect();
     let mut adj: HashMap<String, Vec<String>> = HashMap::new();
-    
+
     for m in &method_list {
         adj.insert(m.clone(), Vec::new());
     }
@@ -61,13 +61,13 @@ pub fn calculate_lcom4(class_body: &[Stmt]) -> usize {
 
             let fields1 = method_usage.get(m1).unwrap();
             let fields2 = method_usage.get(m2).unwrap();
-            
+
             // Connected if share a field
             let share_fields = fields1.intersection(fields2).next().is_some();
-            
+
             // Connected if m1 calls m2 OR m2 calls m1
-            let calls = method_calls.get(m1).unwrap().contains(m2) 
-                     || method_calls.get(m2).unwrap().contains(m1);
+            let calls = method_calls.get(m1).unwrap().contains(m2)
+                || method_calls.get(m2).unwrap().contains(m1);
 
             if share_fields || calls {
                 adj.get_mut(m1).unwrap().push(m2.clone());
@@ -127,25 +127,37 @@ impl LcomVisitor {
             Stmt::Expr(n) => self.visit_expr(&n.value),
             Stmt::If(n) => {
                 self.visit_expr(&n.test);
-                for s in &n.body { self.visit_stmt(s); }
-                for s in &n.elif_else_clauses { 
-                    if let Some(t) = &s.test { self.visit_expr(t); }
-                    for b in &s.body { self.visit_stmt(b); }
+                for s in &n.body {
+                    self.visit_stmt(s);
+                }
+                for s in &n.elif_else_clauses {
+                    if let Some(t) = &s.test {
+                        self.visit_expr(t);
+                    }
+                    for b in &s.body {
+                        self.visit_stmt(b);
+                    }
                 }
             }
             Stmt::Return(n) => {
-                if let Some(v) = &n.value { self.visit_expr(v); }
+                if let Some(v) = &n.value {
+                    self.visit_expr(v);
+                }
             }
             Stmt::For(n) => {
-                 self.visit_expr(&n.iter);
-                 for s in &n.body { self.visit_stmt(s); }
-                 for s in &n.orelse { self.visit_stmt(s); }
+                self.visit_expr(&n.iter);
+                for s in &n.body {
+                    self.visit_stmt(s);
+                }
+                for s in &n.orelse {
+                    self.visit_stmt(s);
+                }
             }
             // ... truncated simplified recursion
             _ => {
-                 // Fallback: we should really recurse fully, but for LCOM specific
-                 // we mostly care about explicit Attribute usage.
-                 // Assuming simple structure for now.
+                // Fallback: we should really recurse fully, but for LCOM specific
+                // we mostly care about explicit Attribute usage.
+                // Assuming simple structure for now.
             }
         }
     }
@@ -161,7 +173,7 @@ impl LcomVisitor {
                         // If it's in a Call node, it might be a method.
                         // Imprecise without type info, but we assume all self.X are fields unless we distinguish context.
                         // Actually, in LCOM, interacting with a method is also "using" it.
-                        // We separate them into 'calls' vs 'fields' to be precise, but for graph connection, 
+                        // We separate them into 'calls' vs 'fields' to be precise, but for graph connection,
                         // matching names is enough.
                         // Let's store everything as "used_fields" for simplicity unless we can prove it's a call.
                         self.used_fields.insert(attr.attr.id.to_string());
@@ -184,9 +196,9 @@ impl LcomVisitor {
                 }
             }
             ast::Expr::Name(_) => {}
-             _ => {
-                 // recurse
-             }
+            _ => {
+                // recurse
+            }
         }
     }
 }

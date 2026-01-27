@@ -1,11 +1,11 @@
 //! Tests for Maintainability Index (MI) metrics.
 #![allow(clippy::float_cmp)]
 
-use cytoscnpy::metrics::{mi_compute, mi_rank};
 use cytoscnpy::metrics::cognitive_complexity::calculate_cognitive_complexity;
 use cytoscnpy::metrics::lcom4::calculate_lcom4;
-use ruff_python_parser::parse_module;
+use cytoscnpy::metrics::{mi_compute, mi_rank};
 use ruff_python_ast::Stmt;
+use ruff_python_parser::parse_module;
 
 #[test]
 fn test_mi_compute_simple() {

@@ -113,6 +113,7 @@ pub struct DefinitionInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Categorization of unused symbols by confidence levels.
 pub enum UnusedCategory {
     /// High confidence (90-100) that this is unused.
     #[default]

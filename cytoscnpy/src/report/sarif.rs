@@ -280,7 +280,7 @@ fn make_sarif_result(
         rule_id: id.to_owned(),
         level: level.into(),
         message: Message {
-            text: format!("{} ({}:{})", msg, uri, line),
+            text: format!("{msg} ({uri}:{line})"),
         },
         locations: vec![Location {
             physical_location: PhysicalLocation {

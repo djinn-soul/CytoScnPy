@@ -131,20 +131,43 @@ impl CytoScnPy {
         }
 
         // 2. Identification of implicit implementations
+        // Optimization: Inverted Index (Method -> Protocols)
+        let mut method_to_protocols: FxHashMap<String, Vec<&String>> = FxHashMap::default();
+        for (proto_name, methods) in &all_protocols {
+            for method in methods {
+                method_to_protocols
+                    .entry(method.clone())
+                    .or_default()
+                    .push(proto_name);
+            }
+        }
+
         let mut implicitly_used_methods: FxHashSet<String> = FxHashSet::default();
 
         for (class_name, methods) in &class_methods {
-            for proto_methods in all_protocols.values() {
-                let intersection_count = methods.intersection(proto_methods).count();
-                let proto_len = proto_methods.len();
+            // Find candidate protocols
+            let mut candidate_protocols: FxHashSet<&String> = FxHashSet::default();
+            for method in methods {
+                if let Some(protos) = method_to_protocols.get(method) {
+                    for proto in protos {
+                        candidate_protocols.insert(proto);
+                    }
+                }
+            }
 
-                // Heuristic: >= 70% overlap and at least 3 methods matches
-                if proto_len > 0 && intersection_count >= 3 {
-                    let ratio = intersection_count as f64 / proto_len as f64;
-                    if ratio >= 0.7 {
-                        // Match! Mark overlapping methods as implicitly used
-                        for method in methods.intersection(proto_methods) {
-                            implicitly_used_methods.insert(format!("{class_name}.{method}"));
+            for proto_name in candidate_protocols {
+                if let Some(proto_methods) = all_protocols.get(proto_name) {
+                    let intersection_count = methods.intersection(proto_methods).count();
+                    let proto_len = proto_methods.len();
+
+                    // Heuristic: >= 70% overlap and at least 3 methods matches
+                    if proto_len > 0 && intersection_count >= 3 {
+                        let ratio = intersection_count as f64 / proto_len as f64;
+                        if ratio >= 0.7 {
+                            // Match! Mark overlapping methods as implicitly used
+                            for method in methods.intersection(proto_methods) {
+                                implicitly_used_methods.insert(format!("{class_name}.{method}"));
+                            }
                         }
                     }
                 }
@@ -201,9 +224,8 @@ impl CytoScnPy {
 
             if let Some(node) = global_call_graph.nodes.get(&current) {
                 for call in &node.calls {
-                    if call.starts_with('.') {
+                    if let Some(attr_name) = call.strip_prefix('.') {
                         // Loose attribute hint - visit all matching methods
-                        let attr_name = &call[1..];
                         if let Some(methods) = method_simple_to_full.get(attr_name) {
                             for method_full in methods {
                                 if !reachable_nodes.contains(method_full) {

@@ -1,24 +1,27 @@
+//! Tests for Python reflection and dynamic attribute access analysis.
+#![allow(clippy::expect_used)]
+
 use cytoscnpy::analyzer::CytoScnPy;
 use std::fs::File;
 use std::io::Write;
 use tempfile::TempDir;
 
 fn project_tempdir() -> TempDir {
-    let mut target_dir = std::env::current_dir().unwrap();
+    let mut target_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     target_dir.push("target");
     target_dir.push("test-reflection-tmp");
-    std::fs::create_dir_all(&target_dir).unwrap();
+    let _ = std::fs::create_dir_all(&target_dir);
     tempfile::Builder::new()
         .prefix("reflection_test_")
         .tempdir_in(target_dir)
-        .unwrap()
+        .expect("Failed to create temp dir")
 }
 
 #[test]
 fn test_getattr_literal_resolution() {
     let dir = project_tempdir();
     let file_path = dir.path().join("getattr_literal.py");
-    let mut file = File::create(&file_path).unwrap();
+    let mut file = File::create(&file_path).expect("Failed to create test file");
 
     writeln!(
         file,
@@ -50,7 +53,7 @@ import sys
 # getattr(MyObj, "ATTR") should add ref to "MyObj.ATTR".
 "#
     )
-    .unwrap();
+    .expect("Failed to write test file");
 
     // We can't easily distinguish who added the ref, but we can verify the outcome.
     // Actually, "USED_VIA_GETATTR" usage via getattr might rely on string literal visitor mostly.
@@ -62,7 +65,7 @@ import sys
 fn test_reflection_penalty() {
     let dir = project_tempdir();
     let file_path = dir.path().join("reflection_penalty.py");
-    let mut file = File::create(&file_path).unwrap();
+    let mut file = File::create(&file_path).expect("Failed to create test file");
 
     writeln!(
         file,
@@ -82,7 +85,7 @@ make_dynamic(None, "foo")
 getattr(object(), "dynamic_attr_" + "var")
 "#
     )
-    .unwrap();
+    .expect("Failed to write test file");
 
     // 1. Run with strict confidence (High threshold).
     // If penalty is applied, confidence drops.

@@ -106,7 +106,7 @@ pub const RULE_ID_MUTABLE_DEFAULT: &str = "CSP-L001";
 pub const RULE_ID_BARE_EXCEPT: &str = "CSP-L002";
 /// Quality: Dangerous comparison to True/False/None with ==/!=
 pub const RULE_ID_DANGEROUS_COMPARISON: &str = "CSP-L003";
-/// Quality: Cyclomatic complexity threshold exceeded (McCabe)
+/// Quality: Cyclomatic complexity threshold exceeded (`McCabe`)
 pub const RULE_ID_COMPLEXITY: &str = "CSP-Q301";
 /// Quality: Block nesting depth exceeded
 pub const RULE_ID_NESTING: &str = "CSP-Q302";
@@ -120,3 +120,33 @@ pub const RULE_ID_COHESION: &str = "CSP-Q305";
 pub const RULE_ID_ARGUMENT_COUNT: &str = "CSP-C303";
 /// Quality: Function too long (line count)
 pub const RULE_ID_FUNCTION_LENGTH: &str = "CSP-C304";
+
+/// Performance: Membership test in list literal (O(N))
+pub const RULE_ID_MEMBERSHIP_LIST: &str = "CSP-P001";
+/// Performance: File read loads entire file into memory (use iteration instead)
+pub const RULE_ID_FILE_READ_RISK: &str = "CSP-P002";
+/// Performance: String concatenation in loop
+pub const RULE_ID_STRING_CONCAT: &str = "CSP-P003";
+/// Performance: Useless list/tuple call on iterator
+pub const RULE_ID_USELESS_CAST: &str = "CSP-P004";
+/// Performance: Regex compilation in loop
+pub const RULE_ID_REGEX_LOOP: &str = "CSP-P005";
+/// Performance: Deep attribute access in loop
+pub const RULE_ID_ATTRIBUTE_HOIST: &str = "CSP-P006";
+/// Performance: Pure builtin call with invariant arguments in loop
+pub const RULE_ID_PURE_CALL_HOIST: &str = "CSP-P007";
+/// Performance: Try-except used for simple flow control in loop
+pub const RULE_ID_EXCEPTION_FLOW_LOOP: &str = "CSP-P008";
+/// Performance: Incorrect dictionary iterator (using `.items()` when only key/value used)
+pub const RULE_ID_DICT_ITERATOR: &str = "CSP-P009";
+/// Performance: Global name usage in a loop
+pub const RULE_ID_GLOBAL_LOOP: &str = "CSP-P010";
+/// Performance: Looped slicing of bytes (suggest memoryview)
+pub const RULE_ID_MEMORYVIEW_BYTES: &str = "CSP-P011";
+/// Performance: Use tuple instead of list for non-mutated sequences
+pub const RULE_ID_TUPLE_OVER_LIST: &str = "CSP-P012";
+/// Performance: Use comprehension instead of loop
+pub const RULE_ID_COMPREHENSION: &str = "CSP-P013";
+
+/// Performance: Pandas `read_csv` used without `chunksize`
+pub const RULE_ID_PANDAS_CHUNK_RISK: &str = "CSP-P015";

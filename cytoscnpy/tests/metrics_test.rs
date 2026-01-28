@@ -1,5 +1,5 @@
 //! Tests for Maintainability Index (MI) metrics.
-#![allow(clippy::float_cmp)]
+#![allow(clippy::float_cmp, clippy::expect_used, clippy::panic)]
 
 use cytoscnpy::metrics::cognitive_complexity::calculate_cognitive_complexity;
 use cytoscnpy::metrics::lcom4::calculate_lcom4;
@@ -40,7 +40,7 @@ fn test_mi_rank() {
 }
 
 fn parse_func_body(code: &str) -> Vec<Stmt> {
-    let parsed = parse_module(code).unwrap();
+    let parsed = parse_module(code).expect("Failed to parse Python module");
     let module = parsed.into_syntax();
     if let Stmt::FunctionDef(f) = &module.body[0] {
         f.body.clone()
@@ -50,7 +50,7 @@ fn parse_func_body(code: &str) -> Vec<Stmt> {
 }
 
 fn parse_class_body(code: &str) -> Vec<Stmt> {
-    let parsed = parse_module(code).unwrap();
+    let parsed = parse_module(code).expect("Failed to parse Python module");
     let module = parsed.into_syntax();
     if let Stmt::ClassDef(c) = &module.body[0] {
         c.body.clone()

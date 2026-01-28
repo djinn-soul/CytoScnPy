@@ -11,6 +11,11 @@ use std::collections::{HashMap, HashSet};
 /// Score 1 = Cohesive (Good).
 /// Score > 1 = The class performs > 1 unrelated responsibilities (God Class).
 /// Score 0 = Empty class or no methods.
+///
+/// # Panics
+///
+/// Panics if internal data structures are inconsistent (methods in `method_list`
+/// but not in `method_usage` or `method_calls` maps, or adjacency list missing entries).
 pub fn calculate_lcom4(class_body: &[Stmt]) -> usize {
     let mut methods = HashSet::new();
     let mut method_usage: HashMap<String, HashSet<String>> = HashMap::new();
@@ -59,19 +64,32 @@ pub fn calculate_lcom4(class_body: &[Stmt]) -> usize {
             let m1 = &method_list[i];
             let m2 = &method_list[j];
 
-            let fields1 = method_usage.get(m1).unwrap();
-            let fields2 = method_usage.get(m2).unwrap();
+            let Some(fields1) = method_usage.get(m1) else {
+                continue;
+            };
+            let Some(fields2) = method_usage.get(m2) else {
+                continue;
+            };
 
             // Connected if share a field
             let share_fields = fields1.intersection(fields2).next().is_some();
 
             // Connected if m1 calls m2 OR m2 calls m1
-            let calls = method_calls.get(m1).unwrap().contains(m2)
-                || method_calls.get(m2).unwrap().contains(m1);
+            let Some(calls1) = method_calls.get(m1) else {
+                continue;
+            };
+            let Some(calls2) = method_calls.get(m2) else {
+                continue;
+            };
+            let calls = calls1.contains(m2) || calls2.contains(m1);
 
             if share_fields || calls {
-                adj.get_mut(m1).unwrap().push(m2.clone());
-                adj.get_mut(m2).unwrap().push(m1.clone());
+                if let Some(neighbors) = adj.get_mut(m1) {
+                    neighbors.push(m2.clone());
+                }
+                if let Some(neighbors) = adj.get_mut(m2) {
+                    neighbors.push(m1.clone());
+                }
             }
         }
     }
@@ -195,10 +213,8 @@ impl LcomVisitor {
                     self.visit_expr(a);
                 }
             }
-            ast::Expr::Name(_) => {}
-            _ => {
-                // recurse
-            }
+            // Other expression types including Name - we keep it simple for LCOM4
+            _ => {}
         }
     }
 }

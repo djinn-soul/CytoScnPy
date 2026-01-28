@@ -146,4 +146,3 @@ fn dangerous_literal_location(left: &Expr, right: &Expr) -> Option<TextSize> {
 fn is_bool_or_none(expr: &Expr) -> bool {
     matches!(expr, Expr::BooleanLiteral(_) | Expr::NoneLiteral(_))
 }
-

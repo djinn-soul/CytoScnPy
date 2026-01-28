@@ -1,6 +1,6 @@
 use crate::rules::{Context, Finding, RuleMetadata};
 use ruff_text_size::TextSize;
-/// Create a Finding with accurate line/column mapping from a TextSize location.
+/// Create a Finding with accurate line/column mapping from a `TextSize` location.
 pub(super) fn create_finding(
     msg: &str,
     metadata: RuleMetadata,

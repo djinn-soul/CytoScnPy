@@ -142,7 +142,8 @@ impl Rule for NestingRule {
             return None;
         }
         self.current_depth += 1;
-        self.check_depth(context, stmt.range().start()).map(|f| vec![f])
+        self.check_depth(context, stmt.range().start())
+            .map(|f| vec![f])
     }
     fn leave_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
         if Self::should_increase_depth(stmt) && self.current_depth > 0 {
@@ -151,4 +152,3 @@ impl Rule for NestingRule {
         None
     }
 }
-

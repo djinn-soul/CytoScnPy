@@ -28,6 +28,9 @@ def func():
     let found_sys = report.unused_imports.iter().any(|i| i.simple_name == "sys");
     assert!(found_sys, "Should detect 'sys' as unused import");
 
-    let found_math = report.unused_imports.iter().any(|i| i.simple_name == "math");
+    let found_math = report
+        .unused_imports
+        .iter()
+        .any(|i| i.simple_name == "math");
     assert!(found_math, "Should detect 'math' as unused import");
 }

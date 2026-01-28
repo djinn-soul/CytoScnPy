@@ -1,8 +1,8 @@
 use ruff_python_ast::{self as ast, Expr, Stmt};
 
-/// Calculates the Cognitive Complexity of a statement (usually a FunctionDef body).
+/// Calculates the Cognitive Complexity of a statement (usually a `FunctionDef` body).
 ///
-/// Based on the SonarSource Cognitive Complexity whitepaper.
+/// Based on the `SonarSource` Cognitive Complexity whitepaper.
 ///
 /// # Returns
 /// The integer complexity score.
@@ -44,12 +44,9 @@ impl CognitiveComplexityVisitor {
         }
     }
 
-    fn visit_params(&mut self, params: &ast::Parameters) {
-        // Defaults can contain logic/lambdas which we generally don't recurse into for complexity
-        // but if they did, we'd handle expressions.
-        // For now, ignoring parameter defaults to match typical implementations.
-        let _ = params;
-    }
+    // visit_params was removed as it was never used.
+    // Parameter defaults can contain complex expressions, but we ignore them
+    // to match typical cognitive complexity implementations.
 
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
@@ -102,14 +99,13 @@ impl CognitiveComplexityVisitor {
                     self.visit_stmt(s);
                 }
                 for handler in &node.handlers {
-                    if let ast::ExceptHandler::ExceptHandler(h) = handler {
-                        self.increment(true);
-                        self.increase_nesting();
-                        for s in &h.body {
-                            self.visit_stmt(s);
-                        }
-                        self.decrease_nesting();
+                    let ast::ExceptHandler::ExceptHandler(h) = handler;
+                    self.increment(true);
+                    self.increase_nesting();
+                    for s in &h.body {
+                        self.visit_stmt(s);
                     }
+                    self.decrease_nesting();
                 }
                 for s in &node.orelse {
                     self.visit_stmt(s);
@@ -165,12 +161,12 @@ impl CognitiveComplexityVisitor {
             Stmt::Assign(node) => self.visit_expr(&node.value),
             Stmt::AnnAssign(node) => {
                 if let Some(val) = &node.value {
-                    self.visit_expr(val)
+                    self.visit_expr(val);
                 }
             }
             Stmt::Return(node) => {
                 if let Some(val) = &node.value {
-                    self.visit_expr(val)
+                    self.visit_expr(val);
                 }
             }
             _ => {
@@ -183,7 +179,9 @@ impl CognitiveComplexityVisitor {
         if clause.test.is_some() {
             // 'else if' -> Increment
             self.increment(true);
-            self.visit_expr(clause.test.as_ref().unwrap());
+            if let Some(test) = clause.test.as_ref() {
+                self.visit_expr(test);
+            }
             self.increase_nesting();
             for s in &clause.body {
                 self.visit_stmt(s);

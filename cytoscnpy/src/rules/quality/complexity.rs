@@ -59,9 +59,7 @@ impl Rule for ComplexityRule {
     }
     fn enter_stmt(&mut self, stmt: &Stmt, context: &Context) -> Option<Vec<Finding>> {
         match stmt {
-            Stmt::FunctionDef(f) => {
-                self.check_complexity(&f.body, f.name.range().start(), context)
-            }
+            Stmt::FunctionDef(f) => self.check_complexity(&f.body, f.name.range().start(), context),
             _ => None,
         }
     }
@@ -84,9 +82,7 @@ fn calculate_complexity(stmts: &[Stmt]) -> usize {
                 sum
             }
             Stmt::For(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
-            Stmt::While(n) => {
-                1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse)
-            }
+            Stmt::While(n) => 1 + calculate_complexity(&n.body) + calculate_complexity(&n.orelse),
             Stmt::Try(n) => {
                 n.handlers.len()
                     + calculate_complexity(&n.body)
@@ -176,4 +172,3 @@ impl Rule for CohesionRule {
         None
     }
 }
-

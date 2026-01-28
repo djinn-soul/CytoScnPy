@@ -141,13 +141,12 @@ pub fn apply_penalties(
         } else {
             // Check if definition is inside a dynamic scope
             for scope in dynamic_scopes {
-                if def.full_name.starts_with(scope) {
-                    if def.full_name.len() > scope.len()
-                        && def.full_name.as_bytes()[scope.len()] == b'.'
-                    {
-                        def.confidence = def.confidence.saturating_sub(50);
-                        break;
-                    }
+                if def.full_name.starts_with(scope)
+                    && def.full_name.len() > scope.len()
+                    && def.full_name.as_bytes()[scope.len()] == b'.'
+                {
+                    def.confidence = def.confidence.saturating_sub(50);
+                    break;
                 }
             }
         }
@@ -277,7 +276,7 @@ fn update_category(def: &mut crate::visitor::Definition) {
     def.category = match def.confidence {
         90..=100 => UnusedCategory::DefinitelyUnused,
         60..=89 => UnusedCategory::ProbablyUnused,
-        40..=59 => UnusedCategory::PossiblyIntentional,
-        _ => UnusedCategory::PossiblyIntentional, // Fallback for very low confidence but still reported (e.g. if threshold is 0)
+        // 40..=59 and fallback for very low confidence (e.g. if threshold is 0)
+        _ => UnusedCategory::PossiblyIntentional,
     };
 }

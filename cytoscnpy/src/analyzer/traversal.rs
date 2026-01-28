@@ -114,8 +114,7 @@ impl CytoScnPy {
                         // Return empty result if cancelled to finish quickly
                         return FileAnalysisResult::empty();
                     }
-                    let res = self.process_single_file(file_path, root_path);
-                    res
+                    self.process_single_file(file_path, root_path)
                 })
                 .collect();
             all_results.extend(chunk_results);

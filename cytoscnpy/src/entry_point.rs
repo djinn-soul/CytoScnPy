@@ -1386,4 +1386,3 @@ fn run_clone_detection_for_json(
     // Generate findings
     crate::commands::generate_clone_findings(&result.pairs, &matched_files, true)
 }
-

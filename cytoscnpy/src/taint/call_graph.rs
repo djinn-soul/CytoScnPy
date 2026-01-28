@@ -43,7 +43,7 @@ impl CallGraph {
     /// Builds call graph from module statements.
     pub fn build_from_module(&mut self, stmts: &[Stmt], module_name: &str) {
         let module_node_name = if module_name.is_empty() {
-            "<module>".to_string()
+            String::from("<module>")
         } else {
             format!("{module_name}.<module>")
         };
@@ -209,11 +209,9 @@ impl CallGraph {
 
                         // Special handling for hasattr/getattr/setattr
                         if callee == "hasattr" || callee == "getattr" || callee == "setattr" {
-                            if let Some(arg) = call.arguments.args.get(1) {
-                                if let Expr::StringLiteral(s) = arg {
-                                    let attr_name = s.value.to_str();
-                                    caller_node.calls.insert(format!(".{attr_name}"));
-                                }
+                            if let Some(Expr::StringLiteral(s)) = call.arguments.args.get(1) {
+                                let attr_name = s.value.to_str();
+                                caller_node.calls.insert(format!(".{attr_name}"));
                             }
                         }
                     }

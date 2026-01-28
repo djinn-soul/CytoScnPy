@@ -312,15 +312,15 @@ impl CytoScnPy {
                         ) {
                             continue;
                         }
-                        if finding.rule_id.starts_with("CSP-D") {
+                        if finding.rule_id.starts_with("CSP-D")
+                            || finding.rule_id.starts_with("CSP-X")
+                        {
                             danger.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
-                            || finding.category == "Best Practices"
-                            || finding.category == "Maintainability"
+                            || finding.rule_id.starts_with("CSP-P")
                         {
-                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality.push(finding);
                         }
                     }
@@ -633,24 +633,54 @@ impl CytoScnPy {
                 // 2. Identification of implicit implementations
                 // Heuristic for Duck Typing / Implicit Interfaces:
                 // We assume a class implements a protocol/interface if it matches a significant portion of its methods.
-                // - Thresholds: At least 3 matching methods AND >= 70% overlap.
-                // - Why: This reduces false positives where classes share 1-2 common method names (like "get" or "save")
-                //   but aren't truly interchangeable, while correctly catching implementation-heavy patterns
-                //   without explicit inheritance.
+                //
+                // Optimization: Instead of checking every class against every protocol (O(C * P)),
+                // we build an inverted index matching MethodName -> List<ProtocolName>.
+                // This allows us to only check relevant protocols for each class.
+
+                let mut method_to_protocols: rustc_hash::FxHashMap<String, Vec<&String>> =
+                    rustc_hash::FxHashMap::default();
+                for (proto_name, methods) in &visitor.protocol_methods {
+                    for method in methods {
+                        method_to_protocols
+                            .entry(method.clone())
+                            .or_default()
+                            .push(proto_name);
+                    }
+                }
+
                 let mut implicitly_used_methods: rustc_hash::FxHashSet<String> =
                     rustc_hash::FxHashSet::default();
 
                 for (class_name, methods) in &class_methods {
-                    for proto_methods in visitor.protocol_methods.values() {
-                        let intersection_count = methods.intersection(proto_methods).count();
-                        let proto_len = proto_methods.len();
+                    // Find candidate protocols that share AT LEAST ONE method with this class
+                    let mut candidate_protocols: rustc_hash::FxHashSet<&String> =
+                        rustc_hash::FxHashSet::default();
 
-                        if proto_len > 0 && intersection_count >= 3 {
-                            let ratio = intersection_count as f64 / proto_len as f64;
-                            if ratio >= 0.7 {
-                                for method in methods.intersection(proto_methods) {
-                                    implicitly_used_methods
-                                        .insert(format!("{class_name}.{method}"));
+                    for method in methods {
+                        if let Some(protos) = method_to_protocols.get(method) {
+                            for proto in protos {
+                                candidate_protocols.insert(proto);
+                            }
+                        }
+                    }
+
+                    for proto_name in candidate_protocols {
+                        if *class_name == **proto_name {
+                            continue;
+                        }
+                        if let Some(proto_methods) = visitor.protocol_methods.get(proto_name) {
+                            let intersection_count = methods.intersection(proto_methods).count();
+                            let proto_len = proto_methods.len();
+
+                            // Heuristic: At least 3 matching methods AND >= 70% overlap
+                            if proto_len > 0 && intersection_count >= 3 {
+                                let ratio = intersection_count as f64 / proto_len as f64;
+                                if ratio >= 0.7 {
+                                    for method in methods.intersection(proto_methods) {
+                                        implicitly_used_methods
+                                            .insert(format!("{class_name}.{method}"));
+                                    }
                                 }
                             }
                         }
@@ -711,17 +741,15 @@ impl CytoScnPy {
                             }
                         }
 
-                        if finding.rule_id.starts_with("CSP-D") {
+                        if finding.rule_id.starts_with("CSP-D")
+                            || finding.rule_id.starts_with("CSP-X")
+                        {
                             danger_res.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
-                            || finding.category == "Best Practices"
-                            || finding.category == "Maintainability"
+                            || finding.rule_id.starts_with("CSP-P")
                         {
-                            // Route "Maintainability" issues (like low MI score) to the quality report.
-                            // This ensures they are grouped with other code quality metrics rather than security vulnerabilities.
-                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality_res.push(finding);
                         }
                     }
@@ -909,4 +937,3 @@ impl CytoScnPy {
         }
     }
 }
-

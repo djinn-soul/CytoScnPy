@@ -48,7 +48,7 @@ Enable with `--secrets` and `--danger`.
 **Secret Scanning**: Finds hardcoded secrets (API keys, tokens) using regex and entropy analysis.
 **Dangerous Code**: Detects patterns known to cause vulnerabilities (SQLi, XSS, RCE, etc.).
 
-For detailed vulnerability rules (`CSP-Dxxx`), see [Security Analysis](security.md).
+For detailed vulnerability rules (`CSP-Dxxx`), see the **[Dangerous Code Rules Index](dangerous-code.md)** or the general [Security Analysis](security.md) overview.
 
 ### 📊 Code Quality Metrics
 
@@ -57,6 +57,8 @@ Enable with `--quality`.
 - **Cyclomatic Complexity (CC)**: Measures code branching.
 - **Maintainability Index (MI)**: 0-100 score (higher is better).
 - **Halstead Metrics**: Algorithmic complexity.
+
+For a full list of quality rules and their standard IDs (B006, E722, etc.), see the **[Code Quality Rules](quality.md)** reference.
 
 ### 🧩 Clone Detection
 
@@ -107,6 +109,75 @@ cytoscnpy . --html --secrets --danger
 
 ---
 
+---
+
+## 🚀 CI/CD Integration
+
+CytoScnPy is designed to work seamlessly with modern CI/CD pipelines. Using the `--root` flag and specific `--format` options, you can integrate analysis results directly into your build process.
+
+> [!IMPORTANT]
+> Always use `--root .` (or your project path) in CI/CD. This ensures that:
+>
+> 1. Absolute paths are correctly normalized to relative paths in reports.
+> 2. Security containment boundaries are correctly established.
+> 3. Fingerprints (for GitLab/GitHub) remain stable across different build runners.
+
+### GitLab Code Quality
+
+Generate a report that GitLab can display directly in Merge Requests.
+
+```yaml
+# .gitlab-ci.yml
+code_quality:
+  stage: test
+  image: python:3.9
+  script:
+    - pip install cytoscnpy
+    - cytoscnpy --root . --format gitlab --danger --secrets > gl-code-quality-report.json
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json
+```
+
+### GitHub Actions
+
+Generate inline annotations for your Pull Requests.
+
+```yaml
+# .github/workflows/scan.yml
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CytoScnPy
+        run: pip install cytoscnpy
+      - name: Run Scan
+        run: cytoscnpy --root . --format github --danger --secrets
+```
+
+### SARIF (GitHub Security / GitLab Security)
+
+Export results in the standard Static Analysis Results Interchange Format (SARIF).
+
+```bash
+cytoscnpy --root . --format sarif --danger > results.sarif
+```
+
+### JUnit XML
+
+Integration with test runners and CI platforms that support JUnit (Azure DevOps, Jenkins).
+
+```bash
+cytoscnpy --root . --format junit --quality > test-results.xml
+```
+
+---
+
+### ⚓ Pre-commit Hooks
+
+---
+
 ## ⚙️ Configuration
 
 CytoScnPy supports configuration via:
@@ -123,10 +194,11 @@ exclude_folders = ["venv", "build", "dist"]
 secrets = true
 danger = true
 quality = true
+include_ipynb = false
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code
-complexity = 15        # Function CC > 15
+max_complexity = 15    # Function CC > 15
 min_mi = 40.0         # MI < 40
 ```
 
@@ -142,7 +214,7 @@ quality = true
 
 # CI/CD Gates
 fail_threshold = 5.0
-complexity = 15
+max_complexity = 15
 min_mi = 40.0
 ```
 
@@ -170,12 +242,13 @@ cytoscnpy [PATHS]... [OPTIONS]
 
 ### Output Formatting
 
-| Flag               | Description                       |
-| ------------------ | --------------------------------- |
-| `--json`           | Output detection results as JSON. |
-| `--html`           | Generate interactive HTML report. |
-| `--quiet`          | Summary only, no detailed tables. |
-| `--verbose` (`-v`) | Debug output.                     |
+| Flag               | Description                                                                      |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `--format <FMT>`   | Output format: `text`, `json`, `junit`, `github`, `gitlab`, `markdown`, `sarif`. |
+| `--json`           | Output detection results as JSON (shorthand for `--format json`).                |
+| `--html`           | Generate interactive HTML report.                                                |
+| `--quiet`          | Summary only, no detailed tables.                                                |
+| `--verbose` (`-v`) | Debug output.                                                                    |
 
 ### Filtering
 
@@ -295,10 +368,29 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
 - Limit parallelization or exclude large directories (`node_modules`, `.git`).
 
-**2. False Positives in Dead Code**
+**2. False Positives**
 
-- Use `# pragma: no cytoscnpy` comment to suppress findings on a specific line.
-- Ensure all entry points are properly identified (e.g. dynamic dispatch).
+- Use **inline comments** to suppress findings on a specific line:
+
+  | Comment                  | Effect                                            |
+  | ------------------------ | ------------------------------------------------- |
+  | `# pragma: no cytoscnpy` | Legacy format (suppresses all CytoScnPy findings) |
+  | `# noqa`                 | Bare noqa (suppresses all CytoScnPy findings)     |
+  | `# ignore`               | Bare ignore (suppresses all CytoScnPy findings)   |
+  | `# noqa` (for Quality)   | Use bare `# noqa` for quality rules for now       |
+  | `# noqa: CSP-Dxxx`       | Specific (suppresses only a specific Danger rule) |
+
+  **Examples:**
+
+  ```python
+  def mutable_default(arg=[]):  # noqa
+      pass
+
+  x = [1, 2] == None # noqa -- suppress dangerous comparison
+  y = api_key  # pragma: no cytoscnpy
+  ```
+
+- For bulk ignores, use the `.cytoscnpy.toml` configuration file's ignore list.
 
 **3. Performance is slow**
 

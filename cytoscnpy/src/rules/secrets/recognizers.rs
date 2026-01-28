@@ -166,17 +166,25 @@ impl EntropyRecognizer {
         let mut in_string = false;
         let mut quote_char = ' ';
         let mut start = 0;
+        let mut escaped = false;
 
         for (i, c) in line.char_indices() {
             if !in_string && (c == '"' || c == '\'') {
                 in_string = true;
                 quote_char = c;
                 start = i + 1;
-            } else if in_string && c == quote_char {
-                if i > start {
-                    strings.push(&line[start..i]);
+                escaped = false;
+            } else if in_string {
+                if escaped {
+                    escaped = false;
+                } else if c == '\\' {
+                    escaped = true;
+                } else if c == quote_char {
+                    if i > start {
+                        strings.push(&line[start..i]);
+                    }
+                    in_string = false;
                 }
-                in_string = false;
             }
         }
 
@@ -700,5 +708,15 @@ mod tests {
 
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("secret_key"));
+    }
+    #[test]
+    fn test_extract_string_literals_with_escapes() {
+        let line = r#"val = "string with \" escaped quote" and 'another \' one'"#;
+        let literals = EntropyRecognizer::extract_string_literals(line);
+
+        // Current implementation is expected to fail this by splitting the string at the escaped quote
+        assert_eq!(literals.len(), 2);
+        assert_eq!(literals[0], "string with \\\" escaped quote");
+        assert_eq!(literals[1], "another \\' one");
     }
 }

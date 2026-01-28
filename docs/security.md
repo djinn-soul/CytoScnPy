@@ -29,6 +29,16 @@ Detects patterns known to cause vulnerabilities.
 
 For a complete list of all rules organized by category, see: **[Dangerous Code Rules](dangerous-code.md)**
 
+### Rule Categories
+
+- [Code Execution & Unsafe Calls](danger/code-execution.md) (CSP-D0xx)
+- [Injection & Logic Attacks](danger/injection.md) (CSP-D1xx)
+- [Deserialization](danger/deserialization.md) (CSP-D2xx)
+- [Cryptography & Randomness](danger/cryptography.md) (CSP-D3xx)
+- [Network & HTTP Security](danger/network.md) (CSP-D4xx)
+- [File Operations & Path Traversal](danger/filesystem.md) (CSP-D5xx)
+- [Modern Python & Frameworks](danger/modern-python.md) (CSP-D9xx)
+
 ---
 
 ## Taint Analysis
@@ -43,8 +53,10 @@ If data flows from a **Source** to a **Sink** without passing through a **Saniti
 
 ### Supported Analysis Levels
 
-| Level               | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| **Intraprocedural** | Checks flows within single functions.           |
-| **Interprocedural** | Checks flows across functions in the same file. |
-| **Cross-file**      | Checks flows across module boundaries.          |
+| Level               | Description                                     | Implementation                    |
+| ------------------- | ----------------------------------------------- | --------------------------------- |
+| **Intraprocedural** | Checks flows within single functions.           | Fast, catches local bugs          |
+| **Interprocedural** | Checks flows across functions in the same file. | Tracks cross-function data flow   |
+| **Cross-file**      | Checks flows across module boundaries.          | Deep analysis (highest precision) |
+
+CytoScnPy uses a multi-layered approach to track taint across your entire project, identifying vulnerabilities where untrusted input reaches critical system sinks.

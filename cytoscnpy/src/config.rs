@@ -2,12 +2,18 @@ use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
+use crate::constants::{CONFIG_FILENAME, PYPROJECT_FILENAME};
+
 #[derive(Debug, Deserialize, Default, Clone)]
 /// Top-level configuration struct.
 pub struct Config {
     #[serde(default)]
     /// The main configuration section for CytoScnPy.
     pub cytoscnpy: CytoScnPyConfig,
+    /// The path to the configuration file this was loaded from.
+    /// Set during `load_from_path`, `None` if using defaults or programmatic config.
+    #[serde(skip)]
+    pub config_file_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]
@@ -21,12 +27,17 @@ pub struct CytoScnPyConfig {
     pub include_folders: Option<Vec<String>>,
     /// Whether to include test files.
     pub include_tests: Option<bool>,
+    /// Whether to include `IPython` notebooks.
+    pub include_ipynb: Option<bool>,
     /// Whether to scan for secrets.
     pub secrets: Option<bool>,
     /// Whether to scan for dangerous code patterns.
     pub danger: Option<bool>,
     /// Whether to scan for code quality issues.
     pub quality: Option<bool>,
+    /// Configuration for danger rules and taint analysis.
+    #[serde(default)]
+    pub danger_config: DangerConfig,
     // New fields for rule configuration
     /// Maximum allowed lines for a function.
     pub max_lines: Option<usize>,
@@ -54,22 +65,22 @@ pub struct CytoScnPyConfig {
     pub fail_threshold: Option<f64>,
     /// Track if deprecated keys were used in the configuration.
     #[serde(skip)]
-    _uses_deprecated_keys: bool,
+    deprecated_keys_used: bool,
     /// Advanced secrets scanning configuration.
     #[serde(default)]
-    pub secrets_config: SecretsConfig,
+    pub secrets_config: Box<SecretsConfig>,
 }
 
 impl CytoScnPyConfig {
     /// Returns whether deprecated keys were used in the configuration.
     #[must_use]
     pub fn uses_deprecated_keys(&self) -> bool {
-        self._uses_deprecated_keys
+        self.deprecated_keys_used
     }
 
     /// Sets whether deprecated keys were used (internal use).
     pub(crate) fn set_uses_deprecated_keys(&mut self, value: bool) {
-        self._uses_deprecated_keys = value;
+        self.deprecated_keys_used = value;
     }
 }
 
@@ -146,6 +157,28 @@ impl Default for SecretsConfig {
     }
 }
 
+/// Configuration for danger rules and taint analysis.
+///
+/// Note: This struct uses `Option` fields to distinguish between "explicitly disabled" (Some(false))
+/// and "not configured" (None).
+/// We use this pattern to enforce **secure-by-default** behavior:
+/// - `enable_taint`: Defaults to `true` if unused, ensuring security analysis runs unless explicitly disabled.
+/// - `severity_threshold`: Defaults to "LOW" to catch all potential issues by default.
+/// - `excluded_rules`: Defaults to empty, ensuring no rules are silently skipped.
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct DangerConfig {
+    /// Whether to enable taint analysis for danger detection.
+    pub enable_taint: Option<bool>,
+    /// Severity threshold for reporting danger findings.
+    pub severity_threshold: Option<String>,
+    /// List of rule IDs to exclude from danger scanning.
+    pub excluded_rules: Option<Vec<String>>,
+    /// Custom taint sources.
+    pub custom_sources: Option<Vec<String>>,
+    /// Custom taint sinks.
+    pub custom_sinks: Option<Vec<String>>,
+}
+
 /// A custom secret pattern defined in TOML configuration.
 #[derive(Debug, Deserialize, Clone)]
 pub struct CustomSecretPattern {
@@ -190,11 +223,12 @@ impl Config {
         }
 
         loop {
-            // 1. Try .cytoscnpy.toml
-            let cytoscnpy_toml = current.join(".cytoscnpy.toml");
+            // 1. Try CONFIG_FILENAME
+            let cytoscnpy_toml = current.join(CONFIG_FILENAME);
             if cytoscnpy_toml.exists() {
                 if let Ok(content) = fs::read_to_string(&cytoscnpy_toml) {
                     if let Ok(mut config) = toml::from_str::<Config>(&content) {
+                        config.config_file_path = Some(cytoscnpy_toml);
                         // Check for deprecated keys using Value for robustness
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
                             if let Some(cytoscnpy) = value.get("cytoscnpy") {
@@ -210,13 +244,14 @@ impl Config {
                 }
             }
 
-            // 2. Try pyproject.toml
-            let pyproject_toml = current.join("pyproject.toml");
+            // 2. Try PYPROJECT_FILENAME
+            let pyproject_toml = current.join(PYPROJECT_FILENAME);
             if pyproject_toml.exists() {
                 if let Ok(content) = fs::read_to_string(&pyproject_toml) {
                     if let Ok(pyproject) = toml::from_str::<PyProject>(&content) {
                         let mut config = Config {
                             cytoscnpy: pyproject.tool.cytoscnpy,
+                            config_file_path: Some(pyproject_toml),
                         };
                         // Check for deprecated keys in the tool section using Value
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
@@ -247,6 +282,8 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use tempfile::TempDir;
 
     #[test]
     fn test_deprecation_detection_toml() {
@@ -268,13 +305,14 @@ complexity = 10
 
     #[test]
     fn test_deprecation_detection_pyproject() {
-        let content = r#"
+        let content = r"
 [tool.cytoscnpy]
 nesting = 5
-"#;
+";
         let pyproject = toml::from_str::<PyProject>(content).unwrap();
         let mut config = Config {
             cytoscnpy: pyproject.tool.cytoscnpy,
+            config_file_path: None,
         };
         if let Ok(value) = toml::from_str::<toml::Value>(content) {
             if let Some(tool) = value.get("tool") {
@@ -287,5 +325,94 @@ nesting = 5
         }
         assert!(config.cytoscnpy.uses_deprecated_keys());
         assert_eq!(config.cytoscnpy.max_nesting, Some(5));
+    }
+
+    #[test]
+    fn test_load_from_path_no_config() {
+        // Create an empty temp directory with no config files
+        let dir = TempDir::new().unwrap();
+        let config = Config::load_from_path(dir.path());
+        // Should return default config
+        assert!(config.cytoscnpy.confidence.is_none());
+        assert!(config.cytoscnpy.max_complexity.is_none());
+    }
+
+    #[test]
+    fn test_load_from_path_cytoscnpy_toml() {
+        let dir = TempDir::new().unwrap();
+        let mut file = std::fs::File::create(dir.path().join(".cytoscnpy.toml")).unwrap();
+        writeln!(
+            file,
+            r"[cytoscnpy]
+confidence = 80
+max_complexity = 15
+"
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(dir.path());
+        assert_eq!(config.cytoscnpy.confidence, Some(80));
+        assert_eq!(config.cytoscnpy.max_complexity, Some(15));
+    }
+
+    #[test]
+    fn test_load_from_path_pyproject_toml() {
+        let dir = TempDir::new().unwrap();
+        let mut file = std::fs::File::create(dir.path().join("pyproject.toml")).unwrap();
+        writeln!(
+            file,
+            r"[tool.cytoscnpy]
+max_lines = 200
+max_args = 8
+"
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(dir.path());
+        assert_eq!(config.cytoscnpy.max_lines, Some(200));
+        assert_eq!(config.cytoscnpy.max_args, Some(8));
+    }
+
+    #[test]
+    fn test_load_from_path_traverses_up() {
+        // Create nested directory structure
+        let dir = TempDir::new().unwrap();
+        let nested = dir.path().join("src").join("lib");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        // Put config in root
+        let mut file = std::fs::File::create(dir.path().join(".cytoscnpy.toml")).unwrap();
+        writeln!(
+            file,
+            r"[cytoscnpy]
+confidence = 90
+"
+        )
+        .unwrap();
+
+        // Load from nested path - should find config in parent
+        let config = Config::load_from_path(&nested);
+        assert_eq!(config.cytoscnpy.confidence, Some(90));
+    }
+
+    #[test]
+    fn test_load_from_file_path() {
+        let dir = TempDir::new().unwrap();
+        let mut file = std::fs::File::create(dir.path().join(".cytoscnpy.toml")).unwrap();
+        writeln!(
+            file,
+            r"[cytoscnpy]
+min_mi = 65.0
+"
+        )
+        .unwrap();
+
+        // Create a file in the directory
+        let py_file = dir.path().join("test.py");
+        std::fs::write(&py_file, "x = 1").unwrap();
+
+        // Load from file path (not directory)
+        let config = Config::load_from_path(&py_file);
+        assert_eq!(config.cytoscnpy.min_mi, Some(65.0));
     }
 }

@@ -382,8 +382,12 @@ def another_used():
         // Delete lines 4-5 (unused_func)
         let mut rewriter = ByteRangeRewriter::new(source);
         // Calculate byte range for unused_func (starts at byte 35, ends at byte 72)
-        let start = source.find("def unused_func").unwrap();
-        let end = source.find("def another_used").unwrap();
+        let start = source
+            .find("def unused_func")
+            .expect("Should find unused_func");
+        let end = source
+            .find("def another_used")
+            .expect("Should find another_used");
         rewriter.add_edit(Edit::delete(start, end));
 
         let result = rewriter.apply().expect("should apply");
@@ -403,7 +407,7 @@ def main():
 ";
         // Delete "import os\n" (bytes 0-10)
         let mut rewriter = ByteRangeRewriter::new(source);
-        let end = source.find("import sys").unwrap();
+        let end = source.find("import sys").expect("Should find import sys");
         rewriter.add_edit(Edit::delete(0, end));
 
         let result = rewriter.apply().expect("should apply");
@@ -430,12 +434,12 @@ def func_c():
         let mut rewriter = ByteRangeRewriter::new(source);
 
         // Delete import os line
-        let os_end = source.find("import sys").unwrap();
+        let os_end = source.find("import sys").expect("Should find import sys");
         rewriter.add_edit(Edit::delete(0, os_end));
 
         // Delete func_b
-        let func_b_start = source.find("def func_b").unwrap();
-        let func_b_end = source.find("def func_c").unwrap();
+        let func_b_start = source.find("def func_b").expect("Should find func_b");
+        let func_b_end = source.find("def func_c").expect("Should find func_c");
         rewriter.add_edit(Edit::delete(func_b_start, func_b_end));
 
         let result = rewriter.apply().expect("should apply");
@@ -451,7 +455,7 @@ def func_c():
         let source = "def foo():\n    # important comment\n    return 42\n";
         let mut rewriter = ByteRangeRewriter::new(source);
         // Replace 42 with 100
-        let pos = source.find("42").unwrap();
+        let pos = source.find("42").expect("Should find 42");
         rewriter.add_edit(Edit::new(pos, pos + 2, "100"));
 
         let result = rewriter.apply().expect("should apply");

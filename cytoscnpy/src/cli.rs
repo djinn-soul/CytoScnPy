@@ -32,6 +32,7 @@ CONFIGURATION FILE (.cytoscnpy.toml):
 
 /// Options for scan types (secrets, danger, quality).
 #[derive(Args, Debug, Default, Clone)]
+#[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
 pub struct ScanOptions {
     /// Scan for API keys/secrets.
     #[arg(short = 's', long)]
@@ -50,6 +51,28 @@ pub struct ScanOptions {
     pub no_dead: bool,
 }
 
+/// Supported output formats for scan results.
+#[derive(Debug, Clone, clap::ValueEnum, Default, PartialEq, Eq)]
+pub enum OutputFormat {
+    /// Standard plain text table.
+    #[default]
+    Text,
+    /// Raw JSON format.
+    Json,
+    /// Grouped findings (deprecated, use Text instead).
+    Grouped,
+    /// `JUnit` XML format for CI/CD.
+    Junit,
+    /// `GitHub` Annotations (via workflow commands).
+    Github,
+    /// `GitLab` Code Quality JSON.
+    Gitlab,
+    /// Markdown document.
+    Markdown,
+    /// SARIF (Static Analysis Results Interchange Format).
+    Sarif,
+}
+
 /// Options for output formatting and verbosity.
 #[derive(Args, Debug, Default, Clone)]
 #[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
@@ -57,6 +80,10 @@ pub struct OutputOptions {
     /// Output raw JSON.
     #[arg(long)]
     pub json: bool,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    pub format: OutputFormat,
 
     /// Enable verbose output for debugging (shows files being analyzed).
     #[arg(short, long)]
@@ -137,7 +164,7 @@ pub struct MetricArgs {
 }
 
 /// Rank filtering options (A-F grades) for complexity/MI commands.
-#[derive(Args, Debug, Default, Clone)]
+#[derive(Args, Debug, Default, Clone, Copy)]
 pub struct RankArgs {
     /// Set minimum rank (A-F or A-C depending on command).
     #[arg(long, short = 'n', alias = "min")]
@@ -326,7 +353,7 @@ pub enum Commands {
     },
     /// Calculate Maintainability Index
     Mi {
-        /// Common metric options (path, json, exclude, ignore, output_file).
+        /// Common metric options (path, json, exclude, ignore, `output_file`).
         #[command(flatten)]
         common: MetricArgs,
 
@@ -353,6 +380,8 @@ pub enum Commands {
     /// Start MCP server for LLM integration (Claude Desktop, VS Code Copilot, etc.)
     #[command(name = "mcp-server")]
     McpServer,
+    /// Initialize CytoScnPy configuration (pyproject.toml/.cytoscnpy.toml and .gitignore)
+    Init,
     /// Generate comprehensive project statistics report
     Stats {
         /// Path options (path vs root).

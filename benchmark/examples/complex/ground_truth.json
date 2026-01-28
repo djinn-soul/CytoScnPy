@@ -95,14 +95,14 @@
         {
           "type": "function",
           "name": "func",
-          "line_start": 8,
+          "line_start": 9,
           "reason": "Function defined but never called"
         },
         {
           "type": "variable",
           "name": "y",
-          "line_start": 12,
-          "reason": "Local variable assigned but never used"
+          "line_start": 13,
+          "reason": "Variable assigned but never used"
         }
       ]
     }

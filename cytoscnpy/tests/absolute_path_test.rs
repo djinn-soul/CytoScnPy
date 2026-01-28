@@ -1,5 +1,10 @@
 //! Regression test for absolute positional paths from different CWD.
 
+// Test-specific lint suppressions
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
 use cytoscnpy::entry_point::run_with_args_to;
 use std::fs;
 use tempfile::tempdir;
@@ -26,33 +31,31 @@ fn test_absolute_path_from_different_cwd() -> anyhow::Result<()> {
     }"#;
     fs::write(&notebook_path, notebook_json)?;
 
-    // Create a different directory for CWD
+    // Create a different directory for CWD using RAII guard
     let other_dir = tempdir()?;
-    let original_cwd = std::env::current_dir()?;
-    std::env::set_current_dir(other_dir.path())?;
+    let _guard = cytoscnpy::test_utils::CwdGuard::new(other_dir.path())?;
 
     let mut buffer = Vec::new();
     // Provide absolute path to the notebook
     let args = vec![
         notebook_path.to_string_lossy().to_string(),
-        "--include-ipynb".to_string(),
+        "--include-ipynb".to_owned(),
     ];
 
     // This should NOT fail with "Path traversal detected" or similar
     let result = run_with_args_to(args, &mut buffer);
 
-    // Restore CWD
-    let _ = std::env::set_current_dir(original_cwd);
+    // RAII guard will restore CWD automatically
 
     match result {
         Ok(code) => {
             if code != 0 {
                 let output = String::from_utf8_lossy(&buffer);
-                panic!("Command failed with code {}. Output:\n{}", code, output);
+                panic!("Command failed with code {code}. Output:\n{output}");
             }
         }
         Err(e) => {
-            panic!("Command returned error: {:?}", e);
+            panic!("Command returned error: {e:?}");
         }
     }
 
@@ -66,8 +69,7 @@ fn test_absolute_path_fix_from_different_cwd() -> anyhow::Result<()> {
     fs::write(&file_path, "def unused():\n    pass\n")?;
 
     let other_dir = tempdir()?;
-    let original_cwd = std::env::current_dir()?;
-    std::env::set_current_dir(other_dir.path())?;
+    let _guard = cytoscnpy::test_utils::CwdGuard::new(other_dir.path())?;
 
     let mut buffer = Vec::new();
     let args = vec![
@@ -77,7 +79,7 @@ fn test_absolute_path_fix_from_different_cwd() -> anyhow::Result<()> {
     ];
 
     let result = run_with_args_to(args, &mut buffer);
-    let _ = std::env::set_current_dir(original_cwd);
+    // RAII guard restores CWD here
 
     assert!(
         result.is_ok(),

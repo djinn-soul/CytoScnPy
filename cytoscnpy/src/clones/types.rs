@@ -169,6 +169,7 @@ pub struct CloneSummary {
 impl CloneSummary {
     /// Create summary from clone groups
     #[must_use]
+    #[allow(clippy::cast_precision_loss)] // Precision loss is acceptable for summary statistics
     pub fn from_groups(groups: &[CloneGroup]) -> Self {
         use rustc_hash::FxHashSet;
 

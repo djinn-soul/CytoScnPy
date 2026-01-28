@@ -91,13 +91,13 @@ else
     # Generate HTML report
     echo -e "${YELLOW}📊 Generating HTML coverage report...${NC}"
     cargo llvm-cov --all-features --html
-    
+
     if [ $? -eq 0 ]; then
         echo ""
         echo -e "${GREEN}✅ Coverage report generated successfully!${NC}"
         echo ""
         echo -e "${CYAN}📁 Report location: cytoscnpy/target/llvm-cov/html/index.html${NC}"
-        
+
         if [ "$OPEN" = true ]; then
             echo -e "${YELLOW}🌐 Opening coverage report in browser...${NC}"
             # Try different browsers/open commands

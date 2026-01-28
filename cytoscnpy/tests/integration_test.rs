@@ -3,30 +3,37 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::uninlined_format_args)]
+#![allow(clippy::panic)]
 
+use cytoscnpy::entry_point::run_with_args_to;
 use serde_json::Value;
-use std::process::Command;
 use std::str;
 
 /// Helper function to run cytoscnpy and parse JSON output
 fn run_cytoscnpy(path: &str, flags: &[&str]) -> Value {
-    let output = Command::new("cargo")
-        .args(["run", "--quiet", "--package", "cytoscnpy-cli", "--"])
-        .arg(path)
-        .args(flags)
-        .arg("--json")
-        .output()
-        .expect("Failed to execute cytoscnpy binary");
+    let mut args: Vec<String> = Vec::new();
+    // Default to the same behavior as CLI: just passed args
+    // integration tests pass path first
+    args.push(path.to_owned());
+    for flag in flags {
+        args.push((*flag).to_owned());
+    }
+    args.push("--json".to_owned());
 
-    println!("-----------------Output===================: {:#?}", output);
-    assert!(
-        output.status.success(),
-        "Command failed: {}",
-        str::from_utf8(&output.stderr).unwrap_or("")
+    let mut buffer = Vec::new();
+    let exit_code = run_with_args_to(args.clone(), &mut buffer)
+        .unwrap_or_else(|e| panic!("Failed to run cytoscnpy with args {:?}: {}", args, e));
+
+    let output_str = str::from_utf8(&buffer).expect("Invalid UTF-8 output");
+    println!("-----------------Output===================: {}", output_str);
+
+    assert_eq!(
+        exit_code, 0,
+        "Command failed with exit code {}. Output: {}",
+        exit_code, output_str
     );
 
-    let stdout = str::from_utf8(&output.stdout).expect("Invalid UTF-8 output");
-    serde_json::from_str(stdout).expect("Failed to parse JSON output")
+    serde_json::from_str(output_str).expect("Failed to parse JSON output")
 }
 
 /// Helper to count items in a JSON array field

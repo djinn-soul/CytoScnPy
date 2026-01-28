@@ -20,23 +20,26 @@ jobs:
   # Build Python Wheels for PyPI
   # =============================================================================
   build-wheels:
-    name: Build wheels (${{ matrix.os }})
+    name: Build wheels (${{ matrix.os }} - ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: ${{ matrix.python-version }}
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust
         with:
-          cache-key: "wheels-${{ matrix.os }}"
+          cache-key: "wheels-${{ matrix.os }}-${{ matrix.python-version }}"
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
 
       - name: Disable Windows Defender (CI only)
         if: runner.os == 'Windows'
@@ -45,29 +48,28 @@ jobs:
       - name: Install maturin
         run: pip install maturin
 
-      - name: Build wheel with PGO (Windows)
+      - name: Build wheel (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           . scripts/load-pgo-profile.ps1 -Platform windows
-          maturin build --release --out dist -i 3.9 -i 3.10 -i 3.11 -i 3.12 -i 3.13
-
-      - name: Build wheel with PGO (Linux)
+          maturin build --release --all-features --out dist -i python
+      - name: Build wheel (Linux)
         if: runner.os == 'Linux'
         run: |
           source scripts/load-pgo-profile.sh linux
-          maturin build --release --out dist --find-interpreter
+          maturin build --release --all-features --out dist -i python --zig
 
-      - name: Build wheel with PGO (macOS)
+      - name: Build wheel (macOS)
         if: runner.os == 'macOS'
         run: |
           source scripts/load-pgo-profile.sh macos
-          maturin build --release --out dist --find-interpreter
+          maturin build --release --all-features --out dist -i python
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
           path: dist
 
   # =============================================================================
@@ -100,6 +102,8 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           cache-key: ${{ matrix.target }}
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
+          install-cargo-zigbuild: ${{ runner.os == 'Linux' }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -108,9 +112,15 @@ jobs:
 
       - name: Build Binary with PGO
         shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh auto
-          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --all-features --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --all-features --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Rename Binary
         shell: bash
@@ -140,22 +150,15 @@ jobs:
   # =============================================================================
   publish-testpypi:
     name: Publish to TestPyPI
-    needs: build-wheels
+    needs: [build-wheels, validate-sbom]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: wheels-ubuntu-latest
+          pattern: wheels-*
           path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-windows-latest
-          path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-macos-latest
-          path: dist/
+          merge-multiple: true
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -163,6 +166,7 @@ jobs:
           user: __token__
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           skip-existing: true
+          verbose: true
 
   # =============================================================================
   # Validate SBOM (runs before publishing to block on failure)
@@ -171,7 +175,7 @@ jobs:
     name: Validate SBOM Generation
     needs: [build-wheels, build-cli]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -209,16 +213,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: wheels-ubuntu-latest
+          pattern: wheels-*
           path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-windows-latest
-          path: dist/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-macos-latest
-          path: dist/
+          merge-multiple: true
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -307,7 +304,7 @@ jobs:
   # =============================================================================
   github-release-test:
     name: Create GitHub Release (Test)
-    needs: [build-cli, publish-testpypi]
+    needs: [build-cli, publish-testpypi, validate-sbom]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')
     steps:
@@ -326,6 +323,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cli-x86_64-apple-darwin
+          path: release-assets/
+
+      # Download SBOM
+      - uses: actions/download-artifact@v4
+        with:
+          name: sbom
           path: release-assets/
 
       - name: Create Release
@@ -366,15 +369,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64
 
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild
+        run: pip install cargo-zigbuild
+
       - name: Build CLI for Linux x64 with PGO
         run: |
           source scripts/load-pgo-profile.sh linux
-          cargo build --release --target x86_64-unknown-linux-gnu -p cytoscnpy-cli
+          cargo zigbuild --release --all-features --target x86_64-unknown-linux-gnu.2.27 -p cytoscnpy-cli
 
       - name: Build CLI for Windows x64 with PGO
         run: |
           source scripts/load-pgo-profile.sh windows
-          cargo build --release --target x86_64-pc-windows-gnu -p cytoscnpy-cli
+          cargo build --release --all-features --target x86_64-pc-windows-gnu -p cytoscnpy-cli
 
       - name: Create bin directory
         run: mkdir -p editors/vscode/cytoscnpy/bin
@@ -422,14 +433,18 @@ jobs:
           shared-key: "vscode-cli-macos"
 
       - name: Build CLI for macOS x64 with PGO
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh macos
-          cargo build --release --target x86_64-apple-darwin -p cytoscnpy-cli
+          cargo build --release --all-features --target x86_64-apple-darwin -p cytoscnpy-cli
 
       - name: Build CLI for macOS ARM64 with PGO
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh macos
-          cargo build --release --target aarch64-apple-darwin -p cytoscnpy-cli
+          cargo build --release --all-features --target aarch64-apple-darwin -p cytoscnpy-cli
 
       - name: Upload macOS x64 binary
         uses: actions/upload-artifact@v4

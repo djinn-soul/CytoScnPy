@@ -15,10 +15,15 @@
 )]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+use std::sync::atomic::AtomicBool;
+
+/// Global cancellation flag for long-running operations.
+/// This is set to true when a signal (like Ctrl+C) is detected.
+pub static CANCELLED: AtomicBool = AtomicBool::new(false);
+
 /// Module containing the core analyzer logic.
 /// This includes the `CytoScnPy` struct and its methods for running the analysis.
 pub mod analyzer;
-#[cfg(feature = "html_report")]
 pub mod report;
 
 /// Module containing the AST visitor implementation.
@@ -101,7 +106,7 @@ mod python_bindings;
 
 // Re-export the Python module at the crate root (required by PyO3)
 #[cfg(feature = "python-bindings")]
-use pyo3::prelude::*;
+use pyo3::{pymodule, types::PyModule, Bound, PyResult};
 
 /// Python module definition for `cytoscnpy`.
 ///

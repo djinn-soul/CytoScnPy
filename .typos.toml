@@ -1,0 +1,22 @@
+# typos configuration
+# See: https://github.com/crate-ci/typos
+
+[files]
+# Exclude files/directories from spell checking
+extend-exclude = [
+    "lcov.info",
+    "*.lcov",
+    "target/",
+    "node_modules/",
+    ".venv/",
+    "dist/",
+    "*.lock",
+]
+
+[default]
+# Known acceptable words that should not be flagged
+extend-ignore-identifiers-re = []
+
+[default.extend-words]
+# Add any false positives here
+# Example: "Nd" = "Nd"

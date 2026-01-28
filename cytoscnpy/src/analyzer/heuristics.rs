@@ -3,8 +3,9 @@
 use crate::constants::{AUTO_CALLED, PENALTIES};
 use crate::framework::FrameworkAwareVisitor;
 use crate::test_utils::TestAwareVisitor;
+use crate::utils::Suppression;
 use crate::visitor::Definition;
-use std::collections::HashSet;
+use rustc_hash::FxHashMap;
 
 /// Applies penalty-based confidence adjustments to definitions.
 ///
@@ -14,18 +15,28 @@ use std::collections::HashSet;
 /// - Framework decorations (lowers confidence for framework-managed code).
 /// - Private naming conventions (lowers confidence for internal helpers).
 /// - Dunder methods (ignores magic methods).
-pub fn apply_penalties<S: ::std::hash::BuildHasher>(
+#[allow(clippy::implicit_hasher)]
+pub fn apply_penalties(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,
     tv: &TestAwareVisitor,
-    ignored_lines: &HashSet<usize, S>,
+    // Map of ignored lines to their suppression type.
+    // Uses `FxHashMap` (Rustc's fast hash map) for performance optimization,
+    // as strict cryptographic security is not needed for integer line keys and small datasets.
+    ignored_lines: &FxHashMap<usize, Suppression>,
     include_tests: bool,
+    dynamic_scopes: &rustc_hash::FxHashSet<String>,
+    module_name: &str,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)
     // If the line is marked to be ignored, set confidence to 0.
-    if ignored_lines.contains(&def.line) {
-        def.confidence = 0;
-        return;
+    if let Some(suppression) = ignored_lines.get(&def.line) {
+        // Use `matches!` for conciseness: we only need to check the variant type
+        // and don't need to extract any inner data for the `All` case.
+        if matches!(suppression, Suppression::All) {
+            def.confidence = 0;
+            return;
+        }
     }
 
     // Test files: confidence 0 (ignore)
@@ -43,6 +54,57 @@ pub fn apply_penalties<S: ::std::hash::BuildHasher>(
     // Frameworks often use dependency injection or reflection, making static analysis hard.
     if fv.framework_decorated_lines.contains(&def.line) {
         def.confidence = *PENALTIES().get("framework_magic").unwrap_or(&40); // Low confidence
+    }
+
+    // Framework managed scope (e.g. inside a decorated function)
+    // Variables here might be used for debugging or framework side-effects
+    if def.is_framework_managed {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("framework_managed").unwrap_or(&50));
+    }
+
+    // Mixin penalty: Methods in *Mixin classes are often used implicitly
+    if def.def_type == "method" && def.full_name.contains("Mixin") {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("mixin_class").unwrap_or(&60));
+    }
+
+    // Base/Abstract/Interface penalty
+    // These are often overrides or interfaces with implicit usage.
+    if def.def_type == "method"
+        && (def.full_name.contains(".Base")
+            || def.full_name.contains("Base")
+            || def.full_name.contains("Abstract")
+            || def.full_name.contains("Interface"))
+    {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("base_abstract_interface").unwrap_or(&50));
+    }
+
+    // Adapter penalty
+    // Adapters are also often used implicitly, but we want to be less aggressive than Base/Abstract
+    // to avoid false negatives on dead adapter methods (regression fix).
+    if def.def_type == "method" && def.full_name.contains("Adapter") {
+        def.confidence = def
+            .confidence
+            .saturating_sub(*PENALTIES().get("adapter_class").unwrap_or(&30));
+    }
+
+    // Framework lifecycle methods
+    if def.def_type == "method" || def.def_type == "function" {
+        if def.simple_name.starts_with("on_") || def.simple_name.starts_with("watch_") {
+            def.confidence = def
+                .confidence
+                .saturating_sub(*PENALTIES().get("lifecycle_hook").unwrap_or(&30));
+        }
+        if def.simple_name == "compose" {
+            def.confidence = def
+                .confidence
+                .saturating_sub(*PENALTIES().get("compose_method").unwrap_or(&40));
+        }
     }
 
     // Private names
@@ -69,12 +131,77 @@ pub fn apply_penalties<S: ::std::hash::BuildHasher>(
             .saturating_sub(*PENALTIES().get("dunder_or_magic").unwrap_or(&100));
     }
 
+    // Dynamic/Reflection Penalty
+    // If the definition is in a scope that uses reflection (getattr, globals, etc),
+    // we significantly lower confidence because we can't be sure it's unused.
+    if !dynamic_scopes.is_empty() {
+        if dynamic_scopes.contains(module_name) {
+            // Module-level reflection makes everything in the module suspect
+            def.confidence = def.confidence.saturating_sub(60);
+        } else {
+            // Check if definition is inside a dynamic scope
+            for scope in dynamic_scopes {
+                if def.full_name.starts_with(scope)
+                    && def.full_name.len() > scope.len()
+                    && def.full_name.as_bytes()[scope.len()] == b'.'
+                {
+                    def.confidence = def.confidence.saturating_sub(50);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Module-level constants: Evidence-based scoring
+    if def.is_constant {
+        // Start with the base penalty from constants.rs (usually 15)
+        let base_penalty = *PENALTIES().get("module_constant").unwrap_or(&15);
+        let mut extra_penalty = 0;
+
+        // Evidence: Config-shaped names (less likely to be bugs)
+        // Optimization: case-sensitive check is fine here because constants are typically UPPERCASE
+        if def.simple_name.contains("CONFIG")
+            || def.simple_name.contains("SETTING")
+            || def.simple_name.contains("OPTION")
+            || def.simple_name.contains("FLAG")
+            || def.simple_name.contains("DEFAULT")
+            || def.simple_name.ends_with("_ENV")
+        {
+            extra_penalty = 25;
+        }
+
+        def.confidence = def.confidence.saturating_sub(base_penalty + extra_penalty);
+    }
+
+    // Confidence BOOSTERS: Suspicious names are MORE likely to be bugs
+    // Short-circuit: only check variables
+    if def.def_type == "variable" {
+        // Optimization: Check for common lowercase debug patterns without allocating lowercased string.
+        // Most variables are snake_case (lowercase), so direct match works for detecting 'temp', 'foo', etc.
+        // We handle mixed-case "Debug" or "Temp" simplistically or ignore them to save cycles.
+        if def.simple_name.contains("temp")
+            || def.simple_name.contains("tmp")
+            || def.simple_name.contains("foo")
+            || def.simple_name.contains("bar")
+            || def.simple_name.starts_with("debug")
+        {
+            def.confidence = def.confidence.saturating_add(15);
+        }
+        // Single-letter non-private vars (x, y, i, j)
+        else if def.simple_name.len() <= 2 && !def.simple_name.starts_with('_') {
+            def.confidence = def.confidence.saturating_add(10);
+        }
+    }
+
     // In __init__.py
     if def.file.file_name().is_some_and(|n| n == "__init__.py") {
         def.confidence = def
             .confidence
             .saturating_sub(*PENALTIES().get("in_init_file").unwrap_or(&15));
     }
+
+    // Ensure confidence never exceeds 100 (boosters might push it over)
+    def.confidence = def.confidence.min(100);
 
     // Note: TYPE_CHECKING import penalty moved to apply_heuristics()
     // because it needs def.references to be accurate (after cross-file merge)
@@ -110,6 +237,8 @@ pub fn apply_heuristics(def: &mut Definition) {
     {
         // Mark as used by incrementing references
         def.references += 1;
+        // Mark as root by setting confidence to 0 (immune to reachability zero-out)
+        def.confidence = 0;
     }
 
     // 3. TYPE_CHECKING imports: only suppress if actually USED in annotations
@@ -120,4 +249,34 @@ pub fn apply_heuristics(def: &mut Definition) {
             .confidence
             .saturating_sub(*PENALTIES().get("type_checking_import").unwrap_or(&100));
     }
+
+    update_category(def);
+}
+
+/// Updates the confidence category based on the final confidence score and other factors.
+fn update_category(def: &mut crate::visitor::Definition) {
+    use crate::visitor::UnusedCategory;
+
+    // Special case: Config-like constants
+    if def.is_constant && def.confidence < 90 {
+        // If it was penalized heavily for being config-like, mark it as such
+        let upper = def.simple_name.to_ascii_uppercase();
+        if upper.contains("CONFIG")
+            || upper.contains("SETTING")
+            || upper.contains("OPTION")
+            || upper.contains("FLAG")
+            || upper.contains("DEFAULT")
+            || upper.ends_with("_ENV")
+        {
+            def.category = UnusedCategory::ConfigurationConstant;
+            return;
+        }
+    }
+
+    def.category = match def.confidence {
+        90..=100 => UnusedCategory::DefinitelyUnused,
+        60..=89 => UnusedCategory::ProbablyUnused,
+        // 40..=59 and fallback for very low confidence (e.g. if threshold is 0)
+        _ => UnusedCategory::PossiblyIntentional,
+    };
 }

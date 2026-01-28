@@ -1,0 +1,30 @@
+---
+source: cytoscnpy/tests/output_snapshot_test.rs
+expression: output
+---
+# CytoScnPy Analysis Report
+
+## Summary
+
+| Category | Count |
+| --- | ---: |
+| Security Issues | 0 |
+| Secrets Found | 0 |
+| Quality Issues | 0 |
+| Taint Issues | 0 |
+| Unused Functions | 1 |
+| Unused Methods | 0 |
+| Unused Classes | 0 |
+| Unused Imports | 2 |
+| Unused Parameters | 0 |
+| Unused Variables | 1 |
+| Parse Errors | 0 |
+
+## Unused Code
+
+| Type | Name | File | Line |
+| --- | --- | --- | ---: |
+| Function | unused_func | [FILE] | 5 |
+| Import | os | [FILE] | 2 |
+| Import | sys | [FILE] | 3 |
+| Variable | unused_var | [FILE] | 9 |

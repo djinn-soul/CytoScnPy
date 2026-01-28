@@ -15,28 +15,35 @@ Get real-time feedback while you code.
 
 Access via Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
-| Command                                      | Description                                |
-| -------------------------------------------- | ------------------------------------------ |
-| `CytoScnPy: Analyze Current File`            | Trigger analysis for the active file.      |
-| `CytoScnPy: Analyze Workspace`               | Analyze all Python files in the workspace. |
-| `CytoScnPy: Calculate Cyclomatic Complexity` | Show complexity metrics (cc).              |
-| `CytoScnPy: Calculate Halstead Metrics`      | Show Halstead metrics (hal).               |
-| `CytoScnPy: Calculate Maintainability Index` | Show Maintainability Index (mi).           |
-| `CytoScnPy: Calculate Raw Metrics`           | Show LOC, SLOC, comments.                  |
+| Command                                           | Description                                |
+| ------------------------------------------------- | ------------------------------------------ |
+| `CytoScnPy: Analyze Current File`                 | Trigger analysis for the active file.      |
+| `CytoScnPy: Analyze Workspace`                    | Analyze all Python files in the workspace. |
+| `CytoScnPy: Calculate Cyclomatic Complexity (cc)` | Show complexity metrics for current file.  |
+| `CytoScnPy: Calculate Halstead Metrics (hal)`     | Show Halstead metrics for current file.    |
+| `CytoScnPy: Calculate Maintainability Index (mi)` | Show MI scores for current file.           |
+| `CytoScnPy: Calculate Raw Metrics (raw)`          | Show LOC, SLOC, and other raw metrics.     |
 
 ### Configuration
 
 Customize behavior in VS Code Settings (`Ctrl+,`):
 
-| Setting                         | Default | Description                          |
-| ------------------------------- | ------- | ------------------------------------ |
-| `cytoscnpy.enableSecretsScan`   | `false` | Enable scanning for keys/tokens.     |
-| `cytoscnpy.enableDangerScan`    | `false` | Enable dangerous code patterns.      |
-| `cytoscnpy.enableQualityScan`   | `false` | Enable code quality metrics.         |
-| `cytoscnpy.enableCloneScan`     | `false` | Enable clone detection.              |
-| `cytoscnpy.confidenceThreshold` | `0`     | Min confidence (0-100). 0 shows all. |
-| `cytoscnpy.excludeFolders`      | `[]`    | Exclude folders (e.g. `venv`).       |
-| `cytoscnpy.path`                | `""`    | Custom path to CLI executable.       |
+| `cytoscnpy.analysisMode` | `workspace` | Analysis mode: `workspace` (accurate) or `file` (fast). |
+| `cytoscnpy.enableSecretsScan` | `false` | Enable scanning for keys/tokens. |
+| `cytoscnpy.enableDangerScan` | `false` | Enable dangerous code patterns scanning. |
+| `cytoscnpy.enableQualityScan` | `false` | Enable code quality metrics scanning. |
+| `cytoscnpy.enableCloneScan` | `false` | Enable clone detection scanning. |
+| `cytoscnpy.confidenceThreshold` | `0` | Min confidence (0-100). 0 shows all findings. |
+| `cytoscnpy.excludeFolders` | `[]` | Folders to exclude from analysis. |
+| `cytoscnpy.includeFolders` | `[]` | Folders to force-include in analysis. |
+| `cytoscnpy.includeTests` | `false` | Include test files in analysis. |
+| `cytoscnpy.includeIpynb` | `false` | Include Jupyter Notebooks (.ipynb files). |
+| `cytoscnpy.maxComplexity` | `10` | Maximum allowed Cyclomatic Complexity. |
+| `cytoscnpy.minMaintainabilityIndex` | `40` | Minimum Maintainability Index. |
+| `cytoscnpy.maxNesting` | `3` | Maximum allowed nesting depth. |
+| `cytoscnpy.maxArguments` | `5` | Maximum allowed function arguments. |
+| `cytoscnpy.maxLines` | `50` | Maximum allowed function lines. |
+| `cytoscnpy.path` | `""` | Custom path to CLI executable. |
 
 ---
 
@@ -105,3 +112,18 @@ Add to `claude_desktop_config.json`:
 #### GitHub Copilot (VS Code)
 
 Automatically enabled when the [VS Code Extension](#vs-code-extension) is installed. No extra config needed.
+
+---
+
+## CI/CD Integrations
+
+CytoScnPy supports a wide variety of CI/CD environments through structured output formats (JSON, GitLab, SARIF, GitHub Annotations).
+
+For detailed setup guides and examples for:
+
+- **GitLab Code Quality**
+- **GitHub Actions Annotations**
+- **SARIF Security Dashboards**
+- **JUnit Test Reports**
+
+See the **[CI/CD Integration Guide](usage.md#-cicd-integration)** in our User Guide.

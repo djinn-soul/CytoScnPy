@@ -22,12 +22,15 @@ def func():
     // Verify that unused imports are detected
     // If the bug (self-reference) was present, these would be 0 and the test would fail.
 
-    let found_os = report.unused_imports.iter().any(|i| i.name == "os");
+    let found_os = report.unused_imports.iter().any(|i| i.simple_name == "os");
     assert!(found_os, "Should detect 'os' as unused import");
 
-    let found_sys = report.unused_imports.iter().any(|i| i.name == "sys");
+    let found_sys = report.unused_imports.iter().any(|i| i.simple_name == "sys");
     assert!(found_sys, "Should detect 'sys' as unused import");
 
-    let found_math = report.unused_imports.iter().any(|i| i.name == "math");
+    let found_math = report
+        .unused_imports
+        .iter()
+        .any(|i| i.simple_name == "math");
     assert!(found_math, "Should detect 'math' as unused import");
 }

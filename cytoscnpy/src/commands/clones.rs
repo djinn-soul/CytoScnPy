@@ -144,7 +144,6 @@ pub fn run_clones<W: Write>(
         let mut table = Table::new();
         table
             .load_preset(comfy_table::presets::UTF8_FULL)
-            .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
             .set_header(vec![
                 "Type",
                 "Name",
@@ -234,7 +233,7 @@ fn print_clone_stats_simple<W: Write>(
     pairs: &[ClonePair],
 ) -> Result<()> {
     writeln!(writer, "[VERBOSE] Clone Detection Statistics:")?;
-    writeln!(writer, "   Files scanned: {}", file_count)?;
+    writeln!(writer, "   Files scanned: {file_count}")?;
     writeln!(writer, "   Clone pairs found: {}", pairs.len())?;
 
     let mut type1_count = 0;
@@ -340,7 +339,24 @@ pub fn generate_clone_findings(
         }
     }
 
-    best_by_location.into_values().collect()
+    // Filter out suppressed findings (pragma, noqa, ignore comments)
+    let file_contents: HashMap<_, _> = all_files.iter().map(|(p, c)| (p, c)).collect();
+    best_by_location
+        .into_values()
+        .filter(|finding| {
+            // Check if the line containing this finding has a suppression comment
+            if let Some(content) = file_contents.get(&finding.file) {
+                if let Some(line) = content.lines().nth(finding.line.saturating_sub(1)) {
+                    // Use `get_line_suppression` to check for inline pragmas (e.g. `pragma: no cytoscnpy`).
+                    // This ensures we respect user directives to ignore specific lines even for clone detection.
+                    if crate::utils::get_line_suppression(line).is_some() {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+        .collect()
 }
 
 fn apply_clone_fixes_internal<W: Write>(

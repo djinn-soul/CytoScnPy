@@ -9,7 +9,7 @@
 - **Taint Analysis**: Tracks data flow from untrusted sources to dangerous sinks to detect SQL injection, command injection, and code execution vulnerabilities.
 - **Clone Detection**: Finds duplicate or similar code blocks to reduce technical debt.
 - **Quality Metrics**: Calculates Cyclomatic Complexity, Halstead Metrics, and Maintainability Index.
-- **Inline Diagnostics**: View errors and warnings directly in your editor with detailed hover information.
+- **Quick Fixes**: One-click actions to remove or comment out unused code, with CST-precise deletions.
 - **Workspace Analysis**: Analyze entire directories or workspaces at once.
 
 ## Requirements
@@ -38,36 +38,37 @@ pip install cytoscnpy
 
 This extension contributes the following settings:
 
-| Setting                             | Default | Description                                                   |
-| :---------------------------------- | :------ | :------------------------------------------------------------ |
-| `cytoscnpy.path`                    | `""`    | Custom path to the `cytoscnpy` executable (optional).         |
-| `cytoscnpy.enableSecretsScan`       | `false` | Enable scanning for hardcoded secrets.                        |
-| `cytoscnpy.enableDangerScan`        | `false` | Enable scanning for dangerous code patterns.                  |
-| `cytoscnpy.enableQualityScan`       | `false` | Enable scanning for code quality issues.                      |
-| `cytoscnpy.enableCloneScan`         | `false` | Enable code clone detection to find duplicate/similar code.   |
-| `cytoscnpy.confidenceThreshold`     | `0`     | Minimum confidence level (0-100). Set to 0 to show all.       |
-| `cytoscnpy.excludeFolders`          | `[]`    | Folders to exclude from analysis (e.g., `["build", "dist"]`). |
-| `cytoscnpy.includeFolders`          | `[]`    | Folders to force-include in analysis (e.g., `["tests"]`).     |
-| `cytoscnpy.includeTests`            | `false` | Include test files in analysis.                               |
-| `cytoscnpy.includeIpynb`            | `false` | Include Jupyter notebooks in analysis.                        |
-| `cytoscnpy.maxComplexity`           | `10`    | Maximum allowed cyclomatic complexity before warning.         |
-| `cytoscnpy.minMaintainabilityIndex` | `40`    | Minimum maintainability index before warning.                 |
-| `cytoscnpy.maxNesting`              | `3`     | Maximum allowed nesting depth before warning.                 |
-| `cytoscnpy.maxArguments`            | `5`     | Maximum function arguments before warning.                    |
-| `cytoscnpy.maxLines`                | `50`    | Maximum function lines before warning.                        |
+| Setting                             | Default       | Description                                                   |
+| :---------------------------------- | :------------ | :------------------------------------------------------------ |
+| `cytoscnpy.path`                    | `""`          | Custom path to the `cytoscnpy` executable (optional).         |
+| `cytoscnpy.analysisMode`            | `"workspace"` | 'workspace' for full project (accurate) or 'file' (fast).     |
+| `cytoscnpy.enableSecretsScan`       | `false`       | Enable scanning for hardcoded secrets.                        |
+| `cytoscnpy.enableDangerScan`        | `false`       | Enable scanning for dangerous code patterns.                  |
+| `cytoscnpy.enableQualityScan`       | `false`       | Enable scanning for code quality issues.                      |
+| `cytoscnpy.enableCloneScan`         | `false`       | Enable code clone detection to find duplicate/similar code.   |
+| `cytoscnpy.confidenceThreshold`     | `0`           | Minimum confidence level (0-100). Set to 0 to show all.       |
+| `cytoscnpy.excludeFolders`          | `[]`          | Folders to exclude from analysis (e.g., `["build", "dist"]`). |
+| `cytoscnpy.includeFolders`          | `[]`          | Folders to force-include in analysis (e.g., `["tests"]`).     |
+| `cytoscnpy.includeTests`            | `false`       | Include test files in analysis.                               |
+| `cytoscnpy.includeIpynb`            | `false`       | Include Jupyter notebooks in analysis.                        |
+| `cytoscnpy.maxComplexity`           | `10`          | Maximum allowed cyclomatic complexity before warning.         |
+| `cytoscnpy.minMaintainabilityIndex` | `40`          | Minimum maintainability index before warning.                 |
+| `cytoscnpy.maxNesting`              | `3`           | Maximum allowed nesting depth before warning.                 |
+| `cytoscnpy.maxArguments`            | `5`           | Maximum function arguments before warning.                    |
+| `cytoscnpy.maxLines`                | `50`          | Maximum function lines before warning.                        |
 
 ## Commands
 
 Access these commands from the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
-| Command                                        | Description                                    |
-| :--------------------------------------------- | :--------------------------------------------- |
-| **CytoScnPy: Analyze Current File**            | Trigger analysis for the active Python file.   |
-| **CytoScnPy: Analyze Workspace**               | Analyze all Python files in the workspace.     |
-| **CytoScnPy: Calculate Raw Metrics**           | Show raw metrics (LOC, SLOC, comments).        |
-| **CytoScnPy: Calculate Cyclomatic Complexity** | Show complexity metrics for functions/methods. |
-| **CytoScnPy: Calculate Halstead Metrics**      | Show Halstead metrics (volume, difficulty).    |
-| **CytoScnPy: Calculate Maintainability Index** | Show maintainability index per function.       |
+| Command                                             | Description                                  |
+| :-------------------------------------------------- | :------------------------------------------- |
+| **CytoScnPy: Analyze Current File**                 | Trigger analysis for the active Python file. |
+| **CytoScnPy: Analyze Workspace**                    | Analyze all Python files in the workspace.   |
+| **CytoScnPy: Calculate Raw Metrics (raw)**          | Show raw metrics (LOC, SLOC, comments).      |
+| **CytoScnPy: Calculate Halstead Metrics (hal)**     | Show Halstead metrics (volume, difficulty).  |
+| **CytoScnPy: Calculate Maintainability Index (mi)** | Show maintainability index per function.     |
+| **CytoScnPy: Calculate Cyclomatic Complexity (cc)** | Show complexity metrics for functions.       |
 
 ## GitHub Copilot Integration
 

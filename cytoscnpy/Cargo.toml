@@ -18,6 +18,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 tempfile = "3.10"
+insta = { version = "1.34", features = ["yaml"] }
 
 [dependencies]
 clap = { version = "4.5", default-features = false, features = [
@@ -75,9 +76,10 @@ chrono = { version = "0.4.42", default-features = false, features = [
     "clock",
 ], optional = true }
 open = { version = "5.3.3", optional = true }
+ctrlc = "3.5.1"
 
 [features]
-default = ["html_report", "cst"]
+default = ["html_report", "cst", "cfg"]
 html_report = ["dep:askama", "dep:chrono", "dep:open"]
 # Enable Python bindings (required for building the cdylib)
 python-bindings = ["pyo3"]

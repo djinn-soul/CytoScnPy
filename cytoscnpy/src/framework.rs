@@ -1,5 +1,6 @@
 use crate::utils::LineIndex;
 use ruff_python_ast::{Expr, Stmt};
+use ruff_text_size::Ranged;
 use rustc_hash::FxHashSet;
 use std::sync::OnceLock;
 
@@ -159,7 +160,8 @@ impl<'a> FrameworkAwareVisitor<'a> {
             }
             // Check function definitions for decorators.
             Stmt::FunctionDef(node) => {
-                let line = self.line_index.line_index(node.range.start());
+                // Use name line to match visitor.rs Definition.line
+                let line = self.line_index.line_index(node.name.range().start());
                 self.check_decorators(&node.decorator_list, line);
                 // Check for FastAPI Depends() in parameters
                 self.extract_fastapi_depends(&node.parameters);
@@ -187,16 +189,14 @@ impl<'a> FrameworkAwareVisitor<'a> {
                         // This prevents user-defined classes (like a custom BaseModel) from
                         // incorrectly triggering framework detection
                         if self.is_framework_file {
-                            // Django views, schemas (serializers), etc.
-                            if id_lower.contains("view") || id_lower.contains("schema") {
+                            // Django views, schemas (serializers), and Model (exact match)
+                            if id_lower.contains("view")
+                                || id_lower.contains("schema")
+                                || id == "Model"
+                            {
                                 is_framework_class = true;
-                                let line = self.line_index.line_index(node.range.start());
-                                self.framework_decorated_lines.insert(line);
-                            }
-                            // Django Model (exact match, not just contains "model")
-                            if id == "Model" {
-                                is_framework_class = true;
-                                let line = self.line_index.line_index(node.range.start());
+                                // Use name line to match visitor.rs Definition.line
+                                let line = self.line_index.line_index(node.name.range().start());
                                 self.framework_decorated_lines.insert(line);
                             }
                         }
@@ -218,7 +218,8 @@ impl<'a> FrameworkAwareVisitor<'a> {
                     // If it's a framework class, mark its methods.
                     if is_framework_class {
                         if let Stmt::FunctionDef(f) = stmt {
-                            let line = self.line_index.line_index(f.range.start());
+                            // Use name line to match visitor.rs Definition.line
+                            let line = self.line_index.line_index(f.name.range().start());
                             self.framework_decorated_lines.insert(line);
                         }
                     }
@@ -434,7 +435,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     /// Checks if any of the decorators are framework-related.
     fn check_decorators(&mut self, decorators: &[ruff_python_ast::Decorator], line: usize) {
         for decorator in decorators {
-            let name = self.get_decorator_name(&decorator.expression);
+            let name = Self::get_decorator_name(&decorator.expression);
             if Self::is_framework_decorator(&name) {
                 // If a framework decorator is found, mark the line and the file.
                 self.framework_decorated_lines.insert(line);
@@ -444,8 +445,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
     }
 
     /// Extracts the name of a decorator.
-    #[allow(clippy::only_used_in_recursion)]
-    fn get_decorator_name(&self, decorator: &Expr) -> String {
+    fn get_decorator_name(decorator: &Expr) -> String {
         match decorator {
             Expr::Name(node) => node.id.to_string(),
             Expr::Attribute(node) => {
@@ -454,7 +454,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
             }
             Expr::Call(node) => {
                 // For decorators with arguments like @app.route("/path")
-                self.get_decorator_name(&node.func)
+                Self::get_decorator_name(&node.func)
             }
             _ => String::new(),
         }

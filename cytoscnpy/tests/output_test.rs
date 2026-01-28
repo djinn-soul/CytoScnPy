@@ -21,18 +21,26 @@ fn test_print_report_formatting() {
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
             end_line: 10,
+            col: 0,
             start_byte: 0,
             end_byte: 0,
             confidence: 100,
             references: 0,
             is_exported: false,
             in_init: false,
+            is_framework_managed: false,
             base_classes: smallvec::smallvec![],
             is_type_checking: false,
+            is_captured: false,
             cell_number: None,
             is_self_referential: false,
             message: Some("'unused_func' is defined but never used".to_owned()),
             fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
+            is_unreachable: false,
+            category: cytoscnpy::visitor::UnusedCategory::default(),
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -43,6 +51,7 @@ fn test_print_report_formatting() {
         danger: vec![Finding {
             message: "Dangerous eval".to_owned(),
             rule_id: "CSP-D001".to_owned(),
+            category: "Code Execution".to_owned(),
             file: PathBuf::from("danger.py"),
             line: 5,
             col: 0,
@@ -76,6 +85,8 @@ fn test_print_report_formatting() {
     // Capture output in a buffer
     let mut buffer = Vec::new();
     cytoscnpy::output::print_report(&mut buffer, &result).unwrap();
+    cytoscnpy::output::print_summary_pills(&mut buffer, &result).unwrap();
+    cytoscnpy::output::print_analysis_stats(&mut buffer, &result.analysis_summary).unwrap();
 
     // Convert buffer to string (ignoring color codes for simple assertions)
     let output = String::from_utf8_lossy(&buffer);

@@ -1,5 +1,17 @@
 # Migration Guide
 
+## Upgrading to v1.2.5
+
+### CI Workflow Improvements
+
+- **Python 3.13 Support**: If you are using `pip install` on Linux with Python 3.13, you no longer need the standalone installer as a workaround. Wheels are now explicitly built for Python 3.9 through 3.13 for all supported platforms.
+
+## Upgrading to v1.2.2
+
+### Behavioral Changes
+
+- **Test Exclusion**: Starting from v1.2.2, tests are **excluded by default** in both the CLI and library API to reduce noise. Use the `--include-tests` flag if you want to scan your test files.
+
 ## Upgrading to v1.2.0
 
 ### Breaking Changes

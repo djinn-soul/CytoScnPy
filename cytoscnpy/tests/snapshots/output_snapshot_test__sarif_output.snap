@@ -1,0 +1,96 @@
+---
+source: cytoscnpy/tests/output_snapshot_test.rs
+expression: output
+---
+{
+  "version": "[VERSION]",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "CytoScnPy",
+          "version": "[VERSION]"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "unused-function",
+          "level": "note",
+          "message": {
+            "text": "Unused function: unused_func ([FILE]:5)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "[FILE]"
+                },
+                "region": {
+                  "startLine": 5
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused-import",
+          "level": "note",
+          "message": {
+            "text": "Unused import: os ([FILE]:2)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "[FILE]"
+                },
+                "region": {
+                  "startLine": 2
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused-import",
+          "level": "note",
+          "message": {
+            "text": "Unused import: sys ([FILE]:3)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "[FILE]"
+                },
+                "region": {
+                  "startLine": 3
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused-variable",
+          "level": "note",
+          "message": {
+            "text": "Unused variable: main.unused_var ([FILE]:9)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "[FILE]"
+                },
+                "region": {
+                  "startLine": 9
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

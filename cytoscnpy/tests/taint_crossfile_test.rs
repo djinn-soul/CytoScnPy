@@ -5,7 +5,9 @@
 #![allow(clippy::needless_raw_string_hashes)]
 #![allow(clippy::str_to_string)]
 
+use cytoscnpy::taint::analyzer::TaintAnalyzer;
 use cytoscnpy::taint::crossfile::{analyze_project, CrossFileAnalyzer};
+use cytoscnpy::utils::LineIndex;
 use std::path::PathBuf;
 
 // =============================================================================
@@ -43,24 +45,35 @@ fn test_resolve_unregistered_import() {
 #[test]
 fn test_analyze_empty_file() {
     let mut analyzer = CrossFileAnalyzer::new();
+    let taint_analyzer = TaintAnalyzer::default();
     let path = PathBuf::from("empty.py");
+    let code = "";
 
-    let findings = analyzer.analyze_file(&path, "");
-    assert!(findings.is_empty());
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        let line_index = LineIndex::new(code);
+        let findings = analyzer.analyze_file(&taint_analyzer, &path, &module.body, &line_index);
+        assert!(findings.is_empty());
+    }
 }
 
 #[test]
 fn test_analyze_simple_file() {
     let mut analyzer = CrossFileAnalyzer::new();
+    let taint_analyzer = TaintAnalyzer::default();
     let path = PathBuf::from("simple.py");
     let code = r#"
 def hello():
     print("Hello, world!")
 "#;
 
-    let findings = analyzer.analyze_file(&path, code);
-    // No taint issues in this simple code
-    assert!(findings.is_empty());
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        let line_index = LineIndex::new(code);
+        let findings = analyzer.analyze_file(&taint_analyzer, &path, &module.body, &line_index);
+        // No taint issues in this simple code
+        assert!(findings.is_empty());
+    }
 }
 
 #[test]
@@ -70,11 +83,17 @@ fn test_analyze_file_caching() {
     let code = "x = 1";
 
     // First call
-    let findings1 = analyzer.analyze_file(&path, code);
-    // Second call should return cached results
-    let findings2 = analyzer.analyze_file(&path, code);
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        let line_index = LineIndex::new(code);
+        let taint_analyzer = TaintAnalyzer::default();
 
-    assert_eq!(findings1.len(), findings2.len());
+        let findings1 = analyzer.analyze_file(&taint_analyzer, &path, &module.body, &line_index);
+        // Second call should return cached results
+        let findings2 = analyzer.analyze_file(&taint_analyzer, &path, &module.body, &line_index);
+
+        assert_eq!(findings1.len(), findings2.len());
+    }
 }
 
 #[test]
@@ -82,7 +101,13 @@ fn test_clear_cache() {
     let mut analyzer = CrossFileAnalyzer::new();
     let path = PathBuf::from("to_clear.py");
 
-    analyzer.analyze_file(&path, "x = 1");
+    let code = "x = 1";
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        let line_index = LineIndex::new(code);
+        let taint_analyzer = TaintAnalyzer::default();
+        analyzer.analyze_file(&taint_analyzer, &path, &module.body, &line_index);
+    }
     analyzer.clear_cache();
 
     // After clearing, get_all_findings should be empty
@@ -133,7 +158,12 @@ import os
 import sys as system
 "#;
 
-    analyzer.analyze_file(&path, code);
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        let line_index = LineIndex::new(code);
+        let taint_analyzer = TaintAnalyzer::default();
+        analyzer.analyze_file(&taint_analyzer, &path, &module.body, &line_index);
+    }
 
     // Should have registered the imports
     let resolved_os = analyzer.resolve_import("imports", "os");
@@ -152,7 +182,12 @@ from flask import Flask, request as req
 from os.path import join
 "#;
 
-    analyzer.analyze_file(&path, code);
+    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
+        let module = parsed.into_syntax();
+        let line_index = LineIndex::new(code);
+        let taint_analyzer = TaintAnalyzer::default();
+        analyzer.analyze_file(&taint_analyzer, &path, &module.body, &line_index);
+    }
 
     // Should have registered the from imports
     let resolved_flask = analyzer.resolve_import("from_imports", "Flask");
@@ -169,14 +204,16 @@ from os.path import join
 #[test]
 fn test_analyze_project_empty() {
     let files: Vec<(PathBuf, String)> = vec![];
-    let findings = analyze_project(&files);
+    let taint_analyzer = TaintAnalyzer::default();
+    let findings = analyze_project(&taint_analyzer, &files);
     assert!(findings.is_empty());
 }
 
 #[test]
 fn test_analyze_project_single_file() {
     let files = vec![(PathBuf::from("single.py"), "x = 1".to_string())];
-    let findings = analyze_project(&files);
+    let taint_analyzer = TaintAnalyzer::default();
+    let findings = analyze_project(&taint_analyzer, &files);
     assert!(findings.is_empty());
 }
 
@@ -192,7 +229,8 @@ fn test_analyze_project_multiple_files() {
             "def func_b(): return 2".to_string(),
         ),
     ];
-    let findings = analyze_project(&files);
+    let taint_analyzer = TaintAnalyzer::default();
+    let findings = analyze_project(&taint_analyzer, &files);
     // No taint issues expected
     assert!(findings.is_empty());
 }
@@ -211,7 +249,8 @@ def handler():
         .to_string(),
     )];
 
-    let findings = analyze_project(&files);
+    let taint_analyzer = TaintAnalyzer::default();
+    let findings = analyze_project(&taint_analyzer, &files);
     // Should detect the taint flow from request to eval
     // Note: May or may not find depending on analysis depth
     // The analysis should complete without error
@@ -226,6 +265,7 @@ fn test_analyze_project_syntax_error() {
     )];
 
     // Should handle syntax errors gracefully
-    let findings = analyze_project(&files);
+    let taint_analyzer = TaintAnalyzer::default();
+    let findings = analyze_project(&taint_analyzer, &files);
     assert!(findings.is_empty());
 }

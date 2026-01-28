@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    "usernamehw.errorlens",
+    "tion.evenbettercomments",
+    "tamasfe.even-better-toml",
+    "rust-lang.rust-analyzer",
+    "1yib.rust-bundle",
+    "rodrigocfd.format-comment",
+    "ryanluker.vscode-coverage-gutters",
+    "vadimcn.vscode-lldb",
+    "donjayamanne.githistory",
+    "eamodio.gitlens",
+    "fill-labs.dependi"
+  ]
+}

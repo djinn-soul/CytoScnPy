@@ -1,7 +1,20 @@
 {
   "files": {
     "frameworks.py": {
-      "dead_items": []
+      "dead_items": [
+        {
+          "type": "variable",
+          "name": "path",
+          "line_start": 7,
+          "reason": "Parameter 'path' is unused in route function body"
+        },
+        {
+          "type": "variable",
+          "name": "dependency",
+          "line_start": 29,
+          "reason": "Parameter 'dependency' is unused in Depends function body"
+        }
+      ]
     }
   }
 }

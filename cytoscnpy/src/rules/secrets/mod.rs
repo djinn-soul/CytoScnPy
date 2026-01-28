@@ -23,10 +23,11 @@ pub use recognizers::{
 pub use scoring::{ContextScorer, ScoringAdjustments, ScoringContext};
 
 use crate::config::SecretsConfig;
+use crate::constants::RULE_ID_CONFIG_ERROR;
 use crate::utils::LineIndex;
 use ruff_python_ast::Stmt;
 use rustc_hash::FxHashSet;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 // ============================================================================
@@ -34,12 +35,14 @@ use std::path::PathBuf;
 // ============================================================================
 
 /// Represents a secret finding with confidence scoring.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecretFinding {
     /// Description of the finding.
     pub message: String,
     /// Unique rule identifier (e.g., "CSP-S101").
     pub rule_id: String,
+    /// Category of the rule.
+    pub category: String,
     /// File where the secret was found.
     pub file: PathBuf,
     /// Line number (1-indexed).
@@ -166,15 +169,20 @@ impl SecretScanner {
                 continue;
             }
 
-            // Skip pragma lines
-            if line_content.contains("pragma: no cytoscnpy") {
-                continue;
+            // Skip suppressed lines (pragma, noqa, ignore comments)
+            if let Some(suppression) = crate::utils::get_line_suppression(line_content) {
+                match suppression {
+                    crate::utils::Suppression::All => continue,
+                    crate::utils::Suppression::Specific(rules) => {
+                        if rules.contains(&finding.rule_id) {
+                            continue;
+                        }
+                    }
+                }
             }
 
             // Check if in docstring
-            let is_docstring = docstring_lines
-                .map(|lines| lines.contains(&finding.line))
-                .unwrap_or(false);
+            let is_docstring = docstring_lines.is_some_and(|lines| lines.contains(&finding.line));
 
             // Create scoring context
             let ctx = ScoringContext {
@@ -216,6 +224,7 @@ impl SecretScanner {
             scored_findings.push(SecretFinding {
                 message: finding.message,
                 rule_id: finding.rule_id,
+                category: "Secrets".to_owned(),
                 file: file_path.clone(),
                 line: finding.line,
                 severity: finding.severity,
@@ -232,6 +241,36 @@ impl SecretScanner {
 // ============================================================================
 // Backward-Compatible Functions
 // ============================================================================
+
+/// Validates custom regex patterns in the secrets configuration.
+/// Returns a list of `SecretFinding` for any invalid patterns.
+/// This should be called once at the start of analysis, not per-file.
+#[must_use]
+pub fn validate_secrets_config(
+    config: &SecretsConfig,
+    config_file_path: &PathBuf,
+) -> Vec<SecretFinding> {
+    let mut findings = Vec::new();
+    for p in &config.patterns {
+        if let Err(e) = regex::Regex::new(&p.regex) {
+            findings.push(SecretFinding {
+                message: format!(
+                    "Invalid regex for custom secret pattern '{}': {}",
+                    p.name, e
+                ),
+                rule_id: RULE_ID_CONFIG_ERROR.to_owned(),
+                category: "Secrets".to_owned(),
+                file: config_file_path.clone(),
+                line: 1,
+                severity: "CRITICAL".to_owned(),
+                matched_value: None,
+                entropy: None,
+                confidence: 100,
+            });
+        }
+    }
+    findings
+}
 
 /// Scans the content of a file for secrets using regex patterns and entropy analysis.
 ///
@@ -406,5 +445,30 @@ mod tests {
         let findings = scan_secrets_compat(content, &PathBuf::from("test.py"));
 
         assert!(!findings.is_empty());
+    }
+    #[test]
+    fn test_invalid_custom_regex_reporting() {
+        use crate::config::{CustomSecretPattern, SecretsConfig};
+
+        let secrets_config = SecretsConfig {
+            patterns: vec![CustomSecretPattern {
+                name: "Invalid Regex".to_owned(),
+                regex: "[".to_owned(), // Invalid regex
+                rule_id: None,
+                severity: "CRITICAL".to_owned(),
+            }],
+            ..SecretsConfig::default()
+        };
+
+        let config_file = PathBuf::from(".cytoscnpy.toml");
+        let findings = validate_secrets_config(&secrets_config, &config_file);
+
+        // Should report a finding for invalid regex configuration
+        assert!(
+            !findings.is_empty(),
+            "Should report a finding for invalid regex configuration"
+        );
+        assert_eq!(findings[0].rule_id, RULE_ID_CONFIG_ERROR);
+        assert_eq!(findings[0].file, config_file);
     }
 }

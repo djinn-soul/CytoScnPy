@@ -88,6 +88,8 @@ pub enum TaintSource {
     FunctionParam(String),
     /// Return value from tainted function
     FunctionReturn(String),
+    /// Custom taint source defined in configuration
+    Custom(String),
 }
 
 impl std::fmt::Display for TaintSource {
@@ -104,6 +106,7 @@ impl std::fmt::Display for TaintSource {
             TaintSource::ExternalData => write!(f, "external data"),
             TaintSource::FunctionParam(name) => write!(f, "function param: {name}"),
             TaintSource::FunctionReturn(name) => write!(f, "return from {name}"),
+            TaintSource::Custom(name) => write!(f, "custom source: {name}"),
         }
     }
 }
@@ -121,6 +124,7 @@ pub struct TaintInfo {
 
 impl TaintInfo {
     /// Creates a new taint info from a source.
+    #[must_use]
     pub fn new(source: TaintSource, line: usize) -> Self {
         Self {
             source,
@@ -149,8 +153,12 @@ pub struct TaintFinding {
     pub source: String,
     /// Line where taint originated
     pub source_line: usize,
+    /// Category (e.g., "Taint Analysis")
+    pub category: String,
     /// Sink function/pattern
     pub sink: String,
+    /// Rule ID (e.g., "CSP-D003")
+    pub rule_id: String,
     /// Line where sink is called
     pub sink_line: usize,
     /// Column of sink
@@ -167,8 +175,28 @@ pub struct TaintFinding {
     pub remediation: String,
 }
 
+/// Information about a matched sink.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SinkMatch {
+    /// Name of the sink
+    pub name: String,
+    /// Rule ID
+    pub rule_id: String,
+    /// Vulnerability type
+    pub vuln_type: VulnType,
+    /// Severity
+    pub severity: Severity,
+    /// Which argument indices are dangerous (0-indexed)
+    pub dangerous_args: Vec<usize>,
+    /// Which keyword arguments are dangerous
+    pub dangerous_keywords: Vec<String>,
+    /// Remediation advice
+    pub remediation: String,
+}
+
 impl TaintFinding {
     /// Creates a formatted flow path string.
+    #[must_use]
     pub fn flow_path_str(&self) -> String {
         if self.flow_path.is_empty() {
             format!("{} → {}", self.source, self.sink)
@@ -196,6 +224,7 @@ pub struct FunctionSummary {
 
 impl FunctionSummary {
     /// Creates an empty summary for a function.
+    #[must_use]
     pub fn new(name: &str, param_count: usize) -> Self {
         Self {
             name: name.to_owned(),

@@ -1,5 +1,6 @@
 //! Tests for output.rs - CLI output formatting functions.
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::default_trait_access)]
 
 use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary, ParseError};
 use cytoscnpy::output::{
@@ -22,18 +23,26 @@ fn create_mock_result() -> AnalysisResult {
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
             end_line: 10,
+            col: 0,
             start_byte: 0,
             end_byte: 0,
             confidence: 100,
             references: 0,
             is_exported: false,
             in_init: false,
+            is_framework_managed: false,
             base_classes: smallvec::smallvec![],
             is_type_checking: false,
+            is_captured: false,
             cell_number: None,
             is_self_referential: false,
             message: None,
             fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
+            is_unreachable: false,
+            category: cytoscnpy::visitor::UnusedCategory::default(),
         }],
         unused_methods: vec![],
         unused_imports: vec![],
@@ -45,6 +54,7 @@ fn create_mock_result() -> AnalysisResult {
         quality: vec![Finding {
             message: "Test finding".to_owned(),
             rule_id: "CSP-Q001".to_owned(),
+            category: "Maintainability".to_owned(),
             file: PathBuf::from("test.py"),
             line: 5,
             col: 0,
@@ -195,6 +205,7 @@ fn test_print_findings_with_items() {
     let findings = vec![Finding {
         message: "Test message".to_owned(),
         rule_id: "TEST-001".to_owned(),
+        category: "Security Issues".to_owned(),
         file: PathBuf::from("file.py"),
         line: 10,
         col: 0,
@@ -226,18 +237,26 @@ fn test_print_unused_items_with_items() {
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
         end_line: 5,
+        col: 0,
         start_byte: 0,
         end_byte: 0,
         confidence: 100,
         references: 0,
         is_exported: false,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
+        is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     }];
     let result = print_unused_items(&mut buffer, "Unused Functions", &items, "Function");
     assert!(result.is_ok());
@@ -256,18 +275,26 @@ fn test_print_unused_parameters() {
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
         end_line: 5,
+        col: 0,
         start_byte: 0,
         end_byte: 0,
         confidence: 100,
         references: 0,
         is_exported: false,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
+        is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     }];
     let result = print_unused_items(&mut buffer, "Unused Parameters", &items, "Parameter");
     assert!(result.is_ok());

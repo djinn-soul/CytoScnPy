@@ -50,6 +50,8 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           cache-key: vscode-cli-${{ matrix.target }}
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
+          install-cargo-zigbuild: ${{ runner.os == 'Linux' }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -58,9 +60,15 @@ jobs:
 
       - name: Build Binary with PGO
         shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           source scripts/load-pgo-profile.sh auto
-          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --features cst --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --features cst --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Rename Binary
         shell: bash

@@ -7,6 +7,7 @@ mod cc;
 mod clones;
 mod fix;
 mod hal;
+mod init;
 mod mi;
 mod raw;
 mod stats;
@@ -17,8 +18,9 @@ pub use cc::{run_cc, CcOptions};
 pub use clones::{generate_clone_findings, run_clones, CloneOptions};
 pub use fix::{run_fix_deadcode, DeadCodeFixOptions, FixResult};
 pub use hal::run_hal;
+pub use init::{run_init, run_init_in};
 pub use mi::{run_mi, MiOptions};
 pub use raw::run_raw;
 #[allow(deprecated)]
 pub use stats::run_stats;
-pub use stats::{run_files, run_stats_v2};
+pub use stats::{run_files, run_stats_v2, Inspections, ScanOptions};

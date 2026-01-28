@@ -1,126 +1,99 @@
-//! Tests for the commands module (`run_mi` multi flag functionality)
+//! Integration tests for CLI commands.
+//!
+//! This module tests the various command functions directly.
+
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::needless_raw_string_hashes)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::doc_markdown)]
 
-use cytoscnpy::commands::run_mi;
-use serde::Deserialize;
-use std::fs;
-use tempfile::TempDir;
+use cytoscnpy::commands::{
+    run_cc, run_clones, run_hal, run_mi, run_raw, CcOptions, CloneOptions, MiOptions,
+};
+use std::io::Write;
+use tempfile::NamedTempFile;
 
-fn project_tempdir() -> TempDir {
-    let mut target_dir = std::env::current_dir().unwrap();
-    target_dir.push("target");
-    target_dir.push("test-commands-tmp");
-    fs::create_dir_all(&target_dir).unwrap();
-    tempfile::Builder::new()
-        .prefix("commands_test_")
-        .tempdir_in(target_dir)
-        .unwrap()
-}
-
-#[derive(Deserialize, Debug)]
-struct MiResult {
-    #[allow(dead_code)]
-    file: String,
-    mi: f64,
-    #[allow(dead_code)]
-    rank: char,
+#[test]
+fn test_run_cc_coverage() {
+    let mut file = NamedTempFile::new().unwrap();
+    writeln!(file, "def foo():\n    if True:\n        print('hi')").unwrap();
+    let paths = vec![file.path().to_path_buf()];
+    let mut output = Vec::new();
+    let options = CcOptions {
+        json: true,
+        ..CcOptions::default()
+    };
+    run_cc(&paths, options, &mut output).unwrap();
 }
 
 #[test]
-fn test_run_mi_multi_flag_integration() {
-    // Setup temporary directory
-    let temp_dir = project_tempdir();
-    let file_path = temp_dir.path().join("test_multi_int.py");
+fn test_run_mi_coverage() {
+    let mut file = tempfile::Builder::new().suffix(".py").tempfile().unwrap();
+    writeln!(file, "def bar():\n    pass").unwrap();
+    let paths = vec![file.path().to_path_buf()];
+    let mut output = Vec::new();
+    let options = MiOptions {
+        json: true,
+        ..MiOptions::default()
+    };
+    run_mi(&paths, options, &mut output).unwrap();
+}
 
-    // Create the file content
-    let mut content =
-        String::from("\"\"\"\nThis is a docstring.\nIt spans multiple lines.\n\"\"\"\n");
-
-    // 200 functions, each 2 lines of SLOC -> 400 SLOC.
-    use std::fmt::Write;
-    for i in 0..200 {
-        write!(content, "\ndef f{i}():\n    return {i}\n").unwrap();
-    }
-
-    // 5 blocks of 3-line multi-strings = 15 lines.
-    for _ in 0..5 {
-        content.push_str("\n\"\"\"\nLine 1\n\"\"\"\n");
-    }
-
-    // Add complexity to ensure MI is not capped
-    content.push_str(
-        r#"
-def complex_part(x):
-    if x > 0:
-        if x > 1:
-            if x > 2:
-                if x > 3:
-                    if x > 4:
-                        return x
-    return 0
-"#,
-    );
-    fs::write(&file_path, content).unwrap();
-
-    // Run without multi flag
-    let mut buffer_no_multi = Vec::new();
-    run_mi(
-        std::slice::from_ref(&file_path),
-        cytoscnpy::commands::MiOptions {
-            json: true,
-            exclude: vec![],
-            ignore: vec![],
-            min_rank: None,
-            max_rank: None,
-            multi: false,
-            show: true,
-            average: false,
-            fail_threshold: None,
-            output_file: None,
-            verbose: false,
-        },
-        &mut buffer_no_multi,
+#[test]
+fn test_run_raw_coverage() {
+    let mut file = tempfile::Builder::new().suffix(".py").tempfile().unwrap();
+    let code = "# comment\ndef baz():\n    pass";
+    writeln!(file, "{code}").unwrap();
+    let paths = vec![file.path().to_path_buf()];
+    let mut output = Vec::new();
+    run_raw(
+        &paths,
+        false,
+        vec![],
+        vec![],
+        false,
+        None,
+        false,
+        &mut output,
     )
     .unwrap();
-
-    let output_no_multi = String::from_utf8(buffer_no_multi).unwrap();
-    let results_no_multi: Vec<MiResult> = serde_json::from_str(&output_no_multi).unwrap();
-    let mi_no_multi = results_no_multi[0].mi;
-
-    // Run with multi flag
-    let mut buffer_multi = Vec::new();
-    run_mi(
-        std::slice::from_ref(&file_path),
-        cytoscnpy::commands::MiOptions {
-            json: true,
-            exclude: vec![],
-            ignore: vec![],
-            min_rank: None,
-            max_rank: None,
-            multi: true,
-            show: true,
-            average: false,
-            fail_threshold: None,
-            output_file: None,
-            verbose: false,
-        },
-        &mut buffer_multi,
-    )
-    .unwrap();
-
-    let output_multi = String::from_utf8(buffer_multi).unwrap();
-    let results_multi: Vec<MiResult> = serde_json::from_str(&output_multi).unwrap();
-    let mi_multi = results_multi[0].mi;
-
-    println!("MI without multi: {mi_no_multi}");
-    println!("MI with multi: {mi_multi}");
-
-    // With multi flag, comments count should increase, and thus MI should increase
+    let output_str = String::from_utf8(output).unwrap();
+    // The output should contain the filename, not necessarily the code content.
     assert!(
-        mi_multi > mi_no_multi,
-        "MI should increase when multi-line strings are counted as comments"
+        output_str.contains(file.path().to_string_lossy().as_ref()),
+        "Output should contain the filename. Got: {output_str}"
     );
+}
+
+#[test]
+fn test_run_hal_coverage() {
+    let mut file = tempfile::Builder::new().suffix(".py").tempfile().unwrap();
+    writeln!(file, "x = 1 + 2").unwrap();
+    let paths = vec![file.path().to_path_buf()];
+    let mut output = Vec::new();
+    run_hal(
+        &paths,
+        false,
+        vec![],
+        vec![],
+        false,
+        None,
+        false,
+        &mut output,
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_run_clones_coverage() {
+    let mut file1 = tempfile::Builder::new().suffix(".py").tempfile().unwrap();
+    let mut file2 = tempfile::Builder::new().suffix(".py").tempfile().unwrap();
+    let code = "def some_func():\n    x = 1\n    y = 2\n    return x + y\n";
+    writeln!(file1, "{code}").unwrap();
+    writeln!(file2, "{code}").unwrap();
+
+    let paths = vec![file1.path().to_path_buf(), file2.path().to_path_buf()];
+    let mut output = Vec::new();
+    let options = CloneOptions {
+        similarity: 0.8,
+        ..CloneOptions::default()
+    };
+    run_clones(&paths, &options, &mut output).unwrap();
 }

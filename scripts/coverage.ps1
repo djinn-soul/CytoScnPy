@@ -5,7 +5,8 @@ param(
     [switch]$Open,
     [switch]$Json,
     [switch]$Summary,
-    [switch]$Install
+    [switch]$Install,
+    [switch]$NoClean
 )
 
 Write-Host "🎯 CytoScnPy Code Coverage Tool" -ForegroundColor Cyan
@@ -41,8 +42,12 @@ if ($Install) {
 Set-Location cytoscnpy
 
 # Clean previous coverage data
-Write-Host "🧹 Cleaning previous coverage data..." -ForegroundColor Yellow
-cargo llvm-cov clean
+if (-not $NoClean) {
+    Write-Host "🧹 Cleaning previous coverage data..." -ForegroundColor Yellow
+    cargo llvm-cov clean
+} else {
+    Write-Host "⏭️  Skipping clean step..." -ForegroundColor DarkGray
+}
 
 # Generate coverage
 Write-Host "🔬 Running tests with coverage instrumentation..." -ForegroundColor Yellow
@@ -60,16 +65,16 @@ if ($Summary) {
     # Generate HTML report
     Write-Host "📊 Generating HTML coverage report..." -ForegroundColor Yellow
     cargo llvm-cov --all-features --html
-    
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host ""
         Write-Host "✅ Coverage report generated successfully!" -ForegroundColor Green
         Write-Host ""
         Write-Host "📁 Report location: cytoscnpy\target\llvm-cov\html\index.html" -ForegroundColor Cyan
-        
+
         if ($Open) {
             Write-Host "🌐 Opening coverage report in browser..." -ForegroundColor Yellow
-            Start-Process (Resolve-Path "target\llvm-cov\html\index.html")
+            Start-Process (Resolve-Path "..\target\llvm-cov\html\index.html")
         } else {
             Write-Host ""
             Write-Host "To open the report, run:" -ForegroundColor Yellow

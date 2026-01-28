@@ -6,6 +6,7 @@
 #![allow(clippy::panic)]
 use cytoscnpy::taint::sources::check_taint_source;
 use cytoscnpy::taint::types::TaintSource;
+use cytoscnpy::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr};
 use ruff_python_parser::{parse, Mode};
 
@@ -20,16 +21,20 @@ fn parse_expr(source: &str) -> Expr {
 
 #[test]
 fn test_input_source() {
-    let expr = parse_expr("input()");
-    let taint = check_taint_source(&expr);
+    let source = "input()";
+    let expr = parse_expr(source);
+    let line_index = LineIndex::new(source);
+    let taint = check_taint_source(&expr, &line_index);
     assert!(taint.is_some());
     assert!(matches!(taint.unwrap().source, TaintSource::Input));
 }
 
 #[test]
 fn test_flask_request_args() {
-    let expr = parse_expr("request.args");
-    let taint = check_taint_source(&expr);
+    let source = "request.args";
+    let expr = parse_expr(source);
+    let line_index = LineIndex::new(source);
+    let taint = check_taint_source(&expr, &line_index);
     assert!(taint.is_some());
     assert!(matches!(
         taint.unwrap().source,
@@ -39,8 +44,10 @@ fn test_flask_request_args() {
 
 #[test]
 fn test_sys_argv() {
-    let expr = parse_expr("sys.argv");
-    let taint = check_taint_source(&expr);
+    let source = "sys.argv";
+    let expr = parse_expr(source);
+    let line_index = LineIndex::new(source);
+    let taint = check_taint_source(&expr, &line_index);
     assert!(taint.is_some());
     assert!(matches!(taint.unwrap().source, TaintSource::CommandLine));
 }

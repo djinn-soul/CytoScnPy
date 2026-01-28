@@ -289,8 +289,8 @@ result = text.upper().replace(" ", "_")
 
     let ref_names: HashSet<String> = visitor.references.iter().map(|(n, _)| n.clone()).collect();
 
-    assert!(ref_names.contains("upper"));
-    assert!(ref_names.contains("replace"));
+    assert!(ref_names.contains(".upper"));
+    assert!(ref_names.contains(".replace"));
 }
 
 #[test]
@@ -445,4 +445,33 @@ result = path_join('a', 'b')
         ref_names.contains("join"),
         "Using qualified alias should also add simple name 'join'"
     );
+}
+
+#[test]
+fn test_halstead_keys_fn() {
+    let code = r#"
+dictionary = {"a": 1, "b": 2, "c": 3}
+keys = dictionary.keys()
+values = dictionary.values()
+"#;
+    visit_code!(code, visitor);
+
+    // Verify "keys" definition exists
+    let keys_def = visitor.definitions.iter().find(|d| d.simple_name == "keys");
+    assert!(keys_def.is_some(), "keys definition should exist");
+
+    // Verify references
+    let ref_names: HashSet<String> = visitor.references.iter().map(|(n, _)| n.clone()).collect();
+
+    // Debug print
+    println!("References: {ref_names:?}");
+
+    // "keys" (simple name) should NOT be referenced
+    assert!(
+        !ref_names.contains("keys"),
+        "Simple name 'keys' is referenced!"
+    );
+
+    // ".keys" (attribute) SHOULD be referenced
+    assert!(ref_names.contains(".keys"), "Attribute '.keys' missing!");
 }

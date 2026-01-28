@@ -3,13 +3,16 @@ use crate::halstead::HalsteadMetrics;
 use crate::raw_metrics::RawMetrics;
 use crate::rules::secrets::SecretFinding;
 use crate::rules::Finding;
+use crate::taint::call_graph::CallGraph;
 use crate::taint::types::TaintFinding;
 use crate::visitor::Definition;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 
 /// Represents a fix suggestion with precise byte ranges for code modification.
 /// Used by the VS Code extension to apply surgical fixes.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct FixSuggestion {
     /// The starting byte offset (0-indexed) in the file.
     pub start_byte: usize,
@@ -42,7 +45,7 @@ impl FixSuggestion {
 }
 
 /// Represents a parsing error in a file.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 
 pub struct ParseError {
     /// The file where the error occurred.
@@ -52,7 +55,7 @@ pub struct ParseError {
 }
 
 /// Metrics for a single file.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FileMetrics {
     /// The file path.
     pub file: std::path::PathBuf,
@@ -68,9 +71,76 @@ pub struct FileMetrics {
     pub total_issues: usize,
 }
 
+/// Structured result of a single file analysis.
+/// Replaces the messy tuple returned by `process_single_file`.
+pub struct FileAnalysisResult {
+    /// List of symbols defined in the file.
+    pub definitions: Vec<Definition>,
+    /// Map of referenced symbols and their usage counts.
+    pub references: FxHashMap<String, usize>,
+    /// Map of protocol methods and the classes that implement them.
+    pub protocol_methods: FxHashMap<String, FxHashSet<String>>,
+    /// Secrets findings (e.g. API keys).
+    pub secrets: Vec<SecretFinding>,
+    /// Dangerous code findings (e.g. eval, shell=True).
+    pub danger: Vec<Finding>,
+    /// Code quality findings (e.g. complexity, maintainability).
+    pub quality: Vec<Finding>,
+    /// List of parsing errors encountered in the file.
+    pub parse_errors: Vec<ParseError>,
+    /// Total number of lines in the file.
+    pub line_count: usize,
+    /// Raw metrics (LOC, SLOC, etc.).
+    pub raw_metrics: RawMetrics,
+    /// Halstead complexity metrics.
+    pub halstead_metrics: HalsteadMetrics,
+    /// Cyclomatic complexity.
+    pub complexity: f64,
+    /// Maintainability Index.
+    pub mi: f64,
+    /// File size in bytes.
+    pub file_size: usize,
+    /// Per-file call graph.
+    pub call_graph: CallGraph,
+}
+
+impl FileAnalysisResult {
+    /// Creates an empty result (used for early returns on non-critical errors).
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            definitions: Vec::new(),
+            references: FxHashMap::default(),
+            protocol_methods: FxHashMap::default(),
+            secrets: Vec::new(),
+            danger: Vec::new(),
+            quality: Vec::new(),
+            parse_errors: Vec::new(),
+            line_count: 0,
+            raw_metrics: RawMetrics::default(),
+            halstead_metrics: HalsteadMetrics::default(),
+            complexity: 0.0,
+            mi: 0.0,
+            file_size: 0,
+            call_graph: CallGraph::new(),
+        }
+    }
+
+    /// Creates a result with a single parse error.
+    #[must_use]
+    pub fn error(file_path: &std::path::Path, message: String) -> Self {
+        let mut result = Self::empty();
+        result.parse_errors.push(ParseError {
+            file: file_path.to_path_buf(),
+            error: message,
+        });
+        result
+    }
+}
+
 /// Holds the results of the analysis.
 /// This struct is serialized to JSON if requested.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct AnalysisResult {
     /// List of functions that were defined but never used.
     pub unused_functions: Vec<Definition>,
@@ -104,7 +174,7 @@ pub struct AnalysisResult {
 }
 
 /// Summary statistics for the analysis result.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct AnalysisSummary {
     /// Total number of files scanned.
     pub total_files: usize,

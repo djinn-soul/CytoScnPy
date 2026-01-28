@@ -2,8 +2,8 @@ name: Nightly Build
 
 on:
   schedule:
-    # Run at 2 AM UTC daily
-    - cron: "0 2 * * *"
+    # Run at 2 AM UTC on the 1st of every month
+    - cron: "0 2 1 * *"
   workflow_dispatch:
 
 concurrency:
@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
             name: cytoscnpy-nightly-linux-x64
           - os: windows-latest
@@ -88,6 +88,8 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           cache-key: "nightly-build-${{ matrix.target }}"
+          zig-version: ${{ runner.os == 'Linux' && '0.13.0' || '' }}
+          install-cargo-zigbuild: ${{ runner.os == 'Linux' }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -97,8 +99,14 @@ jobs:
 
       - name: Build Binary
         shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
         run: |
-          cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            cargo zigbuild --release --target ${{ matrix.target }}.2.27 -p cytoscnpy-cli
+          else
+            cargo build --release --target ${{ matrix.target }} -p cytoscnpy-cli
+          fi
 
       - name: Rename Binary
         shell: bash

@@ -41,7 +41,7 @@ This benchmark evaluates **11 dead code detection tools** against a curated Pyth
 
 ## Running the Benchmark
 
-```bash
+````bash
 # Activate environment
 .\.venv\Scripts\activate  # Windows
 source .venv/bin/activate  # Linux/Mac
@@ -59,8 +59,11 @@ python benchmark/benchmark_and_verify.py --compare-json benchmark/baseline_win32
 python benchmark/benchmark_and_verify.py --compare-json benchmark/baseline_linux.json
 
 # Update Baseline (Save current results)
+
 # Windows:
+
 python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_win32.json
+
 # Linux:
 python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_linux.json
 ```
@@ -409,6 +412,7 @@ The tools were selected to represent the full spectrum of dead code detection ap
 **F1 Score balances precision and recall**, which is critical for dead code detection:
 
 ```
+
 F1 = 2 × (Precision × Recall) / (Precision + Recall)
 ```
 
@@ -557,7 +561,7 @@ Dead code detection is a **fundamentally hard problem** due to:
    ```python
    getattr(obj, func_name)()  # Which function is called?
    globals()[var_name]        # Which variable is accessed?
-   ```
+```
 
 2. **Framework Magic**
 
@@ -621,3 +625,4 @@ Memory is measured as **Peak Resident Set Size (RSS)** during tool execution:
 ---
 
 _Last updated: 2025-12-28 (135 total ground truth items, 11 tools benchmarked)_
+````

@@ -1,0 +1,43 @@
+---
+source: cytoscnpy/tests/output_snapshot_test.rs
+assertion_line: 95
+expression: output
+---
+[OK] Using default exclusions only: *.egg-info, .bundle, .cache, .coverage, .eggs, .env, .git, .gradle, .hg, .idea, .mvn, .mypy_cache, .nox, .npm, .pytest_cache, .pytype, .ruff_cache, .svn, .tmp, .tox, .venv, .vs, .vscode, __pycache__, bower_components, build, dist, env, gradle, htmlcov, logs, node_modules, site-packages, target, tmp, vendor, venv
+
+╔════════════════════════════════════════╗
+║  Python Static Analysis Results        ║
+╚════════════════════════════════════════╝
+
+
+Unreachable Functions
+┌──────────┬─────────────┬──────────────────────────────────────────┐
+│ Type     ┆ Name        ┆ Location                                 │
+╞══════════╪═════════════╪══════════════════════════════════════════╡
+│ Function ┆ unused_func ┆ [FILE]:5 │
+└──────────┴─────────────┴──────────────────────────────────────────┘
+
+Unused Imports
+┌────────┬──────┬──────────────────────────────────────────┐
+│ Type   ┆ Name ┆ Location                                 │
+╞════════╪══════╪══════════════════════════════════════════╡
+│ Import ┆ os   ┆ [FILE]:2 │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Import ┆ sys  ┆ [FILE]:3 │
+└────────┴──────┴──────────────────────────────────────────┘
+
+Unused Variables
+┌──────────┬────────────┬──────────────────────────────────────────┐
+│ Type     ┆ Name       ┆ Location                                 │
+╞══════════╪════════════╪══════════════════════════════════════════╡
+│ Variable ┆ unused_var ┆ [FILE]:9 │
+└──────────┴────────────┴──────────────────────────────────────────┘
+
+[SUMMARY] 4 unused code issues, 0 security/quality issues
+Unreachable: 1  Methods: 0  Imports: 2  Params: 0  Vars: 1  Classes: 0
+Security: 0  Secrets: 0  Quality: 0  Taint: 0  Parse Errors: 0
+
+Analyzed 1 files (14 lines)
+Average Complexity: 2.00 | Average MI: 100.00
+
+Analysis completed in [TIME]s

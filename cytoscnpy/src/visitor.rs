@@ -1,6 +1,8 @@
 use crate::constants::MAX_RECURSION_DEPTH;
+use crate::constants::PYTEST_HOOKS;
 use crate::utils::LineIndex;
 use compact_str::CompactString;
+use regex::Regex;
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -65,10 +67,13 @@ pub struct Scope {
     /// Maps simple variable names to their fully qualified names in this scope.
     /// This allows us to differentiate between `x` in `func_a` and `x` in `func_b`.
     pub local_var_map: FxHashMap<String, String>,
+    /// Whether this scope is managed by a framework (e.g., a decorated function).
+    pub is_framework: bool,
+    /// Variables explicitly declared as global in this scope.
+    pub global_declarations: FxHashSet<String>,
 }
 
 impl Scope {
-    /// Creates a new scope of the given type.
     /// Creates a new scope of the given type.
     #[must_use]
     pub fn new(kind: ScopeType) -> Self {
@@ -76,14 +81,57 @@ impl Scope {
             kind,
             variables: FxHashSet::default(),
             local_var_map: FxHashMap::default(),
+            is_framework: false,
+            global_declarations: FxHashSet::default(),
         }
     }
 }
 
 /// Represents a defined entity (function, class, variable, import) in the Python code.
 /// This struct holds metadata about the definition, including its location and confidence.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Argument struct for adding a definition to reduce argument count.
+#[derive(Debug, Clone)]
+pub struct DefinitionInfo {
+    /// The name of the defined entity.
+    pub name: String,
+    /// The type of definition ("function", "class", "variable", etc.).
+    pub def_type: String,
+    /// The starting line number (1-indexed).
+    pub line: usize,
+    /// The ending line number (1-indexed).
+    pub end_line: usize,
+    /// The starting column number (1-indexed).
+    pub col: usize,
+    /// The starting byte offset.
+    pub start_byte: usize,
+    /// The ending byte offset.
+    pub end_byte: usize,
+    /// The starting byte offset of the full definition (including decorators/keywords) for fix generation.
+    pub full_start_byte: usize,
+    /// Base classes (for class definitions), empty for others.
+    pub base_classes: SmallVec<[String; 2]>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Categorization of unused symbols by confidence levels.
+pub enum UnusedCategory {
+    /// High confidence (90-100) that this is unused.
+    #[default]
+    DefinitelyUnused,
+    /// Moderate confidence (60-89).
+    ProbablyUnused,
+    /// Low confidence (40-59), possibly intentional (e.g. API stub).
+    PossiblyIntentional,
+    /// A configuration-shaped constant that appears unused.
+    ConfigurationConstant,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[allow(clippy::struct_excessive_bools)]
+/// A fully resolved definition found during analysis.
+///
+/// This struct contains all metadata about a definition, including its
+/// location, type, usage references, and any associated issues or fixes.
 pub struct Definition {
     /// The name of the defined entity (e.g., "`my_function`").
     pub name: String,
@@ -104,6 +152,8 @@ pub struct Definition {
     pub line: usize,
     /// The line number where this definition ends.
     pub end_line: usize,
+    /// The starting column number (1-indexed).
+    pub col: usize,
     /// The starting byte offset (0-indexed).
     pub start_byte: usize,
     /// The ending byte offset (exclusive).
@@ -112,12 +162,17 @@ pub struct Definition {
     /// A confidence score (0-100) indicating how certain we are that this is unused.
     /// Higher means more likely to be a valid finding.
     pub confidence: u8,
+    /// The confidence category, derived from the score and other factors.
+    #[serde(default)]
+    pub category: UnusedCategory,
     /// The number of times this definition is referenced in the codebase.
     pub references: usize,
     /// Whether this definition is considered exported (implicitly used).
     pub is_exported: bool,
     /// Whether this definition is inside an `__init__.py` file.
     pub in_init: bool,
+    /// Whether this definition is managed by a framework (e.g. inside a decorated function).
+    pub is_framework_managed: bool,
     /// List of base classes if this is a class definition.
     /// Uses `SmallVec<[String; 2]>` - most classes have 0-2 base classes.
     #[serde(
@@ -127,6 +182,8 @@ pub struct Definition {
     pub base_classes: SmallVec<[String; 2]>,
     /// Whether this definition is inside an `if TYPE_CHECKING:` block.
     pub is_type_checking: bool,
+    /// Whether this definition is captured by a nested scope (closure).
+    pub is_captured: bool,
     /// The cell number if this definition is from a Jupyter notebook (0-indexed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cell_number: Option<usize>,
@@ -140,40 +197,23 @@ pub struct Definition {
     /// Optional fix suggestion with byte ranges for surgical code removal.
     /// Only populated when running with CST analysis enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fix: Option<crate::analyzer::types::FixSuggestion>,
+    pub fix: Option<Box<crate::analyzer::types::FixSuggestion>>,
+    /// Whether this definition is a member of an Enum class.
+    /// Used to allow simple name matching for Enum members (e.g. `Status.ACTIVE` matching `ACTIVE`).
+    #[serde(default)]
+    pub is_enum_member: bool,
+    /// Whether this definition is a module-level constant (`UPPER_CASE`).
+    #[serde(default)]
+    pub is_constant: bool,
+    /// Whether this definition is a potential secret/key.
+    #[serde(default)]
+    pub is_potential_secret: bool,
+    /// Whether this definition is unreachable from entry points.
+    #[serde(default)]
+    pub is_unreachable: bool,
 }
 
-impl Definition {
-    /// Apply confidence penalties based on naming patterns and context.
-    ///
-    /// This adjusts the `confidence` score to reduce false positives.
-    /// For example, private methods or dunder methods are often implicitly used,
-    /// so we lower the confidence that they are "unused" even if we don't see explicit references.
-    pub fn apply_penalties(&mut self) {
-        let mut confidence: i16 = 100;
-
-        // Private names (starts with _ but not __)
-        // These are internal and might be used via dynamic access or just be implementation details.
-        if self.simple_name.starts_with('_') && !self.simple_name.starts_with("__") {
-            confidence -= 30;
-        }
-
-        // Dunder/magic methods - zero confidence
-        // Python calls these implicitly (e.g., `__init__`, `__str__`).
-        if self.simple_name.starts_with("__") && self.simple_name.ends_with("__") {
-            confidence = 0;
-        }
-
-        // In __init__.py penalty
-        // Functions and classes in `__init__.py` are often there to be exported by the package,
-        // so we assume they might be used externally.
-        if self.in_init && (self.def_type == "function" || self.def_type == "class") {
-            confidence -= 20;
-        }
-
-        self.confidence = u8::try_from(confidence.max(0)).unwrap_or(0);
-    }
-}
+// apply_penalties method removed as it was redundant with heuristics.rs
 
 /// The main visitor for collecting definitions and references from the AST.
 pub struct CytoScnPyVisitor<'a> {
@@ -205,16 +245,19 @@ pub struct CytoScnPyVisitor<'a> {
     pub function_stack: SmallVec<[String; 4]>,
     /// Map of function qualified name -> set of parameter names for that function.
     pub function_params: FxHashMap<String, FxHashSet<String>>,
-    /// Stack to track if we are inside a dataclass.
-    /// Uses `SmallVec` - most code has < 4 nested dataclasses.
-    pub dataclass_stack: SmallVec<[bool; 4]>,
+    /// Stack to track if we are inside a model class (dataclass, Pydantic, etc.).
+    /// Uses `SmallVec` - most code has < 4 nested classes.
+    pub model_class_stack: SmallVec<[bool; 4]>,
     /// Whether we are currently inside an `if TYPE_CHECKING:` block.
     pub in_type_checking_block: bool,
     /// Stack of scopes for variable resolution.
     /// Uses `SmallVec` - most code has < 8 nested scopes.
     pub scope_stack: SmallVec<[Scope; 8]>,
-    /// Whether the current file is considered dynamic (e.g., uses eval/exec).
-    pub is_dynamic: bool,
+    /// Set of scopes that contain dynamic execution (eval/exec).
+    /// Stores the fully qualified name of the scope.
+    pub dynamic_scopes: FxHashSet<String>,
+    /// Variables that are captured by nested scopes (closures).
+    pub captured_definitions: FxHashSet<String>,
     /// Set of class names that have a metaclass (used to detect metaclass inheritance).
     pub metaclass_classes: FxHashSet<String>,
     /// Set of method qualified names that are self-referential (recursive).
@@ -227,13 +270,31 @@ pub struct CytoScnPyVisitor<'a> {
     depth: usize,
     /// Whether the recursion limit was hit during traversal.
     pub recursion_limit_hit: bool,
+    /// Set of names that are automatically called by frameworks (e.g., `main`, `setup`, `teardown`).
+    auto_called: FxHashSet<&'static str>,
+    /// Stack to track if we are inside a Protocol class (PEP 544).
+    /// Uses `SmallVec` - most code has < 4 nested classes.
+    pub protocol_class_stack: SmallVec<[bool; 4]>,
+    /// Stack to track if we are inside an Enum class.
+    /// Uses `SmallVec` - most code has < 4 nested classes.
+    pub enum_class_stack: SmallVec<[bool; 4]>,
+    /// Whether we are currently inside a try...except ``ImportError`` block.
+    pub in_import_error_block: bool,
+    /// Stack to track if we are inside an ABC-inheriting class.
+    pub abc_class_stack: SmallVec<[bool; 4]>,
+    /// Map of ABC class name -> set of abstract method names defined in that class.
+    pub abc_abstract_methods: FxHashMap<String, FxHashSet<String>>,
+    /// Map of Protocol class name -> set of method names defined in that class.
+    pub protocol_methods: FxHashMap<String, FxHashSet<String>>,
+    /// Detected optional dependency flags (HAS_*, HAVE_*) inside except ``ImportError`` blocks.
+    pub optional_dependency_flags: FxHashSet<String>,
 }
 
 impl<'a> CytoScnPyVisitor<'a> {
     /// Creates a new visitor for the given file.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
-        let cached_prefix = module_name.clone();
         let file_path = Arc::new(file_path); // Wrap in Arc once, share everywhere
         Self {
             definitions: Vec::new(),
@@ -248,48 +309,192 @@ impl<'a> CytoScnPyVisitor<'a> {
             alias_map: FxHashMap::default(),
             function_stack: SmallVec::new(),
             function_params: FxHashMap::default(),
-            dataclass_stack: SmallVec::new(),
+            model_class_stack: SmallVec::new(),
             in_type_checking_block: false,
             scope_stack: smallvec::smallvec![Scope::new(ScopeType::Module)],
-            is_dynamic: false,
+            dynamic_scopes: FxHashSet::default(),
+            captured_definitions: FxHashSet::default(),
             metaclass_classes: FxHashSet::default(),
             self_referential_methods: FxHashSet::default(),
-            cached_scope_prefix: cached_prefix,
+            cached_scope_prefix: String::new(),
             depth: 0,
             recursion_limit_hit: false,
+            auto_called: PYTEST_HOOKS().clone(),
+            protocol_class_stack: SmallVec::new(),
+            enum_class_stack: SmallVec::new(),
+            in_import_error_block: false,
+            abc_class_stack: SmallVec::new(),
+            abc_abstract_methods: FxHashMap::default(),
+            protocol_methods: FxHashMap::default(),
+            optional_dependency_flags: FxHashSet::default(),
         }
     }
 
-    /// Helper to extract range info (`start_line`, `end_line`, `start_byte`, `end_byte`) from a node.
-    fn get_range_info<T: Ranged>(&self, node: &T) -> (usize, usize, usize, usize) {
+    /// Helper to extract range info (`start_line`, `end_line`, `col`, `start_byte`, `end_byte`) from a node.
+    fn get_range_info<T: Ranged>(&self, node: &T) -> (usize, usize, usize, usize, usize) {
         let range = node.range();
         let start_byte = range.start().to_usize();
         let end_byte = range.end().to_usize();
         // line_index uses 1-based indexing for lines
         let start_line = self.line_index.line_index(range.start());
         let end_line = self.line_index.line_index(range.end());
-        (start_line, end_line, start_byte, end_byte)
+        let col = self.line_index.column_index(range.start());
+        (start_line, end_line, col, start_byte, end_byte)
     }
 
-    /// Helper to add a definition with default parameters.
-    fn add_def(
-        &mut self,
-        name: String,
-        def_type: &str,
-        line: usize,
-        end_line: usize,
-        start_byte: usize,
-        end_byte: usize,
-    ) {
-        self.add_def_with_bases(
-            name,
-            def_type,
-            line,
-            end_line,
-            start_byte,
-            end_byte,
-            SmallVec::new(),
-        );
+    /// Helper to add a definition using the info struct.
+    #[allow(clippy::too_many_lines)]
+    fn add_definition(&mut self, info: DefinitionInfo) {
+        let simple_name = info
+            .name
+            .split('.')
+            .next_back()
+            .unwrap_or(&info.name)
+            .to_owned();
+        let in_init = self.file_path.ends_with("__init__.py");
+
+        // GENERIC HEURISTICS (No hardcoded project names)
+
+        // 1. Tests: Functions starting with 'test_' are assumed to be Pytest/Unittest tests.
+        // These are run by test runners, not called explicitly.
+        // 1. Tests: Vulture-style Smart Heuristic
+        // If the file looks like a test (tests/ or test_*.py), we are lenient.
+        let file_is_test = crate::utils::is_test_path(&self.file_path.to_string_lossy());
+        let is_test_function = simple_name.starts_with("test_");
+
+        let is_test_class =
+            file_is_test && (simple_name.contains("Test") || simple_name.contains("Suite"));
+
+        let is_test = is_test_function || is_test_class;
+
+        // 2. Dynamic Dispatch Patterns:
+        //    - 'visit_' / 'leave_': Standard Visitor pattern (AST, LibCST)
+        //    - 'on_': Standard Event Handler pattern (UI libs, callbacks)
+        let is_dynamic_pattern = simple_name.starts_with("visit_")
+            || simple_name.starts_with("leave_")
+            || simple_name.starts_with("on_");
+
+        // 3. Standard Entry Points: Common names for script execution.
+        let is_standard_entry = matches!(simple_name.as_str(), "main" | "run" | "execute");
+
+        // Check for module-level constants (UPPER_CASE)
+        // These are often configuration or exported constants.
+        // BUT exclude potential secrets/keys which should be detected if unused.
+        let is_potential_secret = simple_name.contains("KEY")
+            || simple_name.contains("SECRET")
+            || simple_name.contains("PASS")
+            || simple_name.contains("TOKEN");
+
+        // 5. Public API: Symbols not starting with '_' are considered exported/public API.
+        //    This is crucial for library analysis where entry points aren't explicit.
+        //    FIX: Secrets are NOT public API - they should be flagged if unused.
+        let is_public_api =
+            !simple_name.starts_with('_') && info.def_type != "method" && !is_potential_secret;
+
+        // 4. Dunder Methods: Python's magic methods (__str__, __init__, etc.) are implicitly used.
+        let is_dunder = simple_name.starts_with("__") && simple_name.ends_with("__");
+
+        // Check if this is a public class attribute (e.g., `class MyClass: my_attr = 1`)
+        let is_class_scope = self
+            .scope_stack
+            .last()
+            .is_some_and(|s| matches!(s.kind, ScopeType::Class(_)));
+
+        // Strict Enum Check: Enum members are NOT implicitly used. They must be referenced.
+        let is_enum_member = self.enum_class_stack.last().copied().unwrap_or(false);
+
+        let is_public_class_attr = is_class_scope
+            && info.def_type == "variable"
+            && !simple_name.starts_with('_')
+            && !is_enum_member;
+
+        let is_constant = self.scope_stack.len() == 1
+            && info.def_type == "variable"
+            && !simple_name.starts_with('_')
+            && !is_potential_secret
+            && simple_name.chars().all(|c| !c.is_lowercase())
+            && simple_name.chars().any(char::is_uppercase);
+
+        // Decision: Is this implicitly used? (For reference counting/suppression)
+        let is_implicitly_used = is_test
+            || is_dynamic_pattern
+            || is_standard_entry
+            || is_dunder
+            || is_public_class_attr
+            || self.auto_called.contains(simple_name.as_str());
+
+        // FIX: Global constants (UPPER_CASE) are NOT "implicitly used" (which would hide them forever).
+        // Instead, we let them fall through as unused, BUT we will assign them very low confidence later.
+        // This allows --confidence 0 to find unused settings, while keeping default runs clean.
+
+        // Decision: Is this exported? (For Semantic Graph roots)
+        let is_exported = is_implicitly_used || is_public_api;
+
+        // Set reference count to 1 if implicitly used to prevent false positives.
+        // This treats the definition as "used".
+        let references = usize::from(is_implicitly_used);
+
+        // FIX: Ensure the references map is updated for implicitly used items
+        // This prevents single_file.rs from overwriting the references count with 0
+        if is_implicitly_used {
+            self.add_ref(info.name.clone());
+        }
+
+        // Generate human-readable message based on def_type
+        let message = match info.def_type.as_str() {
+            "method" => format!("Method '{simple_name}' is defined but never used"),
+            "class" => format!("Class '{simple_name}' is defined but never used"),
+            "import" => format!("'{simple_name}' is imported but never used"),
+            "variable" => format!("Variable '{simple_name}' is assigned but never used"),
+            "parameter" => format!("Parameter '{simple_name}' is never used"),
+            _ => format!("'{simple_name}' is defined but never used"),
+        };
+
+        // Try to create a fix suggestion if we have valid CST ranges
+        // This ensures the JS extension gets ranges even if CST module didn't run
+        let fix = if info.full_start_byte < info.end_byte {
+            Some(Box::new(crate::analyzer::types::FixSuggestion::deletion(
+                info.full_start_byte,
+                info.end_byte,
+            )))
+        } else {
+            None
+        };
+
+        let is_enum_member = self.enum_class_stack.last().copied().unwrap_or(false);
+
+        let definition = Definition {
+            name: info.name.clone(),
+            full_name: info.name,
+            simple_name,
+            def_type: info.def_type,
+            file: Arc::clone(&self.file_path), // O(1) Arc clone instead of O(n) PathBuf clone
+            line: info.line,
+            end_line: info.end_line,
+            col: info.col,
+            start_byte: info.start_byte,
+            end_byte: info.end_byte,
+            confidence: 100,
+            category: UnusedCategory::default(),
+            references,
+            is_exported,
+            in_init,
+            is_framework_managed: self.scope_stack.last().is_some_and(|s| s.is_framework),
+            base_classes: info.base_classes,
+            is_type_checking: self.in_type_checking_block,
+            is_captured: false,
+            cell_number: None,
+            is_enum_member,
+
+            is_self_referential: false,
+            message: Some(message),
+            fix,
+            is_constant,
+            is_potential_secret,
+            is_unreachable: false,
+        };
+
+        self.definitions.push(definition);
     }
 
     /// Pushes a new scope onto the stack and updates cached prefix.
@@ -339,9 +544,9 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
     }
 
-    /// Looks up a variable in the scope stack and returns its fully qualified name if found.
+    /// Looks up a variable in the scope stack and returns its fully qualified name and scope index if found.
     /// Optimized: uses `cached_scope_prefix` for innermost scope to avoid rebuilding.
-    fn resolve_name(&self, name: &str) -> Option<String> {
+    fn resolve_name_with_info(&self, name: &str) -> Option<(String, usize)> {
         let innermost_idx = self.scope_stack.len() - 1;
 
         for (i, scope) in self.scope_stack.iter().enumerate().rev() {
@@ -355,7 +560,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             // Check local_var_map first (for function scopes with local variables)
             if let Some(qualified) = scope.local_var_map.get(name) {
-                return Some(qualified.clone());
+                return Some((qualified.clone(), i));
             }
 
             // Fallback: construct qualified name if variable exists in scope
@@ -363,14 +568,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Fast path: if this is the innermost scope, use cached prefix
                 if i == innermost_idx {
                     if self.cached_scope_prefix.is_empty() {
-                        return Some(name.to_owned());
+                        return Some((name.to_owned(), i));
                     }
                     let mut result =
                         String::with_capacity(self.cached_scope_prefix.len() + 1 + name.len());
                     result.push_str(&self.cached_scope_prefix);
                     result.push('.');
                     result.push_str(name);
-                    return Some(result);
+                    return Some((result, i));
                 }
 
                 // Slow path: build prefix up to scope at index i
@@ -406,100 +611,32 @@ impl<'a> CytoScnPyVisitor<'a> {
                     result.push('.');
                 }
                 result.push_str(name);
-                return Some(result);
+                return Some((result, i));
             }
         }
         None
     }
 
-    /// Adds a definition to the list, applying heuristics for implicit usage.
-    fn add_def_with_bases(
-        &mut self,
-        name: String,
-        def_type: &str,
-        line: usize,
-        end_line: usize,
-        start_byte: usize,
-        end_byte: usize,
-        base_classes: SmallVec<[String; 2]>,
-    ) {
-        let simple_name = name.split('.').next_back().unwrap_or(&name).to_owned();
-        let in_init = self.file_path.ends_with("__init__.py");
-
-        // GENERIC HEURISTICS (No hardcoded project names)
-
-        // 1. Tests: Functions starting with 'test_' are assumed to be Pytest/Unittest tests.
-        // These are run by test runners, not called explicitly.
-        let is_test = simple_name.starts_with("test_");
-
-        // 2. Dynamic Dispatch Patterns:
-        //    - 'visit_' / 'leave_': Standard Visitor pattern (AST, LibCST)
-        //    - 'on_': Standard Event Handler pattern (UI libs, callbacks)
-        let is_dynamic_pattern = simple_name.starts_with("visit_")
-            || simple_name.starts_with("leave_")
-            || simple_name.starts_with("on_");
-
-        // 3. Standard Entry Points: Common names for script execution.
-        let is_standard_entry = matches!(simple_name.as_str(), "main" | "run" | "execute");
-
-        // 4. Dunder Methods: Python's magic methods (__str__, __init__, etc.) are implicitly used.
-        let is_dunder = simple_name.starts_with("__") && simple_name.ends_with("__");
-
-        // Decision: Is this implicitly used/exported?
-        let is_implicitly_used = is_test || is_dynamic_pattern || is_standard_entry || is_dunder;
-
-        // Set reference count to 1 if implicitly used to prevent false positives.
-        // This treats the definition as "used".
-        let references = usize::from(is_implicitly_used);
-
-        // Generate human-readable message based on def_type
-        let message = match def_type {
-            "method" => format!("Method '{simple_name}' is defined but never used"),
-            "class" => format!("Class '{simple_name}' is defined but never used"),
-            "import" => format!("'{simple_name}' is imported but never used"),
-            "variable" => format!("Variable '{simple_name}' is assigned but never used"),
-            "parameter" => format!("Parameter '{simple_name}' is never used"),
-            _ => format!("'{simple_name}' is defined but never used"),
-        };
-
-        // Try to create a fix suggestion if we have valid CST ranges
-        // This ensures the JS extension gets ranges even if CST module didn't run
-        let fix = if start_byte < end_byte {
-            Some(crate::analyzer::types::FixSuggestion::deletion(
-                start_byte, end_byte,
-            ))
-        } else {
-            None
-        };
-
-        let definition = Definition {
-            name: name.clone(),
-            full_name: name,
-            simple_name,
-            def_type: def_type.to_owned(),
-            file: Arc::clone(&self.file_path), // O(1) Arc clone instead of O(n) PathBuf clone
-            line,
-            end_line,
-            start_byte,
-            end_byte,
-            confidence: 100,
-            references,
-            is_exported: is_implicitly_used,
-            in_init,
-            base_classes,
-            is_type_checking: self.in_type_checking_block,
-            cell_number: None,
-            is_self_referential: false,
-            message: Some(message),
-            fix,
-        };
-
-        self.definitions.push(definition);
+    /// Optimized: uses `cached_scope_prefix` for innermost scope to avoid rebuilding.
+    fn resolve_name(&self, name: &str) -> Option<String> {
+        self.resolve_name_with_info(name).map(|(q, _)| q)
     }
 
     /// Records a reference to a name by incrementing its count.
     pub fn add_ref(&mut self, name: String) {
         *self.references.entry(name).or_insert(0) += 1;
+    }
+
+    /// Returns the fully qualified ID of the current scope.
+    /// Used for tracking dynamic scopes.
+    fn get_current_scope_id(&self) -> String {
+        if self.cached_scope_prefix.is_empty() {
+            self.module_name.clone()
+        } else if self.module_name.is_empty() {
+            self.cached_scope_prefix.clone()
+        } else {
+            format!("{}.{}", self.module_name, self.cached_scope_prefix)
+        }
     }
 
     /// Constructs a qualified name based on the current scope stack.
@@ -633,48 +770,52 @@ impl<'a> CytoScnPyVisitor<'a> {
                 if let Some(returns) = &node.returns {
                     self.visit_expr(returns);
                 }
-                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
                 self.visit_function_def(
                     &node.name,
+                    &node.decorator_list,
                     &node.parameters,
                     &node.body,
-                    line,
-                    end_line,
-                    start_byte,
-                    end_byte,
+                    node.range(),
                 );
             }
             // Handle class definitions
             Stmt::ClassDef(node) => {
-                // Check for @dataclass decorator (ruff uses Decorator type)
-                let mut is_dataclass = false;
+                // Check if this class is a "Model Class" (Pydantic, Dataclass, TypedDict, etc.)
+                let mut is_model_class = false;
                 for decorator in &node.decorator_list {
                     self.visit_expr(&decorator.expression);
                     // Check the inner expression for dataclass decorator
                     if let Expr::Name(name) = &decorator.expression {
                         if name.id.as_str() == "dataclass" {
-                            is_dataclass = true;
+                            is_model_class = true;
                         }
                     } else if let Expr::Call(call) = &decorator.expression {
                         if let Expr::Name(func_name) = &*call.func {
                             if func_name.id.as_str() == "dataclass" {
-                                is_dataclass = true;
+                                is_model_class = true;
                             }
                         } else if let Expr::Attribute(attr) = &*call.func {
                             if attr.attr.as_str() == "dataclass" {
-                                is_dataclass = true;
+                                is_model_class = true;
                             }
                         }
                     } else if let Expr::Attribute(attr) = &decorator.expression {
                         if attr.attr.as_str() == "dataclass" {
-                            is_dataclass = true;
+                            is_model_class = true;
+                        } else if attr.attr.as_str() == "s" {
+                            // attr.s
+                            is_model_class = true;
                         }
                     }
                 }
 
                 let name = &node.name;
                 let qualified_name = self.get_qualified_name(name.as_str());
-                let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                // Use the name's range for the finding line (skips decorators)
+                let name_line = self.line_index.line_index(name.range().start());
+                let name_col = self.line_index.column_index(name.range().start());
+                // Use full node range for end_line and fix ranges (includes decorators)
+                let (_, end_line, _, start_byte, end_byte) = self.get_range_info(node);
 
                 // Extract base class names to check for inheritance patterns later.
                 // In ruff, node.bases() returns an iterator over base class expressions
@@ -683,24 +824,70 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for base in bases {
                     match base {
                         Expr::Name(base_name) => {
-                            base_classes.push(base_name.id.to_string());
+                            let b_name = base_name.id.as_str();
+                            base_classes.push(b_name.to_owned());
+                            // Check base classes for Model behaviors
+                            if matches!(
+                                b_name,
+                                "BaseModel" | "TypedDict" | "NamedTuple" | "Protocol" | "Struct"
+                            ) {
+                                is_model_class = true;
+                            }
                         }
                         Expr::Attribute(attr) => {
-                            base_classes.push(attr.attr.to_string());
+                            let b_name = attr.attr.as_str();
+                            base_classes.push(b_name.to_owned());
+                            // Check base classes for Model behaviors
+                            if matches!(
+                                b_name,
+                                "BaseModel" | "TypedDict" | "NamedTuple" | "Protocol" | "Struct"
+                            ) {
+                                is_model_class = true;
+                            }
                         }
                         _ => {}
                     }
                 }
 
-                self.add_def_with_bases(
-                    qualified_name.clone(),
-                    "class",
-                    line,
+                // Check if this is a Protocol class
+                let is_protocol = base_classes
+                    .iter()
+                    .any(|b| b == "Protocol" || b.ends_with(".Protocol"));
+                self.protocol_class_stack.push(is_protocol);
+
+                // Check if this is an ABC class
+                // Note: .ABC is a Python class name pattern, not a file extension (false positive from clippy)
+                #[allow(clippy::case_sensitive_file_extension_comparisons)]
+                let is_abc = base_classes
+                    .iter()
+                    .any(|b| b == "ABC" || b == "abc.ABC" || b.ends_with(".ABC"));
+                self.abc_class_stack.push(is_abc);
+
+                // Check if this is an Enum class
+                let is_enum = base_classes.iter().any(|b| {
+                    matches!(
+                        b.as_str(),
+                        "Enum"
+                            | "IntEnum"
+                            | "StrEnum"
+                            | "enum.Enum"
+                            | "enum.IntEnum"
+                            | "enum.StrEnum"
+                    )
+                });
+                self.enum_class_stack.push(is_enum);
+
+                self.add_definition(DefinitionInfo {
+                    name: qualified_name.clone(),
+                    def_type: "class".to_owned(),
+                    line: name_line,
                     end_line,
-                    start_byte,
+                    col: name_col,
+                    start_byte: node.name.range.start().to_usize(),
                     end_byte,
-                    base_classes.clone(),
-                );
+                    full_start_byte: start_byte,
+                    base_classes: base_classes.clone(),
+                });
 
                 // Register class in local scope so nested classes can be resolved
                 // This is critical for classes defined inside functions
@@ -763,7 +950,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 // Push class name to stack for nested definitions (methods/inner classes).
                 self.class_stack.push(name.to_string());
-                self.dataclass_stack.push(is_dataclass);
+                self.model_class_stack.push(is_model_class);
 
                 // Enter class scope
                 self.enter_scope(ScopeType::Class(CompactString::from(name.as_str())));
@@ -774,7 +961,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
                 // Pop class name after visiting body.
                 self.class_stack.pop();
-                self.dataclass_stack.pop();
+                self.model_class_stack.pop();
+                self.protocol_class_stack.pop();
+                self.abc_class_stack.pop();
+                self.enum_class_stack.pop();
 
                 // Exit class scope
                 self.exit_scope();
@@ -785,22 +975,43 @@ impl<'a> CytoScnPyVisitor<'a> {
                 for alias in &node.names {
                     // imports often don't have AS names, so we check
                     let simple_name = alias.asname.as_ref().unwrap_or(&alias.name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(alias);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
-                    self.add_def(
-                        simple_name.to_string(),
-                        "import",
+                    // Use qualified name for imports to prevent collisions between files
+                    // e.g. "re" in file A vs "re" in file B
+                    // If we use simple_name "re", they share the same reference count.
+                    // By using qualified name, we isolate them.
+                    let qualified_name = self.get_qualified_name(simple_name.as_str());
+
+                    self.add_definition(DefinitionInfo {
+                        name: qualified_name.clone(),
+                        def_type: "import".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
-                    );
+                        full_start_byte: start_byte,
+                        base_classes: SmallVec::new(),
+                    });
 
-                    self.add_local_def(simple_name.to_string(), simple_name.to_string());
+                    self.add_local_def(simple_name.as_str().to_owned(), qualified_name);
 
                     // Add alias mapping: asname -> name
                     self.alias_map
                         .insert(simple_name.to_string(), alias.name.to_string());
+
+                    // Optional dependency tracking
+                    if self.in_import_error_block {
+                        let qualified_name = if self.module_name.is_empty() {
+                            simple_name.to_string()
+                        } else {
+                            format!("{}.{}", self.module_name, simple_name)
+                        };
+                        self.add_ref(qualified_name);
+                        // Also add simple alias for matching import definitions
+                        self.add_ref(simple_name.to_string());
+                    }
                 }
             }
             // Handle 'from ... import'
@@ -815,17 +1026,23 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 for alias in &node.names {
                     let asname = alias.asname.as_ref().unwrap_or(&alias.name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(alias);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
-                    self.add_def(
-                        asname.to_string(),
-                        "import",
+                    // Use qualified name for imports
+                    let qualified_name = self.get_qualified_name(asname.as_str());
+
+                    self.add_definition(DefinitionInfo {
+                        name: qualified_name.clone(),
+                        def_type: "import".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
-                    );
-                    self.add_local_def(asname.to_string(), asname.to_string());
+                        full_start_byte: start_byte,
+                        base_classes: SmallVec::new(),
+                    });
+                    self.add_local_def(asname.to_string(), qualified_name);
 
                     // Add alias mapping: asname -> module.name (if module exists) or just name
                     if let Some(module) = &node.module {
@@ -835,6 +1052,18 @@ impl<'a> CytoScnPyVisitor<'a> {
                     } else {
                         self.alias_map
                             .insert(asname.to_string(), alias.name.to_string());
+                    }
+
+                    // Optional dependency tracking
+                    if self.in_import_error_block {
+                        let qualified_name = if self.module_name.is_empty() {
+                            asname.to_string()
+                        } else {
+                            format!("{}.{}", self.module_name, asname)
+                        };
+                        self.add_ref(qualified_name);
+                        // Also add simple alias for matching import definitions
+                        self.add_ref(asname.to_string());
                     }
                 }
             }
@@ -852,6 +1081,24 @@ impl<'a> CytoScnPyVisitor<'a> {
                         }
                     }
                 }
+
+                // Track HAS_*/HAVE_* flags in except blocks
+                if self.in_import_error_block {
+                    for target in &node.targets {
+                        if let Expr::Name(name_node) = target {
+                            let id = name_node.id.as_str();
+                            if id.starts_with("HAS_") || id.starts_with("HAVE_") {
+                                self.optional_dependency_flags.insert(id.to_owned());
+                                // Mark as used
+                                self.add_ref(id.to_owned());
+                                if !self.module_name.is_empty() {
+                                    let qualified = format!("{}.{}", self.module_name, id);
+                                    self.add_ref(qualified);
+                                }
+                            }
+                        }
+                    }
+                }
                 // First visit RHS for references
                 self.visit_expr(&node.value);
 
@@ -860,23 +1107,71 @@ impl<'a> CytoScnPyVisitor<'a> {
                     if let Expr::Name(name_node) = target {
                         // Skip __all__ as it was already handled above
                         if name_node.id.as_str() != "__all__" {
-                            let qualified_name = self.get_qualified_name(&name_node.id);
-                            let (line, end_line, start_byte, end_byte) =
-                                self.get_range_info(name_node);
-                            // Clone for add_def, move to add_local_def (last use)
-                            self.add_def(
-                                qualified_name.clone(),
-                                "variable",
-                                line,
-                                end_line,
-                                start_byte,
-                                end_byte,
-                            );
-                            self.add_local_def(name_node.id.to_string(), qualified_name);
+                            // Check if this variable is declared global in the current scope
+                            let is_global = self.scope_stack.last().is_some_and(|s| {
+                                s.global_declarations.contains(name_node.id.as_str())
+                            });
+
+                            if is_global {
+                                // It's a write to a global variable. Mark the global as referenced.
+                                self.add_ref(name_node.id.to_string());
+                                if !self.module_name.is_empty() {
+                                    let qualified =
+                                        format!("{}.{}", self.module_name, name_node.id);
+                                    self.add_ref(qualified);
+                                }
+                            } else {
+                                let qualified_name = self.get_qualified_name(&name_node.id);
+                                let (line, end_line, col, start_byte, end_byte) =
+                                    self.get_range_info(name_node);
+                                // Clone for add_def, move to add_local_def (last use)
+                                self.add_definition(DefinitionInfo {
+                                    name: qualified_name.clone(),
+                                    def_type: "variable".to_owned(),
+                                    line,
+                                    end_line,
+                                    col,
+                                    start_byte,
+                                    end_byte,
+                                    full_start_byte: start_byte,
+                                    base_classes: SmallVec::new(),
+                                });
+                                self.add_local_def(
+                                    name_node.id.to_string(),
+                                    qualified_name.clone(),
+                                );
+
+                                // Fix for unannotated class attributes in Model Classes (Dataclasses, Pydantic)
+                                // If we are in a Model Class and not in a method, treat this assignment as a field definition
+                                // and mark it as implicitly used.
+                                if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                                    if let Some(true) = self.model_class_stack.last() {
+                                        self.add_ref(qualified_name);
+                                    }
+                                }
+                            }
                         }
                     } else {
-                        // For non-name targets, visit for references
+                        // For non-name targets, visit for references (e.g. self.x = 1)
                         self.visit_expr(target);
+                    }
+                }
+
+                // Check for TypeAliasType (PEP 695 backport) or NewType
+                // Shape = TypeAliasType("Shape", "tuple[int, int]")
+                // UserId = NewType("UserId", int)
+                if let Expr::Call(call) = &*node.value {
+                    if let Expr::Name(func_name) = &*call.func {
+                        let fname = func_name.id.as_str();
+                        if fname == "TypeAliasType" || fname == "NewType" {
+                            // Mark targets as used (they are type definitions)
+                            for target in &node.targets {
+                                if let Expr::Name(name_node) = target {
+                                    let qualified_name = self.get_qualified_name(&name_node.id);
+                                    self.add_ref(qualified_name);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -890,22 +1185,25 @@ impl<'a> CytoScnPyVisitor<'a> {
                 // Track variable definition
                 if let Expr::Name(name_node) = &*node.target {
                     let qualified_name = self.get_qualified_name(&name_node.id);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(name_node);
-                    self.add_def(
-                        qualified_name.clone(),
-                        "variable",
+                    let (line, end_line, col, start_byte, end_byte) =
+                        self.get_range_info(name_node);
+                    self.add_definition(DefinitionInfo {
+                        name: qualified_name.clone(),
+                        def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
-                    );
+                        full_start_byte: start_byte,
+                        base_classes: SmallVec::new(),
+                    });
                     self.add_local_def(name_node.id.to_string(), qualified_name.clone());
 
-                    // If inside a dataclass, mark as implicitly used (field)
-                    if let Some(true) = self.dataclass_stack.last() {
-                        // Only if we are in a class (which we should be if dataclass_stack is true)
-                        // and NOT in a function (class fields are at class level)
-                        if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                    // If we are in a Model Class (Dataclasses, Pydantic) and not in a method,
+                    // treat this assignment as a field definition and mark it as implicitly used.
+                    if !self.class_stack.is_empty() && self.function_stack.is_empty() {
+                        if let Some(true) = self.model_class_stack.last() {
                             self.add_ref(qualified_name);
                         }
                     }
@@ -917,6 +1215,26 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.visit_expr(&node.annotation);
                 if let Some(value) = &node.value {
                     self.visit_expr(value);
+                }
+
+                // Check for TypeAlias annotation
+                // Shape: TypeAlias = tuple[int, int]
+                let mut is_type_alias = false;
+                if let Expr::Name(ann_name) = &*node.annotation {
+                    if ann_name.id == "TypeAlias" {
+                        is_type_alias = true;
+                    }
+                } else if let Expr::Attribute(ann_attr) = &*node.annotation {
+                    if ann_attr.attr.as_str() == "TypeAlias" {
+                        is_type_alias = true;
+                    }
+                }
+
+                if is_type_alias {
+                    if let Expr::Name(name_node) = &*node.target {
+                        let qualified_name = self.get_qualified_name(&name_node.id);
+                        self.add_ref(qualified_name);
+                    }
                 }
             }
             // Handle expression statements
@@ -978,6 +1296,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             Stmt::For(node) => {
                 self.visit_expr(&node.iter);
+                self.visit_definition_target(&node.target);
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
                 }
@@ -1005,9 +1324,42 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
             // Note: ruff merges AsyncWith into With with is_async flag, so no separate handling needed
             Stmt::Try(node) => {
+                let mut catches_import_error = false;
+                for handler in &node.handlers {
+                    let ruff_python_ast::ExceptHandler::ExceptHandler(h) = handler;
+                    if let Some(type_) = &h.type_ {
+                        // Check if it catches ImportError or ModuleNotFoundError
+                        if let Expr::Name(name) = &**type_ {
+                            if name.id.as_str() == "ImportError"
+                                || name.id.as_str() == "ModuleNotFoundError"
+                            {
+                                catches_import_error = true;
+                            }
+                        } else if let Expr::Tuple(tuple) = &**type_ {
+                            for elt in &tuple.elts {
+                                if let Expr::Name(name) = elt {
+                                    if name.id.as_str() == "ImportError"
+                                        || name.id.as_str() == "ModuleNotFoundError"
+                                    {
+                                        catches_import_error = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let prev_in_import_error = self.in_import_error_block;
+                if catches_import_error {
+                    self.in_import_error_block = true;
+                }
+
                 for stmt in &node.body {
                     self.visit_stmt(stmt);
                 }
+
+                self.in_import_error_block = prev_in_import_error;
+
                 for ast::ExceptHandler::ExceptHandler(handler_node) in &node.handlers {
                     if let Some(exc) = &handler_node.type_ {
                         self.visit_expr(exc);
@@ -1032,11 +1384,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                         if name_node.ctx.is_load() {
                             let name = name_node.id.to_string();
                             // Try to resolve to qualified name first
+                            // 1. Try to resolve to qualified name first
                             if let Some(qualified) = self.resolve_name(&name) {
                                 self.add_ref(qualified);
                             }
-                            // Always add simple name reference for imports/globals
-                            self.add_ref(name);
                         }
                     }
                     self.visit_expr(value);
@@ -1074,6 +1425,20 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
             }
+            Stmt::Global(node) => {
+                for name in &node.names {
+                    // Register global declaration in the current scope
+                    if let Some(scope) = self.scope_stack.last_mut() {
+                        scope.global_declarations.insert(name.id.to_string());
+                    }
+                    // Mark as referenced to ensure the global variable is counted as used
+                    self.add_ref(name.id.to_string());
+                    if !self.module_name.is_empty() {
+                        let qualified = format!("{}.{}", self.module_name, name.id);
+                        self.add_ref(qualified);
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -1081,16 +1446,16 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     // Helper function to handle shared logic between FunctionDef and AsyncFunctionDef
+    #[allow(clippy::too_many_lines)]
     fn visit_function_def(
         &mut self,
-        name: &str,
-        args: &ast::Parameters,
-        body: &[Stmt],
-        line: usize,
-        end_line: usize,
-        start_byte: usize,
-        end_byte: usize,
+        name_node: &ruff_python_ast::Identifier,
+        decorator_list: &[ruff_python_ast::Decorator],
+        parameters: &ruff_python_ast::Parameters,
+        body: &[ruff_python_ast::Stmt],
+        range: ruff_text_size::TextRange,
     ) {
+        let name = name_node.id.as_str();
         let qualified_name = self.get_qualified_name(name);
 
         // Determine if it's a function or a method based on class stack.
@@ -1100,15 +1465,99 @@ impl<'a> CytoScnPyVisitor<'a> {
             "method"
         };
 
-        self.add_def(
-            qualified_name.clone(),
-            def_type,
+        // Use name identifier for the start position/line (for precise reporting)
+        let def_range = name_node.range;
+        let start_byte = def_range.start().into();
+        let line = self.line_index.line_index(def_range.start());
+        let col = self.line_index.column_index(def_range.start());
+
+        // Use full stmt range for the end position/line (to cover the body for analysis)
+        let end_byte = range.end().into();
+        let end_line = self.line_index.line_index(range.end());
+
+        self.add_definition(DefinitionInfo {
+            name: qualified_name.clone(),
+            def_type: def_type.to_owned(),
             line,
             end_line,
+            col,
             start_byte,
             end_byte,
-        );
+            full_start_byte: range.start().into(),
+            base_classes: SmallVec::new(),
+        });
 
+        // Heuristic: If method raises NotImplementedError, treat as abstract/interface (confidence 0)
+        let raises_not_implemented = body.iter().any(|s| {
+            if let ruff_python_ast::Stmt::Raise(r) = s {
+                if let Some(exc) = &r.exc {
+                    match &**exc {
+                        ruff_python_ast::Expr::Name(n) => return n.id == "NotImplementedError",
+                        ruff_python_ast::Expr::Call(c) => {
+                            if let ruff_python_ast::Expr::Name(n) = &*c.func {
+                                return n.id == "NotImplementedError";
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            false
+        });
+
+        if raises_not_implemented {
+            if let Some(last_def) = self.definitions.last_mut() {
+                last_def.confidence = 0;
+            }
+        }
+
+        // Collection Logic for ABC and Protocols
+        if let Some(class_name) = self.class_stack.last() {
+            // 1. Collect Abstract Methods
+            if let Some(true) = self.abc_class_stack.last() {
+                let is_abstract = decorator_list.iter().any(|d| {
+                    let expr = match &d.expression {
+                        ruff_python_ast::Expr::Call(call) => &*call.func,
+                        _ => &d.expression,
+                    };
+                    match expr {
+                        ruff_python_ast::Expr::Name(n) => n.id == "abstractmethod",
+                        ruff_python_ast::Expr::Attribute(attr) => {
+                            attr.attr.as_str() == "abstractmethod"
+                        }
+                        _ => false,
+                    }
+                });
+
+                if is_abstract {
+                    self.abc_abstract_methods
+                        .entry(class_name.clone())
+                        .or_default()
+                        .insert(name.to_owned());
+
+                    // Mark abstract method as "used" (confidence 0)
+                    if let Some(def) = self.definitions.last_mut() {
+                        def.confidence = 0;
+                    }
+                }
+            }
+
+            // 2. Collect Protocol Methods
+            if let Some(true) = self.protocol_class_stack.last() {
+                self.protocol_methods
+                    .entry(class_name.clone())
+                    .or_default()
+                    .insert(name.to_owned());
+
+                // Note: We do NOT strictly ignoring Protocol methods here because
+                // sometimes they might be reported as dead in benchmarks.
+                // We rely on duck typing usage to save them if used.
+                // Or maybe we should?
+                // Reverting confidence=0 to fix regression.
+            }
+        }
+
+        // Register the function in the current (parent) scope's local_var_map
         // Register the function in the current (parent) scope's local_var_map
         // This allows nested function calls like `used_inner()` to be resolved
         // when the call happens in the parent scope.
@@ -1116,6 +1565,79 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         // Enter function scope
         self.enter_scope(ScopeType::Function(CompactString::from(name)));
+
+        // Framework detection logic
+        let mut should_add_ref = false;
+        if let Some(scope) = self.scope_stack.last_mut() {
+            for decorator in decorator_list {
+                // Handle both @app.route and @app.route(...)
+                let expr = match &decorator.expression {
+                    ruff_python_ast::Expr::Call(call) => &*call.func,
+                    _ => &decorator.expression,
+                };
+
+                if let ruff_python_ast::Expr::Attribute(attr) = expr {
+                    if let ruff_python_ast::Expr::Name(name) = &*attr.value {
+                        let base = name.id.as_str();
+                        // Common framework patterns: app.route, router.get, celery.task
+                        if matches!(base, "app" | "router" | "celery") {
+                            scope.is_framework = true;
+                            // Check if this is an Azure Function (special case for 1:1 mapping)
+                            if base == "app" {
+                                // Update definition to mark as framework managed and used
+                                if let Some(def) = self.definitions.last_mut() {
+                                    def.is_framework_managed = true;
+                                    def.is_exported = true; // Treat as entry point
+                                    if def.references == 0 {
+                                        def.references = 1;
+                                    }
+                                }
+                                should_add_ref = true;
+                            } else {
+                                // Other frameworks
+                                if let Some(def) = self.definitions.last_mut() {
+                                    def.is_framework_managed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if should_add_ref {
+            self.add_ref(qualified_name.clone());
+        }
+
+        // Check if we should skip parameter tracking (Abstract methods, Protocols, Overloads)
+        let mut skip_parameters = false;
+
+        // 1. Check if inside a Protocol class
+        if let Some(true) = self.protocol_class_stack.last() {
+            skip_parameters = true;
+        }
+
+        // 2. Check for @abstractmethod or @overload decorators
+        if !skip_parameters {
+            for decorator in decorator_list {
+                let expr = match &decorator.expression {
+                    ruff_python_ast::Expr::Call(call) => &*call.func,
+                    _ => &decorator.expression,
+                };
+
+                if let ruff_python_ast::Expr::Name(name) = expr {
+                    if name.id == "abstractmethod" || name.id == "overload" {
+                        skip_parameters = true;
+                        break;
+                    }
+                } else if let ruff_python_ast::Expr::Attribute(attr) = expr {
+                    if attr.attr.as_str() == "abstractmethod" || attr.attr.as_str() == "overload" {
+                        skip_parameters = true;
+                        break;
+                    }
+                }
+            }
+        }
 
         // Track parameters
         let mut param_names = FxHashSet::default();
@@ -1125,7 +1647,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             |arg: &ast::ParameterWithDefault| -> String { arg.parameter.name.to_string() };
 
         // Positional-only parameters
-        for arg in &args.posonlyargs {
+        for arg in &parameters.posonlyargs {
             let param_name = extract_param_name(arg);
             param_names.insert(param_name.clone());
             let param_qualified = if param_name != "self" && param_name != "cls" {
@@ -1136,21 +1658,26 @@ impl<'a> CytoScnPyVisitor<'a> {
             self.add_local_def(param_name.clone(), param_qualified.clone());
 
             // Skip self and cls - they're implicit
-            if param_name != "self" && param_name != "cls" {
-                let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
-                self.add_def(
-                    param_qualified,
-                    "parameter",
-                    p_line,
-                    p_end_line,
-                    p_start_byte,
-                    p_end_byte,
-                );
+            // Also skip if we are in an abstract method or protocol
+            if !skip_parameters && param_name != "self" && param_name != "cls" {
+                let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                    self.get_range_info(arg);
+                self.add_definition(DefinitionInfo {
+                    name: param_qualified,
+                    def_type: "parameter".to_owned(),
+                    line: p_line,
+                    end_line: p_end_line,
+                    col: p_col,
+                    start_byte: p_start_byte,
+                    end_byte: p_end_byte,
+                    full_start_byte: p_start_byte,
+                    base_classes: SmallVec::new(),
+                });
             }
         }
 
         // Regular positional parameters
-        for arg in &args.args {
+        for arg in &parameters.args {
             let param_name = extract_param_name(arg);
             param_names.insert(param_name.clone());
             let param_qualified = if param_name != "self" && param_name != "cls" {
@@ -1161,68 +1688,93 @@ impl<'a> CytoScnPyVisitor<'a> {
             self.add_local_def(param_name.clone(), param_qualified.clone());
 
             // Skip self and cls
-            if param_name != "self" && param_name != "cls" {
-                let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
-                self.add_def(
-                    param_qualified,
-                    "parameter",
-                    p_line,
-                    p_end_line,
-                    p_start_byte,
-                    p_end_byte,
-                );
+            // Also skip if we are in an abstract method or protocol
+            if !skip_parameters && param_name != "self" && param_name != "cls" {
+                let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                    self.get_range_info(arg);
+                self.add_definition(DefinitionInfo {
+                    name: param_qualified,
+                    def_type: "parameter".to_owned(),
+                    line: p_line,
+                    end_line: p_end_line,
+                    col: p_col,
+                    start_byte: p_start_byte,
+                    end_byte: p_end_byte,
+                    full_start_byte: p_start_byte,
+                    base_classes: SmallVec::new(),
+                });
             }
         }
 
         // Keyword-only parameters
-        for arg in &args.kwonlyargs {
+        for arg in &parameters.kwonlyargs {
             let param_name = extract_param_name(arg);
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name.clone(), param_qualified.clone());
-            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(arg);
-            self.add_def(
-                param_qualified,
-                "parameter",
-                p_line,
-                p_end_line,
-                p_start_byte,
-                p_end_byte,
-            );
+            let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) = self.get_range_info(arg);
+
+            if !skip_parameters {
+                self.add_definition(DefinitionInfo {
+                    name: param_qualified,
+                    def_type: "parameter".to_owned(),
+                    line: p_line,
+                    end_line: p_end_line,
+                    col: p_col,
+                    start_byte: p_start_byte,
+                    end_byte: p_end_byte,
+                    full_start_byte: p_start_byte,
+                    base_classes: smallvec::SmallVec::new(),
+                });
+            }
         }
 
         // *args parameter (ruff uses .name instead of .arg)
-        if let Some(vararg) = &args.vararg {
+        if let Some(vararg) = &parameters.vararg {
             let param_name = vararg.name.to_string();
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
-            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(&**vararg);
-            self.add_def(
-                param_qualified,
-                "parameter",
-                p_line,
-                p_end_line,
-                p_start_byte,
-                p_end_byte,
-            );
+            let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                self.get_range_info(&**vararg);
+
+            if !skip_parameters {
+                self.add_definition(DefinitionInfo {
+                    name: param_qualified,
+                    def_type: "parameter".to_owned(),
+                    line: p_line,
+                    end_line: p_end_line,
+                    col: p_col,
+                    start_byte: p_start_byte,
+                    end_byte: p_end_byte,
+                    full_start_byte: p_start_byte,
+                    base_classes: smallvec::SmallVec::new(),
+                });
+            }
         }
 
         // **kwargs parameter (ruff uses .name instead of .arg)
-        if let Some(kwarg) = &args.kwarg {
+        if let Some(kwarg) = &parameters.kwarg {
             let param_name = kwarg.name.to_string();
             param_names.insert(param_name.clone());
             let param_qualified = format!("{qualified_name}.{param_name}");
             self.add_local_def(param_name, param_qualified.clone());
-            let (p_line, p_end_line, p_start_byte, p_end_byte) = self.get_range_info(&**kwarg);
-            self.add_def(
-                param_qualified,
-                "parameter",
-                p_line,
-                p_end_line,
-                p_start_byte,
-                p_end_byte,
-            );
+            let (p_line, p_end_line, p_col, p_start_byte, p_end_byte) =
+                self.get_range_info(&**kwarg);
+
+            if !skip_parameters {
+                self.add_definition(DefinitionInfo {
+                    name: param_qualified,
+                    def_type: "parameter".to_owned(),
+                    line: p_line,
+                    end_line: p_end_line,
+                    col: p_col,
+                    start_byte: p_start_byte,
+                    end_byte: p_end_byte,
+                    full_start_byte: p_start_byte,
+                    base_classes: smallvec::SmallVec::new(),
+                });
+            }
         }
 
         // Store parameters for this function
@@ -1262,6 +1814,253 @@ impl<'a> CytoScnPyVisitor<'a> {
     /// # Recursion Safety
     ///
     /// Uses `MAX_RECURSION_DEPTH` guard shared with `visit_stmt`.
+    fn visit_name_expr(&mut self, node: &ast::ExprName) {
+        if node.ctx.is_load() {
+            let name = node.id.to_string();
+
+            // Try to resolve using scope stack first
+            if let Some((qualified, scope_idx)) = self.resolve_name_with_info(&name) {
+                // Mark as captured if found in a parent scope
+                if scope_idx < self.scope_stack.len() - 1 {
+                    self.captured_definitions.insert(qualified.clone());
+                }
+                self.add_ref(qualified);
+            } else {
+                // If not found in local scope, assume it's a global or builtin.
+                // We qualify it with the module name to avoid matching class attributes
+                // via the simple name fallback in the analyzer.
+                if self.module_name.is_empty() {
+                    self.add_ref(name.clone());
+                } else {
+                    self.add_ref(format!("{}.{}", self.module_name, name));
+                }
+            }
+
+            // Check aliases - resolve aliased imports to their original names.
+            // Clone to release borrow of alias_map before calling add_ref (borrow checker fix).
+            if let Some(original) = self.alias_map.get(&name).cloned() {
+                // Add simple name first if original is qualified (e.g., "os.path" -> "path")
+                if let Some(simple) = original.split('.').next_back() {
+                    if simple != original {
+                        self.add_ref(simple.to_owned());
+                    }
+                }
+                // Now move the owned string (no clone needed)
+                self.add_ref(original);
+            }
+        }
+    }
+
+    fn visit_call_expr(&mut self, node: &ast::ExprCall) {
+        // Check for dynamic execution or reflection
+        if let Expr::Name(func_name) = &*node.func {
+            let name = func_name.id.as_str();
+            if name == "eval" {
+                // Optimization: If eval is called with a string literal, parse it for name references
+                // instead of marking the whole scope as dynamic.
+                let mut handled_as_literal = false;
+                if let Some(Expr::StringLiteral(s)) = node.arguments.args.first() {
+                    // Extract identifiers from the string
+                    // We construct the Regex locally. Since this is only for eval(), the per-call cost is verified acceptable.
+                    if let Ok(re) = Regex::new(r"\b[a-zA-Z_]\w*\b") {
+                        // s.value is a StringLiteralValue, convert to string
+                        let val = s.value.to_string();
+                        for m in re.find_iter(&val) {
+                            self.add_ref(m.as_str().to_owned());
+                        }
+                        handled_as_literal = true;
+                    }
+                }
+
+                if !handled_as_literal {
+                    let scope_id = self.get_current_scope_id();
+                    self.dynamic_scopes.insert(scope_id);
+                }
+            } else if name == "exec" || name == "globals" || name == "locals" {
+                let scope_id = self.get_current_scope_id();
+                self.dynamic_scopes.insert(scope_id);
+            } else if name == "getattr" {
+                // Handle getattr(obj, "attr") -> specific reference
+                // Handle getattr(obj, var) -> dynamic reflection
+                if node.arguments.args.len() >= 2 {
+                    if let (Expr::Name(obj_name), Expr::StringLiteral(attr_str)) =
+                        (&node.arguments.args[0], &node.arguments.args[1])
+                    {
+                        let attr_value = attr_str.value.to_string();
+                        let attr_ref = format!("{}.{}", obj_name.id, attr_value);
+                        self.add_ref(attr_ref);
+                        if !self.module_name.is_empty() {
+                            let full_attr_ref =
+                                format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
+                            self.add_ref(full_attr_ref);
+                        }
+                    } else {
+                        // Non-literal getattr is dynamic
+                        let scope_id = self.get_current_scope_id();
+                        self.dynamic_scopes.insert(scope_id);
+                    }
+                }
+            }
+
+            // Special handling for hasattr(obj, "attr") to detect attribute usage
+            if name == "hasattr" && node.arguments.args.len() == 2 {
+                // Extract the object (first arg) and attribute name (second arg)
+                if let (Expr::Name(obj_name), Expr::StringLiteral(attr_str)) =
+                    (&node.arguments.args[0], &node.arguments.args[1])
+                {
+                    let attr_value = attr_str.value.to_string();
+                    // Construct the qualified attribute name
+                    // e.g., hasattr(Colors, "GREEN") -> Colors.GREEN
+                    let attr_ref = format!("{}.{}", obj_name.id, attr_value);
+                    self.add_ref(attr_ref);
+
+                    // Also try with module prefix
+                    if !self.module_name.is_empty() {
+                        let full_attr_ref =
+                            format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
+                        self.add_ref(full_attr_ref);
+                    }
+                }
+            }
+        }
+
+        self.visit_expr(&node.func);
+        for arg in &node.arguments.args {
+            self.visit_expr(arg);
+        }
+        // Don't forget keyword arguments (e.g., func(a=b))
+        for keyword in &node.arguments.keywords {
+            self.visit_expr(&keyword.value);
+        }
+    }
+
+    fn visit_attribute_expr(&mut self, node: &ast::ExprAttribute) {
+        // Track attribute access strictly as attribute reference (prefixed with dot)
+        // This distinguishes `d.keys()` (attribute) from `keys` (variable)
+        self.add_ref(format!(".{}", node.attr));
+
+        // Check for self-referential method call (recursive method)
+        // If we see self.method_name() and method_name matches current function in function_stack
+        if let Expr::Name(base_node) = &*node.value {
+            if base_node.id.as_str() == "self" || base_node.id.as_str() == "cls" {
+                let attr_name = node.attr.as_str();
+                // Check if this is a call to the current method (recursive)
+                if let Some(current_method_qualified) = self.function_stack.last() {
+                    // Extract simple name from qualified name stored in stack
+                    let current_method_simple =
+                        if let Some(idx) = current_method_qualified.rfind('.') {
+                            &current_method_qualified[idx + 1..]
+                        } else {
+                            current_method_qualified.as_str()
+                        };
+
+                    if current_method_simple == attr_name {
+                        // This is a self-referential call
+                        self.self_referential_methods
+                            .insert(current_method_qualified.clone());
+                    }
+                }
+            }
+        }
+
+        if let Expr::Name(name_node) = &*node.value {
+            let base_id = name_node.id.as_str();
+
+            // Check if base_id is an alias
+            // Fix: Done Clone the string to avoid holding borrow of self.alias_map while calling self.add_ref
+            let original_base_opt = self.alias_map.get(base_id).cloned();
+            if let Some(original_base) = original_base_opt {
+                // e.g. l -> lib
+                // Add ref to lib
+                self.add_ref(original_base.clone());
+
+                // Add ref to lib.attr
+                let full_attr = format!("{}.{}", original_base, node.attr);
+                self.add_ref(full_attr);
+            }
+
+            // Case 1: Strict self.method usage inside a class context.
+            // We want to track references to methods of the current class.
+            if (base_id == "self" || base_id == "cls") && !self.class_stack.is_empty() {
+                let method_name = &node.attr;
+                let mut parts = Vec::new();
+                if !self.module_name.is_empty() {
+                    parts.push(self.module_name.clone());
+                }
+                parts.extend(self.class_stack.clone());
+                parts.push(method_name.to_string());
+                let qualified = parts.join(".");
+                self.add_ref(qualified);
+            }
+            // Case 2: External usage (obj.method or sys.exit)
+            else {
+                // Track "sys" from "sys.exit" (Fixes unused import)
+                self.add_ref(base_id.to_owned());
+
+                // Track "sys.exit" (Specific attribute access)
+                let full_attr = format!("{}.{}", base_id, node.attr);
+                self.add_ref(full_attr);
+            }
+        }
+        self.visit_expr(&node.value);
+    }
+
+    fn visit_string_literal(&mut self, node: &ast::ExprStringLiteral) {
+        let s = node.value.to_string();
+        // Heuristic: If a string looks like a simple identifier or dotted path (no spaces),
+        // track it as a reference. This helps with getattr(self, "visit_" + name)
+        // and stringified type hints like "models.User".
+        if !s.contains(' ') && !s.is_empty() {
+            self.add_ref(s.clone());
+
+            // Also add qualified reference for the whole string if it's likely a type path
+            if !self.module_name.is_empty() {
+                self.add_ref(format!("{}.{}", self.module_name, s));
+            }
+
+            // Enhanced: Extract type names from string type annotations
+            // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
+            // Extract alphanumeric identifiers (type names)
+            let mut current_word = String::new();
+            for ch in s.chars() {
+                if ch.is_alphanumeric() || ch == '_' {
+                    current_word.push(ch);
+                } else if !current_word.is_empty() {
+                    // Check if it looks like a type name (starts with uppercase)
+                    if current_word.chars().next().is_some_and(char::is_uppercase) {
+                        self.add_ref(current_word.clone());
+                        if !self.module_name.is_empty() {
+                            self.add_ref(format!("{}.{}", self.module_name, current_word));
+                        }
+                    }
+                    current_word.clear();
+                }
+            }
+            // Don't forget the last word
+            if !current_word.is_empty()
+                && current_word.chars().next().is_some_and(char::is_uppercase)
+            {
+                self.add_ref(current_word.clone());
+                if !self.module_name.is_empty() {
+                    self.add_ref(format!("{}.{}", self.module_name, current_word));
+                }
+            }
+        }
+    }
+
+    /// Visits an expression node.
+    ///
+    /// The function handles these expression types:
+    /// - **Name**: Variable/name references with scope resolution
+    /// - **Attribute**: Attribute access (obj.attr)
+    /// - **Call**: Function/method calls with argument tracking
+    /// - **Subscript**: Index operations (`obj[key]`)
+    /// - **Lambda/Comprehensions**: Nested scopes
+    /// - **Literals/Operators**: `BinOp`, `Compare`, `BoolOp`, etc.
+    ///
+    /// # Recursion Safety
+    ///
+    /// Uses `MAX_RECURSION_DEPTH` guard shared with `visit_stmt`.
     #[allow(clippy::too_many_lines)]
     pub fn visit_expr(&mut self, expr: &Expr) {
         // Recursion depth guard to prevent stack overflow on deeply nested code
@@ -1273,181 +2072,13 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         match expr {
             // Name usage (variable access)
-            Expr::Name(node) => {
-                if node.ctx.is_load() {
-                    let name = node.id.to_string();
-
-                    // Try to resolve using scope stack first
-                    if let Some(qualified) = self.resolve_name(&name) {
-                        self.add_ref(qualified);
-                    } else {
-                        // If not found in local scope, assume it's a global or builtin.
-                        // We qualify it with the module name to avoid matching class attributes
-                        // via the simple name fallback in the analyzer.
-                        if self.module_name.is_empty() {
-                            self.add_ref(name.clone());
-                        } else {
-                            self.add_ref(format!("{}.{}", self.module_name, name));
-                        }
-                    }
-
-                    // Check aliases - resolve aliased imports to their original names.
-                    // Clone to release borrow of alias_map before calling add_ref (borrow checker fix).
-                    if let Some(original) = self.alias_map.get(&name).cloned() {
-                        // Add simple name first if original is qualified (e.g., "os.path" -> "path")
-                        if let Some(simple) = original.split('.').next_back() {
-                            if simple != original {
-                                self.add_ref(simple.to_owned());
-                            }
-                        }
-                        // Now move the owned string (no clone needed)
-                        self.add_ref(original);
-                    }
-                }
-            }
+            Expr::Name(node) => self.visit_name_expr(node),
             // Function call
-            Expr::Call(node) => {
-                // Check for dynamic execution or reflection
-                if let Expr::Name(func_name) = &*node.func {
-                    let name = func_name.id.as_str();
-                    if name == "eval" || name == "exec" || name == "globals" || name == "locals" {
-                        self.is_dynamic = true;
-                    }
-
-                    // Special handling for hasattr(obj, "attr") to detect attribute usage
-                    if name == "hasattr" && node.arguments.args.len() == 2 {
-                        // Extract the object (first arg) and attribute name (second arg)
-                        if let (Expr::Name(obj_name), Expr::StringLiteral(attr_str)) =
-                            (&node.arguments.args[0], &node.arguments.args[1])
-                        {
-                            let attr_value = attr_str.value.to_string();
-                            // Construct the qualified attribute name
-                            // e.g., hasattr(Colors, "GREEN") -> Colors.GREEN
-                            let attr_ref = format!("{}.{}", obj_name.id, attr_value);
-                            self.add_ref(attr_ref);
-
-                            // Also try with module prefix
-                            if !self.module_name.is_empty() {
-                                let full_attr_ref =
-                                    format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
-                                self.add_ref(full_attr_ref);
-                            }
-                        }
-                    }
-                }
-
-                self.visit_expr(&node.func);
-                for arg in &node.arguments.args {
-                    self.visit_expr(arg);
-                }
-                // Don't forget keyword arguments (e.g., func(a=b))
-                for keyword in &node.arguments.keywords {
-                    self.visit_expr(&keyword.value);
-                }
-            }
+            Expr::Call(node) => self.visit_call_expr(node),
             // Attribute access (e.g., obj.attr)
-            Expr::Attribute(node) => {
-                // Always track the attribute name as a reference (loose tracking)
-                // This ensures we catch methods in chains like `obj.method().other_method()`
-                self.add_ref(node.attr.to_string());
-
-                // Check for self-referential method call (recursive method)
-                // If we see self.method_name() and method_name matches current function in function_stack
-                if let Expr::Name(base_node) = &*node.value {
-                    if base_node.id.as_str() == "self" || base_node.id.as_str() == "cls" {
-                        let attr_name = node.attr.as_str();
-                        // Check if this is a call to the current method (recursive)
-                        if let Some(current_method_qualified) = self.function_stack.last() {
-                            // Extract simple name from qualified name stored in stack
-                            let current_method_simple =
-                                if let Some(idx) = current_method_qualified.rfind('.') {
-                                    &current_method_qualified[idx + 1..]
-                                } else {
-                                    current_method_qualified.as_str()
-                                };
-
-                            if current_method_simple == attr_name {
-                                // This is a self-referential call
-                                self.self_referential_methods
-                                    .insert(current_method_qualified.clone());
-                            }
-                        }
-                    }
-                }
-
-                if let Expr::Name(name_node) = &*node.value {
-                    let base_id = name_node.id.as_str();
-
-                    // Check if base_id is an alias
-                    // Fix: Done Clone the string to avoid holding borrow of self.alias_map while calling self.add_ref
-                    let original_base_opt = self.alias_map.get(base_id).cloned();
-                    if let Some(original_base) = original_base_opt {
-                        // e.g. l -> lib
-                        // Add ref to lib
-                        self.add_ref(original_base.clone());
-
-                        // Add ref to lib.attr
-                        let full_attr = format!("{}.{}", original_base, node.attr);
-                        self.add_ref(full_attr);
-                    }
-
-                    // Case 1: Strict self.method usage inside a class context.
-                    // We want to track references to methods of the current class.
-                    if (base_id == "self" || base_id == "cls") && !self.class_stack.is_empty() {
-                        let method_name = &node.attr;
-                        let mut parts = Vec::new();
-                        if !self.module_name.is_empty() {
-                            parts.push(self.module_name.clone());
-                        }
-                        parts.extend(self.class_stack.clone());
-                        parts.push(method_name.to_string());
-                        let qualified = parts.join(".");
-                        self.add_ref(qualified);
-                    }
-                    // Case 2: External usage (obj.method or sys.exit)
-                    else {
-                        // Track "sys" from "sys.exit" (Fixes unused import)
-                        self.add_ref(base_id.to_owned());
-
-                        // Track "sys.exit" (Specific attribute access)
-                        let full_attr = format!("{}.{}", base_id, node.attr);
-                        self.add_ref(full_attr);
-                    }
-                }
-                self.visit_expr(&node.value);
-            }
-            // FIX: Done Dynamic Dispatch / String References
-            Expr::StringLiteral(node) => {
-                let s = node.value.to_string();
-                // Heuristic: If a string looks like a simple identifier or dotted path (no spaces),
-                // track it as a reference. This helps with getattr(self, "visit_" + name)
-                // and stringified type hints like "models.User".
-                if !s.contains(' ') && !s.is_empty() {
-                    self.add_ref(s.clone());
-
-                    // Enhanced: Extract type names from string type annotations
-                    // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
-                    // Extract alphanumeric identifiers (type names)
-                    let mut current_word = String::new();
-                    for ch in s.chars() {
-                        if ch.is_alphanumeric() || ch == '_' {
-                            current_word.push(ch);
-                        } else if !current_word.is_empty() {
-                            // Check if it looks like a type name (starts with uppercase)
-                            if current_word.chars().next().is_some_and(char::is_uppercase) {
-                                self.add_ref(current_word.clone());
-                            }
-                            current_word.clear();
-                        }
-                    }
-                    // Don't forget the last word
-                    if !current_word.is_empty()
-                        && current_word.chars().next().is_some_and(char::is_uppercase)
-                    {
-                        self.add_ref(current_word);
-                    }
-                }
-            }
+            Expr::Attribute(node) => self.visit_attribute_expr(node),
+            // Dynamic Dispatch / String References
+            Expr::StringLiteral(node) => self.visit_string_literal(node),
 
             // Recursion Boilerplate - Ensure we visit children of all other expressions
             Expr::BoolOp(node) => {
@@ -1484,41 +2115,45 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
             }
             Expr::ListComp(node) => {
-                self.visit_expr(&node.elt);
                 for gen in &node.generators {
                     self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
                     for if_expr in &gen.ifs {
                         self.visit_expr(if_expr);
                     }
                 }
+                self.visit_expr(&node.elt);
             }
             Expr::SetComp(node) => {
-                self.visit_expr(&node.elt);
                 for gen in &node.generators {
                     self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
                     for if_expr in &gen.ifs {
                         self.visit_expr(if_expr);
                     }
                 }
+                self.visit_expr(&node.elt);
             }
             Expr::DictComp(node) => {
+                for gen in &node.generators {
+                    self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
+                    for if_expr in &gen.ifs {
+                        self.visit_expr(if_expr);
+                    }
+                }
                 self.visit_expr(&node.key);
                 self.visit_expr(&node.value);
-                for gen in &node.generators {
-                    self.visit_expr(&gen.iter);
-                    for if_expr in &gen.ifs {
-                        self.visit_expr(if_expr);
-                    }
-                }
             }
             Expr::Generator(node) => {
-                self.visit_expr(&node.elt);
                 for gen in &node.generators {
                     self.visit_expr(&gen.iter);
+                    self.visit_definition_target(&gen.target);
                     for if_expr in &gen.ifs {
                         self.visit_expr(if_expr);
                     }
                 }
+                self.visit_expr(&node.elt);
             }
             Expr::Await(node) => self.visit_expr(&node.value),
             Expr::Yield(node) => {
@@ -1586,6 +2221,53 @@ impl<'a> CytoScnPyVisitor<'a> {
         self.depth -= 1;
     }
 
+    /// Visits a definition target (LHS of assignment or loop variable).
+    /// Registers variables as definitions.
+    fn visit_definition_target(&mut self, target: &Expr) {
+        match target {
+            Expr::Name(node) => {
+                let name = node.id.to_string();
+                let qualified_name = self.get_qualified_name(&name);
+                let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
+
+                self.add_definition(DefinitionInfo {
+                    name: qualified_name.clone(),
+                    def_type: "variable".to_owned(),
+                    line,
+                    end_line,
+                    col,
+                    start_byte,
+                    end_byte,
+                    full_start_byte: start_byte,
+                    base_classes: smallvec::SmallVec::new(),
+                });
+                self.add_local_def(name, qualified_name);
+            }
+            Expr::Tuple(node) => {
+                for elt in &node.elts {
+                    self.visit_definition_target(elt);
+                }
+            }
+            Expr::List(node) => {
+                for elt in &node.elts {
+                    self.visit_definition_target(elt);
+                }
+            }
+            Expr::Starred(node) => {
+                self.visit_definition_target(&node.value);
+            }
+            // Use visits for attribute/subscript to ensure we track usage of the object/index
+            Expr::Attribute(node) => {
+                self.visit_expr(&node.value);
+            }
+            Expr::Subscript(node) => {
+                self.visit_expr(&node.value);
+                self.visit_expr(&node.slice);
+            }
+            _ => {}
+        }
+    }
+
     /// Helper to recursively visit match patterns
     fn visit_match_pattern(&mut self, pattern: &ast::Pattern) {
         // Recursion depth guard to prevent stack overflow on deeply nested code
@@ -1620,16 +2302,19 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // Wait, `rest` is Identifier. In ruff_python_ast Identifier wraps string and range.
                     // But looking at code `if let Some(rest) = &node.rest`, rest type is `Identifier`.
                     // Does Identifier impl Ranged? Yes.
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
                     // Using node range because rest match captures the rest
-                    self.add_def(
-                        qualified_name.clone(),
-                        "variable",
+                    self.add_definition(DefinitionInfo {
+                        name: qualified_name.clone(),
+                        def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
-                    );
+                        full_start_byte: start_byte,
+                        base_classes: smallvec::SmallVec::new(),
+                    });
                     // Add to local scope so it can be resolved when used
                     self.add_local_def(rest.to_string(), qualified_name);
                 }
@@ -1646,15 +2331,18 @@ impl<'a> CytoScnPyVisitor<'a> {
             ast::Pattern::MatchStar(node) => {
                 if let Some(name) = &node.name {
                     let qualified_name = self.get_qualified_name(name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
-                    self.add_def(
-                        qualified_name.clone(),
-                        "variable",
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
+                    self.add_definition(DefinitionInfo {
+                        name: qualified_name.clone(),
+                        def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
-                    );
+                        full_start_byte: start_byte,
+                        base_classes: smallvec::SmallVec::new(),
+                    });
                     // Add to local scope so it can be resolved when used
                     self.add_local_def(name.to_string(), qualified_name);
                 }
@@ -1665,15 +2353,18 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
                 if let Some(name) = &node.name {
                     let qualified_name = self.get_qualified_name(name);
-                    let (line, end_line, start_byte, end_byte) = self.get_range_info(node);
-                    self.add_def(
-                        qualified_name.clone(),
-                        "variable",
+                    let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
+                    self.add_definition(DefinitionInfo {
+                        name: qualified_name.clone(),
+                        def_type: "variable".to_owned(),
                         line,
                         end_line,
+                        col,
                         start_byte,
                         end_byte,
-                    );
+                        full_start_byte: start_byte,
+                        base_classes: smallvec::SmallVec::new(),
+                    });
                     // Add to local scope so it can be resolved when used
                     self.add_local_def(name.to_string(), qualified_name);
                 }

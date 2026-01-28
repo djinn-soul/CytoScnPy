@@ -5,38 +5,49 @@ import sys
 import os
 import re
 import shutil
+import shlex
 from pathlib import Path
 
 try:
-    import psutil
+    import psutil  # ty: ignore[unresolved-import]
 except ImportError:
-    psutil = None
+    psutil = None  # type: ignore
+
+from typing import Any, Dict, List, cast
+
 
 import threading
 
 
 def run_command(command, cwd=None, env=None, timeout=300):
-    """
-    Runs a command and returns (result, duration, max_rss_mb).
-    """
+    """Runs a command and returns (result, duration, max_rss_mb)."""
     start_time = time.time()
 
     # Determine if we should use shell=True
-    use_shell = True
-    if isinstance(command, list):
-        use_shell = False
+    use_shell = False
 
-    # We need to use Popen to track memory usage with psutil
-    process = subprocess.Popen(
-        command,
-        cwd=cwd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL,  # Prevent interactive prompts
-        text=True,
-        shell=use_shell,
-    )
+    if isinstance(command, str):
+        # Securely split the string command
+        command = shlex.split(command)
+
+    try:
+        # We need to use Popen to track memory usage with psutil
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,  # Prevent interactive prompts
+            text=True,
+            shell=use_shell,
+        )
+    except FileNotFoundError:
+        return (
+            subprocess.CompletedProcess(command, 2, "", f"File not found: {command}"),
+            0,
+            0,
+        )
 
     max_rss = [0]  # Use list for mutable closure
     stop_monitoring = threading.Event()
@@ -104,10 +115,12 @@ def run_command(command, cwd=None, env=None, timeout=300):
 
 
 def normalize_path(p):
+    """Normalize path separator to forward slashes."""
     return str(Path(p).as_posix()).strip("/")
 
 
 def get_tool_path(tool_name):
+    """Locate tool executable in PATH or specific locations."""
     # Check PATH first
     path = shutil.which(tool_name)
     if path:
@@ -164,8 +177,8 @@ def _check_python_module(module, arg):
 
 
 def check_tool_availability(tools_config, env=None):
-    """
-    Pre-check all tools to verify they are installed and available.
+    """Pre-check all tools to verify they are installed and available.
+
     Returns a dict with tool status: {name: {"available": bool, "reason": str}}
     """
     print("\n[+] Checking tool availability...")
@@ -189,22 +202,29 @@ def check_tool_availability(tools_config, env=None):
 
         # Special cases that need custom logic
         elif name == "CytoScnPy (Rust)":
-            # Check if binary exists
-            bin_path = None
+            # Handles "cargo run ..." or explicit binary paths
             if isinstance(command, list):
-                bin_path = Path(command[0])
-            else:
-                match = re.search(r'"([^"]+)"', command)
-                if match:
-                    bin_path = Path(match.group(1))
-
-            if bin_path:
-                if bin_path.exists():
-                    status = {"available": True, "reason": "Binary found"}
+                if command[0] == "cargo":
+                     if shutil.which("cargo"):
+                        status = {"available": True, "reason": "Cargo found"}
+                     else:
+                        status["reason"] = "Cargo not found in PATH"
                 else:
-                    status["reason"] = f"Binary not found: {bin_path}"
+                    # Generic binary path in list
+                     bin_path = Path(command[0])
+                     if bin_path.exists() or shutil.which(command[0]):
+                        status = {"available": True, "reason": "Binary found"}
+                     else:
+                        status["reason"] = f"Binary not found: {command[0]}"
             else:
-                status["reason"] = "Could not parse binary path"
+                 # String command
+                 match = re.search(r'"([^"]+)"', command)
+                 bin_path = Path(match.group(1)) if match else Path(command)
+
+                 if bin_path.exists() or shutil.which(str(command)):
+                    status = {"available": True, "reason": "Binary found"}
+                 else:
+                     status["reason"] = f"Binary not found: {bin_path if bin_path else command}"
 
         elif name == "CytoScnPy (Python)":
             # Check if cytoscnpy module is importable
@@ -262,6 +282,7 @@ def check_tool_availability(tools_config, env=None):
 
 
 def run_benchmark_tool(name, command, cwd=None, env=None):
+    """Run a specific benchmark tool command."""
     print(f"\n[+] Running {name}...")
     print(f"    Command: {command}")
     if not command:
@@ -390,10 +411,14 @@ def run_benchmark_tool(name, command, cwd=None, env=None):
 
 
 class Verification:
+    """Handles verification of tool output against ground truth."""
+
     def __init__(self, ground_truth_path):
+        """Initialize verification with ground truth data."""
         self.ground_truth = self.load_ground_truth(ground_truth_path)
 
     def load_ground_truth(self, path):
+        """Load ground truth assertions from file."""
         path_obj = Path(path)
         truth_set = set()
         self.covered_files = set()
@@ -437,6 +462,8 @@ class Verification:
                     self.covered_files.add(t_file_str)
 
                     for item in content.get("dead_items", []):
+                        if item.get("suppressed"):
+                            continue
                         truth_set.add(
                             (
                                 t_file_str,
@@ -450,7 +477,9 @@ class Verification:
 
         return truth_set
 
-    def parse_tool_output(self, name, output):
+    @staticmethod
+    def parse_tool_output(name, output):
+        """Parse raw output from a tool into structured findings."""
         findings = set()
 
         if name in ["CytoScnPy (Rust)", "CytoScnPy (Python)"]:
@@ -464,6 +493,7 @@ class Verification:
                     "unused_imports": "import",
                     "unused_classes": "class",
                     "unused_variables": "variable",
+                    "unused_parameters": "variable",
                 }
 
                 for key, fallback_type in key_to_fallback_type.items():
@@ -477,6 +507,8 @@ class Verification:
                         # Use def_type from JSON if available (e.g., "method" vs "function")
                         # Fall back to key-based type for backward compatibility
                         type_name = item.get("def_type", fallback_type)
+                        if type_name == "parameter":
+                             type_name = "variable"
                         findings.add((fpath, item.get("line"), type_name, item_name))
             except json.JSONDecodeError as e:
                 print(f"[-] JSON Decode Error for {name}: {e}")
@@ -597,8 +629,16 @@ class Verification:
                             # Actually usually: "F401 'os' imported but unused"
                             msg = parts[3].strip()
                             if "'" in msg:
+                                 obj_name = msg.split("'")[1]
+                                 findings.add((fpath, lineno, "import", obj_name))
+                        elif code == "F841":  # Local variable assigned but never used
+                            msg = parts[3].strip()
+                            if "`" in msg:
+                                obj_name = msg.split("`")[1]
+                                findings.add((fpath, lineno, "variable", obj_name))
+                            elif "'" in msg:
                                 obj_name = msg.split("'")[1]
-                                findings.add((fpath, lineno, "import", obj_name))
+                                findings.add((fpath, lineno, "variable", obj_name))
                     except ValueError:
                         pass
 
@@ -619,7 +659,7 @@ class Verification:
                                 obj_name = msg.split("Unused import ")[1].strip()
 
                         findings.add((fpath, lineno, "import", obj_name))
-                    elif item["symbol"] == "unused-variable":
+                    elif item["symbol"] in ["unused-variable", "unused-argument", "unused-private-member"]:
                         fpath = normalize_path(item["path"])
                         lineno = item["line"]
                         # Extract variable name from message, not obj (obj is enclosing scope)
@@ -629,8 +669,14 @@ class Verification:
                             obj_name = msg.split("'")[1]
                         elif item.get("obj"):
                             obj_name = item["obj"]
+
+                        type_name = "variable"
+                        if item["symbol"] == "unused-argument":
+                             # We could map to 'variable' or 'parameter', our GT uses 'variable' for parameters usually
+                             type_name = "variable"
+
                         if obj_name:
-                            findings.add((fpath, lineno, "variable", obj_name))
+                            findings.add((fpath, lineno, type_name, obj_name))
                     # Pylint has many unused codes
             except json.JSONDecodeError:
                 pass
@@ -650,8 +696,10 @@ class Verification:
                         if "`" in msg:
                             obj_name = msg.split("`")[1]
                             findings.add((fpath, lineno, "import", obj_name))
-                    elif code == "F841":  # Local variable assigned but never used
-                        # Ruff message: "Local variable `x` is assigned but never used"
+                    elif code == "F841" or (code and code.startswith("ARG")) or code == "B007":
+                        # F841: Local variable assigned but never used
+                        # ARG: Unused function argument
+                        # B007: Loop control variable not used within loop body
                         msg = item.get("message", "")
                         if "`" in msg:
                             obj_name = msg.split("`")[1]
@@ -668,8 +716,14 @@ class Verification:
                     obj_name = match.group(1)
                     fpath = normalize_path(match.group(2))
                     lineno = int(match.group(3))
-                    # dead reports functions/variables, we'll assume function
-                    findings.add((fpath, lineno, "function", obj_name))
+                    # dead reports functions/variables
+                    type_hint = match.group(0).lower()
+                    if "called" in type_hint:
+                        type_name = "function"
+                    else:
+                        # "read" often applies to variables
+                        type_name = "variable"
+                    findings.add((fpath, lineno, type_name, obj_name))
 
         elif name == "uncalled":
             # uncalled output format: "file.py: Unused function func_name" (no line number!)
@@ -723,6 +777,7 @@ class Verification:
         return findings
 
     def compare(self, tool_name, tool_output):
+        """Compare tool output against ground truth."""
         findings = self.parse_tool_output(tool_name, tool_output)
 
         # Initialize stats per type
@@ -771,9 +826,9 @@ class Verification:
             for t_item in truth_remaining:
                 t_file, t_line, t_type, t_name = t_item
 
-                # Path matching: compare basenames or check if one path ends with the other
                 f_basename = os.path.basename(f_file)
                 t_basename = os.path.basename(t_file)
+
                 path_match = (
                     (f_basename == t_basename)
                     or f_file.endswith(t_file)
@@ -790,10 +845,13 @@ class Verification:
                     if line_match:
                         # Type matching:
                         # "method" in truth might be reported as "function" by some tools
+                        # Also some tools (dead, uncalled) might report variables or classes as functions
                         type_match = (
                             (f_type == t_type)
                             or (t_type == "method" and f_type == "function")
                             or (t_type == "function" and f_type == "method")
+                            or (f_type == "function" and t_type in ["variable", "class"])
+                            or (f_type == "variable" and t_type == "function") # Some overlaps possible
                         )
 
                         if type_match:
@@ -815,11 +873,12 @@ class Verification:
                     stats[t_type]["TP"] += 1
             else:
                 stats["overall"]["FP"] += 1
-                if stat_type in stats:
+                if stat_type != "overall" and stat_type in stats:
                     stats[stat_type]["FP"] += 1
 
         # Calculate FN (remaining truth items)
         stats["overall"]["FN"] = len(truth_remaining)
+
         for t_item in truth_remaining:
             t_type = t_item[2]
             if t_type in stats:
@@ -847,12 +906,18 @@ class Verification:
                 "Precision": precision,
                 "Recall": recall,
                 "F1": f1,
+                "missed_items": [
+                    f"{t[3]} ({os.path.basename(t[0])}:{t[1]})"
+                    for t in truth_remaining
+                    if t[2] == key or (key == "overall")
+                ],
             }
 
         return results
 
 
 def main():
+    """Main entry point."""
     print("CytoScnPy Benchmark & Verification Utility")
     print("==========================================")
 
@@ -964,6 +1029,10 @@ def main():
         # Fallback to cytoscnpy/target/release
         rust_bin = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy-bin"
 
+    # Second fallback: maybe it was built as 'cytoscnpy'
+    if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
+        rust_bin = project_root / "target" / "release" / "cytoscnpy"
+
     if sys.platform == "win32":
         rust_bin = rust_bin.with_suffix(".exe")
 
@@ -1056,7 +1125,8 @@ def main():
         {
             "name": "dead",
             # dead uses --files regex, not positional path. It runs from CWD.
-            "command": f'cd "{target_dir_str}" && "{sys.executable}" -m dead --files ".*\\.py$"',
+            "command": [sys.executable, "-m", "dead", "--files", ".*\\.py$"],
+            "cwd": target_dir_str,
         },
         {
             "name": "deadcode",
@@ -1089,7 +1159,9 @@ def main():
     # Filter Tools
     tools_to_run = []
     for tool in all_tools:
-        name_lower = tool["name"].lower()
+        # Cast tool to Dict[str, Any] to satisfy type checker
+        tool_dict = cast(Dict[str, Any], tool)
+        name_lower = str(tool_dict["name"]).lower()
 
         # Check Exclude
         if args.exclude:
@@ -1107,18 +1179,36 @@ def main():
         print("[-] No tools selected to run.")
         return
 
+    # Check tool availability and filter
+    availability = check_tool_availability(tools_to_run, env)
+    tools_to_run = [
+        t
+        for t in tools_to_run
+        if availability.get(t["name"], {}).get("available", False)
+    ]
+
+    if not tools_to_run:
+        print("[-] No available tools to run.")
+        return
+
     # Build Rust project ONLY if we are running CytoScnPy (Rust)
     run_rust_build = any("CytoScnPy (Rust)" in t["name"] for t in tools_to_run)
 
     if run_rust_build:
         print("\n[+] Building Rust project...")
-        cargo_toml = project_root / "cytoscnpy" / "Cargo.toml"
+        cargo_toml = project_root / "Cargo.toml"
         if not cargo_toml.exists():
-            print(f"[-] Cargo.toml not found at {cargo_toml}")
+            # Fallback to sub-directory if not in root
+            cargo_toml = project_root / "cytoscnpy" / "Cargo.toml"
+
+        if not cargo_toml.exists():
+            print(f"[-] Cargo.toml not found in {project_root} or {project_root/'cytoscnpy'}")
             return
 
-        build_cmd = f'cargo build --release --manifest-path "{cargo_toml}"'
-        subprocess.run(build_cmd, shell=True, check=True)
+        build_cmd = ["cargo", "build", "--release", "-p", "cytoscnpy"]
+        if cargo_toml.parent != project_root:
+             build_cmd.extend(["--manifest-path", str(cargo_toml)])
+        subprocess.run(build_cmd, shell=False, check=True)
         print("[+] Rust build successful.")
 
         # Check binary again after build
@@ -1135,7 +1225,12 @@ def main():
 
     for tool in tools_to_run:
         if tool["command"]:
-            res = run_benchmark_tool(tool["name"], tool["command"], env=tool.get("env"))
+            res = run_benchmark_tool(
+                tool["name"],
+                tool["command"],
+                cwd=tool.get("cwd"),
+                env=tool.get("env"),
+            )
             if res:
                 results.append(res)
                 # Verify
@@ -1201,7 +1296,8 @@ def main():
             "f1_score": v_res["overall"]["F1"] if v_res else 0.0,  # Use overall F1
             "stats": v_res if v_res else {},
         }
-        final_report["results"].append(entry)
+        # Cast results list to append
+        cast(List[Dict[str, Any]], final_report["results"]).append(entry)
 
     # Save JSON if requested
     if args.save_json:
@@ -1217,7 +1313,7 @@ def main():
         print(f"\n[+] Comparing against baseline: {args.compare_json}")
         try:
             with open(args.compare_json, "r") as f:
-                baseline = json.load(f)
+                baseline = json.load(f)  # type: ignore
 
             if "platform" in baseline and baseline["platform"] != sys.platform:
                 print(
@@ -1226,12 +1322,20 @@ def main():
 
             cytoscnpy_regressions = []
             other_regressions = []
-            for current in final_report["results"]:
+            # Cast to List[Dict] to help type checker know elements are dicts
+            results_list = cast(List[Dict[str, Any]], final_report["results"])
+            for current_item in results_list:
+                # Ensure current is treated as a dict
+                current = current_item
                 # specific tool matching
-                base = next(
-                    (b for b in baseline["results"] if b["name"] == current["name"]),
-                    None,
-                )
+                try:
+                    base = next(
+                        (b for b in baseline.get("results", []) if b.get("name") == current["name"]),
+                        None,
+                    )
+                except Exception:
+                    continue
+
                 if not base:
                     print(f"    [?] New tool found (no baseline): {current['name']}")
                     continue

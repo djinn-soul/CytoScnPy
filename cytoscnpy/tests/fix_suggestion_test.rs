@@ -1,7 +1,9 @@
 //! Tests for `FixSuggestion` struct and related functionality.
 //! TDD: These tests are written BEFORE the implementation.
 
-/// Test that `FixSuggestion` struct serializes correctly to JSON.
+// Test-specific lint suppressions
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 #[test]
 fn test_fix_suggestion_serialization() {
     // This test will fail until we implement FixSuggestion
@@ -48,18 +50,26 @@ fn test_definition_with_fix() {
         file: Arc::new(PathBuf::from("test.py")),
         line: 10,
         end_line: 10,
+        col: 0,
         start_byte: 0,
         end_byte: 0,
         confidence: 100,
         references: 0,
         is_exported: false,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: Some("unused function".to_owned()),
-        fix: Some(FixSuggestion::deletion(50, 100)),
+        fix: Some(Box::new(FixSuggestion::deletion(50, 100))),
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
+        is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     };
 
     assert!(def.fix.is_some());
@@ -83,18 +93,26 @@ fn test_definition_without_fix_serializes() {
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
         end_line: 5,
+        col: 0,
         start_byte: 0,
         end_byte: 0,
         confidence: 100,
         references: 3,
         is_exported: true,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: None,
         fix: None,
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
+        is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");
@@ -118,22 +136,30 @@ fn test_definition_with_fix_serializes() {
         file: Arc::new(PathBuf::from("test.py")),
         line: 20,
         end_line: 20,
+        col: 0,
         start_byte: 0,
         end_byte: 0,
         confidence: 100,
         references: 0,
         is_exported: false,
         in_init: false,
+        is_framework_managed: false,
         base_classes: smallvec::smallvec![],
         is_type_checking: false,
+        is_captured: false,
         cell_number: None,
         is_self_referential: false,
         message: Some("unused function".to_owned()),
-        fix: Some(FixSuggestion {
+        fix: Some(Box::new(FixSuggestion {
             start_byte: 200,
             end_byte: 350,
             replacement: String::new(),
-        }),
+        })),
+        is_enum_member: false,
+        is_constant: false,
+        is_potential_secret: false,
+        is_unreachable: false,
+        category: cytoscnpy::visitor::UnusedCategory::default(),
     };
 
     let json = serde_json::to_string(&def).expect("should serialize");

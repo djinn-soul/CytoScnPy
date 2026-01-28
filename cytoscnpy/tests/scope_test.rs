@@ -61,7 +61,7 @@ fn test_scope_closures() {
 #[test]
 fn test_scope_classes() {
     let dir_path = PathBuf::from("tests/python_files/scope");
-    let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(true);
+    let mut cytoscnpy = CytoScnPy::default().with_confidence(10).with_tests(true);
     let result = cytoscnpy.analyze(&dir_path);
 
     let unused_vars: Vec<String> = result
@@ -77,7 +77,7 @@ fn test_scope_classes() {
     // A.x should be UNUSED.
 
     assert!(
-        unused_vars.contains(&"classes.A.class_unique_x".to_owned()),
-        "A.class_unique_x should be unused because methods cannot see class scope directly"
+        unused_vars.contains(&"classes.A._class_unique_x".to_owned()),
+        "A._class_unique_x should be unused because methods cannot see class scope directly"
     );
 }

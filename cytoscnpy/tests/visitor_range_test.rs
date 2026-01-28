@@ -45,7 +45,7 @@ class Bar:
         .find(|d| d.simple_name == "foo")
         .expect("foo function not found");
 
-    let foo_start = code.find("def foo(x):").unwrap();
+    let foo_start = code.find("foo(x)").unwrap();
     assert_eq!(
         func_foo.start_byte, foo_start,
         "Function 'foo' start byte mismatch"
@@ -64,8 +64,9 @@ class Bar:
     );
     let fix = func_foo.fix.as_ref().unwrap();
     assert_eq!(
-        fix.start_byte, func_foo.start_byte,
-        "Fix start byte mismatch"
+        fix.start_byte,
+        code.find("def foo(x):").unwrap(),
+        "Fix should start at 'def', coverage: full definition"
     );
     assert_eq!(fix.end_byte, func_foo.end_byte, "Fix end byte mismatch");
     assert_eq!(
@@ -80,7 +81,7 @@ class Bar:
         .find(|d| d.simple_name == "Bar")
         .expect("Bar class not found");
 
-    let bar_start = code.find("class Bar:").unwrap();
+    let bar_start = code.find("Bar:").unwrap();
     assert_eq!(
         class_bar.start_byte, bar_start,
         "Class 'Bar' start byte mismatch"
@@ -99,7 +100,8 @@ class Bar:
     );
     let fix_cls = class_bar.fix.as_ref().unwrap();
     assert_eq!(
-        fix_cls.start_byte, class_bar.start_byte,
+        fix_cls.start_byte,
+        code.find("class Bar:").unwrap(),
         "Class fix start byte mismatch"
     );
     assert_eq!(
@@ -114,7 +116,7 @@ class Bar:
         .find(|d| d.simple_name == "baz")
         .expect("baz method not found");
 
-    let method_baz_start = code.find("def baz(self):").unwrap();
+    let method_baz_start = code.find("baz(self)").unwrap();
     assert_eq!(
         method_baz.start_byte, method_baz_start,
         "Method 'baz' start byte mismatch"
@@ -131,7 +133,8 @@ class Bar:
     );
     let fix_meth = method_baz.fix.as_ref().unwrap();
     assert_eq!(
-        fix_meth.start_byte, method_baz.start_byte,
+        fix_meth.start_byte,
+        code.find("def baz(self):").unwrap(),
         "Method fix start byte mismatch"
     );
     assert_eq!(

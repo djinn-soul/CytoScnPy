@@ -48,7 +48,6 @@ fn test_invalid_python_syntax_produces_parse_error() {
         vec![],
         false, // include_ipynb
         false, // ipynb_cells
-        false, // taint
         Config::default(),
     );
 
@@ -83,7 +82,6 @@ fn test_analysis_continues_with_parse_errors() {
         false,
         vec![],
         vec![],
-        false,
         false,
         false,
         Config::default(),
@@ -121,7 +119,6 @@ fn test_parse_error_contains_file_path() {
         vec![],
         false,
         false,
-        false,
         Config::default(),
     );
 
@@ -155,7 +152,6 @@ fn test_empty_python_file() {
         vec![],
         false,
         false,
-        false,
         Config::default(),
     );
 
@@ -182,7 +178,6 @@ fn test_file_with_only_comments() {
         false,
         vec![],
         vec![],
-        false,
         false,
         false,
         Config::default(),
@@ -215,7 +210,6 @@ fn test_unicode_in_python_file() {
         false,
         vec![],
         vec![],
-        false,
         false,
         false,
         Config::default(),
@@ -258,7 +252,6 @@ class Outer:
         vec![],
         false,
         false,
-        false,
         Config::default(),
     );
 
@@ -296,7 +289,6 @@ fn test_analysis_summary_counts_files() {
         vec![],
         false,
         false,
-        false,
         Config::default(),
     );
 
@@ -323,7 +315,6 @@ fn test_analysis_paths_with_single_file() {
         false,
         vec![],
         vec![],
-        false,
         false,
         false,
         Config::default(),

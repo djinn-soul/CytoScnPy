@@ -43,6 +43,17 @@ pub fn run_raw<W: Write>(
     let results: Vec<RawResult> = files
         .par_iter()
         .map(|file_path| {
+            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+                return RawResult {
+                    file: String::new(),
+                    loc: 0,
+                    lloc: 0,
+                    sloc: 0,
+                    comments: 0,
+                    multi: 0,
+                    blank: 0,
+                };
+            }
             let code = fs::read_to_string(file_path).unwrap_or_default();
             let metrics = analyze_raw(&code);
             RawResult {

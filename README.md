@@ -1,6 +1,6 @@
 # CytoScnPy - High-Performance Python Static Analysis
 
-[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml)
+[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml)
 [![Coverage](https://github.com/djinn09/CytoScnPy/actions/workflows/coverage.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/coverage.yml)
 [![codecov](https://codecov.io/gh/djinn09/CytoScnPy/branch/main/graph/badge.svg)](https://codecov.io/gh/djinn09/CytoScnPy)
 [![Security Audit](https://github.com/djinn09/CytoScnPy/actions/workflows/security.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/security.yml)

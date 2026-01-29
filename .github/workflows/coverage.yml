@@ -11,7 +11,7 @@ concurrency:
 jobs:
   coverage:
     name: Generate Code Coverage
-    uses: ./.github/workflows/rust-llvm-cov.yml
+    uses: ./.github/workflows/coverage-validation.yml
     with:
       workspaces: "cytoscnpy -> target"
       working-directory: cytoscnpy

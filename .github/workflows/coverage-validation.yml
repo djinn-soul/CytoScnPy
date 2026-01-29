@@ -71,7 +71,6 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Install Python dependencies
-        if: inputs.run-python-coverage
         run: pip install -e ".[dev]"
 
       - name: Generate coverage
@@ -113,7 +112,7 @@ jobs:
 
       - name: Verify Output Formats
         run: |
-          BIN="./target/debug/cytoscnpy-bin"
+          BIN="python -m cytoscnpy.cli"
 
           echo "### CytoScnPy Analysis Report" >> $GITHUB_STEP_SUMMARY
 
@@ -145,14 +144,8 @@ jobs:
             gitlab.json
             output.json
 
-      - name: Ensure SARIF artifact exists
-        run: |
-          if [ ! -f results.sarif ]; then
-            echo "{}" > results.sarif
-          fi
-
       - name: Upload SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: success() || failure()
         with:
           sarif_file: results.sarif

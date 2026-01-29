@@ -41,7 +41,7 @@ def load_cytoscnpy_output(target_dir):
         capture_output=True,
         text=True,
     )
-    
+
     if not result.stdout:
         print(f"Error: No output from tool. Stderr: {result.stderr}")
         return {}
@@ -99,7 +99,7 @@ def match_items(finding_key, truth_keys):
         # Name match
         f_simple = f_name.split(".")[-1]
         t_simple = t_name.split(".")[-1]
-        
+
         # Determine if we have a match
         is_match = False
         if f_simple == t_simple:
@@ -109,10 +109,10 @@ def match_items(finding_key, truth_keys):
                     is_match = True
             else:
                  is_match = True
-        
+
         if not is_match:
             continue
-            
+
         return t_key
 
     return None
@@ -150,7 +150,7 @@ def main():
 
     for f_key in filtered_findings:
         match = match_items(f_key, truth.keys())
-        
+
         if match:
             matched_truth.add(match)
             matched_findings.add(f_key)

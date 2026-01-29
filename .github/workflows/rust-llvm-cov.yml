@@ -88,6 +88,9 @@ jobs:
         if: inputs.run-python-coverage
         run: |
           pytest ${{ inputs.python-tests-path }} -v --cov=${{ inputs.python-coverage-package }} --cov-report=lcov:python-lcov.info
+          if [ ! -f python-lcov.info ]; then
+            echo "TN: pytest-cov did not collect any data; creating placeholder." > python-lcov.info
+          fi
           cat python-lcov.info >> ${{ inputs.lcov-output-path }}
 
       - name: Generate Python coverage summary

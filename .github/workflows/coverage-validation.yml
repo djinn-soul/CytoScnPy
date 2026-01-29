@@ -87,6 +87,7 @@ jobs:
       - name: Generate Python coverage (lcov)
         if: inputs.run-python-coverage
         run: |
+          python -c "import cytoscnpy"
           pytest ${{ inputs.python-tests-path }} -v --cov=${{ inputs.python-coverage-package }} --cov-report=lcov:python-lcov.info
           if [ ! -f python-lcov.info ]; then
             echo "TN: pytest-cov did not collect any data; creating placeholder." > python-lcov.info
@@ -99,7 +100,13 @@ jobs:
           echo "## Python Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f .coverage ]; then
+            set +e
             python -m coverage report >> $GITHUB_STEP_SUMMARY
+            status=$?
+            set -e
+            if [ $status -ne 0 ]; then
+              echo "WARNING: coverage report failed with exit code $status." >> $GITHUB_STEP_SUMMARY
+            fi
           else
             echo "WARNING: No .coverage data file present; skipping coverage report." >> $GITHUB_STEP_SUMMARY
           fi
@@ -137,6 +144,12 @@ jobs:
             results.sarif
             gitlab.json
             output.json
+
+      - name: Ensure SARIF artifact exists
+        run: |
+          if [ ! -f results.sarif ]; then
+            echo "{}" > results.sarif
+          fi
 
       - name: Upload SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3

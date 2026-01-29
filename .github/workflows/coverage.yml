@@ -3,6 +3,8 @@ name: Code Coverage
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,7 +23,7 @@ jobs:
       run-python-coverage: true
       python-tests-path: python/tests
       python-coverage-package: cytoscnpy
-      upload-codecov: true
+      upload-codecov: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       upload-artifacts: true
       artifact-name: coverage-report
     secrets: inherit

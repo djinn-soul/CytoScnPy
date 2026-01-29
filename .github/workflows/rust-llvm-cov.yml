@@ -98,7 +98,11 @@ jobs:
         run: |
           echo "## Python Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          python -m coverage report >> $GITHUB_STEP_SUMMARY
+          if [ -f .coverage ]; then
+            python -m coverage report >> $GITHUB_STEP_SUMMARY
+          else
+            echo "WARNING: No .coverage data file present; skipping coverage report." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Generate workflow summary
         run: |

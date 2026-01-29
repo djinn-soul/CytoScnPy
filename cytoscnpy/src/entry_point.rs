@@ -1337,6 +1337,7 @@ fn handle_analysis<W: std::io::Write>(
         exit_code = 1;
     }
 
+    writer.flush()?;
     Ok(exit_code)
 }
 

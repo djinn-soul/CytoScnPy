@@ -90,3 +90,4 @@ htmlcov/
 security_example/
 security_stats_report.md
 lcov.info
+benchmark/test_*

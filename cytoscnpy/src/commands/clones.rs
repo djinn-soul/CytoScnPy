@@ -18,6 +18,7 @@ use std::path::PathBuf;
 /// Options for clone detection
 #[derive(Debug, Default)]
 #[allow(clippy::struct_excessive_bools)]
+#[derive(Clone)]
 pub struct CloneOptions {
     /// Minimum similarity threshold (0.0-1.0)
     pub similarity: f64,
@@ -33,6 +34,8 @@ pub struct CloneOptions {
     pub verbose: bool,
     /// Use CST for precise fixing (comment preservation)
     pub with_cst: bool,
+    /// Progress bar for tracking progress
+    pub progress_bar: Option<std::sync::Arc<indicatif::ProgressBar>>,
 }
 
 /// Generates context-aware refactoring suggestions for clone findings.
@@ -113,7 +116,10 @@ pub fn run_clones<W: Write>(
 
     // Use OOM-safe detection - processes files in chunks
     let config = CloneConfig::default().with_min_similarity(options.similarity);
-    let detector = CloneDetector::with_config(config);
+    let mut detector = CloneDetector::with_config(config);
+    if let Some(ref pb) = options.progress_bar {
+        detector.progress_bar = Some(pb.clone());
+    }
     let result = detector.detect_from_paths(&file_paths);
 
     if !options.json && options.verbose {
@@ -134,6 +140,11 @@ pub fn run_clones<W: Write>(
 
     let findings = generate_clone_findings(&result.pairs, &matched_files, options.with_cst);
 
+    // Finish progress bar before printing results to ensure clean output
+    if let Some(ref pb) = options.progress_bar {
+        pb.finish_and_clear();
+    }
+
     if options.json {
         let output = serde_json::to_string_pretty(&findings)?;
         writeln!(writer, "{output}")?;
@@ -153,8 +164,15 @@ pub fn run_clones<W: Write>(
                 "Suggestion",
             ]);
 
+        let display_limit = 100;
+        let mut count = 0;
         for finding in &findings {
             if finding.is_duplicate {
+                count += 1;
+                if count > display_limit {
+                    continue;
+                }
+
                 let type_str = finding.clone_type.display_name();
                 let name = finding
                     .name
@@ -190,6 +208,16 @@ pub fn run_clones<W: Write>(
         }
 
         writeln!(writer, "{table}")?;
+
+        if findings.len() / 2 > display_limit {
+            writeln!(
+                writer,
+                "\n{} Showing first {} results. Use --json to see all {} clone pairs.",
+                "Note:".yellow().bold(),
+                display_limit,
+                findings.len() / 2
+            )?;
+        }
     }
 
     if options.fix {

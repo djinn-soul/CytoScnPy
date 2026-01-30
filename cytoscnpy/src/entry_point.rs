@@ -855,6 +855,7 @@ fn handle_analysis<W: std::io::Write>(
                 | crate::cli::OutputFormat::Github
                 | crate::cli::OutputFormat::Markdown
         );
+    let start_time = std::time::Instant::now();
 
     if !is_structured {
         crate::output::print_exclusion_list(writer, &exclude_folders).ok();
@@ -914,9 +915,12 @@ fn handle_analysis<W: std::io::Write>(
         analyzer.progress_bar = Some(std::sync::Arc::new(pb.clone()));
     }
 
-    let start_time = std::time::Instant::now();
-
     let mut result = analyzer.analyze_paths(effective_paths);
+
+    // Finish current progress bar before printing findings
+    if let Some(p) = progress {
+        p.finish_and_clear();
+    }
 
     // If --no-dead flag is set, clear dead code detection results
     // (only show security/quality scans)
@@ -927,10 +931,6 @@ fn handle_analysis<W: std::io::Write>(
         result.unused_imports.clear();
         result.unused_variables.clear();
         result.unused_parameters.clear();
-    }
-
-    if let Some(p) = progress {
-        p.finish_and_clear();
     }
 
     // Print verbose timing info
@@ -1110,12 +1110,24 @@ fn handle_analysis<W: std::io::Write>(
                 dry_run: !cli_var.apply,
                 exclude: exclude_folders.clone().into_iter().collect(),
                 verbose: cli_var.output.verbose,
-                with_cst: true, // CST is always enabled by default
+                with_cst: true,     // CST is always enabled by default
+                progress_bar: None, // Will be set specifically if needed
             };
 
             let (count, findings) = if cli_var.clones && !is_structured {
+                // Create a fresh progress bar for clone detection to avoid mixing with analysis progress
+                let clone_pb = crate::output::create_progress_bar(0); // Length set by detector
+                let pb_arc = std::sync::Arc::new(clone_pb);
+
+                let mut options_with_pb = clone_options.clone();
+                options_with_pb.progress_bar = Some(pb_arc.clone());
+
                 // Explicit run with Text output: print to stdout
-                crate::commands::run_clones(effective_paths, &clone_options, &mut *writer)?
+                let res =
+                    crate::commands::run_clones(effective_paths, &options_with_pb, &mut *writer)?;
+
+                pb_arc.finish_and_clear();
+                res
             } else {
                 // Structured output (JSON/SARIF/etc) OR implicit run: suppress stdout table
                 // We likely want the findings for the report, but NOT the text table.

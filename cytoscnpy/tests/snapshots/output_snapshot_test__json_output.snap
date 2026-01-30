@@ -1,6 +1,6 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 118
+assertion_line: 122
 expression: output
 ---
 {
@@ -17,6 +17,7 @@ expression: output
       "start_byte": 27,
       "end_byte": 66,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,
@@ -33,7 +34,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     }
   ],
   "unused_methods": [],
@@ -50,6 +52,7 @@ expression: output
       "start_byte": 8,
       "end_byte": 10,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,
@@ -66,7 +69,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     },
     {
       "name": "sys",
@@ -80,6 +84,7 @@ expression: output
       "start_byte": 18,
       "end_byte": 21,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,
@@ -96,7 +101,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     }
   ],
   "unused_classes": [],
@@ -113,6 +119,7 @@ expression: output
       "start_byte": 84,
       "end_byte": 94,
       "confidence": 100,
+      "category": "DefinitelyUnused",
       "references": 0,
       "is_exported": true,
       "in_init": false,
@@ -129,7 +136,8 @@ expression: output
       },
       "is_enum_member": false,
       "is_constant": false,
-      "is_potential_secret": false
+      "is_potential_secret": false,
+      "is_unreachable": false
     }
   ],
   "unused_parameters": [],

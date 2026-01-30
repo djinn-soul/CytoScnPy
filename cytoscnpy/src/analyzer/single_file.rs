@@ -1,6 +1,6 @@
 //! Single file analysis logic.
 
-use super::{AnalysisResult, AnalysisSummary, CytoScnPy, ParseError};
+use super::{AnalysisResult, AnalysisSummary, CytoScnPy, FileAnalysisResult, ParseError};
 #[cfg(feature = "cfg")]
 use crate::cfg::flow::analyze_reaching_definitions;
 #[cfg(feature = "cfg")]
@@ -9,8 +9,9 @@ use crate::framework::FrameworkAwareVisitor;
 use crate::halstead::{analyze_halstead, HalsteadMetrics};
 use crate::metrics::mi_compute;
 use crate::raw_metrics::{analyze_raw, RawMetrics};
-use crate::rules::secrets::{scan_secrets, SecretFinding};
+use crate::rules::secrets::scan_secrets;
 use crate::rules::Finding;
+use crate::taint::call_graph::CallGraph;
 use crate::test_utils::TestAwareVisitor;
 use crate::utils::LineIndex;
 use crate::visitor::{CytoScnPyVisitor, Definition};
@@ -28,25 +29,7 @@ impl CytoScnPy {
     /// Used by the directory traversal for high-performance scanning.
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
     #[must_use]
-    pub fn process_single_file(
-        &self,
-        file_path: &Path,
-        root_path: &Path,
-    ) -> (
-        Vec<Definition>,
-        FxHashMap<String, usize>,
-        FxHashMap<String, FxHashSet<String>>, // Protocol methods
-        Vec<SecretFinding>,
-        Vec<Finding>,
-        Vec<Finding>,
-        Vec<ParseError>,
-        usize,
-        RawMetrics,
-        HalsteadMetrics,
-        f64,
-        f64,
-        usize, // File size in bytes
-    ) {
+    pub fn process_single_file(&self, file_path: &Path, root_path: &Path) -> FileAnalysisResult {
         let is_notebook = file_path.extension().is_some_and(|e| e == "ipynb");
 
         if let Some(delay_ms) = self.debug_delay_ms {
@@ -60,23 +43,9 @@ impl CytoScnPy {
             match crate::ipynb::extract_notebook_code(file_path, Some(&self.analysis_root)) {
                 Ok(code) => code,
                 Err(e) => {
-                    return (
-                        Vec::new(),
-                        FxHashMap::default(),
-                        FxHashMap::default(), // protocol methods
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        vec![ParseError {
-                            file: file_path.to_path_buf(),
-                            error: format!("Failed to parse notebook: {e}"),
-                        }],
-                        0,
-                        RawMetrics::default(),
-                        HalsteadMetrics::default(),
-                        0.0,
-                        0.0,
-                        0,
+                    return FileAnalysisResult::error(
+                        file_path,
+                        format!("Failed to parse notebook: {e}"),
                     );
                 }
             }
@@ -84,23 +53,9 @@ impl CytoScnPy {
             match fs::read_to_string(file_path) {
                 Ok(code) => code,
                 Err(e) => {
-                    return (
-                        Vec::new(),
-                        FxHashMap::default(),
-                        FxHashMap::default(), // protocol methods
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        vec![ParseError {
-                            file: file_path.to_path_buf(),
-                            error: format!("Failed to read file: {e}"),
-                        }],
-                        0,
-                        RawMetrics::default(),
-                        HalsteadMetrics::default(),
-                        0.0,
-                        0.0,
-                        0,
+                    return FileAnalysisResult::error(
+                        file_path,
+                        format!("Failed to read file: {e}"),
                     );
                 }
             }
@@ -140,6 +95,7 @@ impl CytoScnPy {
         let mut danger = Vec::new();
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
+        let mut call_graph = CallGraph::new();
 
         match parse_module(&source) {
             Ok(parsed) => {
@@ -158,6 +114,8 @@ impl CytoScnPy {
                         Some(&docstring_lines),
                     );
                 }
+
+                call_graph.build_from_module(&module.body, &module_name);
 
                 let entry_point_calls = crate::entry_point::detect_entry_point_calls(&module.body);
 
@@ -295,44 +253,7 @@ impl CytoScnPy {
                 }
 
                 // 2. Dynamic code handling
-                // 2. Dynamic code handling
-                let any_dynamic = !visitor.dynamic_scopes.is_empty();
-                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
-
-                for def in &mut visitor.definitions {
-                    // 1. Global eval affects everything (conservative)
-                    if module_is_dynamic {
-                        def.references += 1;
-                        continue;
-                    }
-
-                    // 2. Any local eval affects module-level variables (globals)
-                    // We explicitly SKIP secrets here (don't mark them as used).
-                    // Why: Even if `eval` exists, a hardcoded secret identifying as "unused" is highly suspicious
-                    // and should be reported to the user rather than suppressed by dynamic code heuristics.
-                    if any_dynamic && !def.is_potential_secret {
-                        if let Some(idx) = def.full_name.rfind('.') {
-                            if def.full_name[..idx] == module_name {
-                                def.references += 1;
-                                continue;
-                            }
-                        }
-                    }
-
-                    // 3. Scoped eval usage (locals)
-                    for scope in &visitor.dynamic_scopes {
-                        if def.full_name.starts_with(scope) {
-                            let scope_len = scope.len();
-                            // Ensure boundary match
-                            if def.full_name.len() > scope_len
-                                && def.full_name.as_bytes()[scope_len] == b'.'
-                            {
-                                def.references += 1;
-                                break;
-                            }
-                        }
-                    }
-                }
+                // 2. Dynamic code handling removed (logic moved to heuristics for scoring)
 
                 // 3. Flow-sensitive refinement
                 #[cfg(feature = "cfg")]
@@ -350,6 +271,8 @@ impl CytoScnPy {
                         &test_visitor,
                         &ignored_lines,
                         self.include_tests,
+                        &visitor.dynamic_scopes,
+                        &module_name,
                     );
                     apply_heuristics(def);
 
@@ -389,15 +312,15 @@ impl CytoScnPy {
                         ) {
                             continue;
                         }
-                        if finding.rule_id.starts_with("CSP-D") {
+                        if finding.rule_id.starts_with("CSP-D")
+                            || finding.rule_id.starts_with("CSP-X")
+                        {
                             danger.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
-                            || finding.category == "Best Practices"
-                            || finding.category == "Maintainability"
+                            || finding.rule_id.starts_with("CSP-P")
                         {
-                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality.push(finding);
                         }
                     }
@@ -490,7 +413,7 @@ impl CytoScnPy {
                                 message: format!(
                                     "Maintainability Index too low ({file_mi:.2} < {min_mi:.2})"
                                 ),
-                                rule_id: "CSP-Q303".to_owned(),
+                                rule_id: crate::rules::ids::RULE_ID_MIN_MI.to_owned(),
                                 category: "Maintainability".to_owned(),
                                 file: file_path.to_path_buf(),
                                 line: 1,
@@ -523,25 +446,26 @@ impl CytoScnPy {
             pb.inc(1);
         }
 
-        (
-            visitor.definitions,
-            visitor.references,
-            visitor.protocol_methods,
+        FileAnalysisResult {
+            definitions: visitor.definitions,
+            references: visitor.references,
+            protocol_methods: visitor.protocol_methods,
             secrets,
             danger,
             quality,
             parse_errors,
-            source.lines().count(),
-            if self.enable_quality {
+            line_count: source.lines().count(),
+            raw_metrics: if self.enable_quality {
                 analyze_raw(&source)
             } else {
                 RawMetrics::default()
             },
-            HalsteadMetrics::default(), // Computed later if needed
-            file_complexity,
-            file_mi,
+            halstead_metrics: HalsteadMetrics::default(), // Computed later if needed
+            complexity: file_complexity,
+            mi: file_mi,
             file_size,
-        )
+            call_graph,
+        }
     }
 
     /// Analyzes a single string of code (mostly for testing).
@@ -666,35 +590,7 @@ impl CytoScnPy {
                     }
                 }
 
-                // 1.5. Dynamic code handling
-                let any_dynamic = !visitor.dynamic_scopes.is_empty();
-                let module_is_dynamic = visitor.dynamic_scopes.contains(&module_name);
-
-                for def in &mut visitor.definitions {
-                    if module_is_dynamic {
-                        def.references += 1;
-                        continue;
-                    }
-                    if any_dynamic {
-                        if let Some(idx) = def.full_name.rfind('.') {
-                            if def.full_name[..idx] == module_name {
-                                def.references += 1;
-                                continue;
-                            }
-                        }
-                    }
-                    for scope in &visitor.dynamic_scopes {
-                        if def.full_name.starts_with(scope) {
-                            let scope_len = scope.len();
-                            if def.full_name.len() > scope_len
-                                && def.full_name.as_bytes()[scope_len] == b'.'
-                            {
-                                def.references += 1;
-                                break;
-                            }
-                        }
-                    }
-                }
+                // 1.5. Dynamic code handling removed (logic moved to heuristics for scoring)
 
                 #[cfg(feature = "cfg")]
                 Self::refine_flow_sensitive(
@@ -710,6 +606,8 @@ impl CytoScnPy {
                         &test_visitor,
                         &ignored_lines,
                         self.include_tests,
+                        &visitor.dynamic_scopes,
+                        &module_name,
                     );
                     apply_heuristics(def);
                 }
@@ -735,24 +633,54 @@ impl CytoScnPy {
                 // 2. Identification of implicit implementations
                 // Heuristic for Duck Typing / Implicit Interfaces:
                 // We assume a class implements a protocol/interface if it matches a significant portion of its methods.
-                // - Thresholds: At least 3 matching methods AND >= 70% overlap.
-                // - Why: This reduces false positives where classes share 1-2 common method names (like "get" or "save")
-                //   but aren't truly interchangeable, while correctly catching implementation-heavy patterns
-                //   without explicit inheritance.
+                //
+                // Optimization: Instead of checking every class against every protocol (O(C * P)),
+                // we build an inverted index matching MethodName -> List<ProtocolName>.
+                // This allows us to only check relevant protocols for each class.
+
+                let mut method_to_protocols: rustc_hash::FxHashMap<String, Vec<&String>> =
+                    rustc_hash::FxHashMap::default();
+                for (proto_name, methods) in &visitor.protocol_methods {
+                    for method in methods {
+                        method_to_protocols
+                            .entry(method.clone())
+                            .or_default()
+                            .push(proto_name);
+                    }
+                }
+
                 let mut implicitly_used_methods: rustc_hash::FxHashSet<String> =
                     rustc_hash::FxHashSet::default();
 
                 for (class_name, methods) in &class_methods {
-                    for proto_methods in visitor.protocol_methods.values() {
-                        let intersection_count = methods.intersection(proto_methods).count();
-                        let proto_len = proto_methods.len();
+                    // Find candidate protocols that share AT LEAST ONE method with this class
+                    let mut candidate_protocols: rustc_hash::FxHashSet<&String> =
+                        rustc_hash::FxHashSet::default();
 
-                        if proto_len > 0 && intersection_count >= 3 {
-                            let ratio = intersection_count as f64 / proto_len as f64;
-                            if ratio >= 0.7 {
-                                for method in methods.intersection(proto_methods) {
-                                    implicitly_used_methods
-                                        .insert(format!("{class_name}.{method}"));
+                    for method in methods {
+                        if let Some(protos) = method_to_protocols.get(method) {
+                            for proto in protos {
+                                candidate_protocols.insert(proto);
+                            }
+                        }
+                    }
+
+                    for proto_name in candidate_protocols {
+                        if *class_name == **proto_name {
+                            continue;
+                        }
+                        if let Some(proto_methods) = visitor.protocol_methods.get(proto_name) {
+                            let intersection_count = methods.intersection(proto_methods).count();
+                            let proto_len = proto_methods.len();
+
+                            // Heuristic: At least 3 matching methods AND >= 70% overlap
+                            if proto_len > 0 && intersection_count >= 3 {
+                                let ratio = intersection_count as f64 / proto_len as f64;
+                                if ratio >= 0.7 {
+                                    for method in methods.intersection(proto_methods) {
+                                        implicitly_used_methods
+                                            .insert(format!("{class_name}.{method}"));
+                                    }
                                 }
                             }
                         }
@@ -813,17 +741,15 @@ impl CytoScnPy {
                             }
                         }
 
-                        if finding.rule_id.starts_with("CSP-D") {
+                        if finding.rule_id.starts_with("CSP-D")
+                            || finding.rule_id.starts_with("CSP-X")
+                        {
                             danger_res.push(finding);
                         } else if finding.rule_id.starts_with("CSP-Q")
                             || finding.rule_id.starts_with("CSP-L")
                             || finding.rule_id.starts_with("CSP-C")
-                            || finding.category == "Best Practices"
-                            || finding.category == "Maintainability"
+                            || finding.rule_id.starts_with("CSP-P")
                         {
-                            // Route "Maintainability" issues (like low MI score) to the quality report.
-                            // This ensures they are grouped with other code quality metrics rather than security vulnerabilities.
-                            // TODO: (Temporary fix) Route by category until Quality Rule IDs are finalized.
                             quality_res.push(finding);
                         }
                     }

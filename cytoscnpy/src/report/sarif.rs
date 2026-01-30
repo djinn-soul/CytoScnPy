@@ -157,7 +157,7 @@ pub fn print_sarif_with_root(
 
     let log = SarifLog {
         version: "2.1.0".to_owned(),
-        schema: "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json".to_owned(),
+        schema: "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json".to_owned(),
         runs: vec![Run {
             tool: Tool {
                 driver: Driver {
@@ -280,7 +280,7 @@ fn make_sarif_result(
         rule_id: id.to_owned(),
         level: level.into(),
         message: Message {
-            text: msg.to_owned(),
+            text: format!("{msg} ({uri}:{line})"),
         },
         locations: vec![Location {
             physical_location: PhysicalLocation {

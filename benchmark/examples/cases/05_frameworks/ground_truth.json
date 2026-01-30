@@ -40,6 +40,12 @@
           "name": "Any",
           "line_start": 3,
           "reason": "Imported but not used"
+        },
+        {
+          "type": "import",
+          "name": "Depends",
+          "line_start": 1,
+          "reason": "Imported but never used in the file"
         }
       ]
     },
@@ -64,8 +70,8 @@
         {
           "type": "function",
           "name": "unused_processor",
-          "line_start": 43,
-          "reason": "Marked as dead in comments"
+          "line_start": 44,
+          "reason": "Function defined but never called"
         }
       ]
     }

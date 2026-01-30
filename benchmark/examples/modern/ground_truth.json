@@ -1,7 +1,26 @@
 {
   "files": {
     "async_code.py": {
-      "dead_items": []
+      "dead_items": [
+        {
+          "type": "variable",
+          "name": "exc_type",
+          "line_start": 20,
+          "reason": "Parameter to __aexit__ is unused"
+        },
+        {
+          "type": "variable",
+          "name": "exc",
+          "line_start": 20,
+          "reason": "Parameter to __aexit__ is unused"
+        },
+        {
+          "type": "variable",
+          "name": "tb",
+          "line_start": 20,
+          "reason": "Parameter to __aexit__ is unused"
+        }
+      ]
     },
     "modern_python.py": {
       "dead_items": [

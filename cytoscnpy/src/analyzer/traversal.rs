@@ -2,7 +2,7 @@
 //!
 //! Contains: `process_single_file`, `aggregate_results`, `analyze`, `analyze_code`
 
-use super::{AnalysisResult, CytoScnPy};
+use super::{AnalysisResult, CytoScnPy, FileAnalysisResult};
 use crate::constants::{CHUNK_SIZE, CONFIG_FILENAME};
 use crate::rules::secrets::{validate_secrets_config, SecretFinding};
 use rayon::prelude::*;
@@ -112,21 +112,7 @@ impl CytoScnPy {
                 .map(|file_path| {
                     if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
                         // Return empty result if cancelled to finish quickly
-                        return (
-                            Vec::new(),
-                            rustc_hash::FxHashMap::default(),
-                            rustc_hash::FxHashMap::default(), // protocol methods
-                            Vec::new(),
-                            Vec::new(),
-                            Vec::new(),
-                            Vec::new(),
-                            0,
-                            crate::raw_metrics::RawMetrics::default(),
-                            crate::halstead::HalsteadMetrics::default(),
-                            0.0,
-                            0.0,
-                            0,
-                        );
+                        return FileAnalysisResult::empty();
                     }
                     self.process_single_file(file_path, root_path)
                 })

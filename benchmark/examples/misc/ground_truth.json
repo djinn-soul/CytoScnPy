@@ -6,7 +6,8 @@
           "type": "function",
           "name": "unused_but_ignored",
           "line_start": 6,
-          "reason": "Function defined but never called (has pragma)"
+          "reason": "Function defined but never called (has pragma)",
+          "suppressed": true
         },
         {
           "type": "function",
@@ -18,7 +19,8 @@
           "type": "variable",
           "name": "x",
           "line_start": 14,
-          "reason": "Variable assigned but never used (has pragma)"
+          "reason": "Variable assigned but never used (has pragma)",
+          "suppressed": true
         },
         {
           "type": "variable",

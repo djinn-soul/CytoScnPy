@@ -277,9 +277,12 @@ def main():
     os.chdir(script_dir.parent)
 
     datasets_dir = Path("benchmark/datasets")
+    if not datasets_dir.exists():
+        # Fallback to examples if datasets not found
+        datasets_dir = Path("benchmark/examples")
 
     if not datasets_dir.exists():
-        print("Error: benchmark/datasets directory not found")
+        print("Error: benchmark/datasets and benchmark/examples directories not found")
         sys.exit(1)
 
     # Check hyperfine is available

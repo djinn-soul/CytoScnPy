@@ -77,7 +77,7 @@ pub fn get_penalties() -> &'static HashMap<&'static str, u8> {
         m.insert("lifecycle_hook", 30);
         m.insert("compose_method", 40);
         m.insert("type_checking_import", 100); // TYPE_CHECKING imports are type-only
-        m.insert("module_constant", 30);
+        m.insert("module_constant", 5);
         m
     })
 }

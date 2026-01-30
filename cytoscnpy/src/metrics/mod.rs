@@ -1,3 +1,8 @@
+/// Cognitive Complexity metric (`SonarSource`).
+pub mod cognitive_complexity;
+/// Lack of Cohesion of Methods (LCOM4) metric.
+pub mod lcom4;
+
 use std::f64;
 
 /// Computes the Maintainability Index (MI).

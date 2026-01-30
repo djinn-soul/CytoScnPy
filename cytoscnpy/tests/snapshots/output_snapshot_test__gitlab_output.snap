@@ -1,12 +1,11 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 124
 expression: output
 ---
 [
   {
     "check_name": "func",
-    "description": "Unused function: unused_func",
+    "description": "Unused function: unused_func ([FILE]:5)",
     "fingerprint": "unused-func-unused_func-[FILE]-5",
     "location": {
       "lines": {
@@ -18,7 +17,7 @@ expression: output
   },
   {
     "check_name": "import",
-    "description": "Unused import: os",
+    "description": "Unused import: os ([FILE]:2)",
     "fingerprint": "unused-import-os-[FILE]-2",
     "location": {
       "lines": {
@@ -30,7 +29,7 @@ expression: output
   },
   {
     "check_name": "import",
-    "description": "Unused import: sys",
+    "description": "Unused import: sys ([FILE]:3)",
     "fingerprint": "unused-import-sys-[FILE]-3",
     "location": {
       "lines": {
@@ -42,7 +41,7 @@ expression: output
   },
   {
     "check_name": "var",
-    "description": "Unused variable: main.unused_var",
+    "description": "Unused variable: main.unused_var ([FILE]:9)",
     "fingerprint": "unused-var-main.unused_var-[FILE]-9",
     "location": {
       "lines": {

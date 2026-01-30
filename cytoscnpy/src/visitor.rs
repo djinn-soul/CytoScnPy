@@ -112,6 +112,20 @@ pub struct DefinitionInfo {
     pub base_classes: SmallVec<[String; 2]>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Categorization of unused symbols by confidence levels.
+pub enum UnusedCategory {
+    /// High confidence (90-100) that this is unused.
+    #[default]
+    DefinitelyUnused,
+    /// Moderate confidence (60-89).
+    ProbablyUnused,
+    /// Low confidence (40-59), possibly intentional (e.g. API stub).
+    PossiblyIntentional,
+    /// A configuration-shaped constant that appears unused.
+    ConfigurationConstant,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[allow(clippy::struct_excessive_bools)]
 /// A fully resolved definition found during analysis.
@@ -148,6 +162,9 @@ pub struct Definition {
     /// A confidence score (0-100) indicating how certain we are that this is unused.
     /// Higher means more likely to be a valid finding.
     pub confidence: u8,
+    /// The confidence category, derived from the score and other factors.
+    #[serde(default)]
+    pub category: UnusedCategory,
     /// The number of times this definition is referenced in the codebase.
     pub references: usize,
     /// Whether this definition is considered exported (implicitly used).
@@ -191,6 +208,9 @@ pub struct Definition {
     /// Whether this definition is a potential secret/key.
     #[serde(default)]
     pub is_potential_secret: bool,
+    /// Whether this definition is unreachable from entry points.
+    #[serde(default)]
+    pub is_unreachable: bool,
 }
 
 // apply_penalties method removed as it was redundant with heuristics.rs
@@ -455,6 +475,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             start_byte: info.start_byte,
             end_byte: info.end_byte,
             confidence: 100,
+            category: UnusedCategory::default(),
             references,
             is_exported,
             in_init,
@@ -470,6 +491,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             fix,
             is_constant,
             is_potential_secret,
+            is_unreachable: false,
         };
 
         self.definitions.push(definition);
@@ -955,8 +977,14 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let simple_name = alias.asname.as_ref().unwrap_or(&alias.name);
                     let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
+                    // Use qualified name for imports to prevent collisions between files
+                    // e.g. "re" in file A vs "re" in file B
+                    // If we use simple_name "re", they share the same reference count.
+                    // By using qualified name, we isolate them.
+                    let qualified_name = self.get_qualified_name(simple_name.as_str());
+
                     self.add_definition(DefinitionInfo {
-                        name: simple_name.to_string(),
+                        name: qualified_name.clone(),
                         def_type: "import".to_owned(),
                         line,
                         end_line,
@@ -967,10 +995,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         base_classes: SmallVec::new(),
                     });
 
-                    self.add_local_def(
-                        simple_name.as_str().to_owned(),
-                        simple_name.as_str().to_owned(),
-                    );
+                    self.add_local_def(simple_name.as_str().to_owned(), qualified_name);
 
                     // Add alias mapping: asname -> name
                     self.alias_map
@@ -1003,8 +1028,11 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let asname = alias.asname.as_ref().unwrap_or(&alias.name);
                     let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
 
+                    // Use qualified name for imports
+                    let qualified_name = self.get_qualified_name(asname.as_str());
+
                     self.add_definition(DefinitionInfo {
-                        name: asname.to_string(),
+                        name: qualified_name.clone(),
                         def_type: "import".to_owned(),
                         line,
                         end_line,
@@ -1014,7 +1042,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         full_start_byte: start_byte,
                         base_classes: SmallVec::new(),
                     });
-                    self.add_local_def(asname.to_string(), asname.to_string());
+                    self.add_local_def(asname.to_string(), qualified_name);
 
                     // Add alias mapping: asname -> module.name (if module exists) or just name
                     if let Some(module) = &node.module {
@@ -1851,6 +1879,27 @@ impl<'a> CytoScnPyVisitor<'a> {
             } else if name == "exec" || name == "globals" || name == "locals" {
                 let scope_id = self.get_current_scope_id();
                 self.dynamic_scopes.insert(scope_id);
+            } else if name == "getattr" {
+                // Handle getattr(obj, "attr") -> specific reference
+                // Handle getattr(obj, var) -> dynamic reflection
+                if node.arguments.args.len() >= 2 {
+                    if let (Expr::Name(obj_name), Expr::StringLiteral(attr_str)) =
+                        (&node.arguments.args[0], &node.arguments.args[1])
+                    {
+                        let attr_value = attr_str.value.to_string();
+                        let attr_ref = format!("{}.{}", obj_name.id, attr_value);
+                        self.add_ref(attr_ref);
+                        if !self.module_name.is_empty() {
+                            let full_attr_ref =
+                                format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
+                            self.add_ref(full_attr_ref);
+                        }
+                    } else {
+                        // Non-literal getattr is dynamic
+                        let scope_id = self.get_current_scope_id();
+                        self.dynamic_scopes.insert(scope_id);
+                    }
+                }
             }
 
             // Special handling for hasattr(obj, "attr") to detect attribute usage
@@ -1964,6 +2013,11 @@ impl<'a> CytoScnPyVisitor<'a> {
         if !s.contains(' ') && !s.is_empty() {
             self.add_ref(s.clone());
 
+            // Also add qualified reference for the whole string if it's likely a type path
+            if !self.module_name.is_empty() {
+                self.add_ref(format!("{}.{}", self.module_name, s));
+            }
+
             // Enhanced: Extract type names from string type annotations
             // Handles patterns like "List[Dict[str, int]]", "Optional[User]"
             // Extract alphanumeric identifiers (type names)
@@ -1975,6 +2029,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // Check if it looks like a type name (starts with uppercase)
                     if current_word.chars().next().is_some_and(char::is_uppercase) {
                         self.add_ref(current_word.clone());
+                        if !self.module_name.is_empty() {
+                            self.add_ref(format!("{}.{}", self.module_name, current_word));
+                        }
                     }
                     current_word.clear();
                 }
@@ -1983,7 +2040,10 @@ impl<'a> CytoScnPyVisitor<'a> {
             if !current_word.is_empty()
                 && current_word.chars().next().is_some_and(char::is_uppercase)
             {
-                self.add_ref(current_word);
+                self.add_ref(current_word.clone());
+                if !self.module_name.is_empty() {
+                    self.add_ref(format!("{}.{}", self.module_name, current_word));
+                }
             }
         }
     }

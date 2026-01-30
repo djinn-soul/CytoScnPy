@@ -60,7 +60,10 @@ x = 1 # Unused var
     # The 'name' field includes the module prefix (e.g. 'code.unused_func')
     # Use simple_name if available, or check for substring
     assert any(f["name"].endswith("unused_func") for f in data["unused_functions"])
-    assert any(i["name"] == "os" for i in data["unused_imports"])
+    assert any(
+        i.get("simple_name") == "os" or i["name"].endswith(".os") or i["name"] == "os"
+        for i in data["unused_imports"]
+    )
 
 
 def test_json_empty_project(tmp_path):

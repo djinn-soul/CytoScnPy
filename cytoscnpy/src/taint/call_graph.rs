@@ -20,6 +20,8 @@ pub struct CallGraphNode {
     pub called_by: FxHashSet<String>,
     /// Parameter names
     pub params: Vec<String>,
+    /// Whether this is a program entry point
+    pub is_root: bool,
 }
 
 /// Call graph for a module.
@@ -39,17 +41,36 @@ impl CallGraph {
     }
 
     /// Builds call graph from module statements.
-    pub fn build_from_module(&mut self, stmts: &[Stmt]) {
+    pub fn build_from_module(&mut self, stmts: &[Stmt], module_name: &str) {
+        let module_node_name = if module_name.is_empty() {
+            String::from("<module>")
+        } else {
+            format!("{module_name}.<module>")
+        };
+
+        // Ensure module node exists and is root
+        self.nodes
+            .entry(module_node_name.clone())
+            .or_insert_with(|| CallGraphNode {
+                name: module_node_name.clone(),
+                line: 0,
+                calls: FxHashSet::default(),
+                called_by: FxHashSet::default(),
+                params: Vec::new(),
+                is_root: true,
+            })
+            .is_root = true;
+
         for stmt in stmts {
-            self.visit_stmt(stmt, None);
+            self.visit_stmt(stmt, Some(&module_node_name), module_name);
         }
     }
 
     /// Visits a statement to build the call graph.
-    fn visit_stmt(&mut self, stmt: &Stmt, current_func: Option<&str>) {
+    fn visit_stmt(&mut self, stmt: &Stmt, current_func: Option<&str>, module_name: &str) {
         match stmt {
             Stmt::FunctionDef(func) => {
-                let func_name = self.get_qualified_name(&func.name);
+                let func_name = self.get_qualified_name(&func.name, module_name);
                 let params = Self::extract_params(&func.parameters);
 
                 let node = CallGraphNode {
@@ -58,100 +79,101 @@ impl CallGraph {
                     calls: FxHashSet::default(),
                     called_by: FxHashSet::default(),
                     params,
+                    is_root: false,
                 };
 
                 self.nodes.insert(func_name.clone(), node);
 
                 // Visit body
                 for s in &func.body {
-                    self.visit_stmt(s, Some(&func_name));
+                    self.visit_stmt(s, Some(&func_name), module_name);
                 }
             }
 
             Stmt::ClassDef(class) => {
                 self.class_stack.push(class.name.to_string());
                 for s in &class.body {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
                 self.class_stack.pop();
             }
 
             Stmt::Expr(expr_stmt) => {
                 if let Some(caller) = current_func {
-                    self.visit_expr_for_calls(&expr_stmt.value, caller);
+                    self.visit_expr_for_calls(&expr_stmt.value, caller, module_name);
                 }
             }
 
             Stmt::Assign(assign) => {
                 if let Some(caller) = current_func {
-                    self.visit_expr_for_calls(&assign.value, caller);
+                    self.visit_expr_for_calls(&assign.value, caller, module_name);
                 }
             }
 
             Stmt::Return(ret) => {
                 if let Some(caller) = current_func {
                     if let Some(value) = &ret.value {
-                        self.visit_expr_for_calls(value, caller);
+                        self.visit_expr_for_calls(value, caller, module_name);
                     }
                 }
             }
 
             Stmt::If(if_stmt) => {
                 if let Some(caller) = current_func {
-                    self.visit_expr_for_calls(&if_stmt.test, caller);
+                    self.visit_expr_for_calls(&if_stmt.test, caller, module_name);
                 }
                 for s in &if_stmt.body {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
                 for clause in &if_stmt.elif_else_clauses {
                     for s in &clause.body {
-                        self.visit_stmt(s, current_func);
+                        self.visit_stmt(s, current_func, module_name);
                     }
                 }
             }
 
             Stmt::For(for_stmt) => {
                 if let Some(caller) = current_func {
-                    self.visit_expr_for_calls(&for_stmt.iter, caller);
+                    self.visit_expr_for_calls(&for_stmt.iter, caller, module_name);
                 }
                 for s in &for_stmt.body {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
                 for s in &for_stmt.orelse {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
             }
 
             Stmt::While(while_stmt) => {
                 if let Some(caller) = current_func {
-                    self.visit_expr_for_calls(&while_stmt.test, caller);
+                    self.visit_expr_for_calls(&while_stmt.test, caller, module_name);
                 }
                 for s in &while_stmt.body {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
             }
 
             Stmt::With(with_stmt) => {
                 for s in &with_stmt.body {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
             }
 
             Stmt::Try(try_stmt) => {
                 for s in &try_stmt.body {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
                 for handler in &try_stmt.handlers {
                     let ast::ExceptHandler::ExceptHandler(h) = handler;
                     for s in &h.body {
-                        self.visit_stmt(s, current_func);
+                        self.visit_stmt(s, current_func, module_name);
                     }
                 }
                 for s in &try_stmt.orelse {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
                 for s in &try_stmt.finalbody {
-                    self.visit_stmt(s, current_func);
+                    self.visit_stmt(s, current_func, module_name);
                 }
             }
 
@@ -160,13 +182,38 @@ impl CallGraph {
     }
 
     /// Visits an expression to find function calls.
-    fn visit_expr_for_calls(&mut self, expr: &Expr, caller: &str) {
+    fn visit_expr_for_calls(&mut self, expr: &Expr, caller: &str, module_name: &str) {
         match expr {
             Expr::Call(call) => {
                 if let Some(callee) = Self::get_call_name(&call.func) {
                     // Add edge caller -> callee
                     if let Some(caller_node) = self.nodes.get_mut(caller) {
                         caller_node.calls.insert(callee.clone());
+
+                        // If it's a simple name (no dots) and we have a module name,
+                        // conservatively add a module-qualified version to handle local calls.
+                        if !callee.contains('.') && !module_name.is_empty() {
+                            let qualified = format!("{module_name}.{callee}");
+                            caller_node.calls.insert(qualified);
+                        }
+
+                        // If it's an attribute call (contains '.'), also add a loose version ".attr"
+                        // to help with reachability of methods in classes.
+                        if let Some(dot_idx) = callee.find('.') {
+                            if dot_idx > 0 {
+                                // "obj.method" -> ".method"
+                                let loose = format!(".{}", &callee[dot_idx + 1..]);
+                                caller_node.calls.insert(loose);
+                            }
+                        }
+
+                        // Special handling for hasattr/getattr/setattr
+                        if callee == "hasattr" || callee == "getattr" || callee == "setattr" {
+                            if let Some(Expr::StringLiteral(s)) = call.arguments.args.get(1) {
+                                let attr_name = s.value.to_str();
+                                caller_node.calls.insert(format!(".{attr_name}"));
+                            }
+                        }
                     }
                     if let Some(callee_node) = self.nodes.get_mut(&callee) {
                         callee_node.called_by.insert(caller.to_owned());
@@ -175,30 +222,30 @@ impl CallGraph {
 
                 // Visit arguments
                 for arg in &call.arguments.args {
-                    self.visit_expr_for_calls(arg, caller);
+                    self.visit_expr_for_calls(arg, caller, module_name);
                 }
             }
 
             Expr::BinOp(binop) => {
-                self.visit_expr_for_calls(&binop.left, caller);
-                self.visit_expr_for_calls(&binop.right, caller);
+                self.visit_expr_for_calls(&binop.left, caller, module_name);
+                self.visit_expr_for_calls(&binop.right, caller, module_name);
             }
 
             Expr::If(ifexp) => {
-                self.visit_expr_for_calls(&ifexp.test, caller);
-                self.visit_expr_for_calls(&ifexp.body, caller);
-                self.visit_expr_for_calls(&ifexp.orelse, caller);
+                self.visit_expr_for_calls(&ifexp.test, caller, module_name);
+                self.visit_expr_for_calls(&ifexp.body, caller, module_name);
+                self.visit_expr_for_calls(&ifexp.orelse, caller, module_name);
             }
 
             Expr::List(list) => {
                 for elt in &list.elts {
-                    self.visit_expr_for_calls(elt, caller);
+                    self.visit_expr_for_calls(elt, caller, module_name);
                 }
             }
 
             Expr::Dict(dict) => {
                 for item in &dict.items {
-                    self.visit_expr_for_calls(&item.value, caller);
+                    self.visit_expr_for_calls(&item.value, caller, module_name);
                 }
             }
 
@@ -207,12 +254,20 @@ impl CallGraph {
     }
 
     /// Gets qualified name for a function.
-    fn get_qualified_name(&self, name: &str) -> String {
-        if let Some(class_name) = self.class_stack.last() {
-            format!("{class_name}.{name}")
+    fn get_qualified_name(&self, name: &str, module_name: &str) -> String {
+        let mut qualified = if module_name.is_empty() {
+            String::new()
         } else {
-            name.to_owned()
+            format!("{module_name}.")
+        };
+
+        for class_name in &self.class_stack {
+            qualified.push_str(class_name);
+            qualified.push('.');
         }
+
+        qualified.push_str(name);
+        qualified
     }
 
     /// Extracts parameter names from function arguments.
@@ -246,13 +301,33 @@ impl CallGraph {
         match func {
             Expr::Name(node) => Some(node.id.to_string()),
             Expr::Attribute(node) => {
+                // If it's a simple attribute call x.y(), return ".y" as a hint
+                // if we can't resolve x accurately.
                 if let Expr::Name(value) = &*node.value {
                     Some(format!("{}.{}", value.id, node.attr))
                 } else {
-                    Some(node.attr.to_string())
+                    Some(format!(".{}", node.attr))
                 }
             }
             _ => None,
+        }
+    }
+
+    /// Merges another call graph into this one.
+    pub fn merge(&mut self, other: Self) {
+        for (name, node) in other.nodes {
+            let entry = self.nodes.entry(name).or_insert_with(|| CallGraphNode {
+                name: node.name.clone(),
+                line: node.line,
+                calls: FxHashSet::default(),
+                called_by: FxHashSet::default(),
+                params: node.params.clone(),
+                is_root: node.is_root,
+            });
+
+            entry.calls.extend(node.calls);
+            entry.called_by.extend(node.called_by);
+            entry.is_root |= node.is_root;
         }
     }
 

@@ -212,7 +212,7 @@ fn make_gitlab_issue(
     severity: &str,
 ) -> serde_json::Value {
     json!({
-        "description": description,
+        "description": format!("{} ({}:{})", description, file, line),
         "fingerprint": fingerprint,
         "location": {
             "path": file,

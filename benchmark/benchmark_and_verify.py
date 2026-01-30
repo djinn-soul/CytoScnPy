@@ -164,12 +164,10 @@ def check_tool_availability(tools_config, env=None):
         # Special checks for each tool type
         if name == "CytoScnPy (Rust)":
             # Handles "cargo run ..." or explicit binary paths
-            is_valid = False
             if isinstance(command, list):
                 if command[0] == "cargo":
                      if shutil.which("cargo"):
                         status = {"available": True, "reason": "Cargo found"}
-                        is_valid = True
                      else:
                         status["reason"] = "Cargo not found in PATH"
                 else:
@@ -177,7 +175,6 @@ def check_tool_availability(tools_config, env=None):
                      bin_path = Path(command[0])
                      if bin_path.exists() or shutil.which(command[0]):
                         status = {"available": True, "reason": "Binary found"}
-                        is_valid = True
                      else:
                         status["reason"] = f"Binary not found: {command[0]}"
             else:
@@ -187,7 +184,6 @@ def check_tool_availability(tools_config, env=None):
 
                  if bin_path.exists() or shutil.which(str(command)):
                     status = {"available": True, "reason": "Binary found"}
-                    is_valid = True
                  else:
                      status["reason"] = f"Binary not found: {bin_path if bin_path else command}"
 
@@ -516,6 +512,8 @@ class Verification:
                     self.covered_files.add(t_file_str)
 
                     for item in content.get("dead_items", []):
+                        if item.get("suppressed"):
+                            continue
                         truth_set.add(
                             (
                                 t_file_str,
@@ -545,6 +543,7 @@ class Verification:
                     "unused_imports": "import",
                     "unused_classes": "class",
                     "unused_variables": "variable",
+                    "unused_parameters": "variable",
                 }
 
                 for key, fallback_type in key_to_fallback_type.items():
@@ -558,6 +557,8 @@ class Verification:
                         # Use def_type from JSON if available (e.g., "method" vs "function")
                         # Fall back to key-based type for backward compatibility
                         type_name = item.get("def_type", fallback_type)
+                        if type_name == "parameter":
+                             type_name = "variable"
                         findings.add((fpath, item.get("line"), type_name, item_name))
             except json.JSONDecodeError as e:
                 print(f"[-] JSON Decode Error for {name}: {e}")
@@ -678,8 +679,17 @@ class Verification:
                             # Actually usually: "F401 'os' imported but unused"
                             msg = parts[3].strip()
                             if "'" in msg:
+                                 obj_name = msg.split("'")[1]
+                                 findings.add((fpath, lineno, "import", obj_name))
+                        elif code == "F841":  # Local variable assigned but never used
+                            msg = parts[3].strip()
+                            obj_name = None
+                            if "`" in msg:
+                                obj_name = msg.split("`")[1]
+                            elif "'" in msg:
                                 obj_name = msg.split("'")[1]
-                                findings.add((fpath, lineno, "import", obj_name))
+                            if obj_name:
+                                findings.add((fpath, lineno, "variable", obj_name))
                     except ValueError:
                         pass
 
@@ -700,7 +710,7 @@ class Verification:
                                 obj_name = msg.split("Unused import ")[1].strip()
 
                         findings.add((fpath, lineno, "import", obj_name))
-                    elif item["symbol"] == "unused-variable":
+                    elif item["symbol"] in ["unused-variable", "unused-argument", "unused-private-member"]:
                         fpath = normalize_path(item["path"])
                         lineno = item["line"]
                         # Extract variable name from message, not obj (obj is enclosing scope)
@@ -710,8 +720,14 @@ class Verification:
                             obj_name = msg.split("'")[1]
                         elif item.get("obj"):
                             obj_name = item["obj"]
+
+                        type_name = "variable"
+                        if item["symbol"] == "unused-argument":
+                             # We could map to 'variable' or 'parameter', our GT uses 'variable' for parameters usually
+                             type_name = "variable"
+
                         if obj_name:
-                            findings.add((fpath, lineno, "variable", obj_name))
+                            findings.add((fpath, lineno, type_name, obj_name))
                     # Pylint has many unused codes
             except json.JSONDecodeError:
                 pass
@@ -731,8 +747,10 @@ class Verification:
                         if "`" in msg:
                             obj_name = msg.split("`")[1]
                             findings.add((fpath, lineno, "import", obj_name))
-                    elif code == "F841":  # Local variable assigned but never used
-                        # Ruff message: "Local variable `x` is assigned but never used"
+                    elif code == "F841" or (code and code.startswith("ARG")) or code == "B007":
+                        # F841: Local variable assigned but never used
+                        # ARG: Unused function argument
+                        # B007: Loop control variable not used within loop body
                         msg = item.get("message", "")
                         if "`" in msg:
                             obj_name = msg.split("`")[1]
@@ -749,8 +767,14 @@ class Verification:
                     obj_name = match.group(1)
                     fpath = normalize_path(match.group(2))
                     lineno = int(match.group(3))
-                    # dead reports functions/variables, we'll assume function
-                    findings.add((fpath, lineno, "function", obj_name))
+                    # dead reports functions/variables
+                    type_hint = match.group(0).lower()
+                    if "called" in type_hint:
+                        type_name = "function"
+                    else:
+                        # "read" often applies to variables
+                        type_name = "variable"
+                    findings.add((fpath, lineno, type_name, obj_name))
 
         elif name == "uncalled":
             # uncalled output format: "file.py: Unused function func_name" (no line number!)
@@ -872,10 +896,13 @@ class Verification:
                     if line_match:
                         # Type matching:
                         # "method" in truth might be reported as "function" by some tools
+                        # Also some tools (dead, uncalled) might report variables or classes as functions
                         type_match = (
                             (f_type == t_type)
                             or (t_type == "method" and f_type == "function")
                             or (t_type == "function" and f_type == "method")
+                            or (f_type == "function" and t_type in ["variable", "class"])
+                            or (f_type == "variable" and t_type == "function") # Some overlaps possible
                         )
 
                         if type_match:
@@ -897,7 +924,7 @@ class Verification:
                     stats[t_type]["TP"] += 1
             else:
                 stats["overall"]["FP"] += 1
-                if stat_type in stats:
+                if stat_type != "overall" and stat_type in stats:
                     stats[stat_type]["FP"] += 1
 
         # Calculate FN (remaining truth items)

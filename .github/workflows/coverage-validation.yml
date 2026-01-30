@@ -1,0 +1,178 @@
+name: Rust Coverage (llvm-cov)
+
+on:
+  workflow_call:
+    inputs:
+      workspaces:
+        required: true
+        type: string
+      working-directory:
+        required: true
+        type: string
+      fail-under-lines:
+        required: true
+        type: number
+      ignore-filename-regex:
+        required: true
+        type: string
+      lcov-output-path:
+        required: true
+        type: string
+      run-python-coverage:
+        required: false
+        type: boolean
+        default: false
+      python-tests-path:
+        required: false
+        type: string
+        default: python/tests
+      python-coverage-package:
+        required: false
+        type: string
+        default: cytoscnpy
+      upload-codecov:
+        required: true
+        type: boolean
+      upload-artifacts:
+        required: true
+        type: boolean
+      artifact-name:
+        required: true
+        type: string
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  rust-llvm-cov:
+    name: Rust Coverage (llvm-cov nextest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
+        with:
+          components: llvm-tools-preview
+          workspaces: ${{ inputs.workspaces }}
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Generate coverage
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          cargo llvm-cov nextest --all-features --workspace --lcov --output-path ${{ github.workspace }}/${{ inputs.lcov-output-path }} --fail-under-lines ${{ inputs.fail-under-lines }} --ignore-filename-regex '${{ inputs.ignore-filename-regex }}'
+          cargo llvm-cov report --summary-only --ignore-filename-regex '${{ inputs.ignore-filename-regex }}' | tee coverage-summary.txt
+        env:
+          PYO3_PYTHON: python3
+          CARGO_PROFILE_DEV_DEBUG: 0
+          RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+
+      - name: Generate Python coverage (lcov)
+        if: inputs.run-python-coverage
+        run: |
+          python -c "import cytoscnpy"
+          pytest ${{ inputs.python-tests-path }} -v --cov=${{ inputs.python-coverage-package }} --cov-report=lcov:python-lcov.info
+          if [ ! -f python-lcov.info ]; then
+            echo "TN: pytest-cov did not collect any data; creating placeholder." > python-lcov.info
+          fi
+          cat python-lcov.info >> ${{ inputs.lcov-output-path }}
+
+      - name: Generate Python coverage summary
+        if: inputs.run-python-coverage
+        run: |
+          echo "## Python Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f .coverage ]; then
+            set +e
+            python -m coverage report >> $GITHUB_STEP_SUMMARY
+            status=$?
+            set -e
+            if [ $status -ne 0 ]; then
+              echo "WARNING: coverage report failed with exit code $status." >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "WARNING: No .coverage data file present; skipping coverage report." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Verify Output Formats
+        run: |
+          BIN="python -m cytoscnpy.cli"
+
+          echo "### CytoScnPy Analysis Report" >> $GITHUB_STEP_SUMMARY
+
+          # 1. Text Output
+          $BIN benchmark/examples/quality/basic_dead_code.py --format text > output.txt || true
+
+          # 2. GitHub Annotations (produces inline errors/warnings)
+          $BIN benchmark/examples/quality/basic_dead_code.py --format github || true
+
+          # 3. Markdown Summary (Job Summary)
+          $BIN benchmark/examples/quality/basic_dead_code.py --format markdown > summary.md || true
+          cat summary.md >> $GITHUB_STEP_SUMMARY
+
+          # 4. Generate other formats for artifacts
+          $BIN benchmark/examples/quality/basic_dead_code.py --format junit > junit.xml || true
+          $BIN benchmark/examples/quality/basic_dead_code.py --format sarif > results.sarif || true
+          $BIN benchmark/examples/quality/basic_dead_code.py --format gitlab > gitlab.json || true
+          $BIN benchmark/examples/quality/basic_dead_code.py --format json > output.json || true
+
+      - name: Upload Analysis Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-reports
+          path: |
+            output.txt
+            summary.md
+            junit.xml
+            results.sarif
+            gitlab.json
+            output.json
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        if: success() || failure()
+        with:
+          sarif_file: results.sarif
+          category: cytoscnpy-analysis
+
+      - name: Generate workflow summary
+        run: |
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat ${{ inputs.working-directory }}/coverage-summary.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage to Codecov
+        if: inputs.upload-codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ${{ inputs.lcov-output-path }}
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage report as artifact
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: |
+            ${{ inputs.lcov-output-path }}
+            ${{ inputs.working-directory }}/target/llvm-cov/html/
+          retention-days: 30

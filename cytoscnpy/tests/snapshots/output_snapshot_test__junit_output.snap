@@ -6,16 +6,16 @@ expression: output
 <testsuites>
   <testsuite name="CytoScnPy" tests="4" failures="4" errors="0">
     <testcase name="UnusedFunction" classname="[FILE]">
-      <failure message="Unused: unused_func">Line 5: Unused UnusedFunction 'unused_func'</failure>
+      <failure message="Unused: unused_func">Line 5: Unused UnusedFunction 'unused_func' ([FILE]:5)</failure>
     </testcase>
     <testcase name="UnusedImport" classname="[FILE]">
-      <failure message="Unused: os">Line 2: Unused UnusedImport 'os'</failure>
+      <failure message="Unused: os">Line 2: Unused UnusedImport 'os' ([FILE]:2)</failure>
     </testcase>
     <testcase name="UnusedImport" classname="[FILE]">
-      <failure message="Unused: sys">Line 3: Unused UnusedImport 'sys'</failure>
+      <failure message="Unused: sys">Line 3: Unused UnusedImport 'sys' ([FILE]:3)</failure>
     </testcase>
     <testcase name="UnusedVariable" classname="[FILE]">
-      <failure message="Unused: main.unused_var">Line 9: Unused UnusedVariable 'main.unused_var'</failure>
+      <failure message="Unused: main.unused_var">Line 9: Unused UnusedVariable 'main.unused_var' ([FILE]:9)</failure>
     </testcase>
   </testsuite>
 </testsuites>

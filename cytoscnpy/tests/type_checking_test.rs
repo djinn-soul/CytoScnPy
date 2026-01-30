@@ -42,42 +42,57 @@ def helper(h: Helper):
     let found_unused_module = report
         .unused_imports
         .iter()
-        .any(|i| i.name == "unused_module");
+        .any(|i| i.simple_name == "unused_module");
     assert!(
         found_unused_module,
         "Should detect 'unused_module' as unused even inside TYPE_CHECKING"
     );
 
     // 2. "User" SHOULD NOT be reported (used in string annotation "User")
-    let found_user = report.unused_imports.iter().any(|i| i.name == "User");
+    let found_user = report
+        .unused_imports
+        .iter()
+        .any(|i| i.simple_name == "User");
     assert!(
         !found_user,
         "Should NOT report 'User' as unused (used in string annotation)"
     );
 
     // 3. "Service" SHOULD NOT be reported (used in string annotation "Service", guarded by TC alias)
-    let found_service = report.unused_imports.iter().any(|i| i.name == "Service");
+    let found_service = report
+        .unused_imports
+        .iter()
+        .any(|i| i.simple_name == "Service");
     assert!(
         !found_service,
         "Should NOT report 'Service' as unused (guarded by TC alias)"
     );
 
     // 4. "Database" SHOULD NOT be reported (used in string annotation "Database", guarded by typing.TYPE_CHECKING)
-    let found_db = report.unused_imports.iter().any(|i| i.name == "Database");
+    let found_db = report
+        .unused_imports
+        .iter()
+        .any(|i| i.simple_name == "Database");
     assert!(
         !found_db,
         "Should NOT report 'Database' as unused (guarded by typing.TYPE_CHECKING)"
     );
 
     // 5. "Config" SHOULD NOT be reported (used in string annotation "Config", guarded by typing_extensions.TYPE_CHECKING)
-    let found_config = report.unused_imports.iter().any(|i| i.name == "Config");
+    let found_config = report
+        .unused_imports
+        .iter()
+        .any(|i| i.simple_name == "Config");
     assert!(
         !found_config,
         "Should NOT report 'Config' as unused (guarded by typing_extensions.TYPE_CHECKING)"
     );
 
     // 6. "Helper" SHOULD NOT be reported (used in normal annotation)
-    let found_helper = report.unused_imports.iter().any(|i| i.name == "Helper");
+    let found_helper = report
+        .unused_imports
+        .iter()
+        .any(|i| i.simple_name == "Helper");
     assert!(
         !found_helper,
         "Should NOT report 'Helper' as unused (used in normal annotation)"

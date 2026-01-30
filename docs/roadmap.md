@@ -7,7 +7,7 @@ For completed features and implementation history, see [GitHub Releases](https:/
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Project Status](#project-status)
 2. [In Progress](#in-progress)
@@ -20,9 +20,19 @@ For completed features and implementation history, see [GitHub Releases](https:/
 
 ## Project Status
 
+The PyO3-based CLI, bundled `cytoscnpy-cli` binary, and `cytoscnpy-mcp` server together deliver the production-ready analysis stack described below: quality, secret, and clone reporting (see `docs/CLI.md`, `docs/usage.md`, and `README.md`) are exercised across platforms, while the VS Code extension and HTML reporting surface that data to editors and browsers.
+
+Core safeguards—quality gates (`--fail-on-quality`, `--fail-threshold`), security scanning, `--fix`/`--apply` auto-remediation, and stdin/stdout-based MCP hosting—are stable and shipping; the roadmap now focuses on higher-accuracy analysis and better user experience on top of that foundation.
+
 ## In Progress
 
-### 5.7 Radon Parity Gaps 🔄 IN PROGRESS
+The sections below highlight the work that is still active:
+
+- **Phase 5.7 (Radon Parity Gaps)** – The parity tests around module-level complexity, `else` clauses on loops/try, wildcard matching, and Halstead/raw metrics are in place, but the analyzer logic still needs to be implemented (see the `### 5.7` section below).
+- **Phase 6 (Editor Integration)** – The VS Code extension and accompanying code audit continue to evolve; Phase 6.1 and 6.2 list the UX, command, and bundling gaps that remain.
+- **Phase 7.6 (Accuracy Improvements)** – The benchmark (F1 = 0.72) and the remaining false positives/negatives (34/60 items) are being chipped away in the dedicated Phase 7.6 subsection.
+
+### 5.7 Radon Parity Gaps IN PROGRESS
 
 **Status:** Tests added, implementation pending. See `cytoscnpy/tests/radon_parity_*.rs`
 
@@ -98,9 +108,9 @@ cargo test --features cfg
 
 ## <a id="phase-6"></a>Phase 6: Editor Integration ✅ DONE
 
-### 6.1 VS Code Extension 🔄 IN PROGRESS
+### 6.1 VS Code Extension IN PROGRESS
 
-### 6.2 Extension Code Audit (Pending Fixes) 🔄 IN PROGRESS
+### 6.2 Extension Code Audit (Pending Fixes) IN PROGRESS
 
 #### 6.2.3 JSON Parsing Completeness ✅
 
@@ -108,7 +118,7 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 
 - [ ] Add `summary` stats display in output channel
 
-#### 6.2.4 Missing Commands 🔄
+#### 6.2.4 Missing Commands
 
 | Command                   | Description                     | Status |
 | ------------------------- | ------------------------------- | ------ |
@@ -145,7 +155,7 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 
 ## Phase 7.5: Performance Optimizations ✅ DONE
 
-#### 🔄 Pending Optimizations (Low Priority)
+#### Pending Optimizations (Low Priority)
 
 | Optimization                          | Description                                                              | Priority | Complexity | Est. Impact           |
 | ------------------------------------- | ------------------------------------------------------------------------ | -------- | ---------- | --------------------- |
@@ -164,7 +174,7 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 
 ---
 
-## Phase 7.6: Accuracy Improvements 🔄 IN PROGRESS
+## Phase 7.6: Accuracy Improvements IN PROGRESS
 
 _Systematic improvements to detection accuracy based on benchmark analysis._
 
@@ -284,13 +294,13 @@ def func():
 | Phase     | Target F1 | Key Fixes                              | Status     |
 | --------- | --------- | -------------------------------------- | ---------- |
 | **7.6.1** | 0.63      | Return annotations, TYPE_CHECKING      | ✅ Done    |
-| **7.6.2** | 0.68      | Cross-file `__all__`, pattern matching | 🔄 Planned |
-| **7.6.3** | 0.72      | Class-method linking, variable scopes  | 🔄 Planned |
-| **7.6.4** | 0.75      | Import gaps, framework patterns        | 🔄 Planned |
+| **7.6.2** | 0.68      | Cross-file `__all__`, pattern matching | PLANNED |
+| **7.6.3** | 0.72      | Class-method linking, variable scopes  | PLANNED |
+| **7.6.4** | 0.75      | Import gaps, framework patterns        | PLANNED |
 
 ---
 
-### <a id="phase-8"></a>Phase 8: Advanced Framework Support ✅ DONE
+### <a id="phase-8-advanced"></a>Phase 8: Advanced Framework Support ✅ DONE
 
 Django, FastAPI, Pydantic is done ✅.
 
@@ -385,8 +395,9 @@ _Tools to improve the workflow around CytoScnPy._
     - Team code review sessions
     - CI/CD dashboard integration
     - Local development feedback loop
+  - **Smoke-test reference:** `cytoscnpy-mcp/scripts/test_mcp_server.py` drives `cytoscnpy mcp-server` over JSON-RPC (initialize, tools/list, analyze_code) so you can validate the CLI-hosted MCP transport before wiring it into downstream clients.
 
-### <a id="phase-9-5"></a>Phase 9.5: Report Actionability Upgrade 🔄 PLANNED
+### <a id="phase-9-5"></a>Phase 9.5: Report Actionability Upgrade PLANNED
 
 _Implementing findings from the Recommendation System Audit._
 
@@ -444,120 +455,15 @@ _Pushing the boundaries of static analysis._
   - Enhance regex scanning with entropy analysis to reduce false positives for API keys.
 
 - [x] **AST-Based Suspicious Variable Detection** _(Secret Scanning 3.0)_ ✅
-  - **Problem:** Current regex patterns only detect secrets when the _value_ matches a known format (e.g., `ghp_xxx`). This misses hardcoded secrets assigned to suspiciously named variables:
-    ```python
-    database_password = "hunter2"        # Missed - no pattern match
-    config['api_secret'] = some_value    # Missed - dict subscript
-    ```
-  - **Solution:** Leverage existing `CytoScnPyVisitor` AST traversal to detect assignments to suspicious variable names, regardless of the value format.
-  - **Implementation:**
-
-    ```rust
-    // In visitor.rs - when visiting Assign nodes:
-    const SUSPICIOUS_NAMES: &[&str] = &[
-        "password", "secret", "key", "token", "auth", "credential",
-        "api_key", "apikey", "private_key", "access_token", "pwd"
-    ];
-
-    fn matches_suspicious_name(name: &str) -> bool {
-        let lower = name.to_lowercase();
-        SUSPICIOUS_NAMES.iter().any(|s| lower.contains(s))
-    }
-
-    // When visiting an Assign node:
-    if matches_suspicious_name(&target_name) {
-        if let Some(string_value) = extract_string_value(&node.value) {
-            findings.push(SecretFinding {
-                message: format!("Suspicious assignment to '{}'", target_name),
-                rule_id: "CSP-S300".to_owned(),
-                file: file_path.clone(),
-                line: node.range.start.row.get(),
-                severity: "MEDIUM".to_owned(),
-                matched_value: Some(redact_value(&string_value)),
-                entropy: None,
-            });
-        }
-    }
-    ```
-
-  - **Patterns to Detect:**
-    - Simple assignments: `db_password = "secret123"`
-    - Dict subscripts: `config['api_key'] = "token"`
-    - Attribute assignments: `self.secret_key = "value"`
-  - **False Positive Mitigation:**
-    - Skip if value is `os.environ.get(...)` or `os.getenv(...)`
-    - Skip if value references another variable (non-literal)
-    - Skip if in test files (lower severity)
-  - **Files:** `src/visitor.rs`, `src/rules/secrets.rs`
-  - **New Rule ID:** `CSP-S300` (Suspicious Variable Assignment)
+  - `AstRecognizer` now walks assignments, annotations, attributes, and dict subscripts, emits `CSP-S300` when suspicious names (password, secret, key, token, etc.) are assigned literal strings, and skips env vars, placeholders, and test files while lowering confidence (`cytoscnpy/src/rules/secrets/recognizers.rs:296-438`).
 
 - [x] **Modular Secret Recognition Engine** _(Secret Scanning 4.0)_ ✅
-  - **Goal:** Refactor secret detection into a pluggable, trait-based architecture with unified context-based scoring.
+  - `SecretScanner` orchestrates `RegexRecognizer`, `AstRecognizer`, `EntropyRecognizer`, and optional `CustomRecognizer`, feeds their raw matches to the `ContextScorer`, deduplicates findings by line, and filters by `SecretsConfig` thresholds like `min_score`, `entropy_threshold`, and `suspicious_names` (`cytoscnpy/src/rules/secrets/mod.rs:1-138`, `cytoscnpy/src/config.rs:88-157`, `cytoscnpy/src/rules/secrets/scoring/mod.rs:1-147`).
 
-  - **Architecture:**
-    ```
-    SecretScanner (Orchestrator)
-           │
-           ├── RegexRecognizer (built-in patterns)
-           ├── AstRecognizer (variable name detection)
-           ├── EntropyRecognizer (high-entropy strings)
-           └── CustomRecognizer (user-defined via TOML)
-                      │
-                      ▼
-              Context Scoring Engine
-              (proximity, file type, pragma, dedup)
-                      │
-                      ▼
-              Final Findings (scored & filtered)
-    ```
-  - **Pluggable Recognizers (Trait-based):**
-    ```rust
-    pub trait SecretRecognizer: Send + Sync {
-        fn name(&self) -> &str;
-        fn base_score(&self) -> u8;  // 0-100
-        fn scan(&self, content: &str, line: usize) -> Vec<RawFinding>;
-    }
-    ```
-  - **Context-Based Scoring Rules:**
-    | Signal | Adjustment | Rationale |
-    |--------|------------|-----------|
-    | Near keyword (`api_key=`) | +20 | High confidence |
-    | In test file | -50 | Likely fake |
-    | In comment | -10 | Documentation |
-    | High entropy | +15 | Random = suspicious |
-    | Known FP pattern (URL/path) | -100 | Skip |
-    | `os.environ.get()` | -100 | Not hardcoded |
-  - **Configuration (TOML):**
+  - `ContextScorer` applies bonuses/penalties for keywords, entropy, comments, docstrings, placeholders, and env-var patterns before clamping to 0-100, so the modular engine already enforces the scoring rules described in the previous plan (`cytoscnpy/src/rules/secrets/scoring/mod.rs:1-147`).
 
-    ```toml
-    [secrets]
-    min_score = 50  # Only report >= 50
 
-    [secrets.recognizers.ast]
-    suspicious_names = ["password", "secret", "key", "token"]
-
-    [[secrets.custom_recognizers]]
-    name = "Internal Token"
-    regex = "INTERNAL_[A-Z0-9]{16}"
-    score = 90
-    ```
-
-  - **Implementation Plan:**
-    1. Add `confidence: u8` to `SecretFinding` struct
-    2. Create `SecretRecognizer` trait in `src/rules/recognizers/mod.rs`
-    3. Refactor existing patterns into `RegexRecognizer`
-    4. Implement `AstRecognizer` (CSP-S300)
-    5. Create `ContextScorer` with scoring rules
-    6. Update `scan_secrets()` to use orchestrator pattern
-    7. Add TOML config for custom recognizers
-
-  - **Files:**
-    - `src/rules/secrets.rs` → `src/rules/secrets/mod.rs` (split)
-    - `src/rules/secrets/recognizers.rs` (new)
-    - `src/rules/secrets/scoring.rs` (new)
-    - `src/config.rs` (extend `SecretsConfig`)
-
-- [ ] **Dependency Graph** 🔄 IN PROGRESS
+- [ ] **Dependency Graph** IN PROGRESS
   - Generate DOT/Mermaid graphs of module dependencies to aid refactoring.
   - Core `CallGraph` infrastructure implemented in `cytoscnpy/src/taint/call_graph.rs`.
 
@@ -595,9 +501,10 @@ _Safe, automated code fixes._
 
 _Deep data-flow analysis across function boundaries._
 
-- [ ] **Global Call Graph Construction** 🔄 IN PROGRESS
+- [ ] **Global Call Graph Construction** IN PROGRESS
   - Map function calls across the entire project to track how data moves between modules.
   - Necessary for tracking "taint" from a source in one file to a sink in another.
+  - **Status:** `cytoscnpy/src/taint/call_graph.rs` already builds nodes, callee/caller edges, and qualifier handling; remaining work is propagating taint/sanitization through that graph.
 - [ ] **Cross-Function Taint Tracking**
   - Store and propagate "taint state" for function arguments and return values.
   - **Goal:** Catch vulnerabilities like an API request being passed through a helper function into an `eval()` or SQL query.

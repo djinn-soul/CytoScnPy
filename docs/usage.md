@@ -2,7 +2,7 @@
 
 This guide covers everything you need to know to use CytoScnPy effectively.
 
-## 🚀 Quick Start
+## Quick Start
 
 Run analysis on your current directory:
 
@@ -14,7 +14,7 @@ cytoscnpy . --secrets --danger --quality
 
 ## Features & Usage
 
-### 💀 Dead Code Detection
+### Dead Code Detection
 
 CytoScnPy statically analyzes your code to find unused symbols. It detects:
 
@@ -23,7 +23,7 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 - **Imports**: Unused import statements.
 - **Variables**: Local variables assigned but never read.
 
-## 📦 Installation
+## Installation
 
 **Linux / macOS:**
 
@@ -41,7 +41,7 @@ irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
 
 **Framework Support**: Automatically detects usage in Flask routes, Django views, FastAPI endpoints, and Pydantic models.
 
-### 🔒 Security Analysis
+### Security Analysis
 
 Enable with `--secrets` and `--danger`.
 
@@ -50,7 +50,7 @@ Enable with `--secrets` and `--danger`.
 
 For detailed vulnerability rules (`CSP-Dxxx`), see the **[Dangerous Code Rules Index](dangerous-code.md)** or the general [Security Analysis](security.md) overview.
 
-### 📊 Code Quality Metrics
+### Code Quality Metrics
 
 Enable with `--quality`.
 
@@ -59,8 +59,16 @@ Enable with `--quality`.
 - **Halstead Metrics**: Algorithmic complexity.
 
 For a full list of quality rules and their standard IDs (B006, E722, etc.), see the **[Code Quality Rules](quality.md)** reference.
+Note: Per-rule pages exist only for Best Practices and Performance; maintainability rules are summarized in the index.
 
-### 🧩 Clone Detection
+### Rule Index
+
+| Area                      | Reference                          |
+| ------------------------- | ---------------------------------- |
+| Security rules (dangerous code) | [Dangerous Code Rules](dangerous-code.md) |
+| Quality rules             | [Code Quality Rules](quality.md)  |
+
+### Clone Detection
 
 Finds duplicate or near-duplicate code blocks (Type-1, Type-2, and Type-3 clones).
 
@@ -78,14 +86,14 @@ cytoscnpy . --clones --clone-similarity 0.8
 
 **Performance**: Clone detection is computationally intensive for very large codebases.
 
-### 🛠️ Auto-Fix
+### Auto-Fix
 
 Remove dead code automatically.
 
 1. **Preview**: `cytoscnpy . --fix`
 2. **Apply**: `cytoscnpy . --fix --apply`
 
-### 📄 HTML Reports
+### HTML Reports
 
 Generate interactive, self-contained HTML reports for easier navigation of findings.
 
@@ -111,7 +119,7 @@ cytoscnpy . --html --secrets --danger
 
 ---
 
-## 🚀 CI/CD Integration
+## CI/CD Integration
 
 CytoScnPy is designed to work seamlessly with modern CI/CD pipelines. Using the `--root` flag and specific `--format` options, you can integrate analysis results directly into your build process.
 
@@ -185,12 +193,20 @@ CytoScnPy supports configuration via:
 1.  **`.cytoscnpy.toml`** (Project root)
 2.  **`pyproject.toml`** (Scanning under `[tool.cytoscnpy]`)
 
+You can scaffold a default config with:
+
+```bash
+cytoscnpy init
+```
+
 ### Option 1: `.cytoscnpy.toml`
 
 ```toml
 [cytoscnpy]
 confidence = 60
 exclude_folders = ["venv", "build", "dist"]
+include_folders = ["src"]
+include_tests = false
 secrets = true
 danger = true
 quality = true
@@ -208,6 +224,8 @@ min_mi = 40.0         # MI < 40
 [tool.cytoscnpy]
 confidence = 60
 exclude_folders = ["venv", "build", "dist"]
+include_folders = ["src"]
+include_tests = false
 secrets = true
 danger = true
 quality = true
@@ -218,9 +236,36 @@ max_complexity = 15
 min_mi = 40.0
 ```
 
+### Advanced Config (Security)
+
+Use nested tables to customize secret scanning and taint analysis:
+
+```toml
+[cytoscnpy.secrets_config]
+entropy_threshold = 4.5
+min_length = 16
+entropy_enabled = true
+scan_comments = true
+skip_docstrings = false
+min_score = 50
+suspicious_names = ["db_password", "oauth_token"]
+
+[[cytoscnpy.secrets_config.patterns]]
+name = "Slack Token"
+regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
+severity = "HIGH"
+
+[cytoscnpy.danger_config]
+enable_taint = true
+severity_threshold = "LOW" # LOW, MEDIUM, HIGH, CRITICAL
+excluded_rules = ["CSP-D101"]
+custom_sources = ["mylib.get_input"]
+custom_sinks = ["mylib.exec"]
+```
+
 ---
 
-## 📖 CLI Reference
+## CLI Reference
 
 For a complete reference, see [docs/CLI.md](CLI.md).
 
@@ -360,7 +405,7 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -375,10 +420,9 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
   | Comment                  | Effect                                            |
   | ------------------------ | ------------------------------------------------- |
   | `# pragma: no cytoscnpy` | Legacy format (suppresses all CytoScnPy findings) |
-  | `# noqa`                 | Bare noqa (suppresses all CytoScnPy findings)     |
-  | `# ignore`               | Bare ignore (suppresses all CytoScnPy findings)   |
-  | `# noqa` (for Quality)   | Use bare `# noqa` for quality rules for now       |
-  | `# noqa: CSP-Dxxx`       | Specific (suppresses only a specific Danger rule) |
+  | `# noqa`                 | Bare noqa (suppresses all CytoScnPy findings)                |
+  | `# ignore`               | Bare ignore (suppresses all CytoScnPy findings)              |
+  | `# noqa: CSP-XXXX`       | Specific rule suppression (danger/quality/performance rules) |
 
   **Examples:**
 
@@ -386,7 +430,9 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
   def mutable_default(arg=[]):  # noqa
       pass
 
-  x = [1, 2] == None # noqa -- suppress dangerous comparison
+  x = [1, 2] == None # noqa: CSP-L003
+  for x in items:  # noqa: CSP-P003
+      out += x
   y = api_key  # pragma: no cytoscnpy
   ```
 

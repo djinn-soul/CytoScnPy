@@ -21,6 +21,26 @@ Detects hardcoded secrets, API keys, and credentials using a combination of rege
 - **Private Keys**: RSA, DSA, EC private keys.
 - **High Entropy Strings**: Random strings that look like secrets but don't match specific patterns.
 
+### Secret Scanning Configuration
+
+Tune detection via `.cytoscnpy.toml` or `pyproject.toml`:
+
+```toml
+[cytoscnpy.secrets_config]
+entropy_threshold = 4.5
+min_length = 16
+entropy_enabled = true
+scan_comments = true
+skip_docstrings = false
+min_score = 50
+suspicious_names = ["db_password", "oauth_token"]
+
+[[cytoscnpy.secrets_config.patterns]]
+name = "Slack Token"
+regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
+severity = "HIGH"
+```
+
 ---
 
 ## Dangerous Code (`--danger`)
@@ -38,6 +58,23 @@ For a complete list of all rules organized by category, see: **[Dangerous Code R
 - [Network & HTTP Security](danger/network.md) (CSP-D4xx)
 - [File Operations & Path Traversal](danger/filesystem.md) (CSP-D5xx)
 - [Modern Python & Frameworks](danger/modern-python.md) (CSP-D9xx)
+
+## Rule Count
+
+The current danger rule set includes 31 rules.
+
+### Danger + Taint Configuration
+
+Use `danger_config` to control taint analysis and filtering:
+
+```toml
+[cytoscnpy.danger_config]
+enable_taint = true
+severity_threshold = "LOW" # LOW, MEDIUM, HIGH, CRITICAL
+excluded_rules = ["CSP-D101"]
+custom_sources = ["mylib.get_input"]
+custom_sinks = ["mylib.exec"]
+```
 
 ---
 

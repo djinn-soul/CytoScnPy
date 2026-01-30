@@ -2,14 +2,14 @@
 
 Thank you for your interest in contributing to CytoScnPy!
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 - **Rust**: Version 1.70 or higher.
 - **Cargo**: Comes with Rust.
 - **Python**: Version 3.8 or higher.
 - **Maturin**: `pip install maturin`
 
-## 🚀 Setup Development Environment
+## Setup Development Environment
 
 1. **Fork and Clone:**
 
@@ -33,14 +33,22 @@ Thank you for your interest in contributing to CytoScnPy!
    maturin develop -m cytoscnpy/Cargo.toml
    ```
 
-4. **Run Tests:**
+4. **Install the docs generator:**
+
+   ```bash
+   cargo install --locked plissken
+   ```
+
+   Runs `plissken render plissken.toml` automatically before `python -m mkdocs build` or `mkdocs serve`, so you only need to rerun the command manually when you want to force a fresh render outside of the MkDocs lifecycle.
+
+5. **Run Tests:**
 
    ```bash
    cargo test
    pytest python/tests
    ```
 
-## 🔄 Development Workflow
+## Development Workflow
 
 1. **Create a Branch:**
    `git checkout -b feature/your-feature`
@@ -59,14 +67,14 @@ Thank you for your interest in contributing to CytoScnPy!
    - Push to your fork.
    - Open a Pull Request on GitHub.
 
-## 📂 Project Structure
+## Project Structure
 
 - `cytoscnpy/` - Rust core library & analysis engine.
 - `python/` - Python wrapper & CLI entry point.
 - `editors/vscode/` - VS Code extension.
 - `cytoscnpy-mcp/` - MCP server documentation.
 
-## 🧪 Testing
+## Testing
 
 We have a comprehensive test suite.
 

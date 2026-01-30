@@ -38,7 +38,11 @@ dev = [
     "trove-classifiers",
     "ty",
 ]
-docs = ["mkdocs-material>=9.5.0", "mkdocs-minify-plugin>=0.8.0", "pymdown-extensions>=10.0"]
+docs = [
+    "mkdocs-material>=9.5.0; python_version >= '3.9'",
+    "mkdocs-minify-plugin>=0.8.0; python_version >= '3.9'",
+    "pymdown-extensions>=10.0; python_version >= '3.9'",
+]
 
 [tool.maturin]
 bindings = "pyo3"

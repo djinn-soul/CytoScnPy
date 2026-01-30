@@ -2,7 +2,7 @@
 
 **High-Performance Python Static Analysis Tool Powered by Rust**
 
-[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/test-ci.yml)
+[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/cytoscnpy)](https://pypi.org/project/cytoscnpy/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -10,12 +10,12 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 
 ## Key Features
 
-- 🚀 **Blazing Fast**: Written in Rust for maximum performance.
-- 💀 **Dead Code Detection**: Finds unused functions, classes, methods, imports, and variables.
-- 🔒 **Security Scanning**: Detects secrets (API keys), dangerous patterns (eval/exec), and taint analysis.
-- 📊 **Code Quality**: Calculates Cyclomatic Complexity, Halstead metrics, and Maintainability Index.
-- 🧩 **Deep Integration**: VS Code extension and MCP server for AI assistants.
-- 🛠️ **Framework Aware**: Native support for Flask, Django, FastAPI, and Pydantic.
+- **Blazing Fast**: Written in Rust for maximum performance.
+- **Dead Code Detection**: Finds unused functions, classes, methods, imports, and variables.
+- **Security Scanning**: Detects secrets (API keys), dangerous patterns (eval/exec), and taint analysis.
+- **Code Quality**: Calculates Cyclomatic Complexity, Halstead metrics, and Maintainability Index.
+- **Deep Integration**: VS Code extension and MCP server for AI assistants.
+- **Framework Aware**: Native support for Flask, Django, FastAPI, and Pydantic.
 
 ## Deep Integration
 

@@ -16,7 +16,7 @@ cargo build --release --package cytoscnpy-cli
 cargo run --package cytoscnpy-cli -- /path/to/project
 
 # Run with all security checks
-cargo run --package cytoscnpy-cli -- /path/to/project --secrets --danger --taint
+cargo run --package cytoscnpy-cli -- /path/to/project --secrets --danger
 
 # JSON output for CI/CD
 cargo run --package cytoscnpy-cli -- /path/to/project --json
@@ -34,7 +34,7 @@ cargo run --package cytoscnpy-cli -- mcp-server
 The `mcp-server` subcommand starts an MCP (Model Context Protocol) server over stdio, enabling AI assistants to use CytoScnPy's analysis capabilities:
 
 ```bash
-cytoscnpy mcp-server
+cytoscnpy-cli mcp-server
 ```
 
 See [../cytoscnpy-mcp/README.md](../cytoscnpy-mcp/README.md) for MCP configuration details.

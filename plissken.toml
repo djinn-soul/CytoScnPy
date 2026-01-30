@@ -1,0 +1,15 @@
+[project]
+name = "CytoScnPy"
+version_from = "cargo"
+
+[output]
+format = "markdown"
+path = "docs/api"
+template = "mkdocs-material"
+
+[rust]
+crates = ["cytoscnpy", "cytoscnpy-cli", "cytoscnpy-mcp"]
+
+[python]
+package = "cytoscnpy"
+source = "python"

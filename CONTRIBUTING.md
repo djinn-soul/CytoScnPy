@@ -128,7 +128,7 @@ The project includes several CI/CD workflows in `.github/workflows/`:
 
 | Workflow         | File                        | Trigger         | Purpose                                     |
 | ---------------- | --------------------------- | --------------- | ------------------------------------------- |
-| **Test Suite**   | `test-ci.yml`               | PR to main      | Build, nextest, pytest                      |
+| **Test Suite**   | `ci.yml`                    | PR to main      | Build, nextest, pytest                      |
 | **Benchmark**    | `benchmark.yml`             | PR to main      | Run accuracy benchmarks, detect regressions |
 | **Coverage**     | `coverage.yml`              | Push to main    | Generate and upload code coverage reports   |
 | **Security**     | `security.yml`              | PR/Push to main | `cargo audit`, `deny`, `machete`            |
@@ -473,7 +473,7 @@ The following tools are recommended but not yet fully integrated:
   - Install: `cargo install cargo-make`
   - Create `Makefile.toml` for complex build workflows
   - Useful for CI/CD pipelines
-- [x] **CI Integration**: GitHub Actions workflows added (see `security.yml` and `test-ci.yml`):
+- [x] **CI Integration**: GitHub Actions workflows added (see `security.yml` and `ci.yml`):
   - `cargo audit` on every PR ✅
   - `cargo deny check` for license compliance ✅
   - `cargo machete` to catch unused dependencies ✅

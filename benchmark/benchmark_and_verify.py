@@ -633,11 +633,12 @@ class Verification:
                                  findings.add((fpath, lineno, "import", obj_name))
                         elif code == "F841":  # Local variable assigned but never used
                             msg = parts[3].strip()
+                            obj_name = None
                             if "`" in msg:
                                 obj_name = msg.split("`")[1]
-                                findings.add((fpath, lineno, "variable", obj_name))
                             elif "'" in msg:
                                 obj_name = msg.split("'")[1]
+                            if obj_name:
                                 findings.add((fpath, lineno, "variable", obj_name))
                     except ValueError:
                         pass

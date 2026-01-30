@@ -14,7 +14,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 
 - `[paths]`: One or more paths to analyze (files or directories). If omitted, CytoScnPy defaults to the current working directory.
 - `--root <PATH>`: Explicitly sets the project root. This is **highly recommended for CI/CD environments** to ensure that path-based security containment is correctly applied and that relative imports are resolved consistently. When `--root` is used, positional `[paths]` are not allowed. It also ensures that reports (SARIF, GitLab, etc.) use paths relative to this root.
-- `--format <FORMAT>`: Specifies the output format. Supported values: `text` (default), `json`, `junit`, `github`, `gitlab`, `markdown`, `sarif`.
+- `--format <FORMAT>`: Specifies the output format. Supported values: `text` (default), `json`, `junit`, `github`, `gitlab`, `markdown`, `sarif`, `grouped` (deprecated).
 - `--json`: Format the result as a raw JSON object. Shorthand for `--format json`. This is ideal for piping into tools like `jq` or for consumption by CI/CD scripts.
 - `--verbose`, `-v`: Prints detailed logs during the analysis process, including which files are being scanned and any non-fatal issues encountered.
 - `--quiet`: Minimalist output. Only the final summary table (or JSON) is displayed, suppressing the per-file findings table.
@@ -31,6 +31,8 @@ cytoscnpy [OPTIONS] [COMMAND]
 ### Analysis Configuration
 
 - `--confidence <N>`: Sets a minimum confidence threshold (0-100). CytoScnPy uses a scoring system for dead code; setting this to `80`, for example, will suppress "noisy" findings where the tool isn't certain the code is unused.
+- `--exclude-folder <DIR>`: Exclude specific folders from analysis. Can be used multiple times.
+- `--include-folder <DIR>`: Force-include specific folders in analysis. Can be used multiple times.
 - `--include-tests`: By default, CytoScnPy ignores files in folders like `tests/` or `test/` starting from version 1.2.2. Use this flag to include them in the analysis.
 - `--include-ipynb`: Enables scanning of Jupyter Notebook files. CytoScnPy extracts the Python code from cells and analyzes it as a virtual module.
 - `--ipynb-cells`: When combined with `--include-ipynb`, this reports findings with cell numbers instead of just line numbers, making it easier to locate issues in the Notebook UI.
@@ -157,6 +159,18 @@ Start MCP server for LLM integration.
 cytoscnpy mcp-server
 ```
 
+> Note: The `mcp-server` subcommand is handled by the `cytoscnpy-cli` binary. If you installed the Python package, `cytoscnpy mcp-server` will print an error. Use the standalone CLI build for MCP.
+
+### `init`
+
+Initialize CytoScnPy configuration in the current directory.
+
+```bash
+cytoscnpy init
+```
+
+This creates `.cytoscnpy.toml` (or appends `[tool.cytoscnpy]` to `pyproject.toml`) and adds `.cytoscnpy` to `.gitignore` when possible.
+
 ## Configuration File
 
 Create `.cytoscnpy.toml` in your project root to set defaults.
@@ -185,6 +199,38 @@ include_folders = ["src"]
 
 # CI/CD
 fail_threshold = 5.0
+```
+
+### Advanced Configuration
+
+#### Secret Scanning
+
+```toml
+[cytoscnpy.secrets_config]
+entropy_threshold = 4.5
+min_length = 16
+entropy_enabled = true
+scan_comments = true
+skip_docstrings = false
+min_score = 50
+suspicious_names = ["db_password", "oauth_token"]
+
+[[cytoscnpy.secrets_config.patterns]]
+name = "Slack Token"
+regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
+severity = "HIGH"
+rule_id = "CSP-SCUSTOM-001" # Optional
+```
+
+#### Dangerous Code + Taint Analysis
+
+```toml
+[cytoscnpy.danger_config]
+enable_taint = true
+severity_threshold = "LOW" # LOW, MEDIUM, HIGH, CRITICAL
+excluded_rules = ["CSP-D101"]
+custom_sources = ["mylib.get_input"]
+custom_sinks = ["mylib.exec"]
 ```
 
 ## Exit Codes

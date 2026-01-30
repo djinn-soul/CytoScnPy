@@ -51,14 +51,34 @@ maturin develop -m cytoscnpy/Cargo.toml
 
 ### MCP Server (for AI Assistants)
 
-CytoScnPy includes an MCP server for AI assistant integration:
+CytoScnPy includes an MCP server for AI assistant integration via the standalone CLI binary (install script or `cytoscnpy-cli` build). The Python package does not run `mcp-server`.
 
 ```bash
-# Start MCP server (after pip install)
+# Start MCP server (standalone CLI)
 cytoscnpy mcp-server
 ```
 
 For Claude Desktop, Cursor, or GitHub Copilot configuration, see the **[MCP Server Documentation](cytoscnpy-mcp/README.md)**.
+
+### GitHub Action
+
+Integrate CytoScnPy directly into your GitHub Actions workflow:
+
+```yaml
+- name: Run CytoScnPy Analysis
+  uses: djinn09/CytoScnPy@main
+  with:
+    args: "--secrets --danger --quality"
+```
+
+**Action Inputs:**
+
+| Input            | Description                              | Default  |
+| ---------------- | ---------------------------------------- | -------- |
+| `path`           | Path(s) to analyze                       | `.`      |
+| `args`           | Additional arguments (e.g., `--secrets`) | ` `      |
+| `version`        | Version of `cytoscnpy` to install        | `latest` |
+| `python-version` | Version of Python to set up              | `3.x`    |
 
 ## Features
 
@@ -173,7 +193,8 @@ Create `.cytoscnpy.toml` (uses `[cytoscnpy]`) or add to `pyproject.toml` (uses `
 confidence = 60  # Minimum confidence threshold (0-100)
 exclude_folders = ["venv", ".tox", "build", "node_modules", ".git"]
 include_folders = ["src", "tests"]  # Optional: whitelist folders
-include_tests = false  # Note: include_ipynb and ipynb_cells are CLI-only (use flags)
+include_tests = false
+include_ipynb = false
 
 # Analysis Features
 secrets = true
@@ -207,9 +228,17 @@ suspicious_names = ["db_config", "oauth_token"] # Add custom suspicious variable
 name = "Slack Token"
 regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
+
+# Danger + Taint Configuration
+[cytoscnpy.danger_config]
+enable_taint = true
+severity_threshold = "LOW" # LOW, MEDIUM, HIGH, CRITICAL
+excluded_rules = ["CSP-D101"]
+custom_sources = ["mylib.get_input"]
+custom_sinks = ["mylib.exec"]
 ```
 
-> **Note**: Notebook options (`include_ipynb`, `ipynb_cells`) are currently CLI-only but will be added to the configuration file in a future release.
+> **Note**: `ipynb_cells` is currently CLI-only. `include_ipynb` is supported in config files.
 
 ### CI/CD Quality Gates
 

@@ -52,6 +52,8 @@ Customize behavior in VS Code Settings (`Ctrl+,`):
 Enable AI assistants (Claude, Cursor, Copilot) to use CytoScnPy tools.
 
 > **Note**: HTTP/SSE transport is planned for future releases to enable remote analysis. See [Roadmap](roadmap.md) for details.
+>
+> **Important**: The MCP server is available in the standalone CLI binary (install script or `cytoscnpy-cli` build). The Python `cytoscnpy` package does not run `mcp-server`.
 
 ### GitHub Copilot
 
@@ -61,7 +63,7 @@ The VS Code extension **automatically registers** the MCP server. Just ask Copil
 
 ### Manual Setup (Claude/Cursor)
 
-If not using VS Code, run the server manually:
+If not using VS Code, run the server manually using the standalone CLI:
 
 ```bash
 cytoscnpy mcp-server
@@ -126,4 +128,4 @@ For detailed setup guides and examples for:
 - **SARIF Security Dashboards**
 - **JUnit Test Reports**
 
-See the **[CI/CD Integration Guide](usage.md#-cicd-integration)** in our User Guide.
+See the **[CI/CD Integration Guide](usage.md#cicd-integration)** in our User Guide.

@@ -1,0 +1,28 @@
+name: Test CytoScnPy Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run CytoScnPy Action (Default)
+        uses: ./
+        with:
+          path: .
+          args: "--quiet"
+          python-version: "3.11"
+
+      - name: Run CytoScnPy Action (Full Analysis)
+        uses: ./
+        with:
+          path: .
+          args: "--secrets --danger --quality --quiet"
+          python-version: "3.11"

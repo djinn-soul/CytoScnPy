@@ -33,14 +33,19 @@ runs:
 
     - name: Install CytoScnPy
       shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
       run: |
-        if [ "${{ inputs.version }}" == "latest" ]; then
+        if [ "$VERSION" == "latest" ]; then
           pip install cytoscnpy
         else
-          pip install cytoscnpy==${{ inputs.version }}
+          pip install "cytoscnpy==$VERSION"
         fi
 
     - name: Run CytoScnPy
       shell: bash
+      env:
+        CYTO_PATH: ${{ inputs.path }}
+        CYTO_ARGS: ${{ inputs.args }}
       run: |
-        cytoscnpy ${{ inputs.path }} ${{ inputs.args }}
+        cytoscnpy "$CYTO_PATH" $CYTO_ARGS

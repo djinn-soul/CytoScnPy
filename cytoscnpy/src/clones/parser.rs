@@ -2,11 +2,12 @@
 //!
 //! Extracts subtrees from Python source code for clone detection.
 
-use crate::clones::types::CloneInstance;
+use crate::clones::types::{CloneInstance, NodeKind};
 use crate::clones::CloneError;
 use ruff_python_ast::{self as ast, Stmt};
 use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// A subtree extracted from source code for clone analysis
@@ -33,7 +34,7 @@ pub struct Subtree {
 }
 
 /// Type of subtree node
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SubtreeType {
     /// Regular function definition
     Function,
@@ -43,6 +44,47 @@ pub enum SubtreeType {
     Class,
     /// Method within a class
     Method,
+}
+
+/// A lightweight fingerprint of a code block for the first pass of detection.
+/// Stores only metadata and hashes to prevent memory exhaustion.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloneFingerprint {
+    pub file: PathBuf,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub name: Option<String>,
+    pub node_type: SubtreeType,
+    /// MinHash signature for LSH candidate pruning
+    pub lsh_signature: Vec<u64>,
+    /// Hash of the normalized structure for Type-1/2 comparison
+    pub structural_hash: u64,
+}
+
+impl CloneFingerprint {
+    /// Convert to a `CloneInstance` (used when generating results)
+    #[must_use]
+    pub fn to_instance(&self) -> CloneInstance {
+        let node_kind = match self.node_type {
+            SubtreeType::Function => NodeKind::Function,
+            SubtreeType::AsyncFunction => NodeKind::AsyncFunction,
+            SubtreeType::Class => NodeKind::Class,
+            SubtreeType::Method => NodeKind::Method,
+        };
+
+        CloneInstance {
+            file: self.file.clone(),
+            start_line: self.start_line,
+            end_line: self.end_line,
+            start_byte: self.start_byte,
+            end_byte: self.end_byte,
+            normalized_hash: self.structural_hash,
+            name: self.name.clone(),
+            node_kind,
+        }
+    }
 }
 
 /// A node in the subtree (for edit distance calculation)
@@ -150,17 +192,20 @@ fn extract_from_body(
                     SubtreeType::Function
                 };
 
-                subtrees.push(Subtree {
-                    node_type,
-                    name: Some(f.name.to_string()),
-                    start_byte,
-                    end_byte,
-                    start_line,
-                    end_line,
-                    file: path.clone(),
-                    source_slice: source[start_byte..end_byte].to_string(),
-                    children: extract_stmt_nodes(&f.body),
-                });
+                // Only capture if it meets a minimum line threshold to avoid trivial clones
+                if (end_line - start_line + 1) >= crate::constants::MIN_CLONE_LINES {
+                    subtrees.push(Subtree {
+                        node_type,
+                        name: Some(f.name.to_string()),
+                        start_byte,
+                        end_byte,
+                        start_line,
+                        end_line,
+                        file: path.clone(),
+                        source_slice: source[start_byte..end_byte].to_string(),
+                        children: extract_stmt_nodes(&f.body),
+                    });
+                }
 
                 // Recurse into nested functions (reset in_class to false)
                 extract_from_body(&f.body, path, source, subtrees, false);
@@ -170,17 +215,20 @@ fn extract_from_body(
                 let end_byte = c.range().end().to_usize();
                 let (start_line, end_line) = byte_to_lines(start_byte, end_byte, source);
 
-                subtrees.push(Subtree {
-                    node_type: SubtreeType::Class,
-                    name: Some(c.name.to_string()),
-                    start_byte,
-                    end_byte,
-                    start_line,
-                    end_line,
-                    file: path.clone(),
-                    source_slice: source[start_byte..end_byte].to_string(),
-                    children: extract_stmt_nodes(&c.body),
-                });
+                // Only capture if it meets a minimum line threshold to avoid trivial clones
+                if (end_line - start_line + 1) >= crate::constants::MIN_CLONE_LINES {
+                    subtrees.push(Subtree {
+                        node_type: SubtreeType::Class,
+                        name: Some(c.name.to_string()),
+                        start_byte,
+                        end_byte,
+                        start_line,
+                        end_line,
+                        file: path.clone(),
+                        source_slice: source[start_byte..end_byte].to_string(),
+                        children: extract_stmt_nodes(&c.body),
+                    });
+                }
 
                 // Recurse into class body for methods (set in_class to true)
                 extract_from_body(&c.body, path, source, subtrees, true);

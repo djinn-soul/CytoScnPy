@@ -32,12 +32,17 @@ pub use types::{
 // Re-export from shared fix module for convenience
 pub use crate::fix::ByteRangeRewriter;
 
+use indicatif::ProgressBar;
+use std::hash::Hasher;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Main clone detector orchestrator
 pub struct CloneDetector {
     config: CloneConfig,
     confidence_scorer: ConfidenceScorer,
+    /// Progress bar for tracking detection progress (shared with main analyzer)
+    pub progress_bar: Option<Arc<ProgressBar>>,
 }
 
 impl CloneDetector {
@@ -47,6 +52,7 @@ impl CloneDetector {
         Self {
             config: CloneConfig::default(),
             confidence_scorer: ConfidenceScorer::default(),
+            progress_bar: None,
         }
     }
 
@@ -59,114 +65,188 @@ impl CloneDetector {
                 config.suggest_threshold,
             ),
             config,
+            progress_bar: None,
         }
     }
 
     /// Number of files to process per chunk to prevent OOM on large projects.
-    const CHUNK_SIZE: usize = 1000;
-
     /// Detect clones from file paths with chunked processing (OOM-safe).
     ///
     /// This method processes files in chunks to prevent memory exhaustion:
-    /// 1. Read files in batches of `CHUNK_SIZE`
-    /// 2. Parse and extract fingerprints, then drop source content
-    /// 3. Compare fingerprints (lightweight) to find candidates
-    /// 4. For matched pairs, reload specific files to generate findings
+    /// 1. Read files in batches of `crate::constants::CHUNK_SIZE` using rayon
+    /// 2. Parse and extract fingerprints, then drop source content immediately
+    /// 3. Compare fingerprints (lightweight hashes) to find candidates
+    /// 4. For matched pairs, reload specific files to generate precise results
     #[must_use]
     pub fn detect_from_paths(&self, paths: &[PathBuf]) -> CloneDetectionResult {
         use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
-        // Phase 1: Chunked fingerprint extraction
-        // Process files in chunks to limit peak memory usage
-        let mut all_subtrees: Vec<parser::Subtree> = Vec::new();
+        // Update progress bar for Phase 1
+        if let Some(ref pb) = self.progress_bar {
+            pb.set_length(paths.len() as u64);
+            pb.set_position(0);
+            pb.set_message("Extracting clone fingerprints...");
+        }
 
-        for chunk in paths.chunks(Self::CHUNK_SIZE) {
-            // Read and parse chunk
-            let chunk_subtrees: Vec<parser::Subtree> = chunk
+        let mut fingerprints: Vec<parser::CloneFingerprint> = Vec::new();
+        let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
+        let hasher = hasher::LshHasher::new(self.config.lsh_bands, self.config.lsh_rows);
+
+        for chunk in paths.chunks(crate::constants::CHUNK_SIZE) {
+            let chunk_fingerprints: Vec<parser::CloneFingerprint> = chunk
                 .par_iter()
                 .filter_map(|path| {
                     if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
                         return None;
                     }
                     let source = std::fs::read_to_string(path).ok()?;
-                    parser::extract_subtrees(&source, path).ok()
+                    let subtrees = parser::extract_subtrees(&source, path).ok()?;
+
+                    if let Some(ref pb) = self.progress_bar {
+                        pb.inc(1);
+                    }
+
+                    Some(
+                        subtrees
+                            .into_iter()
+                            .map(|s| {
+                                let normalized = id_normalizer.normalize(&s);
+                                let lsh_signature = hasher.signature(&normalized);
+
+                                // Structural hash for fast Type-1/2 check
+                                let mut struct_hasher = rustc_hash::FxHasher::default();
+                                for kind in normalized.kind_sequence() {
+                                    use std::hash::Hash;
+                                    kind.hash(&mut struct_hasher);
+                                }
+
+                                parser::CloneFingerprint {
+                                    file: s.file,
+                                    start_byte: s.start_byte,
+                                    end_byte: s.end_byte,
+                                    start_line: s.start_line,
+                                    end_line: s.end_line,
+                                    name: s.name,
+                                    node_type: s.node_type,
+                                    lsh_signature,
+                                    structural_hash: struct_hasher.finish(),
+                                }
+                            })
+                            .collect::<Vec<_>>(),
+                    )
                 })
                 .flatten()
                 .collect();
 
-            all_subtrees.extend(chunk_subtrees);
-            // Source content dropped here when chunk goes out of scope
+            fingerprints.extend(chunk_fingerprints);
         }
 
-        // Phase 2-5: Use existing detection logic on extracted subtrees
-        self.detect_from_subtrees(&all_subtrees)
-    }
+        // Phase 2: LSH candidate pruning using lightweight signatures
+        let candidates = hasher.find_candidates_from_fingerprints(&fingerprints);
 
-    /// Internal detection from pre-extracted subtrees (shared by detect and `detect_from_paths`)
-    fn detect_from_subtrees(&self, all_subtrees: &[parser::Subtree]) -> CloneDetectionResult {
-        // Phase 2: Create normalizers for both raw and renamed comparison
-        let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1); // Preserves identifiers
-        let renamed_normalizer = Normalizer::for_clone_type(CloneType::Type2); // Renames identifiers
-
-        let raw_normalized: Vec<_> = all_subtrees
-            .iter()
-            .map(|s| raw_normalizer.normalize(s))
-            .collect();
-        let id_normalized: Vec<_> = all_subtrees
-            .iter()
-            .map(|s| renamed_normalizer.normalize(s))
-            .collect();
-
-        // Phase 3: LSH candidate pruning (use identifier-normalized for broad matching)
-        let hasher = hasher::LshHasher::new(self.config.lsh_bands, self.config.lsh_rows);
-        let candidates = hasher.find_candidates(&id_normalized);
-
-        // Phase 4: Precise similarity calculation with type classification
+        // Phase 3 & 4: Precise similarity calculation (Reloading required files)
         let similarity_calc = TreeSimilarity::default();
         let mut pairs = Vec::new();
 
-        for (i, j) in candidates {
-            // Calculate both raw and normalized similarity
-            let raw_sim = similarity_calc.similarity(&raw_normalized[i], &raw_normalized[j]);
-            let id_sim = similarity_calc.similarity(&id_normalized[i], &id_normalized[j]);
+        // Subtree cache to avoid re-parsing the same files
+        let mut subtree_cache: std::collections::HashMap<PathBuf, Vec<parser::Subtree>> =
+            std::collections::HashMap::new();
+        let total_candidates = candidates.len();
+
+        // Update progress bar if available
+        if let Some(ref pb) = self.progress_bar {
+            pb.set_length(candidates.len() as u64);
+            pb.set_position(0);
+            pb.set_message("Comparing clone candidates...");
+            // Use a custom message for the count to avoid confusing it with files
+            pb.set_style(
+                indicatif::ProgressStyle::default_bar()
+                    .template(
+                        "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} pairs ({percent}%) {msg}",
+                    )
+                    .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
+                    .progress_chars("█▓░"),
+            );
+        }
+
+        for (idx, (i, j)) in candidates.into_iter().enumerate() {
+            if let Some(ref pb) = self.progress_bar {
+                if idx % 10 == 0 || idx == total_candidates - 1 {
+                    pb.set_position(idx as u64);
+                }
+            }
+
+            let fp_a = &fingerprints[i];
+            let fp_b = &fingerprints[j];
+
+            // Get or load subtrees for file A
+            if !subtree_cache.contains_key(&fp_a.file) {
+                if let Ok(source) = std::fs::read_to_string(&fp_a.file) {
+                    if let Ok(st) = parser::extract_subtrees(&source, &fp_a.file) {
+                        subtree_cache.insert(fp_a.file.clone(), st);
+                    }
+                }
+            }
+
+            // Get or load subtrees for file B
+            if !subtree_cache.contains_key(&fp_b.file) {
+                if let Ok(source) = std::fs::read_to_string(&fp_b.file) {
+                    if let Ok(st) = parser::extract_subtrees(&source, &fp_b.file) {
+                        subtree_cache.insert(fp_b.file.clone(), st);
+                    }
+                }
+            }
+
+            let sub_a = subtree_cache
+                .get(&fp_a.file)
+                .and_then(|st| st.iter().find(|s| s.start_byte == fp_a.start_byte));
+
+            let sub_b = subtree_cache
+                .get(&fp_b.file)
+                .and_then(|st| st.iter().find(|s| s.start_byte == fp_b.start_byte));
+
+            let (Some(sub_a), Some(sub_b)) = (sub_a, sub_b) else {
+                continue;
+            };
+
+            let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1);
+            let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
+
+            let raw_a = raw_normalizer.normalize(sub_a);
+            let raw_b = raw_normalizer.normalize(sub_b);
+            let id_a = id_normalizer.normalize(sub_a);
+            let id_b = id_normalizer.normalize(sub_b);
+
+            let raw_sim = similarity_calc.similarity(&raw_a, &raw_b);
+            let id_sim = similarity_calc.similarity(&id_a, &id_b);
 
             if id_sim >= self.config.min_similarity {
-                // Classify clone type using both raw and normalized similarity:
-                // Type-1 (Exact Copy): Both raw and normalized are very high
-                // Type-2 (Renamed Copy): Normalized high but raw is lower
-                // Type-3 (Similar Code): Normalized similarity is moderate
                 let t1 = self.config.type1_threshold;
                 let t2_raw = self.config.type2_raw_max;
 
                 let clone_type = if raw_sim >= t1 && id_sim >= t1 {
-                    CloneType::Type1 // Exact: even raw identifiers match
+                    CloneType::Type1
                 } else if id_sim >= t1 && raw_sim < t2_raw {
-                    CloneType::Type2 // Renamed: structure same but identifiers differ
+                    CloneType::Type2
                 } else if id_sim >= t1 {
-                    CloneType::Type1 // Near-exact: small identifier variations
+                    CloneType::Type1
                 } else {
-                    CloneType::Type3 // Similar: structural differences
+                    CloneType::Type3
                 };
 
                 pairs.push(ClonePair {
-                    instance_a: all_subtrees[i].to_instance(),
-                    instance_b: all_subtrees[j].to_instance(),
+                    instance_a: fp_a.to_instance(),
+                    instance_b: fp_b.to_instance(),
                     similarity: id_sim,
                     clone_type,
-                    edit_distance: similarity_calc
-                        .edit_distance(&id_normalized[i], &id_normalized[j]),
+                    edit_distance: similarity_calc.edit_distance(&id_a, &id_b),
                 });
             }
         }
 
-        // Phase 4.5: CFG-based behavioral validation (optional)
-        // When enabled, filters out clone pairs where the control flow differs significantly
-        #[cfg(feature = "cfg")]
-        let pairs = if self.config.cfg_validation {
-            self.validate_with_cfg(pairs, all_subtrees)
-        } else {
-            pairs
-        };
+        if let Some(ref pb) = self.progress_bar {
+            pb.finish_and_clear();
+        }
 
         // Phase 5: Group clones
         let groups = self.group_clones(&pairs);
@@ -180,29 +260,76 @@ impl CloneDetector {
     }
 
     /// Detect clones in the given source files (backward compatible API)
-    ///
-    /// Parse errors are silently skipped (reported in main analysis).
     #[must_use]
     pub fn detect(&self, files: &[(PathBuf, String)]) -> CloneDetectionResult {
         let mut all_subtrees = Vec::new();
 
-        // Phase 1: Parse and extract subtrees (skip files with parse errors)
         for (path, source) in files {
-            match parser::extract_subtrees(source, path) {
-                Ok(subtrees) => all_subtrees.extend(subtrees),
-                Err(_e) => {
-                    // Skip unparsable files silently - they'll be reported in the main analysis
-                }
+            if let Ok(subtrees) = parser::extract_subtrees(source, path) {
+                all_subtrees.extend(subtrees);
             }
         }
 
-        // Delegate to shared detection logic
-        self.detect_from_subtrees(&all_subtrees)
+        // For backward compatibility, we convert subtrees to fingerprints then run detection
+        let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
+        let hasher = hasher::LshHasher::new(self.config.lsh_bands, self.config.lsh_rows);
+
+        let fingerprints: Vec<_> = all_subtrees
+            .iter()
+            .map(|s| {
+                let normalized = id_normalizer.normalize(s);
+                let mut struct_hasher = rustc_hash::FxHasher::default();
+                for kind in normalized.kind_sequence() {
+                    use std::hash::Hash;
+                    kind.hash(&mut struct_hasher);
+                }
+                parser::CloneFingerprint {
+                    file: s.file.clone(),
+                    start_byte: s.start_byte,
+                    end_byte: s.end_byte,
+                    start_line: s.start_line,
+                    end_line: s.end_line,
+                    name: s.name.clone(),
+                    node_type: s.node_type,
+                    lsh_signature: hasher.signature(&normalized),
+                    structural_hash: struct_hasher.finish(),
+                }
+            })
+            .collect();
+
+        // Then we would normally call detect_from_paths, but here we have data in memory.
+        // Internal helper could be extracted if needed, but for now we reuse the core logic.
+        let candidates = hasher.find_candidates_from_fingerprints(&fingerprints);
+        let similarity_calc = TreeSimilarity::default();
+        let mut pairs = Vec::new();
+
+        for (i, j) in candidates {
+            let id_a = id_normalizer.normalize(&all_subtrees[i]);
+            let id_b = id_normalizer.normalize(&all_subtrees[j]);
+            let id_sim = similarity_calc.similarity(&id_a, &id_b);
+
+            if id_sim >= self.config.min_similarity {
+                pairs.push(ClonePair {
+                    instance_a: fingerprints[i].to_instance(),
+                    instance_b: fingerprints[j].to_instance(),
+                    similarity: id_sim,
+                    clone_type: CloneType::Type3, // Default for simple detect
+                    edit_distance: similarity_calc.edit_distance(&id_a, &id_b),
+                });
+            }
+        }
+
+        let groups = self.group_clones(&pairs);
+        CloneDetectionResult {
+            pairs,
+            groups: groups.clone(),
+            summary: CloneSummary::from_groups(&groups),
+        }
     }
 
     /// Group related clone pairs into clone groups
     #[allow(clippy::unused_self)]
-    const fn group_clones(&self, _pairs: &[ClonePair]) -> Vec<CloneGroup> {
+    fn group_clones(&self, _pairs: &[ClonePair]) -> Vec<CloneGroup> {
         // TODO: implement union-find grouping
         Vec::new()
     }

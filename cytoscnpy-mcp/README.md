@@ -13,17 +13,19 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) is an open standa
 
 ## Installation
 
-### Option 1: Unified CLI (Recommended)
+### Option 1: Standalone CLI (Recommended)
 
-The MCP server is now integrated into the main `cytoscnpy` CLI as a subcommand:
+The MCP server is available in the standalone CLI binary:
 
 ```bash
-# Install via pip
-pip install cytoscnpy
+# Install (Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
 
-# Run MCP server
+# Run MCP server (standalone CLI)
 cytoscnpy mcp-server
 ```
+
+The Python `cytoscnpy` package does not run `mcp-server`.
 
 ### Option 2: VS Code Extension (Automatic)
 
@@ -57,7 +59,7 @@ cytoscnpy mcp-server
 cargo build --release -p cytoscnpy-cli
 
 # Run MCP server
-./target/release/cytoscnpy mcp-server
+./target/release/cytoscnpy-cli mcp-server
 ```
 
 ## Usage

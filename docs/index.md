@@ -10,12 +10,12 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 
 ## Key Features
 
-- 🚀 **Blazing Fast**: Written in Rust for maximum performance.
-- 💀 **Dead Code Detection**: Finds unused functions, classes, methods, imports, and variables.
-- 🔒 **Security Scanning**: Detects secrets (API keys), dangerous patterns (eval/exec), and taint analysis.
-- 📊 **Code Quality**: Calculates Cyclomatic Complexity, Halstead metrics, and Maintainability Index.
-- 🧩 **Deep Integration**: VS Code extension and MCP server for AI assistants.
-- 🛠️ **Framework Aware**: Native support for Flask, Django, FastAPI, and Pydantic.
+- **Blazing Fast**: Written in Rust for maximum performance.
+- **Dead Code Detection**: Finds unused functions, classes, methods, imports, and variables.
+- **Security Scanning**: Detects secrets (API keys), dangerous patterns (eval/exec), and taint analysis.
+- **Code Quality**: Calculates Cyclomatic Complexity, Halstead metrics, and Maintainability Index.
+- **Deep Integration**: VS Code extension and MCP server for AI assistants.
+- **Framework Aware**: Native support for Flask, Django, FastAPI, and Pydantic.
 
 ## Deep Integration
 

@@ -69,7 +69,27 @@ nav:
       - Pre-commit Hooks: pre-commit.md
   - Reference:
       - CLI Reference: CLI.md
-      - Quality Rules: quality.md
+      - Quality Rules:
+          - Overview: quality.md
+          - Best Practices:
+              - "CSP-L001: Mutable Default Arguments": rule/CSP-L001.md
+              - "CSP-L002: Bare Except": rule/CSP-L002.md
+              - "CSP-L003: Dangerous Comparison": rule/CSP-L003.md
+          - Performance:
+              - "CSP-P001: Membership in List": rule/CSP-P001.md
+              - "CSP-P002: File Read Memory Risk": rule/CSP-P002.md
+              - "CSP-P003: String Concat in Loop": rule/CSP-P003.md
+              - "CSP-P004: Unnecessary Cast": rule/CSP-P004.md
+              - "CSP-P005: Regex/ast.parse in Loop": rule/CSP-P005.md
+              - "CSP-P006: Attribute Hoisting": rule/CSP-P006.md
+              - "CSP-P007: Pure Call Hoisting": rule/CSP-P007.md
+              - "CSP-P008: Exception Flow in Loop": rule/CSP-P008.md
+              - "CSP-P009: Incorrect Dict Iterator": rule/CSP-P009.md
+              - "CSP-P010: Global Usage in Loop": rule/CSP-P010.md
+              - "CSP-P011: Memoryview over Bytes": rule/CSP-P011.md
+              - "CSP-P012: Tuple over List": rule/CSP-P012.md
+              - "CSP-P013: Comprehension Suggestion": rule/CSP-P013.md
+              - "CSP-P015: Pandas chunksize": rule/CSP-P015.md
       - Migration Guide: migration.md
   - Changelog: https://github.com/djinn09/CytoScnPy/releases
   - Roadmap: roadmap.md

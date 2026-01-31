@@ -150,10 +150,11 @@ impl Normalizer {
         var_map: &mut FxHashMap<String, usize>,
         var_counter: &mut usize,
     ) -> NormalizedNode {
+        let is_literal_kind = self.normalize_literals && is_literal_kind(&node.kind);
         let label = if self.normalize_identifiers {
             node.label.as_ref().map(|name| {
-                // Check if it's a literal (we normalize those too)
-                if is_literal_pattern(name) && self.normalize_literals {
+                // Normalize literals by kind (preferred) or pattern (fallback).
+                if is_literal_kind || (self.normalize_literals && is_literal_pattern(name)) {
                     "CONST".to_owned()
                 } else {
                     // Map to VAR_N
@@ -190,6 +191,10 @@ fn is_literal_pattern(name: &str) -> bool {
         || name.starts_with('"')
         || name.starts_with('\'')
         || matches!(name, "True" | "False" | "None")
+}
+
+fn is_literal_kind(kind: &str) -> bool {
+    matches!(kind, "str" | "num" | "bool" | "none" | "bytes")
 }
 
 #[cfg(test)]
@@ -240,5 +245,26 @@ mod tests {
 
         let normalized = normalizer.normalize_nodes(&nodes);
         assert_eq!(normalized.nodes[0].label, normalized.nodes[1].label);
+    }
+
+    #[test]
+    fn test_literal_kinds_normalize_to_const() {
+        let normalizer = Normalizer::for_clone_type(CloneType::Type2);
+        let nodes = vec![
+            SubtreeNode {
+                kind: "str".into(),
+                label: Some("hello".into()),
+                children: vec![],
+            },
+            SubtreeNode {
+                kind: "num".into(),
+                label: Some("123".into()),
+                children: vec![],
+            },
+        ];
+
+        let normalized = normalizer.normalize_nodes(&nodes);
+        assert_eq!(normalized.nodes[0].label.as_deref(), Some("CONST"));
+        assert_eq!(normalized.nodes[1].label.as_deref(), Some("CONST"));
     }
 }

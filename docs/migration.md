@@ -1,5 +1,11 @@
 # Migration Guide
 
+## Unreleased
+
+### Breaking Changes
+
+- **JSON schema**: The CLI JSON output field `clone_findings` has been renamed to `clones`. Update consumers to read `clones` instead.
+
 ## Upgrading to v1.2.5
 
 ### CI Workflow Improvements

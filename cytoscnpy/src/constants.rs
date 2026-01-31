@@ -16,7 +16,7 @@ pub const MIN_CLONE_LINES: usize = 4;
 
 /// Maximum number of occurrences of a structural pattern before it is treated as "boilerplate" and skipped.
 /// This prevents O(N^2) candidate explosions on extremely common code (like standard wrappers or pass statements).
-pub const BOILERPLATE_THRESHOLD: usize = 2000;
+pub const BOILERPLATE_THRESHOLD: usize = 1000;
 
 /// Default configuration filename.
 pub const CONFIG_FILENAME: &str = ".cytoscnpy.toml";

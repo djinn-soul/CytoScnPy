@@ -24,6 +24,7 @@ fn run_clones_api(paths: &[PathBuf], args: &CloneArgs) -> serde_json::Value {
         exclude: args.exclude.clone(),
         verbose: false,
         with_cst: true,
+        progress_bar: None,
     };
 
     let _ = run_clones(paths, &options, &mut buffer).expect("Clones command failed");
@@ -64,10 +65,16 @@ fn create_temp_project(files: &[(&str, &str)]) -> TempDir {
 fn test_clones_command_basic() {
     let source1 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
     let source2 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
 
@@ -100,6 +107,7 @@ fn test_clones_command_similarity_threshold() {
 def func_a(x):
     a = 1
     b = 2
+    c = a + b
     return x + a + b
 ";
     let source2 = "
@@ -136,6 +144,9 @@ def func_b(y):
 fn test_clones_command_exclude() {
     let source = "
 def duplicate(x):
+    a = 1
+    b = 2
+    c = a + b
     return x
 ";
     let temp_dir = create_temp_project(&[("included.py", source), ("subdir/excluded.py", source)]);
@@ -156,10 +167,16 @@ def duplicate(x):
 fn test_clones_command_output_formatting() {
     let source1 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
     let source2 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
     let temp_dir = create_temp_project(&[("file1.py", source1), ("file2.py", source2)]);
@@ -174,6 +191,7 @@ def exact_copy(x):
         exclude: vec![],
         verbose: true,
         with_cst: true,
+        progress_bar: None,
     };
 
     let _ = run_clones(std::slice::from_ref(&path_str), &options, &mut buffer)
@@ -198,10 +216,16 @@ fn test_clones_command_fix_execution() {
     // Using Type 1 clones which default to "Remove duplicate"
     let source1 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
     let source2 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
     let temp_dir = create_temp_project(&[("file1.py", source1), ("file2.py", source2)]);
@@ -218,6 +242,7 @@ def exact_copy(x):
         exclude: vec![],
         verbose: false,
         with_cst: false, // Byte-based for simplicity
+        progress_bar: None,
     };
 
     let _ = run_clones(std::slice::from_ref(&path_str), &options, &mut buffer)
@@ -241,10 +266,16 @@ def exact_copy(x):
 fn test_clones_command_dry_run() {
     let source1 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
     let source2 = "
 def exact_copy(x):
+    a = 1
+    b = 2
+    c = a + b
     return x * 2
 ";
     let temp_dir = create_temp_project(&[("file1.py", source1), ("file2.py", source2)]);
@@ -261,6 +292,7 @@ def exact_copy(x):
         exclude: vec![],
         verbose: true,
         with_cst: false,
+        progress_bar: None,
     };
 
     let _ = run_clones(std::slice::from_ref(&path_str), &options, &mut buffer)

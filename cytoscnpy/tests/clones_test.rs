@@ -529,7 +529,10 @@ fn test_fix_context_cfg_validated() {
 fn test_parser_extract_function() {
     let source = "
 def my_func(a, b):
-    return a + b
+    x = a + b
+    y = x * 2
+    z = y - a
+    return z
 ";
     let path = PathBuf::from("test.py");
     let subtrees = extract_subtrees(source, &path).expect("Failed to parse source");
@@ -546,7 +549,10 @@ fn test_parser_extract_class() {
     let source = "
 class MyClass:
     def method(self):
-        pass
+        x = 1
+        y = 2
+        z = x + y
+        return z
 ";
     let path = PathBuf::from("test.py");
     let subtrees = extract_subtrees(source, &path).expect("Failed to parse source");
@@ -573,11 +579,17 @@ class MyClass:
 fn test_clone_detection_type1_exact() {
     let source1 = "
 def add(x, y):
-    return x + y
+    a = x + y
+    b = a * 2
+    c = b - x
+    return c
 ";
     let source2 = "
 def add(x, y):
-    return x + y
+    a = x + y
+    b = a * 2
+    c = b - x
+    return c
 ";
 
     let detector = CloneDetector::new();
@@ -599,12 +611,16 @@ fn test_clone_detection_type2_renamed() {
     let source1 = "
 def calculate(a, b):
     sum_val = a + b
-    return sum_val * 2
+    doubled = sum_val * 2
+    result = doubled + 1
+    return result
 ";
     let source2 = "
 def compute(x, y):
     total = x + y
-    return total * 2
+    doubled = total * 2
+    final_val = doubled + 1
+    return final_val
 ";
 
     let detector = CloneDetector::new();

@@ -871,7 +871,7 @@ fn handle_analysis<W: std::io::Write>(
         eprintln!("   Danger scanning: {danger}");
         eprintln!("   Quality scanning: {quality}");
         eprintln!("   Include tests: {include_tests}");
-        eprintln!("   Paths: {effective_paths:?}");
+        eprintln!("   Target Path: {effective_paths:?}");
         if !exclude_folders.is_empty() {
             eprintln!("   Exclude folders: {exclude_folders:?}");
         }
@@ -905,7 +905,16 @@ fn handle_analysis<W: std::io::Write>(
     let progress: Option<indicatif::ProgressBar> = if is_structured {
         None
     } else if total_files > 0 {
-        Some(crate::output::create_progress_bar(total_files as u64))
+        let pb = crate::output::create_progress_bar(total_files as u64);
+        pb.set_style(
+            indicatif::ProgressStyle::default_bar()
+                .template(
+                    "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}",
+                )
+                .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
+                .progress_chars("█▓░"),
+        );
+        Some(pb)
     } else {
         Some(crate::output::create_spinner())
     };
@@ -915,12 +924,62 @@ fn handle_analysis<W: std::io::Write>(
         analyzer.progress_bar = Some(std::sync::Arc::new(pb.clone()));
     }
 
+    // --- PROCESSING PHASE ---
+    // Both analysis and clone detection happen here while the progress bar is active.
+
+    // 1. Run main analysis (dead code, secrets, quality)
     let mut result = analyzer.analyze_paths(effective_paths);
 
-    // Finish current progress bar before printing findings
-    if let Some(p) = progress {
-        p.finish_and_clear();
+    // 2. Run clone detection if enabled (using the same progress bar)
+    let mut clone_pairs_found = 0usize;
+    if cli_var.clones || cli_var.output.html {
+        let clone_options = crate::commands::CloneOptions {
+            similarity: cli_var.clone_similarity,
+            json: cli_var.output.json,
+            fix: false, // Clones are report-only, never auto-fixed
+            dry_run: !cli_var.apply,
+            exclude: exclude_folders.clone().into_iter().collect(),
+            verbose: cli_var.output.verbose,
+            with_cst: true, // CST is always enabled by default
+            progress_bar: progress.as_ref().map(|pb| std::sync::Arc::new(pb.clone())),
+        };
+
+        // If we have a progress bar, reset it for the clone detection phase
+        if let Some(ref pb) = progress {
+            pb.set_position(0);
+            pb.set_message("Starting clone detection...");
+            pb.set_style(
+                indicatif::ProgressStyle::default_bar()
+                    .template(
+                        "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}",
+                    )
+                    .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
+                    .progress_chars("█▓░"),
+            );
+        }
+
+        // Run detection
+        let (count, findings) = if is_structured {
+            // For structured output (JSON/SARIF), we don't want the text table on stdout
+            let mut sink = std::io::sink();
+            crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?
+        } else {
+            // Text output: print findings to stdout (writer)
+            crate::commands::run_clones(effective_paths, &clone_options, &mut *writer)?
+        };
+
+        clone_pairs_found = count;
+        result.clones = findings;
     }
+
+    // --- COMPLETION ---
+    // All background processing is DONE. Hide the progress bar forever.
+    if let Some(ref pb) = progress {
+        pb.finish_and_clear();
+    }
+
+    // --- REPORTING PHASE ---
+    // All output (summaries, tables, gate checks) happens here AFTER the progress bar is gone.
 
     // If --no-dead flag is set, clear dead code detection results
     // (only show security/quality scans)
@@ -933,7 +992,7 @@ fn handle_analysis<W: std::io::Write>(
         result.unused_parameters.clear();
     }
 
-    // Print verbose timing info
+    // 1. Verbose analysis statistics
     if cli_var.output.verbose && !is_structured {
         let elapsed = start_time.elapsed();
         eprintln!(
@@ -1002,38 +1061,23 @@ fn handle_analysis<W: std::io::Write>(
         eprintln!();
     }
 
-    // Print JSON or report (but defer the summary and time for combined output later)
+    // 2. Main results output (JSON or Tables)
     if cli_var.output.json || cli_var.output.format == crate::cli::OutputFormat::Json {
-        // If clones are enabled, include clone_findings in the JSON output
-        if cli_var.clones {
-            // Run clone detection
-            let clone_findings = run_clone_detection_for_json(
-                effective_paths,
-                cli_var.clone_similarity,
-                &exclude_folders,
-                cli_var.output.verbose,
-            );
-
-            // Create combined output with clone_findings
-            #[derive(serde::Serialize)]
-            struct CombinedOutput<'a> {
-                #[serde(flatten)]
-                analysis: &'a crate::analyzer::AnalysisResult,
-                clone_findings: Vec<crate::clones::CloneFinding>,
-            }
-
-            let combined = CombinedOutput {
-                analysis: &result,
-                clone_findings,
-            };
-            writeln!(writer, "{}", serde_json::to_string_pretty(&combined)?)?;
-        } else {
-            writeln!(writer, "{}", serde_json::to_string_pretty(&result)?)?;
-        }
+        writeln!(writer, "{}", serde_json::to_string_pretty(&result)?)?;
     } else {
+        // Verbose line for clones if enabled
+        if cli_var.clones && cli_var.output.verbose {
+            eprintln!("[VERBOSE] Clone detection enabled");
+            eprintln!(
+                "   Similarity threshold: {:.0}%",
+                cli_var.clone_similarity * 100.0
+            );
+            eprintln!();
+        }
+
+        // Print analysis reports based on selected format
         match cli_var.output.format {
             crate::cli::OutputFormat::Text => {
-                // Determine if we should show standard CLI output
                 #[cfg(feature = "html_report")]
                 let show_cli = !cli_var.output.html;
                 #[cfg(not(feature = "html_report"))]
@@ -1077,111 +1121,43 @@ fn handle_analysis<W: std::io::Write>(
             crate::cli::OutputFormat::Sarif => {
                 crate::report::sarif::print_sarif_with_root(writer, &result, Some(analysis_root))?;
             }
-            crate::cli::OutputFormat::Json => unreachable!("Handled in if block above"),
+            crate::cli::OutputFormat::Json => unreachable!(),
         }
+    }
 
-        // Track clone count for combined summary
-        let mut clone_pairs_found = 0usize;
+    // 3. Combined summary (Analysis + Clones)
+    if !is_structured {
+        let total = result.unused_functions.len()
+            + result.unused_methods.len()
+            + result.unused_imports.len()
+            + result.unused_parameters.len()
+            + result.unused_classes.len()
+            + result.unused_variables.len();
+        let security = result.danger.len() + result.secrets.len() + result.quality.len();
 
-        // Handle --clones flag (or implicit execution for HTML report)
-        if cli_var.clones || cli_var.output.html {
-            if cli_var.output.verbose && !cli_var.output.json {
-                eprintln!("[VERBOSE] Clone detection enabled");
-                eprintln!(
-                    "   Similarity threshold: {:.0}%",
-                    cli_var.clone_similarity * 100.0
-                );
-                if cli_var.fix {
-                    eprintln!(
-                        "   Fix mode: {} (confidence >= 90%)",
-                        if cli_var.apply {
-                            "apply"
-                        } else {
-                            "dry-run (preview)"
-                        }
-                    );
-                }
-                eprintln!();
-            }
-            let clone_options = crate::commands::CloneOptions {
-                similarity: cli_var.clone_similarity,
-                json: cli_var.output.json,
-                fix: false, // Clones are report-only, never auto-fixed
-                dry_run: !cli_var.apply,
-                exclude: exclude_folders.clone().into_iter().collect(),
-                verbose: cli_var.output.verbose,
-                with_cst: true,     // CST is always enabled by default
-                progress_bar: None, // Will be set specifically if needed
-            };
-
-            let (count, findings) = if cli_var.clones && !is_structured {
-                // Create a fresh progress bar for clone detection to avoid mixing with analysis progress
-                let clone_pb = crate::output::create_progress_bar(0); // Length set by detector
-                let pb_arc = std::sync::Arc::new(clone_pb);
-
-                let mut options_with_pb = clone_options.clone();
-                options_with_pb.progress_bar = Some(pb_arc.clone());
-
-                // Explicit run with Text output: print to stdout
-                let res =
-                    crate::commands::run_clones(effective_paths, &options_with_pb, &mut *writer)?;
-
-                pb_arc.finish_and_clear();
-                res
-            } else {
-                // Structured output (JSON/SARIF/etc) OR implicit run: suppress stdout table
-                // We likely want the findings for the report, but NOT the text table.
-                let mut sink = std::io::sink();
-                crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?
-            };
-
-            clone_pairs_found = count;
-            result.clones = findings;
-        }
-
-        // Print summary and time (only for non-JSON output)
-        // Note: In quiet mode, print_report_quiet already prints the summary,
-        // so we only print here if clone pairs were found (to add the clone count)
-        // Print summary and time (only for non-structured text/grouped output)
-        if !is_structured {
-            let total = result.unused_functions.len()
-                + result.unused_methods.len()
-                + result.unused_imports.len()
-                + result.unused_parameters.len()
-                + result.unused_classes.len()
-                + result.unused_variables.len();
-            let security = result.danger.len() + result.secrets.len() + result.quality.len();
-
-            // Only print summary if either:
-            // 1. Not in quiet mode (print_report doesn't include summary)
-            // 2. Clone pairs were found (need to add clone count to summary)
-            if clone_pairs_found > 0 {
-                writeln!(writer,
-                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {clone_pairs_found} clone pairs"
-                )?;
-            } else if !cli_var.output.quiet {
-                writeln!(
-                    writer,
-                    "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
-                )?;
-            }
-
-            // Defer combined summary until here so it tracks total time including clones
-            let elapsed = start_time.elapsed();
-
-            // Pills and stats are "extra sections" - suppress in quiet mode
-            if !cli_var.output.quiet {
-                crate::output::print_summary_pills(writer, &result)?;
-                crate::output::print_analysis_stats(writer, &result.analysis_summary)?;
-            }
-
+        if clone_pairs_found > 0 {
             writeln!(
                 writer,
-                "{} in {:.2}s",
-                "Analysis completed".green().bold(),
-                elapsed.as_secs_f64()
+                "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {clone_pairs_found} clone pairs"
+            )?;
+        } else if !cli_var.output.quiet {
+            writeln!(
+                writer,
+                "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
             )?;
         }
+
+        if !cli_var.output.quiet {
+            crate::output::print_summary_pills(writer, &result)?;
+            crate::output::print_analysis_stats(writer, &result.analysis_summary)?;
+        }
+
+        writeln!(
+            writer,
+            "{} in {:.2}s",
+            "Analysis completed".green().bold(),
+            start_time.elapsed().as_secs_f64()
+        )?;
     }
 
     #[cfg(feature = "html_report")]
@@ -1351,51 +1327,4 @@ fn handle_analysis<W: std::io::Write>(
 
     writer.flush()?;
     Ok(exit_code)
-}
-
-/// Run clone detection and return findings for JSON output.
-/// This is used to include `clone_findings` in the combined JSON output.
-fn run_clone_detection_for_json(
-    paths: &[std::path::PathBuf],
-    similarity: f64,
-    excludes: &[String],
-    verbose: bool,
-) -> Vec<crate::clones::CloneFinding> {
-    use crate::clones::{CloneConfig, CloneDetector};
-
-    // Collect file paths (not content) for OOM-safe processing
-    let file_paths: Vec<std::path::PathBuf> = paths
-        .iter()
-        .flat_map(|path| {
-            if path.is_file() {
-                vec![path.clone()]
-            } else if path.is_dir() {
-                crate::utils::collect_python_files_gitignore(path, excludes, &[], false, verbose).0
-            } else {
-                vec![]
-            }
-        })
-        .collect();
-
-    // Use OOM-safe detection - processes files in chunks
-    let config = CloneConfig::default().with_min_similarity(similarity);
-    let detector = CloneDetector::with_config(config);
-    let result = detector.detect_from_paths(&file_paths);
-
-    // Lazy load only matched files for findings generation
-    let matched_files: Vec<(std::path::PathBuf, String)> = {
-        use std::collections::HashSet;
-        let unique_paths: HashSet<std::path::PathBuf> = result
-            .pairs
-            .iter()
-            .flat_map(|p| [p.instance_a.file.clone(), p.instance_b.file.clone()])
-            .collect();
-        unique_paths
-            .into_iter()
-            .filter_map(|p| std::fs::read_to_string(&p).ok().map(|c| (p, c)))
-            .collect()
-    };
-
-    // Generate findings
-    crate::commands::generate_clone_findings(&result.pairs, &matched_files, true)
 }

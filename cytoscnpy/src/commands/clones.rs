@@ -10,6 +10,7 @@ use anyhow::Result;
 use colored::Colorize;
 use comfy_table::{Cell, Color, Table};
 
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
@@ -296,16 +297,33 @@ fn print_clone_stats_simple<W: Write>(
 #[must_use]
 pub fn generate_clone_findings(
     pairs: &[ClonePair],
-    #[allow(unused_variables)] all_files: &[(PathBuf, String)],
+    all_files: &[(PathBuf, String)],
     #[allow(unused_variables)] with_cst: bool,
 ) -> Vec<CloneFinding> {
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
 
+    // Pre-parse all files once to avoid redundant parsing for every clone pair.
+    // This is the primary bottleneck for large corpora.
+    #[cfg(feature = "cst")]
+    let mappers: HashMap<&PathBuf, AstCstMapper> = if with_cst {
+        all_files
+            .iter()
+            .filter_map(|(p, c)| {
+                CstParser::new()
+                    .ok()
+                    .and_then(|mut parser| parser.parse(c).ok())
+                    .map(|tree| (p, AstCstMapper::new(tree)))
+            })
+            .collect()
+    } else {
+        HashMap::new()
+    };
+
     let scorer = ConfidenceScorer::default();
 
     let mut findings: Vec<CloneFinding> = pairs
-        .iter()
+        .par_iter()
         .flat_map(|pair| {
             #[allow(unused_variables)]
             let calc_conf = |inst: &crate::clones::CloneInstance| -> u8 {
@@ -317,16 +335,10 @@ pub fn generate_clone_findings(
 
                 #[cfg(feature = "cst")]
                 if with_cst {
-                    if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &inst.file) {
-                        if let Ok(mut parser) = CstParser::new() {
-                            if let Ok(tree) = parser.parse(content) {
-                                let mapper = AstCstMapper::new(tree);
-                                ctx.has_interleaved_comments =
-                                    mapper.has_interleaved_comments(inst.start_byte, inst.end_byte);
-                                ctx.deeply_nested =
-                                    mapper.is_deeply_nested(inst.start_byte, inst.end_byte);
-                            }
-                        }
+                    if let Some(mapper) = mappers.get(&inst.file) {
+                        ctx.has_interleaved_comments =
+                            mapper.has_interleaved_comments(inst.start_byte, inst.end_byte);
+                        ctx.deeply_nested = mapper.is_deeply_nested(inst.start_byte, inst.end_byte);
                     }
                 }
 
@@ -338,7 +350,7 @@ pub fn generate_clone_findings(
                 CloneFinding::from_pair(pair, true, calc_conf(&pair.instance_b)),
             ]
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     for finding in &mut findings {
         let name = finding.name.as_deref().unwrap_or("<anonymous>");

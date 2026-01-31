@@ -92,6 +92,9 @@ impl CloneDetector {
         let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
         let hasher = hasher::LshHasher::new(self.config.lsh_bands, self.config.lsh_rows);
 
+        let min_lines = self.config.min_lines;
+        let max_lines = self.config.max_lines;
+
         for chunk in paths.chunks(crate::constants::CHUNK_SIZE) {
             let chunk_fingerprints: Vec<parser::CloneFingerprint> = chunk
                 .par_iter()
@@ -109,7 +112,13 @@ impl CloneDetector {
                     Some(
                         subtrees
                             .into_iter()
-                            .map(|s| {
+                            .filter_map(|s| {
+                                let line_count =
+                                    s.end_line.saturating_sub(s.start_line).saturating_add(1);
+                                if line_count < min_lines || line_count > max_lines {
+                                    return None;
+                                }
+
                                 let normalized = id_normalizer.normalize(&s);
                                 let lsh_signature = hasher.signature(&normalized);
 
@@ -120,7 +129,7 @@ impl CloneDetector {
                                     kind.hash(&mut struct_hasher);
                                 }
 
-                                parser::CloneFingerprint {
+                                Some(parser::CloneFingerprint {
                                     file: s.file,
                                     start_byte: s.start_byte,
                                     end_byte: s.end_byte,
@@ -130,7 +139,7 @@ impl CloneDetector {
                                     node_type: s.node_type,
                                     lsh_signature,
                                     structural_hash: struct_hasher.finish(),
-                                }
+                                })
                             })
                             .collect::<Vec<_>>(),
                     )
@@ -153,16 +162,33 @@ impl CloneDetector {
             std::collections::HashMap::new();
         let total_candidates = candidates.len();
 
+        // Unique files involved in candidates
+        let mut unique_files_in_candidates = std::collections::HashSet::new();
+        for (i, j) in &candidates {
+            unique_files_in_candidates.insert(fingerprints[*i].file.clone());
+            unique_files_in_candidates.insert(fingerprints[*j].file.clone());
+        }
+
+        // Use total paths count as denominator to keep UI consistent (e.g. 100 files instead of 54)
+        let total_files = paths.len();
+        let mut files_processed = std::collections::HashSet::new();
+
+        // Mark files that don't have any candidates as "processed" so bar starts correctly
+        for p in paths {
+            if !unique_files_in_candidates.contains(p) {
+                files_processed.insert(p.clone());
+            }
+        }
+
         // Update progress bar if available
         if let Some(ref pb) = self.progress_bar {
-            pb.set_length(candidates.len() as u64);
-            pb.set_position(0);
-            pb.set_message("Comparing clone candidates...");
-            // Use a custom message for the count to avoid confusing it with files
+            pb.set_length(total_files as u64);
+            pb.set_position(files_processed.len() as u64);
+            pb.set_message(format!("Comparing {total_candidates} clone candidates..."));
             pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template(
-                        "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} pairs ({percent}%) {msg}",
+                        "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}",
                     )
                     .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
                     .progress_chars("█▓░"),
@@ -170,9 +196,24 @@ impl CloneDetector {
         }
 
         for (idx, (i, j)) in candidates.into_iter().enumerate() {
+            let fp_a = &fingerprints[i];
+            let fp_b = &fingerprints[j];
+
             if let Some(ref pb) = self.progress_bar {
-                if idx % 10 == 0 || idx == total_candidates - 1 {
-                    pb.set_position(idx as u64);
+                let mut changed = false;
+                if files_processed.insert(fp_a.file.clone()) {
+                    changed = true;
+                }
+                if files_processed.insert(fp_b.file.clone()) {
+                    changed = true;
+                }
+
+                if changed || idx % 100 == 0 || idx == total_candidates - 1 {
+                    pb.set_position(files_processed.len() as u64);
+                    // Update pair progress in message to keep it smooth
+                    pb.set_message(format!(
+                        "Comparing {idx}/{total_candidates} clone candidates..."
+                    ));
                 }
             }
 
@@ -234,6 +275,10 @@ impl CloneDetector {
                     CloneType::Type3
                 };
 
+                if !self.is_type_enabled(clone_type) {
+                    continue;
+                }
+
                 pairs.push(ClonePair {
                     instance_a: fp_a.to_instance(),
                     instance_b: fp_b.to_instance(),
@@ -263,6 +308,8 @@ impl CloneDetector {
     #[must_use]
     pub fn detect(&self, files: &[(PathBuf, String)]) -> CloneDetectionResult {
         let mut all_subtrees = Vec::new();
+        let min_lines = self.config.min_lines;
+        let max_lines = self.config.max_lines;
 
         for (path, source) in files {
             if let Ok(subtrees) = parser::extract_subtrees(source, path) {
@@ -274,7 +321,15 @@ impl CloneDetector {
         let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
         let hasher = hasher::LshHasher::new(self.config.lsh_bands, self.config.lsh_rows);
 
-        let fingerprints: Vec<_> = all_subtrees
+        let filtered_subtrees: Vec<&parser::Subtree> = all_subtrees
+            .iter()
+            .filter(|s| {
+                let line_count = s.end_line.saturating_sub(s.start_line).saturating_add(1);
+                line_count >= min_lines && line_count <= max_lines
+            })
+            .collect();
+
+        let fingerprints: Vec<_> = filtered_subtrees
             .iter()
             .map(|s| {
                 let normalized = id_normalizer.normalize(s);
@@ -304,16 +359,21 @@ impl CloneDetector {
         let mut pairs = Vec::new();
 
         for (i, j) in candidates {
-            let id_a = id_normalizer.normalize(&all_subtrees[i]);
-            let id_b = id_normalizer.normalize(&all_subtrees[j]);
+            let id_a = id_normalizer.normalize(filtered_subtrees[i]);
+            let id_b = id_normalizer.normalize(filtered_subtrees[j]);
             let id_sim = similarity_calc.similarity(&id_a, &id_b);
 
             if id_sim >= self.config.min_similarity {
+                let clone_type = similarity_calc.classify_by_similarity(id_sim);
+                if !self.is_type_enabled(clone_type) {
+                    continue;
+                }
+
                 pairs.push(ClonePair {
                     instance_a: fingerprints[i].to_instance(),
                     instance_b: fingerprints[j].to_instance(),
                     similarity: id_sim,
-                    clone_type: CloneType::Type3, // Default for simple detect
+                    clone_type,
                     edit_distance: similarity_calc.edit_distance(&id_a, &id_b),
                 });
             }
@@ -332,6 +392,14 @@ impl CloneDetector {
     fn group_clones(&self, _pairs: &[ClonePair]) -> Vec<CloneGroup> {
         // TODO: implement union-find grouping
         Vec::new()
+    }
+
+    fn is_type_enabled(&self, clone_type: CloneType) -> bool {
+        match clone_type {
+            CloneType::Type1 => self.config.detect_type1,
+            CloneType::Type2 => self.config.detect_type2,
+            CloneType::Type3 => self.config.detect_type3,
+        }
     }
 
     /// Validate clone pairs using CFG behavioral analysis

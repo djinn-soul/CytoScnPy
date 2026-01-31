@@ -92,6 +92,9 @@ impl LshHasher {
             if indices.len() > 1 && indices.len() < crate::constants::BOILERPLATE_THRESHOLD {
                 for i in 0..indices.len() {
                     for j in (i + 1)..indices.len() {
+                        if candidates.len() >= 500_000 {
+                            return candidates.into_iter().collect();
+                        }
                         let pair = if indices[i] < indices[j] {
                             (indices[i], indices[j])
                         } else {

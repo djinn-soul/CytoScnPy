@@ -620,6 +620,7 @@ mod tests {
         let source = "
 async def fetch_data():
     x = await api.get()
+    y = x + 1
     return x
 ";
         let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
@@ -638,7 +639,9 @@ async def fetch_data():
         let source = "
 def outer():
     def inner():
-        pass
+        x = 1
+        y = 2
+        return x + y
     return inner
 ";
         let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
@@ -656,7 +659,9 @@ def outer():
         let source = "
 def factory():
     class Local:
-        pass
+        def helper(self):
+            x = 1
+            return x
     return Local
 ";
         let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
@@ -683,7 +688,9 @@ def factory():
         let source = "
 class API:
     async def get(self):
-        pass
+        x = 1
+        y = 2
+        return x
 ";
         let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
 

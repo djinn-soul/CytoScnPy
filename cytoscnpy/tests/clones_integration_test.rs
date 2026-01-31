@@ -33,18 +33,23 @@ fn test_clone_detector_with_custom_config() {
 
 #[test]
 fn test_extract_subtrees_simple() {
-    let source = r"
+    let source = r#"
 def calculate_area(radius):
     import math
-    return math.pi * radius * radius
+    area = math.pi * radius * radius
+    return area
 
 class Circle:
     def __init__(self, r):
         self.r = r
+        self.area = math.pi * r * r
+        self.name = "circle"
     
     async def get_data():
-        pass
-";
+        data = {}
+        data["r"] = 1
+        return data
+"#;
     let path = PathBuf::from("test.py");
     let result = extract_subtrees(source, &path).expect("Should parse");
 
@@ -66,7 +71,12 @@ class Circle:
 
 #[test]
 fn test_subtree_to_instance() {
-    let source = "def foo(): pass";
+    let source = r#"
+def foo():
+    x = 1
+    y = 2
+    return x + y
+"#;
     let path = PathBuf::from("foo.py");
     let subtrees = extract_subtrees(source, &path).unwrap();
     let subtree = &subtrees[0];

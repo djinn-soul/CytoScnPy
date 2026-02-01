@@ -62,7 +62,7 @@ impl LshHasher {
             }
         }
 
-        self.collect_pairs_from_buckets(buckets)
+        Self::collect_pairs_from_buckets(&buckets)
     }
 
     /// Internal helper to find candidates from signatures
@@ -76,13 +76,12 @@ impl LshHasher {
             }
         }
 
-        self.collect_pairs_from_buckets(buckets)
+        Self::collect_pairs_from_buckets(&buckets)
     }
 
     /// Collect unique pairs from buckets
     fn collect_pairs_from_buckets(
-        &self,
-        buckets: FxHashMap<(usize, u64), Vec<usize>>,
+        buckets: &FxHashMap<(usize, u64), Vec<usize>>,
     ) -> Vec<(usize, usize)> {
         let mut candidates: FxHashSet<(usize, usize)> = FxHashSet::default();
         for indices in buckets.values() {

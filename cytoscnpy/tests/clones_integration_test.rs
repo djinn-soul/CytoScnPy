@@ -71,12 +71,12 @@ class Circle:
 
 #[test]
 fn test_subtree_to_instance() {
-    let source = r#"
+    let source = r"
 def foo():
     x = 1
     y = 2
     return x + y
-"#;
+";
     let path = PathBuf::from("foo.py");
     let subtrees = extract_subtrees(source, &path).unwrap();
     let subtree = &subtrees[0];

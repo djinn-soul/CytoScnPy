@@ -152,7 +152,6 @@ TOOL_CHECKS = {
     "Ruff": {"module": "ruff", "arg": "--version"},
     "uncalled": {"module": "uncalled", "arg": "--help"},
     "dead": {"module": "dead", "arg": "--help"},
-    "deadcode": {"module": "deadcode", "arg": "--help"},
 }
 
 
@@ -241,6 +240,21 @@ def check_tool_availability(tools_config, env=None):
                     status["reason"] = "Module not installed (pip install -e .)"
             except Exception as e:
                 status["reason"] = f"Check failed: {e}"
+
+        elif name == "deadcode":
+            # deadcode is CLI-only; check the executable or configured command
+            if isinstance(command, list) and command:
+                exe_path = Path(command[0])
+                if exe_path.exists() or shutil.which(command[0]):
+                    status = {"available": True, "reason": "Executable found"}
+                else:
+                    status["reason"] = f"Executable not found: {command[0]}"
+            else:
+                deadcode_path = get_tool_path("deadcode")
+                if deadcode_path:
+                    status = {"available": True, "reason": f"Found at {deadcode_path}"}
+                else:
+                    status["reason"] = "Not installed (pip install deadcode)"
 
         elif name == "Skylos":
             # Check if skylos is installed

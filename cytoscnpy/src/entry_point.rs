@@ -909,7 +909,7 @@ fn handle_analysis<W: std::io::Write>(
         pb.set_style(
             indicatif::ProgressStyle::default_bar()
                 .template(
-                    "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}",
+                    "{spinner:.cyan} [{bar:40.cyan/blue}] {percent}% - Analyzing source code...",
                 )
                 .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
                 .progress_chars("█▓░"),
@@ -947,20 +947,18 @@ fn handle_analysis<W: std::io::Write>(
         // If we have a progress bar, reset it for the clone detection phase
         if let Some(ref pb) = progress {
             pb.set_position(0);
-            pb.set_message("Starting clone detection...");
+            pb.set_message(""); // Clear message
             pb.set_style(
                 indicatif::ProgressStyle::default_bar()
-                    .template(
-                        "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}",
-                    )
+                    .template("{spinner:.cyan} [{bar:40.cyan/blue}] {percent}% - Checking code similarity...")
                     .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
                     .progress_chars("█▓░"),
             );
         }
 
         // Run detection
-        let (count, findings) = if is_structured {
-            // For structured output (JSON/SARIF), we don't want the text table on stdout
+        let (count, findings) = if is_structured || !cli_var.clones {
+            // Suppress clone table unless explicitly requested (or for structured output)
             let mut sink = std::io::sink();
             crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?
         } else {

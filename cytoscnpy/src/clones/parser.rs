@@ -57,7 +57,7 @@ pub struct CloneFingerprint {
     pub end_line: usize,
     pub name: Option<String>,
     pub node_type: SubtreeType,
-    /// MinHash signature for LSH candidate pruning
+    /// `MinHash` signature for LSH candidate pruning
     pub lsh_signature: Vec<u64>,
     /// Hash of the normalized structure for Type-1/2 comparison
     pub structural_hash: u64,

@@ -119,7 +119,7 @@ pub fn run_clones<W: Write>(
     let config = CloneConfig::default().with_min_similarity(options.similarity);
     let mut detector = CloneDetector::with_config(config);
     if let Some(ref pb) = options.progress_bar {
-        detector.progress_bar = Some(pb.clone());
+        detector.progress_bar = Some(std::sync::Arc::clone(pb));
     }
     let result = detector.detect_from_paths(&file_paths);
 

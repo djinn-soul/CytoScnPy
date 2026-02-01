@@ -79,6 +79,19 @@ impl CloneDetector {
     /// 4. For matched pairs, reload specific files to generate precise results
     #[must_use]
     pub fn detect_from_paths(&self, paths: &[PathBuf]) -> CloneDetectionResult {
+        // Phase 1: Extract fingerprints from files
+        let fingerprints = self.extract_fingerprints(paths);
+
+        // Phase 2: LSH candidate pruning using lightweight signatures
+        let hasher = hasher::LshHasher::new(self.config.lsh_bands, self.config.lsh_rows);
+        let candidates = hasher.find_candidates_from_fingerprints(&fingerprints);
+
+        // Phase 3, 4 & 5: Precise similarity calculation and grouping
+        self.find_and_group_clones(&fingerprints, candidates)
+    }
+
+    /// Helper to extract fingerprints from files in chunks
+    fn extract_fingerprints(&self, paths: &[PathBuf]) -> Vec<parser::CloneFingerprint> {
         use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
         // Update progress bar for Phase 1
@@ -86,6 +99,12 @@ impl CloneDetector {
             pb.set_length(paths.len() as u64);
             pb.set_position(0);
             pb.set_message("Extracting clone fingerprints...");
+            pb.set_style(
+                indicatif::ProgressStyle::default_bar()
+                    .template("{spinner:.cyan} [{bar:40.cyan/blue}] {percent}% - Analyzing file fingerprints...")
+                    .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
+                    .progress_chars("█▓░"),
+            );
         }
 
         let mut fingerprints: Vec<parser::CloneFingerprint> = Vec::new();
@@ -149,10 +168,15 @@ impl CloneDetector {
 
             fingerprints.extend(chunk_fingerprints);
         }
+        fingerprints
+    }
 
-        // Phase 2: LSH candidate pruning using lightweight signatures
-        let candidates = hasher.find_candidates_from_fingerprints(&fingerprints);
-
+    /// Helper to find clone pairs and group them
+    fn find_and_group_clones(
+        &self,
+        fingerprints: &[parser::CloneFingerprint],
+        candidates: Vec<(usize, usize)>,
+    ) -> CloneDetectionResult {
         // Phase 3 & 4: Precise similarity calculation (Reloading required files)
         let similarity_calc = TreeSimilarity::default();
         let mut pairs = Vec::new();
@@ -162,33 +186,15 @@ impl CloneDetector {
             std::collections::HashMap::new();
         let total_candidates = candidates.len();
 
-        // Unique files involved in candidates
-        let mut unique_files_in_candidates = std::collections::HashSet::new();
-        for (i, j) in &candidates {
-            unique_files_in_candidates.insert(fingerprints[*i].file.clone());
-            unique_files_in_candidates.insert(fingerprints[*j].file.clone());
-        }
-
-        // Use total paths count as denominator to keep UI consistent (e.g. 100 files instead of 54)
-        let total_files = paths.len();
-        let mut files_processed = std::collections::HashSet::new();
-
-        // Mark files that don't have any candidates as "processed" so bar starts correctly
-        for p in paths {
-            if !unique_files_in_candidates.contains(p) {
-                files_processed.insert(p.clone());
-            }
-        }
-
         // Update progress bar if available
         if let Some(ref pb) = self.progress_bar {
-            pb.set_length(total_files as u64);
-            pb.set_position(files_processed.len() as u64);
-            pb.set_message(format!("Comparing {total_candidates} clone candidates..."));
+            pb.set_length(total_candidates as u64);
+            pb.set_position(0);
+            pb.set_message(""); // Clear message
             pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template(
-                        "{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) {msg}",
+                        "{spinner:.cyan} [{bar:40.cyan/blue}] {percent}% - Checking code similarity...",
                     )
                     .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
                     .progress_chars("█▓░"),
@@ -196,24 +202,9 @@ impl CloneDetector {
         }
 
         for (idx, (i, j)) in candidates.into_iter().enumerate() {
-            let fp_a = &fingerprints[i];
-            let fp_b = &fingerprints[j];
-
             if let Some(ref pb) = self.progress_bar {
-                let mut changed = false;
-                if files_processed.insert(fp_a.file.clone()) {
-                    changed = true;
-                }
-                if files_processed.insert(fp_b.file.clone()) {
-                    changed = true;
-                }
-
-                if changed || idx % 100 == 0 || idx == total_candidates - 1 {
-                    pb.set_position(files_processed.len() as u64);
-                    // Update pair progress in message to keep it smooth
-                    pb.set_message(format!(
-                        "Comparing {idx}/{total_candidates} clone candidates..."
-                    ));
+                if idx % 100 == 0 || idx == total_candidates - 1 {
+                    pb.set_position(idx as u64);
                 }
             }
 

@@ -43,8 +43,30 @@ impl LshHasher {
     #[must_use]
     pub fn find_candidates(&self, trees: &[NormalizedTree]) -> Vec<(usize, usize)> {
         let signatures: Vec<Vec<u64>> = trees.iter().map(|t| self.signature(t)).collect();
+        self.find_candidates_from_signatures(&signatures)
+    }
 
-        // Bucket by band hashes
+    /// Find candidate pairs from fingerprints (pre-computed signatures)
+    #[must_use]
+    pub fn find_candidates_from_fingerprints(
+        &self,
+        fingerprints: &[crate::clones::parser::CloneFingerprint],
+    ) -> Vec<(usize, usize)> {
+        // Bucket by band hashes directly from pre-computed signatures
+        let mut buckets: FxHashMap<(usize, u64), Vec<usize>> = FxHashMap::default();
+
+        for (idx, fp) in fingerprints.iter().enumerate() {
+            for band in 0..self.num_bands {
+                let band_hash = self.band_hash(&fp.lsh_signature, band);
+                buckets.entry((band, band_hash)).or_default().push(idx);
+            }
+        }
+
+        Self::collect_pairs_from_buckets(&buckets)
+    }
+
+    /// Internal helper to find candidates from signatures
+    fn find_candidates_from_signatures(&self, signatures: &[Vec<u64>]) -> Vec<(usize, usize)> {
         let mut buckets: FxHashMap<(usize, u64), Vec<usize>> = FxHashMap::default();
 
         for (idx, sig) in signatures.iter().enumerate() {
@@ -54,12 +76,24 @@ impl LshHasher {
             }
         }
 
-        // Collect pairs that share any bucket
+        Self::collect_pairs_from_buckets(&buckets)
+    }
+
+    /// Collect unique pairs from buckets
+    fn collect_pairs_from_buckets(
+        buckets: &FxHashMap<(usize, u64), Vec<usize>>,
+    ) -> Vec<(usize, usize)> {
         let mut candidates: FxHashSet<(usize, usize)> = FxHashSet::default();
         for indices in buckets.values() {
-            if indices.len() > 1 {
+            // If a bucket is too large, it's likely a trivial or
+            // boilerplate pattern that would cross-match everywhere, causing
+            // O(n^2) explosions. We skip these as they are likely noise.
+            if indices.len() > 1 && indices.len() < crate::constants::BOILERPLATE_THRESHOLD {
                 for i in 0..indices.len() {
                     for j in (i + 1)..indices.len() {
+                        if candidates.len() >= 500_000 {
+                            return candidates.into_iter().collect();
+                        }
                         let pair = if indices[i] < indices[j] {
                             (indices[i], indices[j])
                         } else {
@@ -70,7 +104,6 @@ impl LshHasher {
                 }
             }
         }
-
         candidates.into_iter().collect()
     }
 

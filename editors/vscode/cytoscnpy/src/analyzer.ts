@@ -88,7 +88,7 @@ interface RawCytoScnPyResult {
   danger?: RawCytoScnPyFinding[];
   quality?: RawCytoScnPyFinding[];
   taint_findings?: RawTaintFinding[];
-  clone_findings?: RawCloneFinding[];
+  clones?: RawCloneFinding[];
   parse_errors?: { file: string; line: number; message: string }[];
 }
 
@@ -267,14 +267,14 @@ function transformRawResult(
   // Process clone findings (displayed as hints with navigation suggestions)
   // Clone detection uses AST-based hashing and edit distance (not CFG)
   // Deduplicate: keep only the highest-similarity clone per location
-  if (rawResult.clone_findings) {
+  if (rawResult.clones) {
     // Group by (file, line) and keep the best match
     const cloneMap = new Map<
       string,
       { clone: RawCloneFinding; similarity: number }
     >();
 
-    for (const clone of rawResult.clone_findings) {
+    for (const clone of rawResult.clones) {
       const key = `${clone.file}:${clone.line}`;
       const existing = cloneMap.get(key);
       if (!existing || clone.similarity > existing.similarity) {

@@ -27,22 +27,7 @@ readme = "README.md"
 
 dynamic = ["version"]
 
-[project.optional-dependencies]
-dev = [
-    "prek",                           # pre-commit alternative
-    "psutil",
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "ruff",
-    "tomli; python_version < '3.11'",
-    "trove-classifiers",
-    "ty",
-]
-docs = [
-    "mkdocs-material>=9.5.0; python_version >= '3.9'",
-    "mkdocs-minify-plugin>=0.8.0; python_version >= '3.9'",
-    "pymdown-extensions>=10.0; python_version >= '3.9'",
-]
+
 
 [tool.maturin]
 bindings = "pyo3"
@@ -57,8 +42,8 @@ features = ["python-bindings"]
 cytoscnpy = "cytoscnpy.cli:main"
 
 [tool.pytest.ini_options]
-testpaths = ["python/tests"]
-addopts = "--basetemp=.pytest_tmp"
+testpaths = ["python/tests", "benchmark/tests"]
+addopts = ""
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
@@ -90,8 +75,8 @@ exclude = [
     "site-packages",
     "venv",
     # Project specific excludes
-    "benchmark",
-    # "scripts",
+    "benchmark/examples",
+    "benchmark/test_corpus",
     "cytoscnpy/tests/data",
     "cytoscnpy/tests/python_files",
     "cytoscnpy/tests/taint_corpus.py",
@@ -100,14 +85,83 @@ exclude = [
 line-length = 88
 indent-width = 4
 target-version = "py38"
+src = ["python", "benchmark"]
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`), subset of pycodestyle (`E`), and pydocstyle (`D`) codes.
-select = ["E4", "E7", "E9", "F", "D"]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "UP",
+    "S",
+    "D",
+    "ANN",
+    "RUF",
+    "BLE",
+    "C90",
+    "ARG",
+    "PTH",
+    "ERA",
+    "COM",
+    "DTZ",
+    "T10",
+    "T20",
+    "EXE",
+    "ISC",
+    "ICN",
+    "LOG",
+    "G",
+    "PIE",
+    "PYI",
+    "Q",
+    "RSE",
+    "RET",
+    "SLF",
+    "SLOT",
+    "TID",
+    "INT",
+    "FLY",
+    "PERF",
+    "FURB",
+    "N",
+    "ASYNC",
+    "FBT",
+]
 ignore = [
-    "D100",
-    "D104",
-] # Optional: Ignore missing docstring in public module/package
+    "E501",   # Line too long
+    "COM812", # Trailing comma
+    "ISC001", # Implicit string concat
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+]
+
+[tool.ruff.lint.per-file-ignores]
+"benchmark/**/*" = ["S", "D", "ANN", "T20", "INP"]
+"python/tests/**/*" = [
+    "S101",
+    "D",
+    "ANN",
+    "PLR2004",
+    "ARG",
+    "T201",
+    "BLE",
+    "SLF",
+]
+"benchmark/tests/**/*" = [
+    "S101",
+    "D",
+    "ANN",
+    "PLR2004",
+    "ARG",
+    "T201",
+    "BLE",
+    "SLF",
+]
+"scripts/**/*" = ["T201", "INP", "S", "ANN"]
+"cytoscnpy-mcp/**/*" = ["T201", "INP", "S", "ANN", "ARG"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
@@ -122,6 +176,52 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[tool.bandit]
+exclude_dirs = [
+    "tests",
+    "python/tests",
+    "benchmark/tests",
+    "benchmark/examples",
+]
+skips = ["B101", "B603", "B607", "B404", "B311"]
+
+[tool.coverage.report]
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+[tool.poe.executor]
+type = "uv"
+
+[tool.uv]
+package = false
+
+[tool.poe.tasks]
+build = { cmd = "uv sync", help = "Build the Rust extension and sync dependencies" }
+sync = { cmd = "uv sync", help = "Alias for build" }
+format = { sequence = [
+    { cmd = "ruff format ." },
+    { cmd = "ruff check . --fix" },
+], help = "Format code with ruff" }
+lint = { cmd = "ruff check .", help = "Lint code with ruff" }
+typecheck = { cmd = "basedpyright", help = "Type check with basedpyright" }
+security = { sequence = [
+    { cmd = "bandit -c pyproject.toml -r python/ benchmark/" },
+    { cmd = "pip-audit" },
+], help = "Run security audits" }
+test = { cmd = "pytest --cov=python/cytoscnpy --cov-report=term-missing", help = "Run tests with coverage" }
+quality = { sequence = [
+    "format",
+    "typecheck",
+    "security",
+    "test",
+], help = "Run all quality checks" }
+
 [tool.ty.src]
 # Exclude test data directories that contain intentionally broken code
 exclude = [
@@ -132,3 +232,133 @@ exclude = [
     "cytoscnpy/tests/taint_corpus.py",
     "cytoscnpy/tests/reproduce_type_error.py",
 ]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.7.10",
+    "basedpyright>=1.37.3",
+    "pip-audit>=2.7.3",
+    "poethepoet>=0.30.0",
+    "prek",
+    "psutil>=7.2.2",
+    "pytest>=8.3.5",
+    "pytest-cov>=5.0.0",
+    "ruff",
+    "tomli; python_version < '3.11'",
+    "trove-classifiers",
+    "ty",
+]
+docs = [
+    "mkdocs-material>=9.5.0; python_version >= '3.9'",
+    "mkdocs-minify-plugin>=0.8.0; python_version >= '3.9'",
+    "pymdown-extensions>=10.0; python_version >= '3.9'",
+]
+
+
+
+
+# ============================================================
+[tool.basedpyright]
+typeCheckingMode = "strict"
+reportMissingImports = true
+reportMissingTypeStubs = true  # Stricter: require type stubs
+reportUndefinedVariable = true
+reportAssertAlwaysTrue = true
+reportInvalidStringEscapeSequence = true
+
+# ============================================================
+reportOptionalSubscript = true
+reportOptionalMemberAccess = true
+reportOptionalCall = true
+reportOptionalIterable = true
+reportOptionalContextManager = true
+reportOptionalOperand = true
+reportAny = true  # Prohibir Any completamente
+reportExplicitAny = true
+reportIgnoreCommentWithoutRule = false  # No permitir # type: ignore sin código
+reportPrivateLocalImportUsage = true
+
+# ============================================================
+reportMissingParameterType = true
+reportMissingTypeArgument = true
+reportUnknownParameterType = true
+reportUnknownLambdaType = true
+reportUnknownArgumentType = true   # STRICT: Enable (can be noisy)
+reportUnknownVariableType = true   # STRICT: Enable (can be noisy)
+reportUnknownMemberType = true     # STRICT: Enable (can be noisy)
+reportUntypedFunctionDecorator = true
+reportUntypedClassDecorator = true
+reportUntypedBaseClass = true
+reportUntypedNamedTuple = true
+
+# ============================================================
+reportIncompatibleMethodOverride = true
+reportIncompatibleVariableOverride = true
+reportInconsistentConstructor = true
+reportUninitializedInstanceVariable = true
+reportOverlappingOverload = true
+reportMissingSuperCall = true  # STRICT: Enable
+
+# ============================================================
+reportPrivateUsage = true
+reportConstantRedefinition = true
+reportInvalidStubStatement = true
+reportIncompleteStub = true
+reportUnsupportedDunderAll = true
+reportUnusedClass = "error"        # STRICT: Error instead of warning
+reportUnusedFunction = "error"     # STRICT: Error instead of warning
+reportUnusedVariable = "error"     # STRICT: Error instead of warning
+reportUnusedImport = "error"       # STRICT: Error instead of warning
+reportDuplicateImport = "error"    # STRICT: Error instead of warning
+
+# ============================================================
+reportUnnecessaryIsInstance = "error"         # STRICT: Error
+reportUnnecessaryCast = "error"               # STRICT: Error
+reportUnnecessaryComparison = "error"         # STRICT: Error
+reportUnnecessaryContains = "error"           # STRICT: Error
+reportUnnecessaryTypeIgnoreComment = "error"  # STRICT: Error
+
+# ============================================================
+reportGeneralTypeIssues = true
+reportPropertyTypeMismatch = true
+reportFunctionMemberAccess = true
+reportCallInDefaultInitializer = true
+reportImplicitStringConcatenation = true  # STRICT: Enable
+
+# ============================================================
+reportImplicitOverride = true    # STRICT: Require @override decorator (Python 3.12+)
+reportDeprecated = "warning"     # Warn on deprecated usage
+
+# ============================================================
+reportImportCycles = "warning"
+
+# ============================================================
+exclude = [
+    "**/__pycache__",
+    "**/node_modules",
+    ".git",
+    ".mypy_cache",
+    ".pyright_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    ".venv",
+    "venv",
+    "env",
+    "logs",
+    "output",
+    "data",
+    "build",
+    "dist",
+    "*.egg-info",
+     "benchmark/examples",
+    "benchmark/test_corpus",
+    "benchmark/tests",
+    "python/tests",
+    "cytoscnpy-mcp/scripts",
+    "**/node_modules",
+    "**/__pycache__",
+]
+
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.8"

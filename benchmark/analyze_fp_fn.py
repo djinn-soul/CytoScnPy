@@ -1,22 +1,37 @@
 """Analyze False Positives and False Negatives for CytoScnPy."""
 
-import subprocess
+from __future__ import annotations
+
 import json
+import subprocess
 from pathlib import Path
+from typing import Any
 
 
-def normalize_path(p):
+def normalize_path(p: str) -> str:
     """Normalize path separator."""
     return str(Path(p).as_posix()).strip("/").lower()
 
 
-def load_ground_truth(base_dir):
-    """Load all ground truth files."""
-    truth = {}
-    covered_files = set()
+def load_ground_truth(
+    base_dir: str,
+) -> tuple[dict[tuple[str, str, str, int | None], dict[str, Any]], set[str]]:
+    """
+    Load all ground truth files from the specified directory.
+
+    Args:
+        base_dir: The root directory to search for ground_truth.json files.
+
+    Returns:
+        A tuple containing:
+        - A dictionary of truth items keyed by (path, type, name, line).
+        - A set of normalized covered file paths.
+    """
+    truth: dict[tuple[str, str, str, int | None], dict[str, Any]] = {}
+    covered_files: set[str] = set()
 
     for gt_path in Path(base_dir).rglob("ground_truth.json"):
-        with open(gt_path) as f:
+        with gt_path.open() as f:
             data = json.load(f)
 
         base = gt_path.parent
@@ -28,16 +43,32 @@ def load_ground_truth(base_dir):
             for item in content.get("dead_items", []):
                 if item.get("suppressed"):
                     continue
-                key = (norm_path, item["type"], item["name"], item.get("line_start"))
+                # Cast item to dict to satisfy typing
+                name: str = item["name"]
+                type_: str = item["type"]
+                line: int | None = item.get("line_start")
+                key = (norm_path, type_, name, line)
                 truth[key] = item
 
     return truth, covered_files
 
 
-def load_cytoscnpy_output(target_dir):
-    """Run CytoScnPy and parse output."""
+def load_cytoscnpy_output(
+    target_dir: str,
+) -> dict[tuple[str, str, str, int | None], dict[str, Any]]:
+    """
+    Run CytoScnPy and parse its JSON output into a standardized finding format.
+
+    Args:
+        target_dir: The directory to analyze.
+
+    Returns:
+        A dictionary of findings keyed by (path, type, name, line).
+    """
+    # Use the absolute path provided in the original code
+    tool_bin = r"E:\Github\CytoScnPy\target\release\cytoscnpy-bin.exe"
     result = subprocess.run(
-        [r"E:\Github\CytoScnPy\target\release\cytoscnpy-bin.exe", target_dir, "--json"],
+        [tool_bin, target_dir, "--json"],
         capture_output=True,
         text=True,
     )
@@ -47,8 +78,7 @@ def load_cytoscnpy_output(target_dir):
         return {}
 
     data = json.loads(result.stdout)
-
-    findings = {}
+    findings: dict[tuple[str, str, str, int | None], dict[str, Any]] = {}
     type_map = {
         "unused_functions": "function",
         "unused_methods": "method",
@@ -62,8 +92,8 @@ def load_cytoscnpy_output(target_dir):
         for item in data.get(key, []):
             norm_path = normalize_path(item.get("file", ""))
             name = item.get("simple_name") or item.get("name", "").split(".")[-1]
-            line = item.get("line")
-            actual_type = item.get("def_type", def_type)
+            line: int | None = item.get("line")
+            actual_type: str = item.get("def_type", def_type)
             if actual_type == "parameter":
                 actual_type = "variable"
 
@@ -73,8 +103,19 @@ def load_cytoscnpy_output(target_dir):
     return findings
 
 
-def match_items(finding_key, truth_keys):
-    """Check if a finding matches any truth item."""
+def match_items(
+    finding_key: tuple[str, str, str, int | None], truth_keys: Any
+) -> tuple[str, str, str, int | None] | None:
+    """
+    Check if a finding matches any truth item.
+
+    Args:
+        finding_key: Tuple of (path, type, name, line) for the finding.
+        truth_keys: Iterable of truth item keys.
+
+    Returns:
+        The matching truth key if found, otherwise None.
+    """
     f_path, f_type, f_name, f_line = finding_key
 
     for t_key in truth_keys:
@@ -101,21 +142,86 @@ def match_items(finding_key, truth_keys):
         t_simple = t_name.split(".")[-1]
 
         # Determine if we have a match
-        is_match = False
         if f_simple == t_simple:
             # Check line if available
             if f_line is not None and t_line is not None:
                 if abs(f_line - t_line) <= 2:
-                    is_match = True
+                    return t_key
             else:
-                 is_match = True
-
-        if not is_match:
-            continue
-
-        return t_key
+                return t_key
 
     return None
+
+
+def filter_findings(
+    findings: dict[tuple[str, str, str, int | None], dict[str, Any]],
+    covered_files: set[str],
+) -> dict[tuple[str, str, str, int | None], dict[str, Any]]:
+    """Filter findings to covered files only."""
+    filtered: dict[tuple[str, str, str, int | None], dict[str, Any]] = {}
+    for key, item in findings.items():
+        f_path = key[0]
+        if any(f_path.endswith(cv) or cv.endswith(f_path) for cv in covered_files):
+            filtered[key] = item
+    return filtered
+
+
+def get_matches(
+    filtered_findings: dict[tuple[str, str, str, int | None], dict[str, Any]],
+    truth: dict[tuple[str, str, str, int | None], dict[str, Any]],
+) -> tuple[
+    set[tuple[str, str, str, int | None]], set[tuple[str, str, str, int | None]]
+]:
+    """Match findings against ground truth."""
+    matched_truth: set[tuple[str, str, str, int | None]] = set()
+    matched_findings: set[tuple[str, str, str, int | None]] = set()
+
+    for f_key in filtered_findings:
+        match = match_items(f_key, truth.keys())
+        if match:
+            matched_truth.add(match)
+            matched_findings.add(f_key)
+
+    return matched_findings, matched_truth
+
+
+def print_metrics(tp: int, fp: int, fn: int) -> None:
+    """Calculate and print metrics."""
+    print("\n=== Overall Metrics ===")
+    print(f"TP: {tp}, FP: {fp}, FN: {fn}")
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = (
+        2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    )
+    print(f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
+
+
+def print_breakdown(
+    title: str, count: int, items_by_type: dict[str, list[tuple[str, str, int | None]]]
+) -> None:
+    """Print breakdown of findings by type."""
+    print(f"\n=== {title} ({count} items) ===")
+    for ftype, items in sorted(items_by_type.items()):
+        print(f"\n{ftype.upper()} ({len(items)}):")
+        for path, name, line in items[:10]:
+            fname = Path(path).name
+            print(f"  - {name} @ {fname}:{line}")
+        if len(items) > 10:
+            print(f"  ... and {len(items) - 10} more")
+
+
+def analyze_unmatched(
+    items_dict: dict[tuple[str, str, str, int | None], Any],
+    matched_keys: set[tuple[str, str, str, int | None]],
+) -> dict[str, list[tuple[str, str, int | None]]]:
+    """Group unmatched items by type."""
+    by_type: dict[str, list[tuple[str, str, int | None]]] = {}
+    for key in items_dict:
+        if key not in matched_keys:
+            path, itype, name, line = key
+            by_type.setdefault(itype, []).append((path, name, line))
+    return by_type
 
 
 def main():
@@ -130,78 +236,22 @@ def main():
     findings = load_cytoscnpy_output(base_dir)
     print(f"CytoScnPy reported {len(findings)} items")
 
-    # Filter findings to covered files only
-    filtered_findings = {}
-    for key, item in findings.items():
-        f_path = key[0]
-        is_covered = False
-        for cv in covered_files:
-            if f_path.endswith(cv) or cv.endswith(f_path):
-                is_covered = True
-                break
-        if is_covered:
-            filtered_findings[key] = item
-
+    filtered_findings = filter_findings(findings, covered_files)
     print(f"After filtering to covered files: {len(filtered_findings)} items")
 
-    # Match findings
-    matched_truth = set()
-    matched_findings = set()
+    matched_findings, matched_truth = get_matches(filtered_findings, truth)
 
-    for f_key in filtered_findings:
-        match = match_items(f_key, truth.keys())
-
-        if match:
-            matched_truth.add(match)
-            matched_findings.add(f_key)
-
-    # Calculate metrics
     tp = len(matched_findings)
     fp = len(filtered_findings) - tp
     fn = len(truth) - len(matched_truth)
 
-    print("\n=== Overall Metrics ===")
-    print(f"TP: {tp}, FP: {fp}, FN: {fn}")
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    f1 = (
-        2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-    )
-    print(f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
+    print_metrics(tp, fp, fn)
 
-    # Analyze FP
-    print(f"\n=== FALSE POSITIVES ({fp} items) ===")
-    fp_by_type = {}
-    for f_key, item in filtered_findings.items():
-        if f_key not in matched_findings:
-            f_path, f_type, f_name, f_line = f_key
-            fp_by_type.setdefault(f_type, []).append((f_path, f_name, f_line))
+    fps_by_type = analyze_unmatched(filtered_findings, matched_findings)
+    print_breakdown("FALSE POSITIVES", fp, fps_by_type)
 
-    for ftype, items in sorted(fp_by_type.items()):
-        print(f"\n{ftype.upper()} ({len(items)}):")
-        for path, name, line in items[:10]:
-            # Just show filename
-            fname = Path(path).name
-            print(f"  - {name} @ {fname}:{line}")
-        if len(items) > 10:
-            print(f"  ... and {len(items) - 10} more")
-
-    # Analyze FN
-    print(f"\n=== FALSE NEGATIVES ({fn} items) ===")
-    fn_by_type = {}
-    for t_key, item in truth.items():
-        if t_key not in matched_truth:
-            t_path, t_type, t_name, t_line = t_key
-            fn_by_type.setdefault(t_type, []).append((t_path, t_name, t_line))
-
-    for ftype, items in sorted(fn_by_type.items()):
-        print(f"\n{ftype.upper()} ({len(items)}):")
-        for path, name, line in items[:10]:
-            # Just show filename
-            fname = Path(path).name
-            print(f"  - {name} @ {fname}:{line}")
-        if len(items) > 10:
-            print(f"  ... and {len(items) - 10} more")
+    fns_by_type = analyze_unmatched(truth, matched_truth)
+    print_breakdown("FALSE NEGATIVES", fn, fns_by_type)
 
 
 if __name__ == "__main__":

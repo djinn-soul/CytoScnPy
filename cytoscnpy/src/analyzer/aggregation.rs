@@ -313,6 +313,18 @@ impl CytoScnPy {
                         }
                     }
                 }
+
+                // NEW: Fallback for methods using loose attribute references
+                // This enables cross-file detection for obj.method() patterns
+                // where we can't resolve the object's type across files.
+                if def.references == 0 && def.def_type == "method" {
+                    let loose_attr_key = format!(".{}", def.simple_name);
+                    if let Some(count) = ref_counts.get(&loose_attr_key) {
+                        if *count > 0 {
+                            def.references = *count;
+                        }
+                    }
+                }
             }
 
             apply_heuristics(&mut def);
@@ -486,7 +498,50 @@ impl CytoScnPy {
             }
         }
 
-        let taint_count = taint_findings.len();
+        // Sort all findings to ensure deterministic output
+        let sort_defs = |a: &Definition, b: &Definition| {
+            a.file
+                .cmp(&b.file)
+                .then(a.line.cmp(&b.line))
+                .then(a.col.cmp(&b.col))
+        };
+
+        unused_functions.sort_by(sort_defs);
+        unused_methods.sort_by(sort_defs);
+        unused_imports.sort_by(sort_defs);
+        unused_classes.sort_by(sort_defs);
+        unused_variables.sort_by(sort_defs);
+        unused_parameters.sort_by(sort_defs);
+
+        let sort_findings = |a: &crate::rules::Finding, b: &crate::rules::Finding| {
+            a.file
+                .cmp(&b.file)
+                .then(a.line.cmp(&b.line))
+                .then(a.col.cmp(&b.col))
+        };
+
+        let mut sorted_danger = all_danger.clone();
+        sorted_danger.sort_by(sort_findings);
+
+        let mut sorted_quality = all_quality.clone();
+        sorted_quality.sort_by(sort_findings);
+
+        let mut sorted_secrets = all_secrets.clone();
+        sorted_secrets.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+
+        let mut sorted_parse_errors = all_parse_errors.clone();
+        sorted_parse_errors.sort_by(|a, b| a.file.cmp(&b.file).then(a.error.cmp(&b.error)));
+
+        // Taint findings
+        let mut sorted_taint = taint_findings;
+        sorted_taint.sort_by(|a, b| {
+            a.file
+                .cmp(&b.file)
+                .then(a.sink_line.cmp(&b.sink_line))
+                .then(a.sink_col.cmp(&b.sink_col))
+        });
+
+        let taint_count = sorted_taint.len();
 
         AnalysisResult {
             unused_functions,
@@ -495,11 +550,11 @@ impl CytoScnPy {
             unused_classes,
             unused_variables,
             unused_parameters,
-            secrets: all_secrets.clone(),
-            danger: all_danger.clone(),
-            quality: all_quality.clone(),
-            taint_findings,
-            parse_errors: all_parse_errors.clone(),
+            secrets: sorted_secrets,
+            danger: sorted_danger,
+            quality: sorted_quality,
+            taint_findings: sorted_taint,
+            parse_errors: sorted_parse_errors,
             clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files,

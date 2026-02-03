@@ -43,16 +43,44 @@ repos:
     rev: 0.6.6
     hooks:
       - id: uv-lock
+
       - id: uv-export
         name: Export requirements.txt
-        args: ["--output-file", "requirements.txt", "--no-hashes"]
+        args: ["--no-dev", "--output-file", "requirements.txt", "--no-hashes"]
+
       - id: uv-export
         name: Export requirements-dev.txt
         args:
           [
-            "--extra",
+            "--group",
             "dev",
             "--output-file",
             "requirements-dev.txt",
             "--no-hashes",
           ]
+
+  # ==========================================================================
+  # Local Hooks - Environment Consistent Scans (via uv)
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright strict type-check (push)
+        entry: uv run basedpyright
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [push]
+
+      - id: bandit
+        name: bandit security scan
+        entry: uv run bandit -c pyproject.toml -r python/ benchmark/
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: pip-audit
+        name: pip-audit dependency scan
+        entry: uv run pip-audit
+        language: system
+        pass_filenames: false

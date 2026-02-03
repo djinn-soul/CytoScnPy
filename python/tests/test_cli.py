@@ -1,6 +1,8 @@
-import pytest
 import sys
 from unittest.mock import patch
+
+import pytest
+
 from cytoscnpy.cli import main
 
 

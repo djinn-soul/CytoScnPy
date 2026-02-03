@@ -91,3 +91,6 @@ security_example/
 security_stats_report.md
 lcov.info
 benchmark/test_*
+.pytest_tmp/
+.coverage
+coverage.xml

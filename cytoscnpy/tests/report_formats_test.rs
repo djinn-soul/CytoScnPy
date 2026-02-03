@@ -352,3 +352,43 @@ fn test_output_formatting_coverage() {
     // Re-enable colors
     colored::control::unset_override();
 }
+
+#[test]
+fn test_github_reporter_escaping() {
+    // Add % to path to test suffix escaping
+    let file = PathBuf::from("path/with,comma/and:colon/file%percentage.py");
+    let mut result = create_mock_result();
+    // Clear existing findings to focus on our specific test case
+    result.danger.clear();
+
+    result.danger.push(Finding {
+        rule_id: "TEST-001".to_owned(),
+        category: "Security".to_owned(),
+        severity: "HIGH".to_owned(),
+        // Message with newline and percentage
+        message: "Message with \n newline and % percentage".to_owned(),
+        file: file.clone(),
+        line: 10,
+        col: 5,
+    });
+
+    let mut buffer = Vec::new();
+    github::print_github(&mut buffer, &result).unwrap();
+    let output = String::from_utf8(buffer).unwrap();
+
+    // Verify escaping:
+    // : -> %3A
+    // , -> %2C
+    // \n -> %0A
+    // % -> %25 (in message and property)
+
+    // Expected file path in property: path/with%2Ccomma/and%3Acolon/file%25percentage.py
+    assert!(output.contains("file=path/with%2Ccomma/and%3Acolon/file%25percentage.py"));
+
+    // Expected message in data: Message with %0A newline and %25 percentage
+    assert!(output.contains("::Message with %0A newline and %25 percentage"));
+
+    // Expected suffix in data: (path/with,comma/and:colon/file%25percentage.py:10)
+    // Note: , and : are valid in message body, so they are NOT escaped in the suffix (via escape_message).
+    assert!(output.contains("(path/with,comma/and:colon/file%25percentage.py:10)"));
+}

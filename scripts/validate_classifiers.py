@@ -3,12 +3,14 @@ try:
 except ImportError:
     import tomli as tomllib  # ty: ignore[unresolved-import]
 import sys
+from pathlib import Path
+
 from trove_classifiers import classifiers  # ty: ignore[unresolved-import]
 
 
 def validate_classifiers():
     """Validate PyPI classifiers against trove classifiers."""
-    with open("pyproject.toml", "rb") as f:
+    with Path("pyproject.toml").open("rb") as f:
         data = tomllib.load(f)
 
     project_classifiers = data.get("project", {}).get("classifiers", [])

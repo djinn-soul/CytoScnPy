@@ -4,14 +4,16 @@
 Provides accurate measurements with warmup, statistics, and outlier detection.
 """
 
+from __future__ import annotations
+
 import json
+import os
+import platform
 import subprocess
 import sys
-import os
-from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional
-import platform
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -44,27 +46,28 @@ def get_cytoscnpy_binary() -> Path:
 
 def get_file_stats(binary: Path, dataset: Path) -> tuple[int, int]:
     """Get file count and line count from a quick run."""
-    result = subprocess.run(
-        [str(binary), "analyze", str(dataset), "--json"],
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
     files, lines = 0, 0
     try:
+        result = subprocess.run(
+            [str(binary), "analyze", str(dataset), "--json"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
         if result.stdout:
             data = json.loads(result.stdout)
             summary = data.get("analysis_summary", {})
             files = summary.get("total_files", 0)
             lines = summary.get("total_lines_analyzed", 0)
-    except Exception:
+    except (json.JSONDecodeError, subprocess.SubprocessError, OSError):
         pass
+
     return files, lines
 
 
 def run_hyperfine_benchmark(
     binary: Path, dataset: Path, runs: int = 10, warmup: int = 3
-) -> Optional[dict]:
+) -> dict[str, Any] | None:
     """Run hyperfine and return results."""
     name = dataset.name
     json_output = Path(f"benchmark/results_{name}.json")
@@ -84,20 +87,20 @@ def run_hyperfine_benchmark(
     result = subprocess.run(cmd, capture_output=False)
 
     if result.returncode == 0 and json_output.exists():
-        with open(json_output) as f:
+        with json_output.open() as f:
             return json.load(f)
     return None
 
 
 def run_benchmark_suite(
     datasets_dir: Path, runs: int = 10, warmup: int = 3
-) -> List[BenchmarkResult]:
+) -> list[BenchmarkResult]:
     """Run benchmarks on all datasets using hyperfine."""
     binary = get_cytoscnpy_binary()
     print(f"Using binary: {binary}")
     print(f"Runs per dataset: {runs}, Warmup: {warmup}")
 
-    results = []
+    results: list[BenchmarkResult] = []
     datasets = sorted([d for d in datasets_dir.iterdir() if d.is_dir()])
 
     for dataset in datasets:
@@ -105,19 +108,21 @@ def run_benchmark_suite(
         files, lines = get_file_stats(binary, dataset)
 
         # Run hyperfine
-        hf_result = run_hyperfine_benchmark(binary, dataset, runs, warmup)
+        hf_result: dict[str, Any] | None = run_hyperfine_benchmark(
+            binary, dataset, runs, warmup
+        )
 
         if hf_result and "results" in hf_result:
-            r = hf_result["results"][0]
+            r: dict[str, Any] = hf_result["results"][0]
             results.append(
                 BenchmarkResult(
                     dataset=dataset.name,
                     files=files,
                     lines=lines,
-                    mean_seconds=r.get("mean", 0),
-                    stddev_seconds=r.get("stddev", 0),
-                    min_seconds=r.get("min", 0),
-                    max_seconds=r.get("max", 0),
+                    mean_seconds=float(r.get("mean", 0)),
+                    stddev_seconds=float(r.get("stddev", 0)),
+                    min_seconds=float(r.get("min", 0)),
+                    max_seconds=float(r.get("max", 0)),
                     runs=runs,
                 )
             )
@@ -150,7 +155,7 @@ def run_comparison(datasets_dir: Path, binary: Path):
     subprocess.run(cmd)
 
 
-def print_results_table(results: List[BenchmarkResult]):
+def print_results_table(results: list[BenchmarkResult]):
     """Print results as markdown table."""
     print("\n## Benchmark Results (Hyperfine)\n")
     print("| Dataset | Files | Lines | Mean (s) | Stddev | Min | Max |")
@@ -173,7 +178,7 @@ def print_results_table(results: List[BenchmarkResult]):
         print(f"**Throughput:** {total_lines / total_mean:,.0f} lines/second")
 
 
-def save_results(results: List[BenchmarkResult], output_file: Path):
+def save_results(results: list[BenchmarkResult], output_file: Path):
     """Save results to JSON."""
     import time
 
@@ -195,26 +200,36 @@ def save_results(results: List[BenchmarkResult], output_file: Path):
             for r in results
         ],
     }
-    with open(output_file, "w") as f:
+    with output_file.open("w") as f:
         json.dump(data, f, indent=2)
     print(f"\nResults saved to: {output_file}")
 
 
 def check_regression(
-    current: List[BenchmarkResult], baseline_file: Path, threshold: float = 0.10
+    current: list[BenchmarkResult], baseline_file: Path, threshold: float = 0.10
 ) -> bool:
-    """Compare current results against baseline. Returns True if regression detected."""
+    """
+    Compare current benchmark results against a baseline to detect performance regressions.
+
+    Args:
+        current: List of current benchmark results.
+        baseline_file: Path to the baseline JSON file.
+        threshold: Percentage threshold (e.g., 0.10 for 10%) for declaring a regression.
+
+    Returns:
+        True if any regression exceeds the threshold, False otherwise.
+    """
     if not baseline_file.exists():
         print(f"\n[!] No baseline file found at {baseline_file}")
         print("    Run once without --regression-check to create baseline.")
         return False
 
-    with open(baseline_file) as f:
+    with baseline_file.open() as f:
         baseline = json.load(f)
 
     baseline_results = {r["dataset"]: r for r in baseline.get("results", [])}
 
-    regressions = []
+    regressions: list[str] = []
     for r in current:
         if r.dataset in baseline_results:
             base = baseline_results[r.dataset]
@@ -248,11 +263,10 @@ def check_regression(
     if regressions:
         print("\n[!] PERFORMANCE REGRESSIONS DETECTED:")
         for r in regressions:
-            print(r)
+            print(r)  # type: ignore[arg-type]
         return True
-    else:
-        print("\n[OK] No regressions detected.")
-        return False
+    print("\n[OK] No regressions detected.")
+    return False
 
 
 def main():

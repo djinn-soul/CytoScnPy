@@ -1,12 +1,21 @@
 import subprocess
 import sys
-from cytoscnpy.cli import main
+
 import pytest
+
+from cytoscnpy.cli import main
 
 
 def test_main_execution():
     """Test that python -m cytoscnpy runs correctly."""
-    result = subprocess.run(
+    import os
+    from pathlib import Path
+
+    env = os.environ.copy()
+    python_dir = Path(__file__).resolve().parent.parent
+    env["PYTHONPATH"] = str(python_dir) + os.pathsep + env.get("PYTHONPATH", "")
+
+    result = subprocess.run(  # noqa: S603
         [
             sys.executable,
             "-m",
@@ -15,6 +24,7 @@ def test_main_execution():
         ],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert result.returncode == 0
     assert "cytoscnpy" in result.stdout.lower()

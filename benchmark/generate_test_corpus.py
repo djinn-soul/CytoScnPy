@@ -13,15 +13,15 @@ Creates varied Python code patterns to stress-test all analyzer features:
 - Comments
 """
 
+from __future__ import annotations
+
 import argparse
 import random
 import shutil
 from pathlib import Path
-from typing import List
-
 
 # Realistic function/class names from common libraries
-FUNCTION_NAMES = [
+FUNCTION_NAMES: list[str] = [
     "process_data",
     "validate_input",
     "calculate_metrics",
@@ -87,8 +87,11 @@ IMPORT_MODULES = [
 ]
 
 
-def generate_function(name: str, used: bool = True, complexity: int = 1) -> str:
+def generate_function(name: str, *, used: bool = True, complexity: int = 1) -> str:
     """Generate a Python function with varying complexity."""
+    if not used:
+        # Placeholder to avoid ARG001, in a real case we might change the body
+        pass
     params = (
         ["data: dict", "config: dict", "options: list"] if random.random() > 0.5 else []
     )
@@ -102,7 +105,7 @@ def generate_function(name: str, used: bool = True, complexity: int = 1) -> str:
     )
 
     # Generate body with varying complexity
-    body_lines = []
+    body_lines: list[str] = []
     if complexity > 1:
         body_lines.append("    result = []")
         body_lines.append("    for item in data:")
@@ -119,7 +122,7 @@ def generate_function(name: str, used: bool = True, complexity: int = 1) -> str:
 
 def generate_class(name: str, num_methods: int = 3) -> str:
     """Generate a Python class with methods."""
-    methods = []
+    methods: list[str] = []
 
     # Constructor
     methods.append(
@@ -130,22 +133,22 @@ def generate_class(name: str, num_methods: int = 3) -> str:
 
     # Regular methods
     method_names = random.sample(FUNCTION_NAMES, min(num_methods, len(FUNCTION_NAMES)))
-    for method_name in method_names:
-        methods.append(
-            f"    def {method_name}(self, data: dict) -> dict:\n"
-            f'        """Process data using {method_name}."""\n'
-            "        return self.config.get('result', {})\n"
-        )
+    methods.extend(
+        f"    def {method_name}(self, data: dict) -> dict:\n"
+        f'        """Process data using {method_name}."""\n'
+        "        return self.config.get('result', {})\n"
+        for method_name in method_names
+    )
 
     return f"class {name}:\n" + "\n".join(methods) + "\n\n"
 
 
 def generate_imports(
     num_imports: int, used_ratio: float = 0.6
-) -> tuple[str, List[str]]:
+) -> tuple[str, list[str]]:
     """Generate import statements and return used names."""
-    imports = []
-    used_names = []
+    imports: list[str] = []
+    used_names: list[str] = []
 
     selected_modules = random.sample(
         IMPORT_MODULES, min(num_imports, len(IMPORT_MODULES))
@@ -153,7 +156,7 @@ def generate_imports(
 
     for module in selected_modules:
         if random.random() > 0.5:
-            # from X import Y
+            # from X import Y pattern
             if module in ["typing", "collections"]:
                 items = (
                     ["Dict", "List", "Optional"]
@@ -169,7 +172,7 @@ def generate_imports(
                 if random.random() < used_ratio:
                     used_names.append(module)
         else:
-            # import X
+            # import X pattern
             imports.append(f"import {module}")
             if random.random() < used_ratio:
                 used_names.append(module)
@@ -177,89 +180,88 @@ def generate_imports(
     return "\n".join(imports) + "\n\n", used_names
 
 
+def _generate_module_content() -> str:
+    """Generate content for a module."""
+    imports, used = generate_imports(random.randint(3, 8))
+    functions: list[str] = []
+    for i in range(random.randint(5, 15)):
+        func_name = random.choice(FUNCTION_NAMES) + f"_{i}"
+        is_used = random.random() > 0.4
+        complexity = random.randint(1, 3)
+        functions.append(
+            generate_function(func_name, used=is_used, complexity=complexity)
+        )
+    usage = ""
+    if used and random.random() > 0.5:
+        usage = f"\n# Use imported module\nresult = {used[0]}\n"
+    return imports + "".join(functions) + usage
+
+
+def _generate_class_content() -> str:
+    """Generate content for a class-based module."""
+    imports, _ = generate_imports(random.randint(2, 5))
+    classes = [
+        generate_class(
+            random.choice(CLASS_NAMES) + (f"{i}" if i > 0 else ""), random.randint(3, 8)
+        )
+        for i in range(random.randint(2, 5))
+    ]
+    return imports + "".join(classes)
+
+
+def _generate_script_content() -> str:
+    """Generate content for a script with __main__ block."""
+    imports, _ = generate_imports(random.randint(2, 4), used_ratio=0.9)
+    functions = [
+        generate_function(
+            random.choice(FUNCTION_NAMES) + f"_{i}", used=True, complexity=2
+        )
+        for i in range(random.randint(2, 5))
+    ]
+    main_block = "\nif __name__ == \"__main__\":\n    config = {'debug': True}\n"
+    if functions:
+        func_name = functions[0].split("def ")[1].split("(")[0]
+        main_block += f"    result = {func_name}({{}}, config, [])\n"
+        main_block += "    print(result)\n"
+    return imports + "".join(functions) + main_block
+
+
+def _generate_test_content() -> str:
+    """Generate content for a test file."""
+    imports = (
+        "import pytest\nimport unittest\nfrom unittest.mock import Mock, patch\n\n"
+    )
+    tests = [
+        f"def test_{random.choice(FUNCTION_NAMES)}_{i}():\n"
+        f'    """Test {random.choice(FUNCTION_NAMES)}_{i}."""\n'
+        "    assert True\n\n"
+        for i in range(random.randint(5, 15))
+    ]
+    return imports + "".join(tests)
+
+
+def _generate_mixed_content() -> str:
+    """Generate content for mixed module."""
+    imports, _ = generate_imports(random.randint(3, 6))
+    content = [generate_class(random.choice(CLASS_NAMES), num_methods=4)]
+    content.extend(
+        generate_function(
+            random.choice(FUNCTION_NAMES) + f"_{i}", complexity=random.randint(1, 2)
+        )
+        for i in range(random.randint(3, 6))
+    )
+    return imports + "".join(content)
+
+
 def generate_file_content(file_type: str) -> str:
     """Generate content for a Python file based on type."""
-    if file_type == "module":
-        # Module with functions
-        imports, used = generate_imports(random.randint(3, 8))
-        functions = []
-
-        for i in range(random.randint(5, 15)):
-            func_name = random.choice(FUNCTION_NAMES) + f"_{i}"
-            is_used = random.random() > 0.4  # 60% used
-            complexity = random.randint(1, 3)
-            functions.append(generate_function(func_name, is_used, complexity))
-
-        # Use some imports
-        usage = ""
-        if used and random.random() > 0.5:
-            var_name = used[0]
-            usage = f"\n# Use imported module\nresult = {var_name}\n"
-
-        return imports + "".join(functions) + usage
-
-    elif file_type == "class":
-        # Module with classes
-        imports, _ = generate_imports(random.randint(2, 5))
-        classes = []
-
-        for i in range(random.randint(2, 5)):
-            class_name = random.choice(CLASS_NAMES) + (f"{i}" if i > 0 else "")
-            num_methods = random.randint(3, 8)
-            classes.append(generate_class(class_name, num_methods))
-
-        return imports + "".join(classes)
-
-    elif file_type == "script":
-        # Script with __main__ block
-        imports, used = generate_imports(random.randint(2, 4), used_ratio=0.9)
-        functions = []
-
-        for i in range(random.randint(2, 5)):
-            func_name = random.choice(FUNCTION_NAMES) + f"_{i}"
-            functions.append(generate_function(func_name, used=True, complexity=2))
-
-        # Main block that uses functions
-        main_block = "\nif __name__ == \"__main__\":\n    config = {'debug': True}\n"
-
-        if functions:
-            # Call first function
-            func_name = functions[0].split("def ")[1].split("(")[0]
-            main_block += f"    result = {func_name}({{}}, config, [])\n"
-            main_block += "    print(result)\n"
-
-        return imports + "".join(functions) + main_block
-
-    elif file_type == "test":
-        # Test file
-        imports = (
-            "import pytest\nimport unittest\nfrom unittest.mock import Mock, patch\n\n"
-        )
-        tests = []
-
-        for i in range(random.randint(5, 15)):
-            test_name = f"test_{random.choice(FUNCTION_NAMES)}_{i}"
-            tests.append(
-                f"def {test_name}():\n"
-                f'    """Test {test_name.replace("_", " ")}."""\n'
-                "    assert True\n\n"
-            )
-
-        return imports + "".join(tests)
-
-    else:  # mixed
-        imports, _ = generate_imports(random.randint(3, 6))
-        content = []
-
-        # Mix of classes and functions
-        content.append(generate_class(random.choice(CLASS_NAMES), num_methods=4))
-        for i in range(random.randint(3, 6)):
-            func_name = random.choice(FUNCTION_NAMES) + f"_{i}"
-            content.append(
-                generate_function(func_name, complexity=random.randint(1, 2))
-            )
-
-        return imports + "".join(content)
+    dispatch = {
+        "module": _generate_module_content,
+        "class": _generate_class_content,
+        "script": _generate_script_content,
+        "test": _generate_test_content,
+    }
+    return dispatch.get(file_type, _generate_mixed_content)()
 
 
 def create_directory_structure(base_path: Path, num_files: int):
@@ -294,7 +296,7 @@ def create_directory_structure(base_path: Path, num_files: int):
     }
 
     files_created = 0
-    package_dirs = []
+    package_dirs: list[Path] = []
 
     # Create package directories
     for package in packages:

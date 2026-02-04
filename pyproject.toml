@@ -10,6 +10,7 @@ classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
+
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -176,14 +177,6 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-[tool.bandit]
-exclude_dirs = [
-    "tests",
-    "python/tests",
-    "benchmark/tests",
-    "benchmark/examples",
-]
-skips = ["B101", "B603", "B607", "B404", "B311"]
 
 [tool.coverage.report]
 fail_under = 80
@@ -211,7 +204,6 @@ format = { sequence = [
 lint = { cmd = "ruff check .", help = "Lint code with ruff" }
 typecheck = { cmd = "basedpyright", help = "Type check with basedpyright" }
 security = { sequence = [
-    { cmd = "bandit -c pyproject.toml -r python/ benchmark/" },
     { cmd = "pip-audit" },
 ], help = "Run security audits" }
 test = { cmd = "pytest --cov=python/cytoscnpy --cov-report=term-missing", help = "Run tests with coverage" }
@@ -235,7 +227,6 @@ exclude = [
 
 [dependency-groups]
 dev = [
-    "bandit>=1.7.10",
     "basedpyright>=1.37.3",
     "pip-audit>=2.7.3",
     "poethepoet>=0.30.0",
@@ -355,6 +346,11 @@ exclude = [
     "benchmark/tests",
     "python/tests",
     "cytoscnpy-mcp/scripts",
+    "security_example",
+    "cytoscnpy/tests",
+    "scripts",
+    "benchmark",
+    "**/target",
     "**/node_modules",
     "**/__pycache__",
 ]

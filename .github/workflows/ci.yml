@@ -140,10 +140,12 @@ jobs:
         uses: ./.github/actions/setup-rust
 
       - name: Install documentation dependencies
-        run: pip install .[docs]
+        run: |
+          uv sync --group docs
+          uv pip install --no-deps -e .
 
       - name: Build documentation (Strict)
-        run: mkdocs build --strict
+        run: uv run mkdocs build --strict
 
   wheel-smoke-test:
     name: Wheel Smoke Test (${{ matrix.os }} - ${{ matrix.python-version }})

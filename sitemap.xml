@@ -2,358 +2,358 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/CLI/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/contributing/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/dangerous-code/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/integrations/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/migration/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/pre-commit/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/quality/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/roadmap/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/security/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/usage/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/2025/12/28/welcome-to-cytoscnpy/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/best-practices/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/code-execution/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/cryptography/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/deserialization/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/filesystem/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/generic/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/injection/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/modern-python/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/network/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/open-redirect/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/privacy/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/danger/type-safety/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D001/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D002/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D003/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D004/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D005/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D101/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D102/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D103/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D104/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D105/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D201/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D202/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D203/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D204/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D301/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D302/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D304/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D305/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D311/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D401/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D402/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D403/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D404/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D405/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D406/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D407/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D408/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D409/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D410/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D411/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D501/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D502/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D503/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D504/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D505/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D506/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D601/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D701/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D702/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D703/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D704/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D801/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D901/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-D902/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-L001/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-L002/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-L003/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P001/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P002/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P003/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P004/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P005/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P006/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P007/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P008/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P009/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P010/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P011/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P012/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P013/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-P015/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/rule/CSP-X001/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/archive/2025/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
     <url>
          <loc>https://djinn09.github.io/CytoScnPy/blog/category/announcements/</loc>
-         <lastmod>2026-02-01</lastmod>
+         <lastmod>2026-02-04</lastmod>
     </url>
 </urlset>

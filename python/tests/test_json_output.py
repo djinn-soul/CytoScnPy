@@ -1,14 +1,30 @@
-import pytest
+import json
 import subprocess
 import sys
-import json
+
+import pytest
 
 
 def run_json_analysis(cwd):
     """Run JSON analysis integration test."""
+    import os
+    from pathlib import Path
+
+    env = os.environ.copy()
+    # Assuming test_json_output.py is in python/tests/
+    # we want to add python/ to PYTHONPATH
+    python_dir = Path(__file__).resolve().parent.parent
+    env["PYTHONPATH"] = str(python_dir) + os.pathsep + env.get("PYTHONPATH", "")
+
     cmd = [sys.executable, "-m", "cytoscnpy", ".", "--json"]
-    return subprocess.run(
-        cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+    return subprocess.run(  # noqa: S603
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
     )
 
 

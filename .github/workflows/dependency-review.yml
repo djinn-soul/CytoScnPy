@@ -29,6 +29,33 @@ jobs:
           # Comment on PR with vulnerability summary
           comment-summary-in-pr: always
           # License check - allow common permissive licenses
-          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0, 0BSD, Unlicense, CC0-1.0
+          # Allow known unavailable vulnerabilities for Python 3.8 support
+          # setuptools path traversal (requires Py 3.9+)
+          allow-ghsas:
+            - GHSA-5rjg-fvgr-3xxf
+            # urllib3 (requires Py 3.9+)
+            - GHSA-g4mx-q9vg-27p4
+            - GHSA-34jh-p97f-mpxf
+
+          # License check - allow common permissive licenses
+          allow-licenses:
+            - MIT
+            - Apache-2.0
+            - BSD-2-Clause
+            - BSD-3-Clause
+            - ISC
+            - MPL-2.0
+            - 0BSD
+            - Unlicense
+            - CC0-1.0
+            - Python-2.0
+            - PSF-2.0
+
+          # Handle packages with unknown/complex licenses explicitly
+          allow-dependencies-licenses:
+            - cyclonedx-python-lib: Apache-2.0 AND Python-2.0
+            - pyparsing: MIT AND Python-2.0
+            - basedpyright: MIT
+
           # Warn on low OpenSSF scorecard
           warn-on-openssf-scorecard-level: 3

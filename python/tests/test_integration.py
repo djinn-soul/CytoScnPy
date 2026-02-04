@@ -1,19 +1,28 @@
-import sys
 import subprocess
+import sys
+
 import pytest
 
 
 # Helper to run cytoscnpy as a subprocess
 def run_cytoscnpy(args, cwd=None):
     """Run a cytoscnpy command integration test."""
-    cmd = [sys.executable, "-m", "cytoscnpy"] + args
-    return subprocess.run(
+    import os
+    from pathlib import Path
+
+    env = os.environ.copy()
+    python_dir = Path(__file__).resolve().parent.parent
+    env["PYTHONPATH"] = str(python_dir) + os.pathsep + env.get("PYTHONPATH", "")
+
+    cmd = [sys.executable, "-m", "cytoscnpy", *args]
+    return subprocess.run(  # noqa: S603
         cmd,
         cwd=cwd,
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
     )
 
 

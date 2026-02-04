@@ -149,7 +149,9 @@ pub fn print_github_with_root(
         writeln!(
             writer,
             "::error file={}{},title=ParseError::{}",
-            path, line_meta, error.error
+            escape_property(&path),
+            line_meta,
+            escape_message(&error.error)
         )?;
     }
 
@@ -190,12 +192,12 @@ fn write_annotation(
         writer,
         "::{} file={},line={},col={},title={}::{} ({}:{})",
         gh_level,
-        path,
+        escape_property(&path),
         finding.line,
         finding.col,
-        finding.rule_id,
-        finding.message,
-        path,
+        escape_property(&finding.rule_id),
+        escape_message(&finding.message),
+        escape_message(&path),
         finding.line
     )?;
     Ok(())
@@ -212,9 +214,42 @@ fn write_unused(
     root: Option<&std::path::Path>,
 ) -> std::io::Result<()> {
     let path = normalize_path(file, root);
+    let message = format!("Unused identifier '{name}' in {path}:{line}");
     writeln!(
         writer,
-        "::{level} file={path},line={line},col={col},title={title}::Unused identifier '{name}' in {path}:{line}"
+        "::{level} file={},line={line},col={col},title={title}::{}",
+        escape_property(&path),
+        escape_message(&message)
     )?;
     Ok(())
+}
+
+/// Escapes a value for use in a `GitHub` Actions command property.
+///
+/// Replaces:
+/// - `%` with `%25`
+/// - `\r` with `%0D`
+/// - `\n` with `%0A`
+/// - `:` with `%3A`
+/// - `,` with `%2C`
+fn escape_property(value: &str) -> String {
+    value
+        .replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+        .replace(':', "%3A")
+        .replace(',', "%2C")
+}
+
+/// Escapes a value for use in a `GitHub` Actions command message (data).
+///
+/// Replaces:
+/// - `%` with `%25`
+/// - `\r` with `%0D`
+/// - `\n` with `%0A`
+fn escape_message(value: &str) -> String {
+    value
+        .replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
 }

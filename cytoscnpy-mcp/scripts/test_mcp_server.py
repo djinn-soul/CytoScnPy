@@ -6,10 +6,9 @@ Usage:
     python test_mcp_server.py
 """
 
-import subprocess
 import json
+import subprocess
 import time
-import os
 
 
 def send_request(process, request):
@@ -25,16 +24,18 @@ def send_request(process, request):
 
 def test_mcp_server():
     """Test the MCP server by communicating via stdio."""
+    from pathlib import Path
+
     # Find the CLI executable
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(os.path.dirname(script_dir))
+    script_dir = Path(__file__).resolve().parent
+    repo_root = script_dir.parent.parent
 
     # Try release first, then debug
-    cli_path = os.path.join(repo_root, "target", "release", "cytoscnpy-cli.exe")
-    if not os.path.exists(cli_path):
-        cli_path = os.path.join(repo_root, "target", "debug", "cytoscnpy-cli.exe")
+    cli_path = repo_root / "target" / "release" / "cytoscnpy-cli.exe"
+    if not cli_path.exists():
+        cli_path = repo_root / "target" / "debug" / "cytoscnpy-cli.exe"
 
-    if not os.path.exists(cli_path):
+    if not cli_path.exists():
         print("Error: Could not find cytoscnpy-cli.exe")
         print(f"Looked in: {cli_path}")
         return

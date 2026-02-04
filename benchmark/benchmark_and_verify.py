@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import re
@@ -88,10 +90,10 @@ class FinalReport(TypedDict):
 class _Args(Protocol):
     list: bool
     check: bool
-    include: Optional[list[str]]
-    exclude: Optional[list[str]]
-    save_json: Optional[str]
-    compare_json: Optional[str]
+    include: list[str] | None
+    exclude: list[str] | None
+    save_json: str | None
+    compare_json: str | None
     threshold: float
 
 
@@ -102,7 +104,7 @@ class _MemoryInfo(Protocol):
 class _PsutilProcessLike(Protocol):
     def memory_info(self) -> _MemoryInfo: ...
 
-    def children(self, *, recursive: bool = ...) -> Iterable["_PsutilProcessLike"]: ...
+    def children(self, *, recursive: bool = ...) -> Iterable[_PsutilProcessLike]: ...
 
 
 class _PsutilModule(Protocol):
@@ -117,7 +119,7 @@ class _PsutilModule(Protocol):
 try:
     import psutil as _psutil
 except ImportError:
-    psutil: Optional[_PsutilModule] = None
+    psutil: _PsutilModule | None = None
 else:
     psutil = cast(_PsutilModule, _psutil)
 
@@ -200,9 +202,9 @@ def _handle_timeout(
 
 
 def run_command(
-    command: Union[str, list[str]],
-    cwd: Optional[str] = None,
-    env: Optional[Mapping[str, str]] = None,
+    command: str | list[str],
+    cwd: str | None = None,
+    env: Mapping[str, str] | None = None,
     timeout: int = 300,
 ) -> tuple[subprocess.CompletedProcess[str], float, float]:
     """Runs a command and returns (result, duration, max_rss_mb)."""
@@ -273,13 +275,13 @@ def _as_str(value: object) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _as_int(value: object) -> Optional[int]:
+def _as_int(value: object) -> int | None:
     if isinstance(value, bool):
         return None
     return value if isinstance(value, int) else None
 
 
-def _as_float(value: object) -> Optional[float]:
+def _as_float(value: object) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -287,7 +289,7 @@ def _as_float(value: object) -> Optional[float]:
     return None
 
 
-def get_tool_path(tool_name: str) -> Optional[str]:
+def get_tool_path(tool_name: str) -> str | None:
     """Locate tool executable in PATH or specific locations."""
     # Check PATH first
     path = shutil.which(tool_name)
@@ -344,25 +346,19 @@ def _check_python_module(module: str, arg: str) -> ToolStatus:
 
 def _check_cytoscnpy_rust(command: list[str]) -> ToolStatus:
     status: ToolStatus = {"available": False, "reason": "Unknown"}
-    if isinstance(command, list):  # pyright: ignore[reportUnnecessaryIsInstance]
-        if command[0] == "cargo":
-            if shutil.which("cargo"):
-                status = {"available": True, "reason": "Cargo found"}
-            else:
-                status["reason"] = "Cargo not found in PATH"
+
+    if command[0] == "cargo":
+        if shutil.which("cargo"):
+            status = {"available": True, "reason": "Cargo found"}
         else:
-            bin_path = Path(str(command[0]))
-            if bin_path.exists() or shutil.which(command[0]):
-                status = {"available": True, "reason": "Binary found"}
-            else:
-                status["reason"] = f"Binary not found: {command[0]}"
+            status["reason"] = "Cargo not found in PATH"
     else:
-        match = re.search(r'"([^"]+)"', command)
-        bin_path = Path(match.group(1)) if match else Path(command)
-        if bin_path.exists() or shutil.which(str(command)):
+        bin_path = Path(str(command[0]))
+        if bin_path.exists() or shutil.which(command[0]):
             status = {"available": True, "reason": "Binary found"}
         else:
-            status["reason"] = f"Binary not found: {bin_path if bin_path else command}"
+            status["reason"] = f"Binary not found: {command[0]}"
+
     return status
 
 
@@ -384,7 +380,7 @@ def _check_cytoscnpy_python() -> ToolStatus:
     return status
 
 
-def _check_deadcode(command: Union[str, list[str]]) -> ToolStatus:
+def _check_deadcode(command: str | list[str]) -> ToolStatus:
     status: ToolStatus = {"available": False, "reason": "Unknown"}
     if isinstance(command, list) and command:
         exe_path = Path(command[0])
@@ -471,10 +467,10 @@ def check_tool_availability(tools_config: list[ToolConfig]) -> ToolCheckResults:
 
 def run_benchmark_tool(
     name: str,
-    command: Union[str, list[str]],
-    cwd: Optional[str] = None,
-    env: Optional[Mapping[str, str]] = None,
-) -> Optional[BenchmarkResult]:
+    command: str | list[str],
+    cwd: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> BenchmarkResult | None:
     """Run a specific benchmark tool command."""
     print(f"\n[+] Running {name}...")
     print(f"    Command: {command}")
@@ -620,7 +616,7 @@ def _count_issues(name: str, stdout: str, _stderr: str, output: str) -> int:
 class Verification:
     """Handles verification of tool output against ground truth."""
 
-    def __init__(self, ground_truth_path: Union[str, Path]) -> None:
+    def __init__(self, ground_truth_path: str | Path) -> None:
         """Initialize verification with ground truth data."""
         super().__init__()
         self.covered_files: set[str] = set()
@@ -691,7 +687,7 @@ class Verification:
 
         return truth_set
 
-    def load_ground_truth(self, path: Union[str, Path]) -> set[Finding]:
+    def load_ground_truth(self, path: str | Path) -> set[Finding]:
         """Load ground truth assertions from file."""
         path_obj = Path(path)
         truth_set: set[Finding] = set()
@@ -808,7 +804,7 @@ class Verification:
         return items_list
 
     @staticmethod
-    def _skylos_item_to_finding(item: dict[str, object]) -> Optional[Finding]:
+    def _skylos_item_to_finding(item: dict[str, object]) -> Finding | None:
         type_map: Mapping[str, str] = {
             "function": "function",
             "class": "class",
@@ -1089,7 +1085,7 @@ class Verification:
 
     def _find_truth_match(
         self, f_item: Finding, truth_remaining: list[Finding]
-    ) -> Optional[Finding]:
+    ) -> Finding | None:
         for t_item in truth_remaining:
             if self._matches_truth_item(f_item, t_item):
                 return t_item
@@ -1117,7 +1113,7 @@ class Verification:
         )
 
     @staticmethod
-    def _matches_line(f_line: Optional[int], t_line: Optional[int]) -> bool:
+    def _matches_line(f_line: int | None, t_line: int | None) -> bool:
         if f_line is None:
             return True
         if t_line is None:

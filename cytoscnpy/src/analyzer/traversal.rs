@@ -119,24 +119,7 @@ impl CytoScnPy {
                 .collect();
             all_results.extend(chunk_results);
         }
-        // let mut file = std::fs::File::create("test.log").unwrap();
 
-        // for (i, r) in all_results.iter().enumerate() {
-        //     writeln!(file, "=== Result {} ===", i).unwrap();
-        //     writeln!(file, "definitions: {:?}", r.0).unwrap();
-        //     writeln!(file, "counts: {:?}", r.1).unwrap();
-        //     writeln!(file, "protocol_methods: {:?}", r.2).unwrap();
-        //     writeln!(file, "secret_findings: {:?}", r.3).unwrap();
-        //     writeln!(file, "findings_a: {:?}", r.4).unwrap();
-        //     writeln!(file, "findings_b: {:?}", r.5).unwrap();
-        //     writeln!(file, "parse_errors: {:?}", r.6).unwrap();
-        //     writeln!(file, "files: {:?}", r.7).unwrap();
-        //     writeln!(file, "raw_metrics: {:?}", r.8).unwrap();
-        //     writeln!(file, "halstead_metrics: {:?}", r.9).unwrap();
-        //     writeln!(file, "score1: {:?}", r.10).unwrap();
-        //     writeln!(file, "score2: {:?}", r.11).unwrap();
-        //     writeln!(file, "issues: {:?}", r.12).unwrap();
-        // }
         let mut result = self.aggregate_results(all_results, files, total_files, total_directories);
 
         if !config_errors.is_empty() {

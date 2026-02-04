@@ -1,5 +1,5 @@
-import sys
 import shutil
+import sys
 from pathlib import Path
 
 # Add the python/ directory to sys.path so we can import cytoscnpy
@@ -18,5 +18,5 @@ def pytest_sessionfinish(session, exitstatus):
     if tmp_dir.exists():
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
-        except Exception:
+        except Exception:  # noqa: S110
             pass

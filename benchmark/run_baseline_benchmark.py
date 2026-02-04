@@ -10,36 +10,58 @@ Measures:
 - Per-module timing breakdowns
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
+
 import psutil
 
 
 def get_memory_usage() -> float:
-    """Get current process memory usage in MB."""
+    """
+    Get current process memory usage (RSS) in Megabytes.
+
+    Returns:
+        RSS memory in MB.
+    """
     process = psutil.Process()
     return process.memory_info().rss / 1024 / 1024
 
 
 def run_benchmark(
-    corpus_path: Path, cytoscnpy_bin: Path, iterations: int = 3, flags: list[str] = None
-) -> Dict[str, Any]:
-    """Run benchmark and collect metrics."""
+    corpus_path: Path,
+    cytoscnpy_bin: Path,
+    iterations: int = 3,
+    flags: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Run benchmark for a single configuration and collect detailed metrics.
 
-    flags = flags or []
-    cmd = [str(cytoscnpy_bin), str(corpus_path)] + flags
+    Args:
+        corpus_path: Path to the test corpus.
+        cytoscnpy_bin: Path to the executable binary.
+        iterations: Number of times to run the benchmark for averaging.
+        flags: Optional list of CLI flags to pass to the tool.
+
+    Returns:
+        A dictionary containing timing, memory, and throughput statistics.
+    """
+
+    effective_flags = flags or []
+    cmd = [str(cytoscnpy_bin), str(corpus_path), *effective_flags]
 
     print(f"Running: {' '.join(cmd)}")
     print(f"Iterations: {iterations}")
     print()
 
-    times = []
-    peak_memory = []
+    times: list[float] = []
+    peak_memory: list[float] = []
 
     for i in range(iterations):
         print(f"  Iteration {i + 1}/{iterations}...", end=" ", flush=True)
@@ -70,7 +92,7 @@ def run_benchmark(
                     for child in proc_obj.children(recursive=True):
                         try:
                             mem += child.memory_info().rss
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):  # noqa: PERF203
                             pass
                     max_mem = max(max_mem, mem / 1024 / 1024)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -125,7 +147,7 @@ def run_benchmark(
 
 def run_comprehensive_benchmarks(
     corpus_path: Path, cytoscnpy_bin: Path
-) -> Dict[str, Any]:
+) -> dict[str, dict[str, Any]]:
     """Run benchmarks with different configurations."""
 
     print("=" * 80)
@@ -133,7 +155,7 @@ def run_comprehensive_benchmarks(
     print("=" * 80)
     print()
 
-    configs = [
+    configs: list[dict[str, Any]] = [
         {
             "name": "Basic (dead code only)",
             "flags": [],
@@ -160,7 +182,7 @@ def run_comprehensive_benchmarks(
         },
     ]
 
-    results = {}
+    results: dict[str, dict[str, Any]] = {}
 
     for config in configs:
         print(f"\nBenchmark: {config['name']}")
@@ -184,13 +206,13 @@ def run_comprehensive_benchmarks(
     return results
 
 
-def save_results(results: Dict[str, Any], output_file: Path):
+def save_results(results: dict[str, Any], output_file: Path):
     """Save benchmark results to JSON file."""
     output_file.write_text(json.dumps(results, indent=2))
     print(f"✓ Results saved to: {output_file}")
 
 
-def print_summary_table(results: Dict[str, Any]):
+def print_summary_table(results: dict[str, Any]):
     """Print a summary comparison table."""
     print("\n" + "=" * 80)
     print("SUMMARY COMPARISON")
@@ -204,9 +226,9 @@ def print_summary_table(results: Dict[str, Any]):
     for config_name, result in results.items():
         print(
             f"{config_name:<35} "
-            f"{result['avg_time']:>7.2f} ± {result['stddev']:<5.2f} "
-            f"{result['avg_memory_mb']:>10.1f}     "
-            f"{result['throughput_files_per_sec']:>8.0f} f/s"
+            f"{float(result['avg_time']):>7.2f} ± {float(result['stddev']):<5.2f} "
+            f"{float(result['avg_memory_mb']):>10.1f}     "
+            f"{float(result['throughput_files_per_sec']):>8.0f} f/s"
         )
 
     print()

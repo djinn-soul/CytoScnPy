@@ -1,6 +1,5 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 95
 expression: output
 ---
 [OK] Using default exclusions only: *.egg-info, .bundle, .cache, .coverage, .eggs, .env, .git, .gradle, .hg, .idea, .mvn, .mypy_cache, .nox, .npm, .pytest_cache, .pytype, .ruff_cache, .svn, .tmp, .tox, .venv, .vs, .vscode, __pycache__, bower_components, build, dist, env, gradle, htmlcov, logs, node_modules, site-packages, target, tmp, vendor, venv

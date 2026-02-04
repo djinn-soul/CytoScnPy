@@ -228,6 +228,7 @@ exclude = [
 [dependency-groups]
 dev = [
     "basedpyright>=1.37.3",
+    "maturin>=1.0,<2.0",
     "pip-audit>=2.7.3",
     "poethepoet>=0.30.0",
     "prek",

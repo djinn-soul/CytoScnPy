@@ -54,12 +54,10 @@ Thank you for your interest in contributing to CytoScnPy!
    `git checkout -b feature/your-feature`
 
 2. **Make Changes:**
-
    - Run `cargo fmt` to format.
    - Run `cargo clippy` to lint.
 
 3. **Test:**
-
    - `cargo test` (Rust unit tests)
    - `pytest` (Python integration tests)
 

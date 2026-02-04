@@ -1188,17 +1188,18 @@ fn handle_analysis<W: std::io::Write>(
                     "dry-run (preview)"
                 }
             );
-            eprintln!("   Min confidence: 90%");
-            eprintln!("   Targets: functions, classes, imports");
+            eprintln!("   Min confidence: {confidence}%");
+            eprintln!("   Targets: functions, classes, imports, variables");
             eprintln!("   CST mode: enabled (precise byte ranges)");
             eprintln!();
         }
         let fix_options = crate::commands::DeadCodeFixOptions {
-            min_confidence: 90, // Only fix high-confidence items
+            min_confidence: confidence, // Use configured confidence
             dry_run: !cli_var.apply,
             fix_functions: true,
             fix_classes: true,
             fix_imports: true,
+            fix_variables: true,
             verbose: cli_var.output.verbose,
             with_cst: true, // CST is always enabled by default
             analysis_root: analysis_root.to_path_buf(),

@@ -277,7 +277,8 @@ pub struct Cli {
     #[arg(long, default_value = "0.8")]
     pub clone_similarity: f64,
 
-    /// Auto-fix detected dead code (removes unused functions, classes, imports).
+    /// Auto-fix detected dead code (removes unused functions, classes, imports,
+    /// and renames unused variables to `_`).
     /// By default, shows a preview of what would be changed (dry-run).
     /// Use --apply to actually modify files.
     /// Note: Clone detection is report-only; clones are never auto-removed.

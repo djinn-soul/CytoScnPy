@@ -291,9 +291,9 @@ def func():
 
 ### 7.6.4 Accuracy Improvement Roadmap
 
-| Phase     | Target F1 | Key Fixes                              | Status     |
-| --------- | --------- | -------------------------------------- | ---------- |
-| **7.6.1** | 0.63      | Return annotations, TYPE_CHECKING      | ✅ Done    |
+| Phase     | Target F1 | Key Fixes                              | Status  |
+| --------- | --------- | -------------------------------------- | ------- |
+| **7.6.1** | 0.63      | Return annotations, TYPE_CHECKING      | ✅ Done |
 | **7.6.2** | 0.68      | Cross-file `__all__`, pattern matching | PLANNED |
 | **7.6.3** | 0.72      | Class-method linking, variable scopes  | PLANNED |
 | **7.6.4** | 0.75      | Import gaps, framework patterns        | PLANNED |
@@ -430,7 +430,7 @@ _Implementing findings from the Recommendation System Audit._
 | --------------------------- | --------------------------------------- | ---------------------------- |
 | **Containerized Execution** | Isolated, reproducible environments     | Docker, Podman               |
 | **Cross-Platform Matrix**   | Test on Windows, Linux, macOS           | GitHub Actions matrix        |
-| **Python Version Matrix**   | Test with Python 3.8-3.12               | tox, nox                     |
+| **Python Version Matrix**   | Test with Python 3.8-3.13               | tox, nox                     |
 | **Memory Profiling**        | Track peak RSS, allocations             | tracemalloc, memory_profiler |
 | **CPU Profiling**           | Identify bottlenecks                    | py-spy, cProfile             |
 | **Differential Testing**    | Compare outputs between tool versions   | Custom diff scripts          |
@@ -462,7 +462,6 @@ _Pushing the boundaries of static analysis._
 
   - `ContextScorer` applies bonuses/penalties for keywords, entropy, comments, docstrings, placeholders, and env-var patterns before clamping to 0-100, so the modular engine already enforces the scoring rules described in the previous plan (`cytoscnpy/src/rules/secrets/scoring/mod.rs:1-147`).
 
-
 - [ ] **Dependency Graph** IN PROGRESS
   - Generate DOT/Mermaid graphs of module dependencies to aid refactoring.
   - Core `CallGraph` infrastructure implemented in `cytoscnpy/src/taint/call_graph.rs`.
@@ -490,8 +489,6 @@ _Safe, automated code fixes._
 ### <a id="phase-12"></a>Phase 12: Security & Lifecycle
 
 - [ ] **Fuzzing Environment Stabilization**
-  - Fuzzing is currently difficult on Windows due to MSVC toolchain and sanitizer runtime issues.
-  - **Solution:** Transition fuzzing CI to a purely Linux-based environment (or WSL).
   - This allows reliable `cargo fuzz` execution to catch edge-case crashes and undefined behavior.
   - **Implementation:** Add a `fuzz-linux.yml` workflow that runs in Ubuntu and uses `cargo +nightly fuzz`.
 

@@ -56,11 +56,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          enable-cache: true
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust
@@ -75,7 +74,9 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Install Python dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          uv sync --group dev
+          uv pip install --no-deps -e .
 
       - name: Generate coverage
         working-directory: ${{ inputs.working-directory }}
@@ -90,8 +91,8 @@ jobs:
       - name: Generate Python coverage (lcov)
         if: inputs.run-python-coverage
         run: |
-          python -c "import cytoscnpy"
-          pytest ${{ inputs.python-tests-path }} -v --cov=${{ inputs.python-coverage-package }} --cov-report=lcov:python-lcov.info
+          uv run python -c "import cytoscnpy"
+          uv run pytest ${{ inputs.python-tests-path }} -v --cov=${{ inputs.python-coverage-package }} --cov-report=lcov:python-lcov.info
           if [ ! -f python-lcov.info ]; then
             echo "TN: pytest-cov did not collect any data; creating placeholder." > python-lcov.info
           fi
@@ -104,7 +105,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f .coverage ]; then
             set +e
-            python -m coverage report >> $GITHUB_STEP_SUMMARY
+            uv run python -m coverage report >> $GITHUB_STEP_SUMMARY
             status=$?
             set -e
             if [ $status -ne 0 ]; then
@@ -116,7 +117,7 @@ jobs:
 
       - name: Verify Output Formats
         run: |
-          BIN="python -m cytoscnpy.cli"
+          BIN="uv run python -m cytoscnpy.cli"
 
           echo "### CytoScnPy Analysis Report" >> $GITHUB_STEP_SUMMARY
 

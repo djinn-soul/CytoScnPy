@@ -21,18 +21,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          enable-cache: true
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install .[docs]
+          uv sync --group docs
+          uv pip install --no-deps -e .
 
       - name: Deploy documentation
-        run: mkdocs gh-deploy --force
+        run: uv run mkdocs gh-deploy --force

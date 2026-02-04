@@ -66,7 +66,10 @@ def load_cytoscnpy_output(
         A dictionary of findings keyed by (path, type, name, line).
     """
     # Use the absolute path provided in the original code
-    tool_bin = r"E:\Github\CytoScnPy\target\release\cytoscnpy-bin.exe"
+    # Determine binary path dynamically
+    script_dir = Path(__file__).parent.resolve()
+    repo_root = script_dir.parent
+    tool_bin = str(repo_root / "target" / "release" / "cytoscnpy-bin.exe")
     result = subprocess.run(
         [tool_bin, target_dir, "--json"],
         capture_output=True,
@@ -226,7 +229,10 @@ def analyze_unmatched(
 
 def main():
     """Main entry point."""
-    base_dir = r"E:\Github\CytoScnPy\benchmark\examples"
+    # Determine paths dynamically
+    script_dir = Path(__file__).parent.resolve()
+    repo_root = script_dir.parent
+    base_dir = str(repo_root / "benchmark" / "examples")
 
     print("Loading ground truth...")
     truth, covered_files = load_ground_truth(base_dir)

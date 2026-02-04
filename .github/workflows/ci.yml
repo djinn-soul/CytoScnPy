@@ -130,20 +130,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          enable-cache: true
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust
 
       - name: Install documentation dependencies
-        run: pip install .[docs]
+        run: |
+          uv sync --group docs
+          uv pip install --no-deps -e .
 
       - name: Build documentation (Strict)
-        run: mkdocs build --strict
+        run: uv run mkdocs build --strict
 
   wheel-smoke-test:
     name: Wheel Smoke Test (${{ matrix.os }} - ${{ matrix.python-version }})

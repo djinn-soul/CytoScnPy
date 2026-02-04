@@ -140,7 +140,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"benchmark/**/*" = ["S", "D", "ANN", "T20", "INP"]
+"benchmark/**/*" = ["S", "D", "ANN", "T20", "INP", "EXE001"]
 "python/tests/**/*" = [
     "S101",
     "D",
@@ -228,6 +228,7 @@ exclude = [
 [dependency-groups]
 dev = [
     "basedpyright>=1.37.3",
+    "maturin>=1.0,<2.0",
     "pip-audit>=2.7.3",
     "poethepoet>=0.30.0",
     "prek",

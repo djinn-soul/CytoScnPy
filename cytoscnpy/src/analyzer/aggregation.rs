@@ -314,17 +314,8 @@ impl CytoScnPy {
                     }
                 }
 
-                // NEW: Fallback for methods using loose attribute references
-                // This enables cross-file detection for obj.method() patterns
-                // where we can't resolve the object's type across files.
-                if def.references == 0 && def.def_type == "method" {
-                    let loose_attr_key = format!(".{}", def.simple_name);
-                    if let Some(count) = ref_counts.get(&loose_attr_key) {
-                        if *count > 0 {
-                            def.references = *count;
-                        }
-                    }
-                }
+                // Removed global method-name fallback to improve accuracy.
+                // Previously, this marked all methods with the same name as used if *any* was utilized.
             }
 
             apply_heuristics(&mut def);

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import re
@@ -7,24 +9,18 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import (
     Callable,
-    Dict,
-    Iterable,
-    List,
-    Mapping,
     Optional,
     Protocol,
-    Set,
-    Tuple,
-    Type,
     TypedDict,
     Union,
     cast,
 )
 
-Finding = Tuple[str, Optional[int], str, str]
+Finding = tuple[str, Optional[int], str, str]
 
 
 class ToolStatus(TypedDict):
@@ -34,7 +30,7 @@ class ToolStatus(TypedDict):
 
 class ToolConfigRequired(TypedDict):
     name: str
-    command: List[str]
+    command: list[str]
 
 
 class ToolConfig(ToolConfigRequired, total=False):
@@ -42,7 +38,7 @@ class ToolConfig(ToolConfigRequired, total=False):
     cwd: str
 
 
-ToolCheckResults = Dict[str, ToolStatus]
+ToolCheckResults = dict[str, ToolStatus]
 
 
 class ToolCheckInfo(TypedDict):
@@ -66,12 +62,12 @@ class MetricResult(TypedDict):
     Precision: float
     Recall: float
     F1: float
-    missed_items: List[str]
+    missed_items: list[str]
 
 
 VerificationValue = Union[MetricResult, str]
-VerificationResult = Dict[str, VerificationValue]
-MetricResults = Dict[str, MetricResult]
+VerificationResult = dict[str, VerificationValue]
+MetricResults = dict[str, MetricResult]
 
 
 class FinalReportEntry(TypedDict):
@@ -88,16 +84,16 @@ class FinalReportEntry(TypedDict):
 class FinalReport(TypedDict):
     timestamp: float
     platform: str
-    results: List[FinalReportEntry]
+    results: list[FinalReportEntry]
 
 
 class _Args(Protocol):
     list: bool
     check: bool
-    include: Optional[List[str]]
-    exclude: Optional[List[str]]
-    save_json: Optional[str]
-    compare_json: Optional[str]
+    include: list[str] | None
+    exclude: list[str] | None
+    save_json: str | None
+    compare_json: str | None
     threshold: float
 
 
@@ -108,12 +104,12 @@ class _MemoryInfo(Protocol):
 class _PsutilProcessLike(Protocol):
     def memory_info(self) -> _MemoryInfo: ...
 
-    def children(self, *, recursive: bool = ...) -> Iterable["_PsutilProcessLike"]: ...
+    def children(self, *, recursive: bool = ...) -> Iterable[_PsutilProcessLike]: ...
 
 
 class _PsutilModule(Protocol):
-    NoSuchProcess: Type[BaseException]
-    AccessDenied: Type[BaseException]
+    NoSuchProcess: type[BaseException]
+    AccessDenied: type[BaseException]
 
     # psutil.Process is a callable/class; model it as an attribute to avoid
     # style warnings about method naming while keeping the external API shape.
@@ -123,7 +119,7 @@ class _PsutilModule(Protocol):
 try:
     import psutil as _psutil
 except ImportError:
-    psutil: Optional[_PsutilModule] = None
+    psutil: _PsutilModule | None = None
 else:
     psutil = cast(_PsutilModule, _psutil)
 
@@ -133,7 +129,7 @@ class _PsutilMissingError(Exception):
 
 
 if psutil is not None:
-    _psutil_exception_types: Tuple[Type[BaseException], ...] = (
+    _psutil_exception_types: tuple[type[BaseException], ...] = (
         psutil.NoSuchProcess,
         psutil.AccessDenied,
     )
@@ -149,7 +145,7 @@ def _safe_child_rss(child: _PsutilProcessLike) -> int:
         return 0
 
 
-def _update_max_rss(p: _PsutilProcessLike, max_rss: List[int]) -> int:
+def _update_max_rss(p: _PsutilProcessLike, max_rss: list[int]) -> int:
     """Update max RSS with current process and children memory usage."""
     rss = p.memory_info().rss
     if rss > max_rss[0]:
@@ -166,7 +162,7 @@ def _update_max_rss(p: _PsutilProcessLike, max_rss: List[int]) -> int:
 
 def _monitor_memory(
     process: subprocess.Popen[str],
-    max_rss: List[int],
+    max_rss: list[int],
     stop_monitoring: threading.Event,
 ) -> None:
     """Monitor memory usage of a process and its children."""
@@ -190,11 +186,11 @@ def _monitor_memory(
 
 
 def _handle_timeout(
-    command: List[str],
+    command: list[str],
     process: subprocess.Popen[str],
-    max_rss: List[int],
+    max_rss: list[int],
     timeout: int,
-) -> Tuple[subprocess.CompletedProcess[str], int, float]:
+) -> tuple[subprocess.CompletedProcess[str], int, float]:
     """Handle process timeout."""
     process.kill()
     stdout, stderr = process.communicate()
@@ -206,11 +202,11 @@ def _handle_timeout(
 
 
 def run_command(
-    command: Union[str, List[str]],
-    cwd: Optional[str] = None,
-    env: Optional[Mapping[str, str]] = None,
+    command: str | list[str],
+    cwd: str | None = None,
+    env: Mapping[str, str] | None = None,
     timeout: int = 300,
-) -> Tuple[subprocess.CompletedProcess[str], float, float]:
+) -> tuple[subprocess.CompletedProcess[str], float, float]:
     """Runs a command and returns (result, duration, max_rss_mb)."""
     start_time = time.time()
     use_shell = False
@@ -279,13 +275,13 @@ def _as_str(value: object) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _as_int(value: object) -> Optional[int]:
+def _as_int(value: object) -> int | None:
     if isinstance(value, bool):
         return None
     return value if isinstance(value, int) else None
 
 
-def _as_float(value: object) -> Optional[float]:
+def _as_float(value: object) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -293,7 +289,7 @@ def _as_float(value: object) -> Optional[float]:
     return None
 
 
-def get_tool_path(tool_name: str) -> Optional[str]:
+def get_tool_path(tool_name: str) -> str | None:
     """Locate tool executable in PATH or specific locations."""
     # Check PATH first
     path = shutil.which(tool_name)
@@ -318,7 +314,7 @@ def get_tool_path(tool_name: str) -> Optional[str]:
 
 # Data-driven tool check configuration
 # Maps tool names to their check command info
-TOOL_CHECKS: Dict[str, ToolCheckInfo] = {
+TOOL_CHECKS: dict[str, ToolCheckInfo] = {
     "Vulture (0%)": {"module": "vulture", "arg": "--version"},
     "Vulture (60%)": {"module": "vulture", "arg": "--version"},
     "Flake8": {"module": "flake8", "arg": "--version"},
@@ -348,27 +344,21 @@ def _check_python_module(module: str, arg: str) -> ToolStatus:
         return {"available": False, "reason": f"Not installed (pip install {module})"}
 
 
-def _check_cytoscnpy_rust(command: List[str]) -> ToolStatus:
+def _check_cytoscnpy_rust(command: list[str]) -> ToolStatus:
     status: ToolStatus = {"available": False, "reason": "Unknown"}
-    if isinstance(command, list):  # pyright: ignore[reportUnnecessaryIsInstance]
-        if command[0] == "cargo":
-            if shutil.which("cargo"):
-                status = {"available": True, "reason": "Cargo found"}
-            else:
-                status["reason"] = "Cargo not found in PATH"
+
+    if command[0] == "cargo":
+        if shutil.which("cargo"):
+            status = {"available": True, "reason": "Cargo found"}
         else:
-            bin_path = Path(str(command[0]))
-            if bin_path.exists() or shutil.which(command[0]):
-                status = {"available": True, "reason": "Binary found"}
-            else:
-                status["reason"] = f"Binary not found: {command[0]}"
+            status["reason"] = "Cargo not found in PATH"
     else:
-        match = re.search(r'"([^"]+)"', command)
-        bin_path = Path(match.group(1)) if match else Path(command)
-        if bin_path.exists() or shutil.which(str(command)):
+        bin_path = Path(str(command[0]))
+        if bin_path.exists() or shutil.which(command[0]):
             status = {"available": True, "reason": "Binary found"}
         else:
-            status["reason"] = f"Binary not found: {bin_path if bin_path else command}"
+            status["reason"] = f"Binary not found: {command[0]}"
+
     return status
 
 
@@ -390,7 +380,7 @@ def _check_cytoscnpy_python() -> ToolStatus:
     return status
 
 
-def _check_deadcode(command: Union[str, List[str]]) -> ToolStatus:
+def _check_deadcode(command: str | list[str]) -> ToolStatus:
     status: ToolStatus = {"available": False, "reason": "Unknown"}
     if isinstance(command, list) and command:
         exe_path = Path(command[0])
@@ -429,7 +419,7 @@ def _check_skylos() -> ToolStatus:
     return status
 
 
-def check_tool_availability(tools_config: List[ToolConfig]) -> ToolCheckResults:
+def check_tool_availability(tools_config: list[ToolConfig]) -> ToolCheckResults:
     """Pre-check all tools to verify they are installed and available.
 
     Returns a dict with tool status: {name: {"available": bool, "reason": str}}
@@ -477,10 +467,10 @@ def check_tool_availability(tools_config: List[ToolConfig]) -> ToolCheckResults:
 
 def run_benchmark_tool(
     name: str,
-    command: Union[str, List[str]],
-    cwd: Optional[str] = None,
-    env: Optional[Mapping[str, str]] = None,
-) -> Optional[BenchmarkResult]:
+    command: str | list[str],
+    cwd: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> BenchmarkResult | None:
     """Run a specific benchmark tool command."""
     print(f"\n[+] Running {name}...")
     print(f"    Command: {command}")
@@ -511,7 +501,7 @@ def _count_cytoscnpy_issues(stdout: str) -> int:
         data = cast(object, json.loads(stdout))
         if not isinstance(data, dict):
             return 0
-        data_dict = cast(Dict[str, object], data)
+        data_dict = cast(dict[str, object], data)
         categories = [
             "unused_functions",
             "unused_methods",
@@ -524,7 +514,7 @@ def _count_cytoscnpy_issues(stdout: str) -> int:
         for key in categories:
             items = data_dict.get(key)
             if isinstance(items, list):
-                items_list = cast(List[object], items)
+                items_list = cast(list[object], items)
                 total += len(items_list)
         return total
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -536,13 +526,13 @@ def _count_ruff_issues(stdout: str, output: str) -> int:
     try:
         data = cast(object, json.loads(stdout))
         if isinstance(data, list):
-            data_list = cast(List[object], data)
+            data_list = cast(list[object], data)
             return len(data_list)
         if isinstance(data, dict):
-            data_dict = cast(Dict[str, object], data)
+            data_dict = cast(dict[str, object], data)
             issues = data_dict.get("issues")
             if isinstance(issues, list):
-                issues_list = cast(List[object], issues)
+                issues_list = cast(list[object], issues)
                 return len(issues_list)
     except (json.JSONDecodeError, KeyError, TypeError):
         pass
@@ -554,7 +544,7 @@ def _count_pylint_issues(stdout: str, output: str) -> int:
     try:
         data = cast(object, json.loads(stdout))
         if isinstance(data, list):
-            data_list = cast(List[object], data)
+            data_list = cast(list[object], data)
             return len(data_list)
     except (json.JSONDecodeError, KeyError, TypeError):
         pass
@@ -583,7 +573,7 @@ def _count_skylos_issues(stdout: str) -> int:
         data = cast(object, json.loads(stdout))
         if not isinstance(data, dict):
             return 0
-        data_dict = cast(Dict[str, object], data)
+        data_dict = cast(dict[str, object], data)
         total = 0
         for key in [
             "unused_functions",
@@ -593,7 +583,7 @@ def _count_skylos_issues(stdout: str) -> int:
         ]:
             items = data_dict.get(key)
             if isinstance(items, list):
-                items_list = cast(List[object], items)
+                items_list = cast(list[object], items)
                 total += len(items_list)
         return total
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -626,23 +616,23 @@ def _count_issues(name: str, stdout: str, _stderr: str, output: str) -> int:
 class Verification:
     """Handles verification of tool output against ground truth."""
 
-    def __init__(self, ground_truth_path: Union[str, Path]) -> None:
+    def __init__(self, ground_truth_path: str | Path) -> None:
         """Initialize verification with ground truth data."""
         super().__init__()
-        self.covered_files: Set[str] = set()
-        self.ground_truth: Set[Finding] = self.load_ground_truth(ground_truth_path)
+        self.covered_files: set[str] = set()
+        self.ground_truth: set[Finding] = self.load_ground_truth(ground_truth_path)
 
     @staticmethod
-    def _as_dict_list(value: object) -> List[Dict[str, object]]:
+    def _as_dict_list(value: object) -> list[dict[str, object]]:
         if not isinstance(value, list):
             return []
-        raw_list = cast(List[object], value)
+        raw_list = cast(list[object], value)
         return [
-            cast(Dict[str, object], item) for item in raw_list if isinstance(item, dict)
+            cast(dict[str, object], item) for item in raw_list if isinstance(item, dict)
         ]
 
     @staticmethod
-    def _ground_truth_files(path_obj: Path) -> List[Path]:
+    def _ground_truth_files(path_obj: Path) -> list[Path]:
         if path_obj.is_dir():
             return list(path_obj.rglob("ground_truth.json"))
         if path_obj.exists():
@@ -651,20 +641,20 @@ class Verification:
 
     @staticmethod
     def _iter_ground_truth_files_section(
-        data_dict: Dict[str, object],
-    ) -> Iterable[Tuple[str, Dict[str, object]]]:
+        data_dict: dict[str, object],
+    ) -> Iterable[tuple[str, dict[str, object]]]:
         files_section = data_dict.get("files")
         if not isinstance(files_section, dict):
             return []
-        files_section_dict = cast(Dict[str, object], files_section)
+        files_section_dict = cast(dict[str, object], files_section)
         return [
-            (file_path, cast(Dict[str, object], content))
+            (file_path, cast(dict[str, object], content))
             for file_path, content in files_section_dict.items()
             if isinstance(content, dict)
         ]
 
-    def _load_ground_truth_file(self, p: Path) -> Set[Finding]:
-        truth_set: Set[Finding] = set()
+    def _load_ground_truth_file(self, p: Path) -> set[Finding]:
+        truth_set: set[Finding] = set()
         try:
             with p.open() as f:
                 data = cast(object, json.load(f))
@@ -674,7 +664,7 @@ class Verification:
 
         if not isinstance(data, dict):
             return truth_set
-        data_dict = cast(Dict[str, object], data)
+        data_dict = cast(dict[str, object], data)
 
         for file_path, content_dict in self._iter_ground_truth_files_section(data_dict):
             base_dir = p.parent
@@ -697,18 +687,18 @@ class Verification:
 
         return truth_set
 
-    def load_ground_truth(self, path: Union[str, Path]) -> Set[Finding]:
+    def load_ground_truth(self, path: str | Path) -> set[Finding]:
         """Load ground truth assertions from file."""
         path_obj = Path(path)
-        truth_set: Set[Finding] = set()
+        truth_set: set[Finding] = set()
         for p in self._ground_truth_files(path_obj):
             truth_set |= self._load_ground_truth_file(p)
         return truth_set
 
     @staticmethod
-    def parse_tool_output(name: str, output: str) -> Set[Finding]:
+    def parse_tool_output(name: str, output: str) -> set[Finding]:
         """Parse raw output from a tool into structured findings."""
-        parser_map: Dict[str, Callable[[str], Set[Finding]]] = {
+        parser_map: dict[str, Callable[[str], set[Finding]]] = {
             "CytoScnPy (Rust)": Verification._parse_cytoscnpy_output,
             "CytoScnPy (Python)": Verification._parse_cytoscnpy_output,
             "Skylos": Verification._parse_skylos_output,
@@ -724,7 +714,7 @@ class Verification:
             parser = Verification._parse_vulture_output
 
         if parser is None:
-            findings: Set[Finding] = set()
+            findings: set[Finding] = set()
         else:
             findings = parser(output)
 
@@ -735,13 +725,13 @@ class Verification:
         return findings
 
     @staticmethod
-    def _parse_cytoscnpy_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_cytoscnpy_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         try:
             data = cast(object, json.loads(output))
             if not isinstance(data, dict):
                 return findings
-            data_dict = cast(Dict[str, object], data)
+            data_dict = cast(dict[str, object], data)
             key_to_fallback_type = {
                 "unused_functions": "function",
                 "unused_methods": "method",
@@ -754,11 +744,11 @@ class Verification:
                 items = data_dict.get(key)
                 if not isinstance(items, list):
                     continue
-                items_list = cast(List[object], items)
+                items_list = cast(list[object], items)
                 for item in items_list:
                     if not isinstance(item, dict):
                         continue
-                    item_dict = cast(Dict[str, object], item)
+                    item_dict = cast(dict[str, object], item)
                     fpath = normalize_path(_as_str(item_dict.get("file")))
                     simple_name = _as_str(item_dict.get("simple_name"))
                     name = _as_str(item_dict.get("name"))
@@ -775,7 +765,7 @@ class Verification:
         return findings
 
     @staticmethod
-    def _parse_skylos_output(output: str) -> Set[Finding]:
+    def _parse_skylos_output(output: str) -> set[Finding]:
         try:
             data = cast(object, json.loads(output))
         except json.JSONDecodeError as e:
@@ -783,7 +773,7 @@ class Verification:
             print(f"    Output start: {output[:200]}")
             return set()
 
-        findings: Set[Finding] = set()
+        findings: set[Finding] = set()
         for item in Verification._skylos_items(data):
             finding = Verification._skylos_item_to_finding(item)
             if finding is not None:
@@ -791,14 +781,14 @@ class Verification:
         return findings
 
     @staticmethod
-    def _skylos_items(data: object) -> List[Dict[str, object]]:
+    def _skylos_items(data: object) -> list[dict[str, object]]:
         if isinstance(data, list):
-            return Verification._as_dict_list(cast(List[object], data))
+            return Verification._as_dict_list(cast(list[object], data))
         if not isinstance(data, dict):
             return []
 
-        data_dict = cast(Dict[str, object], data)
-        items_list: List[Dict[str, object]] = []
+        data_dict = cast(dict[str, object], data)
+        items_list: list[dict[str, object]] = []
         for key in (
             "unused_functions",
             "unused_imports",
@@ -814,7 +804,7 @@ class Verification:
         return items_list
 
     @staticmethod
-    def _skylos_item_to_finding(item: Dict[str, object]) -> Optional[Finding]:
+    def _skylos_item_to_finding(item: dict[str, object]) -> Finding | None:
         type_map: Mapping[str, str] = {
             "function": "function",
             "class": "class",
@@ -840,8 +830,8 @@ class Verification:
         return (fpath, lineno, type_name, item_name)
 
     @staticmethod
-    def _parse_vulture_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_vulture_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         for line in output.splitlines():
             parts = line.rsplit(":", 2)
             if len(parts) != 3:
@@ -874,8 +864,8 @@ class Verification:
         return findings
 
     @staticmethod
-    def _parse_flake8_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_flake8_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         for line in output.splitlines():
             parts = line.rsplit(":", 3)
             if len(parts) != 4:
@@ -903,17 +893,17 @@ class Verification:
         return findings
 
     @staticmethod
-    def _parse_pylint_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_pylint_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         try:
             data = cast(object, json.loads(output))
             if not isinstance(data, list):
                 return findings
-            data_list = cast(List[object], data)
+            data_list = cast(list[object], data)
             for item in data_list:
                 if not isinstance(item, dict):
                     continue
-                item_dict = cast(Dict[str, object], item)
+                item_dict = cast(dict[str, object], item)
                 symbol = _as_str(item_dict.get("symbol"))
                 if symbol == "unused-import":
                     Verification._handle_pylint_unused_import(item_dict, findings)
@@ -929,7 +919,7 @@ class Verification:
 
     @staticmethod
     def _handle_pylint_unused_import(
-        item: Dict[str, object], findings: Set[Finding]
+        item: dict[str, object], findings: set[Finding]
     ) -> None:
         fpath = normalize_path(_as_str(item.get("path")))
         lineno = _as_int(item.get("line"))
@@ -942,7 +932,7 @@ class Verification:
 
     @staticmethod
     def _handle_pylint_unused_variable(
-        item: Dict[str, object], findings: Set[Finding]
+        item: dict[str, object], findings: set[Finding]
     ) -> None:
         fpath = normalize_path(_as_str(item.get("path")))
         lineno = _as_int(item.get("line"))
@@ -956,23 +946,23 @@ class Verification:
             findings.add((fpath, lineno, "variable", obj_name))
 
     @staticmethod
-    def _parse_ruff_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_ruff_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         try:
             data = cast(object, json.loads(output))
             if not isinstance(data, list):
                 return findings
-            data_list = cast(List[object], data)
+            data_list = cast(list[object], data)
             for item in data_list:
                 if not isinstance(item, dict):
                     continue
-                item_dict = cast(Dict[str, object], item)
+                item_dict = cast(dict[str, object], item)
                 code = _as_str(item_dict.get("code"))
                 fpath = normalize_path(_as_str(item_dict.get("filename")))
                 location = item_dict.get("location")
                 lineno = None
                 if isinstance(location, dict):
-                    location_dict = cast(Dict[str, object], location)
+                    location_dict = cast(dict[str, object], location)
                     lineno = _as_int(location_dict.get("row"))
                 if code == "F401":
                     msg = _as_str(item_dict.get("message"))
@@ -991,8 +981,8 @@ class Verification:
         return findings
 
     @staticmethod
-    def _parse_dead_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_dead_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         pattern = r"(\w+) is never (?:read|called), defined in (.+):(\d+)"
         for line in output.splitlines():
             match = re.match(pattern, line)
@@ -1007,8 +997,8 @@ class Verification:
         return findings
 
     @staticmethod
-    def _parse_uncalled_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_uncalled_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         pattern = r"(.+\.py):\s*Unused\s+function\s+(\w+)"
         for line in output.splitlines():
             match = re.search(pattern, line, re.IGNORECASE)
@@ -1020,8 +1010,8 @@ class Verification:
         return findings
 
     @staticmethod
-    def _parse_deadcode_output(output: str) -> Set[Finding]:
-        findings: Set[Finding] = set()
+    def _parse_deadcode_output(output: str) -> set[Finding]:
+        findings: set[Finding] = set()
         pattern = r"(.+\.py):(\d+):\d+:\s*(DC\d+)\s+(\w+)\s+`([^`]+)`"
         type_map = {
             "variable": "variable",
@@ -1075,7 +1065,7 @@ class Verification:
 
         return self._compute_metric_results(stats, truth_remaining)
 
-    def _init_stats(self) -> Dict[str, Dict[str, int]]:
+    def _init_stats(self) -> dict[str, dict[str, int]]:
         return {
             "overall": {"TP": 0, "FP": 0, "FN": 0},
             "class": {"TP": 0, "FP": 0, "FN": 0},
@@ -1094,8 +1084,8 @@ class Verification:
         )
 
     def _find_truth_match(
-        self, f_item: Finding, truth_remaining: List[Finding]
-    ) -> Optional[Finding]:
+        self, f_item: Finding, truth_remaining: list[Finding]
+    ) -> Finding | None:
         for t_item in truth_remaining:
             if self._matches_truth_item(f_item, t_item):
                 return t_item
@@ -1123,7 +1113,7 @@ class Verification:
         )
 
     @staticmethod
-    def _matches_line(f_line: Optional[int], t_line: Optional[int]) -> bool:
+    def _matches_line(f_line: int | None, t_line: int | None) -> bool:
         if f_line is None:
             return True
         if t_line is None:
@@ -1151,12 +1141,12 @@ class Verification:
         )
 
     @staticmethod
-    def _increment_type_tp(stats: Dict[str, Dict[str, int]], truth_type: str) -> None:
+    def _increment_type_tp(stats: dict[str, dict[str, int]], truth_type: str) -> None:
         if truth_type in stats:
             stats[truth_type]["TP"] += 1
 
     def _compute_metric_results(
-        self, stats: Dict[str, Dict[str, int]], truth_remaining: List[Finding]
+        self, stats: dict[str, dict[str, int]], truth_remaining: list[Finding]
     ) -> MetricResults:
         results: MetricResults = {}
         for key, s in stats.items():
@@ -1182,7 +1172,7 @@ class Verification:
         return results
 
     @staticmethod
-    def _format_missed_items(key: str, truth_remaining: List[Finding]) -> List[str]:
+    def _format_missed_items(key: str, truth_remaining: list[Finding]) -> list[str]:
         return [
             f"{t[3]} ({Path(t[0]).name}:{t[1]})"
             for t in truth_remaining
@@ -1260,7 +1250,7 @@ def main():  # noqa: C901
 
     # Setup Python Environment
     env = os.environ.copy()
-    python_path_entries: List[str] = []
+    python_path_entries: list[str] = []
 
     # 1. CytoScnPy Python Wrapper
     python_src = project_root / "python"
@@ -1315,7 +1305,7 @@ def main():  # noqa: C901
     skylos_bin = interpreter_dir / ("skylos.exe" if os.name == "nt" else "skylos")
     deadcode_bin = interpreter_dir / ("deadcode.exe" if os.name == "nt" else "deadcode")
 
-    all_tools: List[ToolConfig] = [
+    all_tools: list[ToolConfig] = [
         {
             "name": "CytoScnPy (Rust)",
             "command": [rust_bin_str, target_dir_str, "--json"],
@@ -1424,7 +1414,7 @@ def main():  # noqa: C901
         return
 
     # Filter Tools
-    tools_to_run: List[ToolConfig] = []
+    tools_to_run: list[ToolConfig] = []
     for tool in all_tools:
         name_lower = tool["name"].lower()
 
@@ -1485,8 +1475,8 @@ def main():  # noqa: C901
     print(f"\n[+] Loading Ground Truth recursively from {ground_truth_path}...")
     verifier = Verification(str(ground_truth_path))
 
-    results: List[BenchmarkResult] = []
-    verification_results: List[VerificationResult] = []
+    results: list[BenchmarkResult] = []
+    verification_results: list[VerificationResult] = []
 
     print(f"\n[+] Running {len(tools_to_run)} tools...")
 
@@ -1603,7 +1593,7 @@ def main():  # noqa: C901
                 baseline = cast(object, json.load(f))
 
             baseline_dict = (
-                cast(Dict[str, object], baseline)
+                cast(dict[str, object], baseline)
                 if isinstance(baseline, dict)
                 else None
             )
@@ -1615,18 +1605,18 @@ def main():  # noqa: C901
                     f"[!] WARNING: Baseline platform ({baseline_dict.get('platform')}) does not match current system ({sys.platform}). Performance comparison may be inaccurate."
                 )
 
-            cytoscnpy_regressions: List[str] = []
-            other_regressions: List[str] = []
+            cytoscnpy_regressions: list[str] = []
+            other_regressions: list[str] = []
             results_list = final_report["results"]
             for current in results_list:
-                base_candidates: List[Dict[str, object]] = []
+                base_candidates: list[dict[str, object]] = []
                 if baseline_dict is not None:
                     base_results = baseline_dict.get("results")
                     if isinstance(base_results, list):
-                        base_results_list = cast(List[object], base_results)
+                        base_results_list = cast(list[object], base_results)
                         for item in base_results_list:
                             if isinstance(item, dict):
-                                base_candidates.append(cast(Dict[str, object], item))  # noqa: PERF401
+                                base_candidates.append(cast(dict[str, object], item))  # noqa: PERF401
                 base = next(
                     (
                         b

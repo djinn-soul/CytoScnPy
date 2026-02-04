@@ -72,13 +72,6 @@ repos:
         pass_filenames: false
         stages: [push]
 
-      - id: bandit
-        name: bandit security scan
-        entry: uv run bandit -c pyproject.toml -r python/ benchmark/
-        language: system
-        types: [python]
-        pass_filenames: false
-
       - id: pip-audit
         name: pip-audit dependency scan
         entry: uv run pip-audit

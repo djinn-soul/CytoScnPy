@@ -76,7 +76,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           uv sync --group dev
-          uv pip install --no-deps -e .
+          uv pip install --no-deps -e . --no-build-isolation
 
       - name: Generate coverage
         working-directory: ${{ inputs.working-directory }}
@@ -92,7 +92,8 @@ jobs:
         if: inputs.run-python-coverage
         run: |
           uv run python -c "import cytoscnpy"
-          uv run pytest ${{ inputs.python-tests-path }} -v --cov=${{ inputs.python-coverage-package }} --cov-report=lcov:python-lcov.info
+          export PYTHONPATH=$PWD/python
+          uv run pytest ${{ inputs.python-tests-path }} -v --cov=python/cytoscnpy --cov-report=lcov:python-lcov.info
           if [ ! -f python-lcov.info ]; then
             echo "TN: pytest-cov did not collect any data; creating placeholder." > python-lcov.info
           fi
@@ -133,7 +134,7 @@ jobs:
 
           # 4. Generate other formats for artifacts
           $BIN benchmark/examples/quality/basic_dead_code.py --format junit > junit.xml || true
-          $BIN benchmark/examples/quality/basic_dead_code.py --format sarif > results.sarif || true
+          $BIN benchmark/examples/quality/basic_dead_code.py --format sarif > results.sarif
           $BIN benchmark/examples/quality/basic_dead_code.py --format gitlab > gitlab.json || true
           $BIN benchmark/examples/quality/basic_dead_code.py --format json > output.json || true
 

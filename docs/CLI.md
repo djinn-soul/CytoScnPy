@@ -20,6 +20,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--quiet`: Minimalist output. Only the final summary table (or JSON) is displayed, suppressing the per-file findings table.
 - `--fail-on-quality`: Causes the process to exit with code `1` if _any_ code quality issues (like high complexity or deep nesting) are detected.
 - `--html`: Generates a self-contained, interactive HTML report. Note that this feature may require additional dependencies and automatically enables quality scanning.
+- `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, scan enable/disable comes only from CLI flags (VS Code settings), but project config is still loaded for advanced tuning (for example, custom secret patterns).
 
 ### Scan Types
 

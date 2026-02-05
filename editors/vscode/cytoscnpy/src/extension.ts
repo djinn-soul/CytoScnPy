@@ -794,7 +794,7 @@ export function activate(context: vscode.ExtensionContext) {
       const config = getCytoScnPyConfiguration(context);
 
       // Use execFile with argument array to prevent command injection
-      const args = [commandType, filePath];
+      const args = ["--client", "vscode", commandType, filePath];
 
       cytoscnpyOutputChannel.clear();
       cytoscnpyOutputChannel.show();
@@ -870,7 +870,7 @@ export function activate(context: vscode.ExtensionContext) {
             `Analyzing workspace: ${workspacePath}\n`,
           );
 
-          const args = [workspacePath, "--json"];
+          const args = ["--client", "vscode", workspacePath, "--json"];
           if (config.enableSecretsScan) {
             args.push("--secrets");
           }
@@ -928,6 +928,30 @@ const UNUSED_RULE_LABELS: Record<string, { singular: string; plural: string }> =
     "unused-parameter": { singular: "parameter", plural: "parameters" },
   };
 
+function filterOverlappingFixes<T extends { finding: CytoScnPyFinding }>(
+  items: T[],
+): T[] {
+  const sorted = [...items].sort((a, b) => {
+    const aStart = a.finding.fix!.start_byte;
+    const bStart = b.finding.fix!.start_byte;
+    if (aStart !== bStart) {
+      return aStart - bStart;
+    }
+    return b.finding.fix!.end_byte - a.finding.fix!.end_byte;
+  });
+  const filtered: T[] = [];
+  let lastEnd = 0;
+  for (const item of sorted) {
+    const start = item.finding.fix!.start_byte;
+    const end = item.finding.fix!.end_byte;
+    if (start >= lastEnd) {
+      filtered.push(item);
+      lastEnd = end;
+    }
+  }
+  return filtered;
+}
+
 export class QuickFixProvider implements vscode.CodeActionProvider {
   public provideCodeActions(
     document: vscode.TextDocument,
@@ -970,21 +994,38 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         return undefined;
       }
       const diagnosticLine = diagnostic.range.start.line + 1;
-      let finding = cachedEntry?.findings.find(
-        (f) =>
-          f.rule_id === ruleId &&
-          Math.abs(f.line_number - diagnosticLine) <= 2,
-      );
+      const pickClosest = (findings: CytoScnPyFinding[]): CytoScnPyFinding | undefined => {
+        let best: CytoScnPyFinding | undefined;
+        let bestDiff = Number.POSITIVE_INFINITY;
+        for (const finding of findings) {
+          if (finding.rule_id !== ruleId) {
+            continue;
+          }
+          const diff = Math.abs(finding.line_number - diagnosticLine);
+          if (diff > 2) {
+            continue;
+          }
+          if (diff < bestDiff) {
+            best = finding;
+            bestDiff = diff;
+            if (diff === 0) {
+              break;
+            }
+          }
+        }
+        return best;
+      };
 
-      if (!finding && workspaceFindings.length > 0) {
-        finding = workspaceFindings.find(
-          (f) =>
-            f.rule_id === ruleId &&
-            Math.abs(f.line_number - diagnosticLine) <= 2,
-        );
+      const fromCache = cachedEntry ? pickClosest(cachedEntry.findings) : undefined;
+      if (fromCache) {
+        return fromCache;
       }
 
-      return finding;
+      if (workspaceFindings.length > 0) {
+        return pickClosest(workspaceFindings);
+      }
+
+      return undefined;
     };
 
     const fileDiagnostics = vscode.languages.getDiagnostics(document.uri);
@@ -1058,7 +1099,8 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
 
     // 3. Add "Fix All" actions for rules with multiple findings
     for (const [ruleId, items] of fixableByRule.entries()) {
-      if (items.length < 2) {
+      const filteredItems = filterOverlappingFixes(items);
+      if (filteredItems.length < 2) {
         continue;
       }
 
@@ -1071,12 +1113,12 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         `Remove all unused ${labels.plural} in this file`,
         vscode.CodeActionKind.QuickFix,
       );
-      fixAllAction.diagnostics = items.map((i) => i.diagnostic);
+      fixAllAction.diagnostics = filteredItems.map((i) => i.diagnostic);
 
       const edit = new vscode.WorkspaceEdit();
       // Sort by start_byte descending to apply fixes from end of file first
       // This prevents byte offset shifts from invalidating later fixes
-      const sortedItems = [...items].sort(
+      const sortedItems = [...filteredItems].sort(
         (a, b) => b.finding.fix!.start_byte - a.finding.fix!.start_byte,
       );
 
@@ -1093,15 +1135,16 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       actions.push(fixAllAction);
     }
 
-    if (fixableUnused.length >= 2) {
+    const filteredUnused = filterOverlappingFixes(fixableUnused);
+    if (filteredUnused.length >= 2) {
       const fixAllDeadCodeAction = new vscode.CodeAction(
         "Remove all dead code in this file",
         vscode.CodeActionKind.QuickFix,
       );
-      fixAllDeadCodeAction.diagnostics = fixableUnused.map((i) => i.diagnostic);
+      fixAllDeadCodeAction.diagnostics = filteredUnused.map((i) => i.diagnostic);
 
       const edit = new vscode.WorkspaceEdit();
-      const sortedItems = [...fixableUnused].sort(
+      const sortedItems = [...filteredUnused].sort(
         (a, b) => b.finding.fix!.start_byte - a.finding.fix!.start_byte,
       );
 

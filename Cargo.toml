@@ -3,7 +3,7 @@ members = ["cytoscnpy", "cytoscnpy-cli", "cytoscnpy-mcp"]
 resolver = "2"
 
 [workspace.package]
-version = "1.2.11"
+version = "1.2.12"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -15,6 +15,8 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 # Enable pedantic lints for stricter code quality
 pedantic = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
 
 # Specific lints to enforce
 unwrap_used = "warn"

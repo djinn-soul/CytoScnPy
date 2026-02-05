@@ -340,7 +340,8 @@ def _check_python_module(module: str, arg: str) -> ToolStatus:
             "available": False,
             "reason": f"Not installed (pip install {module})",
         }
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        print(f"[-] Check failed for {module}: {e}")
         return {"available": False, "reason": f"Not installed (pip install {module})"}
 
 
@@ -414,7 +415,8 @@ def _check_skylos() -> ToolStatus:
                 status = {"available": True, "reason": "Available as module"}
             else:
                 status["reason"] = "Not installed (pip install skylos)"
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            print(f"[-] Check failed for skylos: {e}")
             status["reason"] = "Not installed (pip install skylos)"
     return status
 

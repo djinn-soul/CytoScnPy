@@ -96,17 +96,17 @@
         "cytoscnpy.enableSecretsScan": {
           "type": "boolean",
           "default": false,
-          "description": "Enable scanning for hardcoded secrets."
+          "description": "Enable scanning for hardcoded secrets in VS Code. Project config can still provide advanced tuning (e.g., custom secret patterns)."
         },
         "cytoscnpy.enableDangerScan": {
           "type": "boolean",
           "default": false,
-          "description": "Enable scanning for dangerous code patterns."
+          "description": "Enable scanning for dangerous code patterns in VS Code. Project config can still provide advanced tuning (e.g., danger rule config)."
         },
         "cytoscnpy.enableQualityScan": {
           "type": "boolean",
           "default": false,
-          "description": "Enable scanning for code quality issues."
+          "description": "Enable scanning for code quality issues in VS Code. Quality may auto-enable when thresholds are set in VS Code settings."
         },
         "cytoscnpy.enableCloneScan": {
           "type": "boolean",

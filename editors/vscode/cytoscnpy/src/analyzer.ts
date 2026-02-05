@@ -315,7 +315,7 @@ export function runCytoScnPyAnalysis(
 ): Promise<CytoScnPyAnalysisResult> {
   return new Promise((resolve, reject) => {
     // Build args array (avoids shell escaping issues on Windows)
-    const args: string[] = [filePath, "--json"];
+    const args: string[] = ["--client", "vscode", filePath, "--json"];
 
     if (config.enableSecretsScan) {
       args.push("--secrets");
@@ -429,7 +429,7 @@ export function runWorkspaceAnalysis(
   config: CytoScnPyConfig,
 ): Promise<Map<string, CytoScnPyFinding[]>> {
   return new Promise((resolve, reject) => {
-    const args: string[] = [workspacePath, "--json"];
+    const args: string[] = ["--client", "vscode", workspacePath, "--json"];
 
     if (config.enableSecretsScan) {
       args.push("--secrets");

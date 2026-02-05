@@ -150,7 +150,7 @@ fn test_apply_dead_code_fix_replaces_unused_for_tuple_name() {
     let source = "for a, b, c in items:\n    print(a, c)\n";
     std::fs::write(&file_path, source).unwrap();
 
-    let start = source.find("b").unwrap();
+    let start = source.find('b').unwrap();
     let def = create_definition_with_range("b", "variable", file_path.clone(), 1, start, start + 1);
 
     let options = DeadCodeFixOptions {
@@ -195,7 +195,7 @@ fn test_collect_items_to_fix() {
         ..DeadCodeFixOptions::default()
     };
 
-    let collected = crate::commands::fix::apply::collect_items_to_fix(&results, &options);
+    let collected = crate::commands::fix::plan::collect_items_to_fix(&results, &options);
     assert_eq!(collected.values().next().unwrap().len(), 3);
 }
 

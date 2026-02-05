@@ -73,6 +73,13 @@ pub enum OutputFormat {
     Sarif,
 }
 
+/// Supported editor/automation clients.
+#[derive(Debug, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ClientKind {
+    /// Visual Studio Code extension.
+    Vscode,
+}
+
 /// Options for output formatting and verbosity.
 #[derive(Args, Debug, Default, Clone)]
 #[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
@@ -223,6 +230,10 @@ pub struct Cli {
     /// Output formatting options.
     #[command(flatten)]
     pub output: OutputOptions,
+
+    /// Identify the editor/client integration (currently only `vscode`).
+    #[arg(long, value_enum)]
+    pub client: Option<ClientKind>,
 
     /// Include options for additional file types.
     #[command(flatten)]

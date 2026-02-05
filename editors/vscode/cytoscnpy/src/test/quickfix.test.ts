@@ -584,6 +584,88 @@ suite("Quick Fix Provider Tests", () => {
     diagnosticCollection.dispose();
   });
 
+  test("Should skip Fix All when edits overlap", async () => {
+    const overlapDoc = await vscode.workspace.openTextDocument({
+      language: "python",
+      content: "def outer():\n  def inner():\n    pass\n  return 1\n",
+    });
+
+    const hash = computeHash(overlapDoc.getText());
+    const cacheKey = getCacheKey(overlapDoc.uri.fsPath);
+
+    const mockFindings = [
+      {
+        rule_id: "unused-function",
+        line_number: 1,
+        message: "Unused function",
+        fix: {
+          start_byte: 0,
+          end_byte: 40,
+          replacement: "",
+        },
+      },
+      {
+        rule_id: "unused-function",
+        line_number: 2,
+        message: "Unused function",
+        fix: {
+          start_byte: 10,
+          end_byte: 20,
+          replacement: "",
+        },
+      },
+    ];
+
+    const entry: CacheEntry = {
+      hash: hash,
+      diagnostics: [],
+      findings: mockFindings as any,
+      timestamp: Date.now(),
+    };
+
+    fileCache.set(cacheKey, [entry]);
+
+    const diagnosticOuter = new vscode.Diagnostic(
+      new vscode.Range(0, 0, 0, 9),
+      "'outer' is defined but never used",
+      vscode.DiagnosticSeverity.Warning
+    );
+    diagnosticOuter.source = "CytoScnPy";
+    diagnosticOuter.code = "unused-function";
+
+    const diagnosticInner = new vscode.Diagnostic(
+      new vscode.Range(1, 2, 1, 11),
+      "'inner' is defined but never used",
+      vscode.DiagnosticSeverity.Warning
+    );
+    diagnosticInner.source = "CytoScnPy";
+    diagnosticInner.code = "unused-function";
+
+    const diagnosticCollection =
+      vscode.languages.createDiagnosticCollection("cytoscnpy-test");
+    diagnosticCollection.set(overlapDoc.uri, [diagnosticOuter, diagnosticInner]);
+
+    const context: vscode.CodeActionContext = {
+      diagnostics: [diagnosticOuter, diagnosticInner],
+      triggerKind: vscode.CodeActionTriggerKind.Invoke,
+      only: undefined,
+    };
+
+    const actions = provider.provideCodeActions(
+      overlapDoc,
+      diagnosticOuter.range,
+      context,
+      new vscode.CancellationTokenSource().token
+    );
+
+    const fixAllAction = actions.find(
+      (a) => a.title === "Remove all unused functions in this file"
+    );
+    assert.ok(!fixAllAction, "Fix All should be omitted for overlapping edits");
+
+    diagnosticCollection.dispose();
+  });
+
   test("Should provide Remove action for unused-variable", async () => {
     const varDoc = await vscode.workspace.openTextDocument({
       language: "python",

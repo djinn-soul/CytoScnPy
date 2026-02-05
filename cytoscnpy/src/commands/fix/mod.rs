@@ -1,6 +1,8 @@
 //! Dead code fix command.
 
 mod apply;
+mod apply_plan;
+mod plan;
 mod ranges;
 
 #[cfg(test)]
@@ -68,7 +70,7 @@ pub fn run_fix_deadcode<W: Write>(
         writeln!(writer, "\n{}", "Applying dead code fixes...".cyan())?;
     }
 
-    let items_by_file = apply::collect_items_to_fix(results, options);
+    let items_by_file = plan::collect_items_to_fix(results, options);
 
     if items_by_file.is_empty() {
         writeln!(
@@ -79,7 +81,7 @@ pub fn run_fix_deadcode<W: Write>(
         return Ok(vec![]);
     }
 
-    apply::print_fix_stats(&mut writer, &items_by_file, results, options)?;
+    plan::print_fix_stats(&mut writer, &items_by_file, results, options)?;
 
     let mut all_results = Vec::new();
 

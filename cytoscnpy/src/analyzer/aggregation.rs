@@ -316,6 +316,19 @@ impl CytoScnPy {
 
                 // Removed global method-name fallback to improve accuracy.
                 // Previously, this marked all methods with the same name as used if *any* was utilized.
+
+                // NEW: Fallback for methods AND functions using loose attribute references
+                // This enables cross-file detection for:
+                // 1. obj.method() (Method Boost)
+                // 2. mod.func() or a = mod.func (Function Boost)
+                if def.references == 0 && (def.def_type == "method" || def.def_type == "function") {
+                    let loose_attr_key = format!(".{}", def.simple_name);
+                    if let Some(count) = ref_counts.get(&loose_attr_key) {
+                        if *count > 0 {
+                            def.references = *count;
+                        }
+                    }
+                }
             }
 
             apply_heuristics(&mut def);
@@ -331,10 +344,20 @@ impl CytoScnPy {
             if (def.def_type == "function" || def.def_type == "method" || def.def_type == "class")
                 && !reachable_nodes.contains(&def.full_name)
             {
-                // Mark as unreachable
-                def.is_unreachable = true;
-                // It's not reachable. zero out references
-                def.references = 0;
+                // Check if preserved by Duck Typing Boost (loose attribute reference)
+                // If we have a loose reference (e.g. .method), we assume it's reachable implicitly.
+                let loose_ref_exists = if def.def_type == "method" || def.def_type == "function" {
+                    ref_counts.contains_key(&format!(".{}", def.simple_name))
+                } else {
+                    false
+                };
+
+                if !loose_ref_exists {
+                    // Mark as unreachable
+                    def.is_unreachable = true;
+                    // It's not reachable. zero out references
+                    def.references = 0;
+                }
             }
 
             // Collect methods with references for class-method linking

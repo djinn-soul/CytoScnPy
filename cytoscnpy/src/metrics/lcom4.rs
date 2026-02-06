@@ -1,6 +1,13 @@
 use ruff_python_ast::{self as ast, Stmt};
 use std::collections::{HashMap, HashSet};
 
+#[derive(Clone, Copy, Debug)]
+enum MethodKind {
+    Instance,
+    Class,
+    Static,
+}
+
 /// Calculates LCOM4 (Lack of Cohesion of Methods 4).
 ///
 /// LCOM4 measures the number of "connected components" in a class.
@@ -24,18 +31,25 @@ pub fn calculate_lcom4(class_body: &[Stmt]) -> usize {
     // 1. Identify methods and their field usages / internal calls
     for stmt in class_body {
         if let Stmt::FunctionDef(func) = stmt {
-            let method_name = func.name.id.to_string();
+            let method_name = func.name.id.as_str();
             // Skip dunder methods (constructor, str, etc usually touch everything)
             if method_name.starts_with("__") && method_name.ends_with("__") {
                 continue;
             }
 
-            // Check visibility - ignore privates? No, standard LCOM includes them.
-            // Often getters/setters are excluded, but let's keep it simple for now.
+            let method_kind = classify_method(&func.decorator_list);
+            if matches!(method_kind, MethodKind::Static) {
+                continue;
+            }
 
+            let method_name = method_name.to_owned();
             methods.insert(method_name.clone());
 
-            let mut visitor = LcomVisitor::new();
+            let receiver_name = match method_kind {
+                MethodKind::Instance | MethodKind::Class => first_parameter_name(&func.parameters),
+                MethodKind::Static => None,
+            };
+            let mut visitor = LcomVisitor::new(receiver_name);
             for s in &func.body {
                 visitor.visit_stmt(s);
             }
@@ -120,27 +134,75 @@ pub fn calculate_lcom4(class_body: &[Stmt]) -> usize {
     components
 }
 
+fn classify_method(decorators: &[ast::Decorator]) -> MethodKind {
+    let mut is_static = false;
+    let mut is_class = false;
+    for decorator in decorators {
+        if decorator_matches(&decorator.expression, "staticmethod") {
+            is_static = true;
+        }
+        if decorator_matches(&decorator.expression, "classmethod") {
+            is_class = true;
+        }
+    }
+    if is_static {
+        MethodKind::Static
+    } else if is_class {
+        MethodKind::Class
+    } else {
+        MethodKind::Instance
+    }
+}
+
+fn decorator_matches(expr: &ast::Expr, expected: &str) -> bool {
+    match expr {
+        ast::Expr::Name(name) => name.id == expected,
+        ast::Expr::Attribute(attr) => attr.attr.id == expected,
+        ast::Expr::Call(call) => decorator_matches(&call.func, expected),
+        _ => false,
+    }
+}
+
+fn first_parameter_name(parameters: &ast::Parameters) -> Option<String> {
+    if let Some(arg) = parameters.posonlyargs.first() {
+        return Some(arg.parameter.name.to_string());
+    }
+    parameters
+        .args
+        .first()
+        .map(|arg| arg.parameter.name.to_string())
+}
+
 struct LcomVisitor {
     used_fields: HashSet<String>,
     called_methods: HashSet<String>,
+    receiver_name: Option<String>,
 }
 
 impl LcomVisitor {
-    fn new() -> Self {
+    fn new(receiver_name: Option<String>) -> Self {
         Self {
             used_fields: HashSet::new(),
             called_methods: HashSet::new(),
+            receiver_name,
         }
+    }
+
+    fn is_receiver_name(&self, name: &str) -> bool {
+        self.receiver_name.as_deref() == Some(name)
     }
 
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Assign(n) => {
                 self.visit_expr(&n.value);
-                // Targets handled if they are self.x?
                 for t in &n.targets {
                     self.visit_expr(t);
                 }
+            }
+            Stmt::AugAssign(n) => {
+                self.visit_expr(&n.target);
+                self.visit_expr(&n.value);
             }
             Stmt::Expr(n) => self.visit_expr(&n.value),
             Stmt::If(n) => {
@@ -171,11 +233,48 @@ impl LcomVisitor {
                     self.visit_stmt(s);
                 }
             }
-            // ... truncated simplified recursion
+            Stmt::While(n) => {
+                self.visit_expr(&n.test);
+                for s in &n.body {
+                    self.visit_stmt(s);
+                }
+                for s in &n.orelse {
+                    self.visit_stmt(s);
+                }
+            }
+            Stmt::With(n) => {
+                for item in &n.items {
+                    self.visit_expr(&item.context_expr);
+                    if let Some(optional_vars) = &item.optional_vars {
+                        self.visit_expr(optional_vars);
+                    }
+                }
+                for s in &n.body {
+                    self.visit_stmt(s);
+                }
+            }
+            Stmt::Try(n) => {
+                for s in &n.body {
+                    self.visit_stmt(s);
+                }
+                for handler in &n.handlers {
+                    let ast::ExceptHandler::ExceptHandler(h) = handler;
+                    if let Some(type_) = &h.type_ {
+                        self.visit_expr(type_);
+                    }
+                    for s in &h.body {
+                        self.visit_stmt(s);
+                    }
+                }
+                for s in &n.orelse {
+                    self.visit_stmt(s);
+                }
+                for s in &n.finalbody {
+                    self.visit_stmt(s);
+                }
+            }
             _ => {
-                // Fallback: we should really recurse fully, but for LCOM specific
-                // we mostly care about explicit Attribute usage.
-                // Assuming simple structure for now.
+                // Ignore other statements
             }
         }
     }
@@ -183,27 +282,19 @@ impl LcomVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr) {
         match expr {
             ast::Expr::Attribute(attr) => {
-                // Check for self.field
+                // Check for receiver.field
                 if let ast::Expr::Name(name) = &*attr.value {
-                    if name.id == "self" {
-                        // usage of self.attr
-                        // Is it a method call or field access?
-                        // If it's in a Call node, it might be a method.
-                        // Imprecise without type info, but we assume all self.X are fields unless we distinguish context.
-                        // Actually, in LCOM, interacting with a method is also "using" it.
-                        // We separate them into 'calls' vs 'fields' to be precise, but for graph connection,
-                        // matching names is enough.
-                        // Let's store everything as "used_fields" for simplicity unless we can prove it's a call.
+                    if self.is_receiver_name(name.id.as_str()) {
                         self.used_fields.insert(attr.attr.id.to_string());
                     }
                 }
                 self.visit_expr(&attr.value);
             }
             ast::Expr::Call(call) => {
-                // Check if calling self.method()
+                // Check if calling receiver.method()
                 if let ast::Expr::Attribute(attr) = &*call.func {
                     if let ast::Expr::Name(name) = &*attr.value {
-                        if name.id == "self" {
+                        if self.is_receiver_name(name.id.as_str()) {
                             self.called_methods.insert(attr.attr.id.to_string());
                         }
                     }
@@ -212,8 +303,61 @@ impl LcomVisitor {
                 for a in &call.arguments.args {
                     self.visit_expr(a);
                 }
+                for k in &call.arguments.keywords {
+                    self.visit_expr(&k.value);
+                }
             }
-            // Other expression types including Name - we keep it simple for LCOM4
+            ast::Expr::BinOp(op) => {
+                self.visit_expr(&op.left);
+                self.visit_expr(&op.right);
+            }
+            ast::Expr::UnaryOp(op) => {
+                self.visit_expr(&op.operand);
+            }
+            ast::Expr::BoolOp(op) => {
+                for v in &op.values {
+                    self.visit_expr(v);
+                }
+            }
+            ast::Expr::Compare(op) => {
+                self.visit_expr(&op.left);
+                for c in &op.comparators {
+                    self.visit_expr(c);
+                }
+            }
+            ast::Expr::If(op) => {
+                self.visit_expr(&op.test);
+                self.visit_expr(&op.body);
+                self.visit_expr(&op.orelse);
+            }
+            ast::Expr::List(l) => {
+                for elt in &l.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            ast::Expr::Tuple(t) => {
+                for elt in &t.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            ast::Expr::Dict(d) => {
+                for item in &d.items {
+                    if let Some(key) = &item.key {
+                        self.visit_expr(key);
+                    }
+                    self.visit_expr(&item.value);
+                }
+            }
+            ast::Expr::Set(s) => {
+                for elt in &s.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            ast::Expr::Subscript(s) => {
+                self.visit_expr(&s.value);
+                self.visit_expr(&s.slice);
+            }
+            // Other expression types include Name, Constant, etc.
             _ => {}
         }
     }

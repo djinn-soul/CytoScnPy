@@ -144,8 +144,12 @@ impl SecretScanner {
 
         // Run all recognizers
         for recognizer in &self.recognizers {
-            // Text-based scanning
-            let text_findings = recognizer.scan_text(content, file_path);
+            // Text-based scanning (use fallback mode when AST is unavailable).
+            let text_findings = if stmts.is_some() {
+                recognizer.scan_text(content, file_path)
+            } else {
+                recognizer.scan_text_fallback(content, file_path)
+            };
             all_findings.extend(text_findings);
 
             // AST-based scanning (if AST is available)
@@ -385,6 +389,18 @@ mod tests {
         assert!(
             !findings.iter().any(|f| f.rule_id == "CSP-S300"),
             "Should not detect env var access as suspicious"
+        );
+    }
+
+    #[test]
+    fn test_scanner_entropy_fallback_when_ast_parse_fails() {
+        let config = default_config();
+        let content = r#"if True print("aB3xY7mN9pQ2rS5tU8vW0zK4cF6gH1jL")"#;
+        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
+
+        assert!(
+            findings.iter().any(|f| f.rule_id == "CSP-S200"),
+            "Should still detect entropy findings when AST parsing fails"
         );
     }
 

@@ -174,3 +174,86 @@ class GodClass:
     let body = parse_class_body(code);
     assert_eq!(calculate_lcom4(&body), 2);
 }
+
+#[test]
+fn test_lcom4_property_method() {
+    let code = "
+class Temperature:
+    def get_celsius(self):
+        return self._value
+
+    def get_fahrenheit(self):
+        return self._value * 9 / 5 + 32
+";
+    // Both access self._value.
+    // get_fahrenheit uses BinOp logic which requires recursive visiting.
+    let body = parse_class_body(code);
+    assert_eq!(calculate_lcom4(&body), 1);
+}
+
+#[test]
+fn test_lcom4_static_method_skipped() {
+    let code = "
+class UserFactory:
+    def save(self):
+        return self.db.save(self)
+
+    def load(self):
+        return self.db.load(self.id)
+
+    @staticmethod
+    def create_guest():
+        return UserFactory()
+";
+    // save uses self.db
+    // load uses self.db and self.id
+    // create_guest is static -> skipped
+    // save and load share self.db -> connected
+    // LCOM4 should be 1.
+    let body = parse_class_body(code);
+    assert_eq!(calculate_lcom4(&body), 1);
+}
+
+#[test]
+fn test_lcom4_class_method_fields() {
+    let code = "
+class Counter:
+    count = 0
+
+    @classmethod
+    def increment(cls):
+        cls.count += 1
+
+    @classmethod
+    def get_count(cls):
+        return cls.count
+";
+    // Both methods access cls.count.
+    let body = parse_class_body(code);
+    assert_eq!(calculate_lcom4(&body), 1);
+}
+
+#[test]
+fn test_lcom4_logic_expression() {
+    let code = "
+class ServiceClass:
+    def create(self):
+        self._validate()
+        return self.repository.create()
+
+    def update(self):
+        self._validate()
+        return self.repository.update()
+
+    def _validate(self):
+        if not self.repository:
+            raise ValueError()
+";
+    // create calls _validate, uses repository
+    // update calls _validate, uses repository
+    // _validate uses repository (via 'not self.repository' UnaryOp)
+    // All connected via _validate and repository.
+    // LCOM4 should be 1.
+    let body = parse_class_body(code);
+    assert_eq!(calculate_lcom4(&body), 1);
+}

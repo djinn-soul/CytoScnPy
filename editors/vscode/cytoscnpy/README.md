@@ -57,6 +57,8 @@ This extension contributes the following settings:
 | `cytoscnpy.maxArguments`            | `5`           | Maximum function arguments before warning.                    |
 | `cytoscnpy.maxLines`                | `50`          | Maximum function lines before warning.                        |
 
+Note: The VS Code extension runs the CLI with `--client vscode`. Project config is still loaded for advanced tuning (for example, custom secret patterns), but scan enable/disable comes only from VS Code settings. Quality auto-enables when thresholds like `maxComplexity` or `minMaintainabilityIndex` are set in VS Code settings.
+
 ## Commands
 
 Access these commands from the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):

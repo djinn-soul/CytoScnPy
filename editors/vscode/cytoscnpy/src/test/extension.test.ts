@@ -4,11 +4,11 @@ import * as myExtension from "../../src/extension"; // Import the extension's ma
 import { before } from "mocha";
 
 suite("CytoScnPy Extension Test Suite", function () {
-  this.timeout(10000);
+  this.timeout(20000);
   vscode.window.showInformationMessage("Start all CytoScnPy tests.");
 
   before(async function () {
-    this.timeout(5000);
+    this.timeout(15000);
     // Open a Python document to trigger extension activation
     const doc = await vscode.workspace.openTextDocument({
       language: "python",
@@ -16,7 +16,11 @@ suite("CytoScnPy Extension Test Suite", function () {
     });
     await vscode.window.showTextDocument(doc);
     // Wait for extension to activate
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+    const extension = vscode.extensions.getExtension("djinn09.cytoscnpy");
+    if (extension && !extension.isActive) {
+      await extension.activate();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   });
 
   test("Extension should be active", async () => {

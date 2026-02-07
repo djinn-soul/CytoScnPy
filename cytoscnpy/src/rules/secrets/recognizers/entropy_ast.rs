@@ -209,7 +209,35 @@ impl EntropyRecognizer {
                         self.visit_expr(v, line_index, findings, default_ctx);
                     }
                 }
-                Stmt::FunctionDef(f) => self.visit_stmts(&f.body, line_index, findings),
+                Stmt::FunctionDef(f) => {
+                    // Visit decorators (e.g., @auth(token="secret"))
+                    for dec in &f.decorator_list {
+                        self.visit_expr(&dec.expression, line_index, findings, default_ctx);
+                    }
+                    // Visit parameter defaults (e.g., def login(token="sk_live_..."))
+                    // ruff uses ParameterWithDefault with .default field per parameter
+                    for arg in &f.parameters.posonlyargs {
+                        if let Some(default) = &arg.default {
+                            self.visit_expr(default, line_index, findings, default_ctx);
+                        }
+                    }
+                    for arg in &f.parameters.args {
+                        if let Some(default) = &arg.default {
+                            self.visit_expr(default, line_index, findings, default_ctx);
+                        }
+                    }
+                    for arg in &f.parameters.kwonlyargs {
+                        if let Some(default) = &arg.default {
+                            self.visit_expr(default, line_index, findings, default_ctx);
+                        }
+                    }
+                    // Visit return annotation (unlikely to contain secrets but complete)
+                    if let Some(ret) = &f.returns {
+                        self.visit_expr(ret, line_index, findings, default_ctx);
+                    }
+                    // Visit body
+                    self.visit_stmts(&f.body, line_index, findings);
+                }
                 Stmt::ClassDef(c) => self.visit_stmts(&c.body, line_index, findings),
                 Stmt::If(i) => {
                     self.visit_expr(&i.test, line_index, findings, default_ctx);

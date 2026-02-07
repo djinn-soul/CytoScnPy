@@ -30,6 +30,7 @@ The sections below highlight the work that is still active:
 
 - **Phase 5.7 (Radon Parity Gaps)** – The parity tests around module-level complexity, `else` clauses on loops/try, wildcard matching, and Halstead/raw metrics are in place, but the analyzer logic still needs to be implemented (see the `### 5.7` section below).
 - **Phase 6 (Editor Integration)** – The VS Code extension and accompanying code audit continue to evolve; Phase 6.1 and 6.2 list the UX, command, and bundling gaps that remain.
+- **Phase 6.x (Editor Client Flag)** – Implement `--client` (currently only `vscode`). In the future we may need other editor clients, so keep room to extend behavior safely.
 - **Phase 7.6 (Accuracy Improvements)** – The benchmark (F1 = 0.72) and the remaining false positives/negatives (34/60 items) are being chipped away in the dedicated Phase 7.6 subsection.
 
 ### 5.7 Radon Parity Gaps IN PROGRESS

@@ -73,6 +73,13 @@ pub enum OutputFormat {
     Sarif,
 }
 
+/// Supported editor/automation clients.
+#[derive(Debug, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ClientKind {
+    /// Visual Studio Code extension.
+    Vscode,
+}
+
 /// Options for output formatting and verbosity.
 #[derive(Args, Debug, Default, Clone)]
 #[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
@@ -224,6 +231,10 @@ pub struct Cli {
     #[command(flatten)]
     pub output: OutputOptions,
 
+    /// Identify the editor/client integration (currently only `vscode`).
+    #[arg(long, value_enum)]
+    pub client: Option<ClientKind>,
+
     /// Include options for additional file types.
     #[command(flatten)]
     pub include: IncludeOptions,
@@ -277,7 +288,8 @@ pub struct Cli {
     #[arg(long, default_value = "0.8")]
     pub clone_similarity: f64,
 
-    /// Auto-fix detected dead code (removes unused functions, classes, imports).
+    /// Auto-fix detected dead code (removes unused functions, classes, imports,
+    /// and renames unused variables to `_`).
     /// By default, shows a preview of what would be changed (dry-run).
     /// Use --apply to actually modify files.
     /// Note: Clone detection is report-only; clones are never auto-removed.

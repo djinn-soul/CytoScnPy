@@ -45,6 +45,7 @@ fn test_scorer_scoring() {
         file_path: &path,
         is_comment: false,
         is_docstring: false,
+        is_test_file: false,
     };
 
     // Base score should remain unchanged for normal context
@@ -57,6 +58,7 @@ fn test_scorer_scoring() {
         file_path: &test_path,
         is_comment: false,
         is_docstring: false,
+        is_test_file: true,
     };
     assert_eq!(scorer.score(70, &test_ctx), 20); // 70 - 50 = 20
 
@@ -66,6 +68,7 @@ fn test_scorer_scoring() {
         file_path: &path,
         is_comment: false,
         is_docstring: false,
+        is_test_file: false,
     };
     assert_eq!(scorer.score(70, &env_ctx), 0); // 70 - 100, clamped to 0
 }

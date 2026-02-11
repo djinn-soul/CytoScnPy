@@ -63,6 +63,7 @@ pub(crate) fn resolve_scan_flag(
     if is_vscode {
         cli_flag
     } else {
-        cli_flag || config_flag.unwrap_or(false)
+        // Default to true if not specified in CLI or config
+        cli_flag || config_flag.unwrap_or(true)
     }
 }

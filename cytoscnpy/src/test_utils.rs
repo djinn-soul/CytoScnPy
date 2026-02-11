@@ -2,7 +2,7 @@ use crate::utils::LineIndex;
 use ruff_python_ast::{Expr, Stmt};
 use std::path::Path;
 
-use crate::constants::{TEST_DECOR_RE, TEST_METHOD_PATTERN};
+use crate::constants::{FIXTURE_DECOR_RE, TEST_DECOR_RE, TEST_METHOD_PATTERN};
 
 /// A visitor that detects test-related code.
 ///
@@ -14,6 +14,13 @@ pub struct TestAwareVisitor<'a> {
     /// List of line numbers that contain test functions or fixtures.
     /// Definitions on these lines will receive a confidence penalty (likely ignored).
     pub test_decorated_lines: Vec<usize>,
+    /// List of line numbers that contain fixture definitions.
+    /// These receive a softer penalty to allow for "Low Confidence" reporting.
+    pub fixture_decorated_lines: Vec<usize>,
+
+    /// Fixture names referenced via `@pytest.mark.usefixtures("name")`.
+    /// These should be treated as "used" even without direct parameter reference.
+    pub usefixtures_names: Vec<String>,
     /// Helper for mapping byte offsets to line numbers.
     pub line_index: &'a LineIndex,
 }
@@ -31,6 +38,8 @@ impl<'a> TestAwareVisitor<'a> {
         Self {
             is_test_file,
             test_decorated_lines: Vec::new(),
+            fixture_decorated_lines: Vec::new(),
+            usefixtures_names: Vec::new(),
             line_index,
         }
     }
@@ -64,22 +73,28 @@ impl<'a> TestAwareVisitor<'a> {
                                 attr_node.attr
                             )
                         }
-                        Expr::Call(call_node) => match &*call_node.func {
-                            Expr::Name(n) => n.id.to_string(),
-                            Expr::Attribute(a) => format!(
-                                "{}.{}",
-                                match &*a.value {
-                                    Expr::Name(n) => &n.id,
-                                    _ => "",
-                                },
-                                a.attr
-                            ),
-                            _ => String::new(),
-                        },
+                        Expr::Call(call_node) => {
+                            // Check for @pytest.mark.usefixtures("fixture_name")
+                            self.extract_usefixtures(call_node);
+                            match &*call_node.func {
+                                Expr::Name(n) => n.id.to_string(),
+                                Expr::Attribute(a) => format!(
+                                    "{}.{}",
+                                    match &*a.value {
+                                        Expr::Name(n) => &n.id,
+                                        _ => "",
+                                    },
+                                    a.attr
+                                ),
+                                _ => String::new(),
+                            }
+                        }
                         _ => String::new(),
                     };
 
-                    if TEST_DECOR_RE().is_match(&decorator_name) {
+                    if FIXTURE_DECOR_RE().is_match(&decorator_name) {
+                        self.fixture_decorated_lines.push(line);
+                    } else if TEST_DECOR_RE().is_match(&decorator_name) {
                         self.test_decorated_lines.push(line);
                     }
                 }
@@ -102,6 +117,41 @@ impl<'a> TestAwareVisitor<'a> {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// Extracts fixture names from `@pytest.mark.usefixtures("name1", "name2")` decorator.
+    fn extract_usefixtures(&mut self, call: &ruff_python_ast::ExprCall) {
+        // Check if this is a usefixtures call: pytest.mark.usefixtures or mark.usefixtures
+        let is_usefixtures = match &*call.func {
+            Expr::Attribute(attr) => {
+                let attr_name = &attr.attr;
+                if attr_name == "usefixtures" {
+                    // Check if it's pytest.mark.usefixtures or mark.usefixtures
+                    match &*attr.value {
+                        Expr::Attribute(inner) => inner.attr.as_str() == "mark",
+                        Expr::Name(n) => n.id.as_str() == "mark",
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+
+        if !is_usefixtures {
+            return;
+        }
+
+        // Extract string arguments as fixture names
+        for arg in &call.arguments.args {
+            if let Expr::StringLiteral(string_lit) = arg {
+                let fixture_name = string_lit.value.to_string();
+                if !fixture_name.is_empty() {
+                    self.usefixtures_names.push(fixture_name);
+                }
+            }
         }
     }
 }

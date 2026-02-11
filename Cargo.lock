@@ -435,6 +435,7 @@ dependencies = [
  "indicatif",
  "insta",
  "nbformat",
+ "once_cell",
  "open",
  "pyo3",
  "rayon",

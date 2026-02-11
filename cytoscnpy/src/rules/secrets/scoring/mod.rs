@@ -18,6 +18,8 @@ pub struct ScoringContext<'a> {
     pub is_comment: bool,
     /// Whether the finding is in a docstring.
     pub is_docstring: bool,
+    /// Whether the finding is in a test file.
+    pub is_test_file: bool,
 }
 
 /// Score adjustments for various contextual signals.
@@ -91,7 +93,7 @@ impl ContextScorer {
         let mut score = i16::from(base_score);
 
         // Check if in test file
-        if self.is_test_file(ctx.file_path) {
+        if ctx.is_test_file {
             score += self.adjustments.in_test_file;
         }
 

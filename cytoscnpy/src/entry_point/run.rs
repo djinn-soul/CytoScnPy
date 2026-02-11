@@ -11,6 +11,7 @@ use crate::entry_point::handlers::{
 use crate::entry_point::paths::{
     collect_all_target_paths, resolve_analysis_context, validate_path_args,
 };
+use crate::settings;
 
 /// Runs the analyzer with the given arguments using stdout as the writer.
 ///
@@ -60,6 +61,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
     let app_config = setup_configuration(&effective_paths, &cli_var);
     let config = app_config.config;
+    if let Err(err) = settings::initialize(config.clone()) {
+        if err != crate::settings::SettingsError::AlreadyInitialized {
+            return Err(err.into());
+        }
+    }
     let exclude_folders = app_config.exclude_folders;
     let include_folders = app_config.include_folders;
     let include_tests = app_config.include_tests;

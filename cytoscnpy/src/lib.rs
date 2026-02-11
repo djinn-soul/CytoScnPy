@@ -36,6 +36,8 @@ pub mod framework;
 
 /// Module for loading configuration.
 pub mod config;
+/// Module exposing the process-wide settings singleton.
+pub mod settings;
 
 /// Module containing test utilities.
 /// This helps in writing tests for the analyzer and rules.

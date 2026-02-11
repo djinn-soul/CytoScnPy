@@ -24,6 +24,8 @@ pub struct DeadCodeFixOptions {
     pub dry_run: bool,
     /// Fix functions
     pub fix_functions: bool,
+    /// Fix methods
+    pub fix_methods: bool,
     /// Fix classes
     pub fix_classes: bool,
     /// Fix imports

@@ -7,7 +7,17 @@ pub(super) enum ImportEdit {
     DeleteAlias(usize, usize),
 }
 
+pub(super) struct MethodEdit {
+    pub(super) start: usize,
+    pub(super) end: usize,
+    pub(super) class_would_be_empty: bool,
+}
+
 pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Option<(usize, usize)> {
+    if def_type == "method" {
+        return find_method_edit(body, name).map(|edit| (edit.start, edit.end));
+    }
+
     for stmt in body {
         match stmt {
             Stmt::FunctionDef(f) if def_type == "function" => {
@@ -55,6 +65,42 @@ pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Optio
             _ => {}
         }
     }
+    None
+}
+
+pub(super) fn find_method_edit(body: &[Stmt], name: &str) -> Option<MethodEdit> {
+    for stmt in body {
+        if let Stmt::ClassDef(class_def) = stmt {
+            for class_stmt in &class_def.body {
+                match class_stmt {
+                    Stmt::FunctionDef(func) => {
+                        if func.name.as_str() == name {
+                            let start = func.range().start().to_usize();
+                            let start = func
+                                .decorator_list
+                                .iter()
+                                .map(|decorator| decorator.range().start().to_usize())
+                                .min()
+                                .unwrap_or(start)
+                                .min(start);
+                            return Some(MethodEdit {
+                                start,
+                                end: func.range().end().to_usize(),
+                                class_would_be_empty: class_def.body.len() == 1,
+                            });
+                        }
+                    }
+                    Stmt::ClassDef(nested) => {
+                        if let Some(edit) = find_method_edit(&nested.body, name) {
+                            return Some(edit);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     None
 }
 

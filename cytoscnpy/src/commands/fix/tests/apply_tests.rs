@@ -19,6 +19,7 @@ def unused_function():
         min_confidence: 60,
         dry_run: true,
         fix_functions: true,
+        fix_methods: false,
         fix_classes: false,
         fix_imports: false,
         fix_variables: false,
@@ -59,6 +60,7 @@ def unused_function():
         min_confidence: 60,
         dry_run: false,
         fix_functions: true,
+        fix_methods: false,
         fix_classes: false,
         fix_imports: false,
         fix_variables: false,
@@ -172,6 +174,67 @@ fn test_apply_dead_code_fix_replaces_unused_for_tuple_name() {
 }
 
 #[test]
+fn test_apply_dead_code_fix_removes_unused_method() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("test.py");
+    let source = "
+class Service:
+    def unused(self):
+        return 1
+
+    def used(self):
+        return 2
+";
+    std::fs::write(&file_path, source).unwrap();
+
+    let def = create_definition("unused", "method", file_path.clone(), 3);
+    let options = DeadCodeFixOptions {
+        dry_run: false,
+        analysis_root: dir.path().to_path_buf(),
+        ..DeadCodeFixOptions::default()
+    };
+
+    let mut buffer = Vec::new();
+    let res = apply_dead_code_fix_to_file(&mut buffer, &file_path, &[("method", &def)], &options)
+        .unwrap();
+    assert!(res.is_some());
+
+    let content = std::fs::read_to_string(&file_path).unwrap();
+    assert!(!content.contains("def unused"));
+    assert!(content.contains("def used"));
+    assert!(ruff_python_parser::parse_module(&content).is_ok());
+}
+
+#[test]
+fn test_apply_dead_code_fix_replaces_only_method_with_pass() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("test.py");
+    let source = "
+class Service:
+    def unused(self):
+        return 1
+";
+    std::fs::write(&file_path, source).unwrap();
+
+    let def = create_definition("unused", "method", file_path.clone(), 2);
+    let options = DeadCodeFixOptions {
+        dry_run: false,
+        analysis_root: dir.path().to_path_buf(),
+        ..DeadCodeFixOptions::default()
+    };
+
+    let mut buffer = Vec::new();
+    let res = apply_dead_code_fix_to_file(&mut buffer, &file_path, &[("method", &def)], &options)
+        .unwrap();
+    assert!(res.is_some());
+
+    let content = std::fs::read_to_string(&file_path).unwrap();
+    assert!(!content.contains("def unused"));
+    assert!(content.contains("class Service:\n    pass"));
+    assert!(ruff_python_parser::parse_module(&content).is_ok());
+}
+
+#[test]
 fn test_collect_items_to_fix() {
     let dir = TempDir::new().unwrap();
     let file_path = dir.path().join("test.py");
@@ -183,12 +246,16 @@ fn test_collect_items_to_fix() {
         .unused_classes
         .push(create_definition("Class", "class", file_path.clone(), 10));
     results
+        .unused_methods
+        .push(create_definition("method", "method", file_path.clone(), 15));
+    results
         .unused_imports
         .push(create_definition("imp", "import", file_path, 20));
 
     let options = DeadCodeFixOptions {
         min_confidence: 60,
         fix_functions: true,
+        fix_methods: true,
         fix_classes: true,
         fix_imports: true,
         fix_variables: false,
@@ -196,7 +263,32 @@ fn test_collect_items_to_fix() {
     };
 
     let collected = crate::commands::fix::plan::collect_items_to_fix(&results, &options);
-    assert_eq!(collected.values().next().unwrap().len(), 3);
+    assert_eq!(collected.values().next().unwrap().len(), 4);
+}
+
+#[test]
+fn test_collect_items_to_fix_respects_min_confidence_for_methods() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("test.py");
+    let mut method_low = create_definition("method_low", "method", file_path.clone(), 10);
+    method_low.confidence = 79;
+    let mut method_high = create_definition("method_high", "method", file_path.clone(), 20);
+    method_high.confidence = 80;
+
+    let mut results = AnalysisResult::default();
+    results.unused_methods.push(method_low);
+    results.unused_methods.push(method_high);
+
+    let options = DeadCodeFixOptions {
+        min_confidence: 80,
+        fix_methods: true,
+        ..DeadCodeFixOptions::default()
+    };
+
+    let collected = crate::commands::fix::plan::collect_items_to_fix(&results, &options);
+    let items = collected.values().next().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].1.simple_name, "method_high");
 }
 
 #[test]

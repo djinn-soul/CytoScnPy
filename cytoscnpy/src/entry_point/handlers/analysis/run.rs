@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 use super::context::AnalysisContext;
+use colored::Colorize;
 
 pub(crate) struct AnalysisRun {
     pub(crate) result: crate::analyzer::AnalysisResult,
@@ -18,7 +19,33 @@ pub(crate) fn run_analysis<W: std::io::Write>(
 ) -> Result<AnalysisRun> {
     let start_time = std::time::Instant::now();
 
-    if !context.is_structured {
+    if !context.is_structured && !cfg!(test) {
+        // Print active configuration summary
+        let mut config_summary = Vec::new();
+        if context.secrets {
+            config_summary.push("Secrets");
+        }
+        if context.danger {
+            config_summary.push("Danger");
+        }
+        if context.quality {
+            config_summary.push("Quality");
+        }
+        if context.include_tests {
+            config_summary.push("Tests");
+        }
+
+        if config_summary.is_empty() {
+            config_summary.push("Dead Code Only");
+        }
+
+        eprintln!(
+            "{} {} (Confidence: {}%)",
+            "[INFO] Active Checks:".blue().bold(),
+            config_summary.join(", "),
+            context.confidence
+        );
+
         crate::output::print_exclusion_list(writer, &context.exclude_folders).ok();
     }
 

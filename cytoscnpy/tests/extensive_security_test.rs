@@ -14,7 +14,8 @@ macro_rules! scan_danger {
         let line_index = LineIndex::new($source);
         let rules = get_danger_rules();
         let config = Config::default();
-        let mut $linter = LinterVisitor::new(rules, PathBuf::from("test.py"), line_index, config);
+        let mut $linter =
+            LinterVisitor::new(rules, PathBuf::from("test.py"), line_index, config, false);
 
         if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
             for stmt in &module.body {

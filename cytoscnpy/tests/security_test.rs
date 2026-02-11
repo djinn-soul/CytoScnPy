@@ -22,7 +22,8 @@ macro_rules! scan_danger {
         let line_index = LineIndex::new($source);
         let rules = get_danger_rules();
         let config = Config::default();
-        let mut $linter = LinterVisitor::new(rules, PathBuf::from("test.py"), line_index, config);
+        let mut $linter =
+            LinterVisitor::new(rules, PathBuf::from("test.py"), line_index, config, false);
 
         if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {
             for stmt in &module.body {
@@ -578,7 +579,7 @@ fn test_skip_comments_when_disabled() {
     let mut config = SecretsConfig::default();
     config.scan_comments = false;
 
-    let findings = scan_secrets(source, &PathBuf::from("test.py"), &config, None);
+    let findings = scan_secrets(source, &PathBuf::from("test.py"), &config, None, false);
     assert!(
         findings.is_empty(),
         "Should skip comments when scan_comments is false"

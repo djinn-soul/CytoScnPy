@@ -46,6 +46,7 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
         return Ok(None);
     }
 
+    let original_line_count = content.lines().count();
     let (edits, removed_names) = build_edits(planned);
     let Some(fixed) = apply_edits(writer, &file_path, content, edits)? else {
         return Ok(None);
@@ -55,18 +56,23 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
         return Ok(None);
     }
 
+    let fixed_line_count = fixed.lines().count();
+    let lines_removed = original_line_count.saturating_sub(fixed_line_count);
+
     let count = removed_names.len();
     fs::write(&file_path, fixed)?;
     writeln!(
         writer,
-        "  {} {} ({} removed)",
+        "  {} {} ({} removed, {} lines)",
         "Fixed:".green(),
         crate::utils::normalize_display_path(&file_path),
-        count
+        count,
+        lines_removed
     )?;
     Ok(Some(FixResult {
         file: file_path.to_string_lossy().to_string(),
         items_removed: count,
+        lines_removed,
         removed_names,
     }))
 }

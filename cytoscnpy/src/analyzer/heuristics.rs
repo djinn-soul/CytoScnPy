@@ -41,12 +41,29 @@ pub fn apply_penalties(
 
     // Test files: confidence 0 (ignore)
     // We don't want to report unused code in test files usually.
-    if !include_tests && (tv.is_test_file || tv.test_decorated_lines.contains(&def.line)) {
-        def.confidence = def
-            .confidence
-            .saturating_sub(*PENALTIES().get("test_related").unwrap_or(&100));
-        if def.confidence == 0 {
-            return;
+    if !include_tests {
+        let is_fixture = tv.fixture_decorated_lines.contains(&def.line);
+        let is_general_test = tv.is_test_file || tv.test_decorated_lines.contains(&def.line);
+
+        if is_fixture || is_general_test {
+            let penalty = if is_fixture {
+                *PENALTIES().get("test_decorator").unwrap_or(&30)
+            } else {
+                *PENALTIES().get("test_related").unwrap_or(&100)
+            };
+
+            // If it's a test file, we usually want to ignore everything (penalty 100)
+            // unless it's a fixture we explicitly want to track with lower confidence.
+            let final_penalty = if tv.is_test_file && !is_fixture {
+                100
+            } else {
+                penalty
+            };
+
+            def.confidence = def.confidence.saturating_sub(final_penalty);
+            if def.confidence == 0 {
+                return;
+            }
         }
     }
 

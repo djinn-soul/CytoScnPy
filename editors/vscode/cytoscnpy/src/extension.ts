@@ -994,7 +994,9 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         return undefined;
       }
       const diagnosticLine = diagnostic.range.start.line + 1;
-      const pickClosest = (findings: CytoScnPyFinding[]): CytoScnPyFinding | undefined => {
+      const pickClosest = (
+        findings: CytoScnPyFinding[],
+      ): CytoScnPyFinding | undefined => {
         let best: CytoScnPyFinding | undefined;
         let bestDiff = Number.POSITIVE_INFINITY;
         for (const finding of findings) {
@@ -1016,7 +1018,9 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         return best;
       };
 
-      const fromCache = cachedEntry ? pickClosest(cachedEntry.findings) : undefined;
+      const fromCache = cachedEntry
+        ? pickClosest(cachedEntry.findings)
+        : undefined;
       if (fromCache) {
         return fromCache;
       }
@@ -1062,12 +1066,17 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       if (finding && finding.fix && ruleId) {
         const labels = UNUSED_RULE_LABELS[ruleId];
 
-        // Extract symbol name from diagnostic message (e.g., "'ceil' is imported but never used")
-        const symbolMatch = diagnostic.message.match(/'([^']+)'/);
+        if (labels) {
+          // Extract symbol name from diagnostic message (e.g., "'ceil' is imported but never used")
+          // Also try backticks for messages like "`name` is defined but never used"
+          const symbolMatch =
+            diagnostic.message.match(/'([^']+)'/) ||
+            diagnostic.message.match(/`([^`]+)`/);
 
-        if (labels && symbolMatch) {
-          const symbolName = symbolMatch[1];
-          const actionTitle = `Remove unused ${labels.singular} '${symbolName}'`;
+          // Use specific symbol name if found, otherwise use generic fallback
+          const actionTitle = symbolMatch
+            ? `Remove unused ${labels.singular} '${symbolMatch[1]}'`
+            : `Remove unused ${labels.singular}`;
 
           const fixAction = new vscode.CodeAction(
             actionTitle,
@@ -1141,7 +1150,9 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         "Remove all dead code in this file",
         vscode.CodeActionKind.QuickFix,
       );
-      fixAllDeadCodeAction.diagnostics = filteredUnused.map((i) => i.diagnostic);
+      fixAllDeadCodeAction.diagnostics = filteredUnused.map(
+        (i) => i.diagnostic,
+      );
 
       const edit = new vscode.WorkspaceEdit();
       const sortedItems = [...filteredUnused].sort(

@@ -45,6 +45,8 @@ pub struct FixResult {
     pub file: String,
     /// Number of items removed
     pub items_removed: usize,
+    /// Number of lines removed
+    pub lines_removed: usize,
     /// Names of removed items
     pub removed_names: Vec<String>,
 }
@@ -91,6 +93,41 @@ pub fn run_fix_deadcode<W: Write>(
         {
             all_results.push(res);
         }
+    }
+
+    if !all_results.is_empty() {
+        let total_items_removed: usize = all_results.iter().map(|r| r.items_removed).sum();
+        let total_lines_removed: usize = all_results.iter().map(|r| r.lines_removed).sum();
+
+        let total_dead_code = results.unused_functions.len()
+            + results.unused_methods.len()
+            + results.unused_imports.len()
+            + results.unused_classes.len()
+            + results.unused_variables.len();
+
+        let items_pct = if total_dead_code > 0 {
+            (total_items_removed as f64 / total_dead_code as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let lines_pct = if results.analysis_summary.total_lines_analyzed > 0 {
+            (total_lines_removed as f64 / results.analysis_summary.total_lines_analyzed as f64)
+                * 100.0
+        } else {
+            0.0
+        };
+
+        writeln!(writer, "\n{}", "Fix Summary:".green().bold())?;
+        writeln!(
+            writer,
+            "  Total items fixed: {total_items_removed}/{total_dead_code} ({items_pct:.1}%)"
+        )?;
+        writeln!(
+            writer,
+            "  Total lines removed: {total_lines_removed}/{} ({lines_pct:.2}%)",
+            results.analysis_summary.total_lines_analyzed
+        )?;
     }
 
     Ok(all_results)

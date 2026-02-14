@@ -62,7 +62,9 @@ fn plan_item_edit(
             replacement = Some("_".to_owned());
         }
     } else if item_type == "method" {
-        if let Some(edit) = find_method_edit(&module.body, &def.simple_name) {
+        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte))
+            .or_else(|| find_method_edit(&module.body, &def.simple_name, None));
+        if let Some(edit) = edit {
             edit_range = Some((edit.start, edit.end));
             if edit.class_would_be_empty {
                 replacement = Some("pass".to_owned());
@@ -117,7 +119,9 @@ fn plan_item_edit(
             replacement = Some("_".to_owned());
         }
     } else if item_type == "method" {
-        if let Some(edit) = find_method_edit(&module.body, &def.simple_name) {
+        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte))
+            .or_else(|| find_method_edit(&module.body, &def.simple_name, None));
+        if let Some(edit) = edit {
             edit_range = Some((edit.start, edit.end));
             if edit.class_would_be_empty {
                 replacement = Some("pass".to_owned());
@@ -153,11 +157,13 @@ pub(super) fn write_dry_run<W: Write>(
 ) -> Result<()> {
     for item in planned {
         if item.replacement.is_some() {
+            let replacement = item.replacement.as_deref().unwrap_or("_");
             writeln!(
                 writer,
-                "  Would replace {} '{}' with '_' at {}:{}",
+                "  Would replace {} '{}' with '{}' at {}:{}",
                 item.item_type,
                 item.name,
+                replacement,
                 crate::utils::normalize_display_path(file_path),
                 item.line
             )?;

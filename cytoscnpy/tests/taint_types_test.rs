@@ -5,7 +5,7 @@
 #![allow(clippy::str_to_string)]
 
 use cytoscnpy::taint::types::{
-    FunctionSummary, Severity, TaintFinding, TaintInfo, TaintSource, VulnType,
+    score_exploitability, FunctionSummary, Severity, TaintFinding, TaintInfo, TaintSource, VulnType,
 };
 use std::path::PathBuf;
 
@@ -180,6 +180,7 @@ fn test_taint_finding_flow_path_str_empty() {
         severity: Severity::Critical,
         file: PathBuf::from("test.py"),
         remediation: "Don't use eval".to_string(),
+        exploitability_score: 95,
     };
 
     assert_eq!(finding.flow_path_str(), "input() → eval()");
@@ -200,12 +201,35 @@ fn test_taint_finding_flow_path_str_with_path() {
         severity: Severity::High,
         file: PathBuf::from("app.py"),
         remediation: "Use parameterized queries".to_string(),
+        exploitability_score: 82,
     };
 
     assert_eq!(
         finding.flow_path_str(),
         "request.args → user_input → query → db.execute"
     );
+}
+
+#[test]
+fn test_score_exploitability_high_for_critical_input_to_code_exec() {
+    let score = score_exploitability(
+        &TaintSource::Input,
+        &VulnType::CodeInjection,
+        Severity::Critical,
+        1,
+    );
+    assert!(score >= 90);
+}
+
+#[test]
+fn test_score_exploitability_lower_for_low_severity_open_redirect() {
+    let score = score_exploitability(
+        &TaintSource::FunctionParam("u".to_owned()),
+        &VulnType::OpenRedirect,
+        Severity::Low,
+        4,
+    );
+    assert!(score < 70);
 }
 
 // =============================================================================

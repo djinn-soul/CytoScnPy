@@ -1,5 +1,5 @@
 use super::apply_plan::{build_edits, plan_edits, write_dry_run};
-use super::{DeadCodeFixOptions, FixResult};
+use super::{DeadCodeFixOptions, FixPlanItem, FixResult};
 use crate::fix::{ByteRangeRewriter, Edit};
 
 use anyhow::Result;
@@ -42,6 +42,34 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
     }
 
     if options.dry_run {
+        if options.json_output {
+            let planned_edits = planned
+                .iter()
+                .map(|item| FixPlanItem {
+                    stable_id: format!(
+                        "{}:{}:{}:{}",
+                        item.item_type, item.name, item.start_byte, item.end_byte
+                    ),
+                    item_type: item.item_type.to_owned(),
+                    name: item.name.clone(),
+                    line: item.line,
+                    start_byte: item.start_byte,
+                    end_byte: item.end_byte,
+                    replacement: item.replacement.clone(),
+                })
+                .collect::<Vec<_>>();
+            let removed_names = planned_edits
+                .iter()
+                .map(|item| item.name.clone())
+                .collect::<Vec<_>>();
+            return Ok(Some(FixResult {
+                file: file_path.to_string_lossy().to_string(),
+                items_removed: planned_edits.len(),
+                lines_removed: 0,
+                removed_names,
+                planned_edits: Some(planned_edits),
+            }));
+        }
         write_dry_run(writer, &file_path, &planned)?;
         return Ok(None);
     }
@@ -74,6 +102,7 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
         items_removed: count,
         lines_removed,
         removed_names,
+        planned_edits: None,
     }))
 }
 

@@ -87,6 +87,7 @@ fn create_mock_result() -> AnalysisResult {
         flow_path: vec![],
         category: "Taint Analysis".to_owned(),
         remediation: "Use parameterized queries".to_owned(),
+        exploitability_score: 88,
     });
 
     let def_base = Definition {

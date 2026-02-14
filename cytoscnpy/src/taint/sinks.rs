@@ -31,6 +31,7 @@ pub fn check_sink(call: &ast::ExprCall) -> Option<SinkInfo> {
         .or_else(|| check_command_injection_sinks(&name, call))
         .or_else(|| check_path_traversal_sinks(&name))
         .or_else(|| check_network_sinks(&name))
+        .or_else(|| check_framework_sink_packs(&name))
         .or_else(|| check_misc_sinks(&name))
         .or_else(|| check_dynamic_attribute_sinks(call))
 }
@@ -249,6 +250,45 @@ fn check_network_sinks(name: &str) -> Option<SinkInfo> {
     None
 }
 
+fn check_framework_sink_packs(name: &str) -> Option<SinkInfo> {
+    if name == "django.http.HttpResponse"
+        || name == "HttpResponse"
+        || name == "django.http.JsonResponse"
+        || name == "JsonResponse"
+        || name == "starlette.responses.Response"
+        || name == "fastapi.Response"
+    {
+        return Some(SinkInfo {
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_XSS_GENERIC.to_owned(),
+            vuln_type: VulnType::Xss,
+            severity: Severity::High,
+            dangerous_args: vec![0],
+            dangerous_keywords: vec!["content".to_owned(), "body".to_owned()],
+            remediation: "Escape untrusted content before writing raw HTTP responses.".to_owned(),
+        });
+    }
+
+    if name == "django.http.HttpResponseRedirect"
+        || name == "HttpResponseRedirect"
+        || name == "RedirectResponse"
+        || name == "starlette.responses.RedirectResponse"
+        || name == "fastapi.responses.RedirectResponse"
+    {
+        return Some(SinkInfo {
+            name: name.to_owned(),
+            rule_id: ids::RULE_ID_OPEN_REDIRECT.to_owned(),
+            vuln_type: VulnType::OpenRedirect,
+            severity: Severity::Medium,
+            dangerous_args: vec![0],
+            dangerous_keywords: vec!["redirect_to".to_owned(), "url".to_owned()],
+            remediation: "Validate redirect targets against an allowlist.".to_owned(),
+        });
+    }
+
+    None
+}
+
 fn check_misc_sinks(name: &str) -> Option<SinkInfo> {
     match name {
         "flask.render_template_string"
@@ -400,6 +440,14 @@ pub static SINK_PATTERNS: &[&str] = &[
     "requests.",
     "httpx.",
     "urlopen",
+    "django.http.HttpResponse",
+    "django.http.JsonResponse",
+    "starlette.responses.Response",
+    "fastapi.Response",
+    "django.http.HttpResponseRedirect",
+    "RedirectResponse",
+    "starlette.responses.RedirectResponse",
+    "fastapi.responses.RedirectResponse",
     "render_template_string",
     "Markup",
     "mark_safe",

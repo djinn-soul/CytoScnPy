@@ -15,7 +15,7 @@ pub(super) struct MethodEdit {
 
 pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Option<(usize, usize)> {
     if def_type == "method" {
-        return find_method_edit(body, name).map(|edit| (edit.start, edit.end));
+        return find_method_edit(body, name, None).map(|edit| (edit.start, edit.end));
     }
 
     for stmt in body {
@@ -68,13 +68,23 @@ pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Optio
     None
 }
 
-pub(super) fn find_method_edit(body: &[Stmt], name: &str) -> Option<MethodEdit> {
+pub(super) fn find_method_edit(
+    body: &[Stmt],
+    name: &str,
+    target_start_byte: Option<usize>,
+) -> Option<MethodEdit> {
     for stmt in body {
         if let Stmt::ClassDef(class_def) = stmt {
             for class_stmt in &class_def.body {
                 match class_stmt {
                     Stmt::FunctionDef(func) => {
                         if func.name.as_str() == name {
+                            let method_start_byte = func.range().start().to_usize();
+                            if let Some(target) = target_start_byte {
+                                if method_start_byte != target {
+                                    continue;
+                                }
+                            }
                             let start = func.range().start().to_usize();
                             let start = func
                                 .decorator_list
@@ -91,7 +101,8 @@ pub(super) fn find_method_edit(body: &[Stmt], name: &str) -> Option<MethodEdit> 
                         }
                     }
                     Stmt::ClassDef(nested) => {
-                        if let Some(edit) = find_method_edit(&nested.body, name) {
+                        if let Some(edit) = find_method_edit(&nested.body, name, target_start_byte)
+                        {
                             return Some(edit);
                         }
                     }

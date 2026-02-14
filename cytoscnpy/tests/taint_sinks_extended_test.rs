@@ -238,6 +238,24 @@ fn test_sink_urlopen() {
     assert_eq!(info.vuln_type, VulnType::Ssrf);
 }
 
+#[test]
+fn test_sink_django_http_response() {
+    let call = parse_call("HttpResponse(content)");
+    let result = check_sink(&call);
+    assert!(result.is_some());
+    let info = result.unwrap();
+    assert_eq!(info.vuln_type, VulnType::Xss);
+}
+
+#[test]
+fn test_sink_redirect_response() {
+    let call = parse_call("RedirectResponse(url)");
+    let result = check_sink(&call);
+    assert!(result.is_some());
+    let info = result.unwrap();
+    assert_eq!(info.vuln_type, VulnType::OpenRedirect);
+}
+
 // ============================================================================
 // check_sink Tests - Safe Calls
 // ============================================================================
@@ -290,4 +308,9 @@ fn test_sink_patterns_contains_subprocess() {
 #[test]
 fn test_sink_patterns_contains_pickle() {
     assert!(SINK_PATTERNS.contains(&"pickle.loads"));
+}
+
+#[test]
+fn test_sink_patterns_contains_framework_response() {
+    assert!(SINK_PATTERNS.contains(&"django.http.HttpResponse"));
 }

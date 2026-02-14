@@ -23,6 +23,17 @@ pub(super) fn collect_items_to_fix<'a>(
         }
     }
 
+    if options.fix_methods {
+        for def in &results.unused_methods {
+            if def.confidence >= options.min_confidence {
+                items_by_file
+                    .entry((*def.file).clone())
+                    .or_default()
+                    .push(("method", def));
+            }
+        }
+    }
+
     if options.fix_classes {
         for def in &results.unused_classes {
             if def.confidence >= options.min_confidence {
@@ -70,6 +81,7 @@ pub(super) fn print_fix_stats<W: Write>(
         let files_count = items_by_file.len();
 
         let mut func_count = 0;
+        let mut method_count = 0;
         let mut class_count = 0;
         let mut import_count = 0;
         let mut variable_count = 0;
@@ -77,6 +89,7 @@ pub(super) fn print_fix_stats<W: Write>(
             for (item_type, _) in items {
                 match *item_type {
                     "function" => func_count += 1,
+                    "method" => method_count += 1,
                     "class" => class_count += 1,
                     "import" => import_count += 1,
                     "variable" => variable_count += 1,
@@ -89,12 +102,18 @@ pub(super) fn print_fix_stats<W: Write>(
         writeln!(writer, "   Files to modify: {files_count}")?;
         writeln!(writer, "   Items to remove: {total_items}")?;
         writeln!(writer, "   Functions: {func_count}")?;
+        writeln!(writer, "   Methods: {method_count}")?;
         writeln!(writer, "   Classes: {class_count}")?;
         writeln!(writer, "   Imports: {import_count}")?;
         writeln!(writer, "   Variables: {variable_count}")?;
 
         let skipped_funcs = results
             .unused_functions
+            .iter()
+            .filter(|d| d.confidence < options.min_confidence)
+            .count();
+        let skipped_methods = results
+            .unused_methods
             .iter()
             .filter(|d| d.confidence < options.min_confidence)
             .count();
@@ -113,7 +132,8 @@ pub(super) fn print_fix_stats<W: Write>(
             .iter()
             .filter(|d| d.confidence < options.min_confidence)
             .count();
-        let total_skipped = skipped_funcs + skipped_classes + skipped_imports + skipped_variables;
+        let total_skipped =
+            skipped_funcs + skipped_methods + skipped_classes + skipped_imports + skipped_variables;
 
         if total_skipped > 0 {
             writeln!(

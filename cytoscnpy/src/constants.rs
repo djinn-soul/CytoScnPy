@@ -119,7 +119,35 @@ pub fn get_test_import_re() -> &'static Regex {
     })
 }
 
+/// Regex for identifying fixture decorators.
+///
+/// Matches:
+/// - `pytest.fixture`
+/// - Bare `fixture`
+///
+/// # Panics
+///
+/// Panics if the regex pattern is invalid.
+pub fn get_fixture_decor_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    #[allow(clippy::expect_used)]
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?x)^(
+            pytest\.fixture |
+            fixture
+        )$",
+        )
+        .expect("Invalid fixture decorator regex pattern")
+    })
+}
+
 /// Regex for identifying test-related decorators.
+///
+/// Matches:
+/// - `pytest.fixture`, `pytest.mark.*`
+/// - Bare `fixture` (from `from pytest import fixture`)
+/// - `patch`, `responses.activate`, `freeze_time`
 ///
 /// # Panics
 ///
@@ -131,6 +159,7 @@ pub fn get_test_decor_re() -> &'static Regex {
         Regex::new(
             r"(?x)^(
             pytest\.(fixture|mark) |
+            fixture |
             patch(\.|$) |
             responses\.activate |
             freeze_time
@@ -378,6 +407,64 @@ pub fn get_pytest_hooks() -> &'static FxHashSet<&'static str> {
     })
 }
 
+/// Set of pytest plugin-provided fixture names.
+///
+/// These fixtures are provided by pytest core or common plugins and should
+/// not be flagged as unused parameters in test functions.
+pub fn get_pytest_plugin_fixtures() -> &'static FxHashSet<&'static str> {
+    static SET: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| {
+        let mut s = FxHashSet::default();
+        // pytest built-in fixtures
+        s.insert("request");
+        s.insert("pytestconfig");
+        s.insert("tmp_path");
+        s.insert("tmp_path_factory");
+        s.insert("tmpdir");
+        s.insert("tmpdir_factory");
+        s.insert("capsys");
+        s.insert("capfd");
+        s.insert("capsysbinary");
+        s.insert("capfdbinary");
+        s.insert("caplog");
+        s.insert("monkeypatch");
+        s.insert("recwarn");
+        s.insert("cache");
+        s.insert("doctest_namespace");
+        // pytest-mock
+        s.insert("mocker");
+        s.insert("mock");
+        s.insert("class_mocker");
+        s.insert("module_mocker");
+        s.insert("session_mocker");
+        // pytest-django
+        s.insert("client");
+        s.insert("rf");
+        s.insert("admin_client");
+        s.insert("admin_user");
+        s.insert("db");
+        s.insert("transactional_db");
+        s.insert("django_db_setup");
+        s.insert("django_db_blocker");
+        s.insert("live_server");
+        s.insert("settings");
+        s.insert("django_user_model");
+        // pytest-asyncio
+        s.insert("event_loop");
+        s.insert("event_loop_policy");
+        // pytest-httpx / pytest-aiohttp
+        s.insert("httpx_mock");
+        s.insert("aiohttp_client");
+        // pytest-flask
+        s.insert("app");
+        s.insert("client");
+        s.insert("_push_request_context");
+        // pytest-freezegun
+        s.insert("freezer");
+        s
+    })
+}
+
 /// Rules that are sensitive to taint analysis (injection, SSRF, path traversal).
 pub fn get_taint_sensitive_rules() -> &'static [&'static str] {
     static RULES: OnceLock<Vec<&'static str>> = OnceLock::new();
@@ -395,9 +482,11 @@ pub fn get_taint_sensitive_rules() -> &'static [&'static str] {
 // Callers using PENALTIES.get("key") can use get_penalties().get("key") instead
 pub use get_auto_called as AUTO_CALLED;
 pub use get_default_exclude_folders as DEFAULT_EXCLUDE_FOLDERS;
+pub use get_fixture_decor_re as FIXTURE_DECOR_RE;
 pub use get_framework_file_re as FRAMEWORK_FILE_RE;
 pub use get_penalties as PENALTIES;
 pub use get_pytest_hooks as PYTEST_HOOKS;
+pub use get_pytest_plugin_fixtures as PYTEST_PLUGIN_FIXTURES;
 pub use get_suppression_patterns as SUPPRESSION_PATTERNS;
 pub use get_suppression_re as SUPPRESSION_RE;
 pub use get_taint_sensitive_rules as TAINT_SENSITIVE_RULES;

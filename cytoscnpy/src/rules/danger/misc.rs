@@ -57,6 +57,11 @@ impl Rule for AssertUsedRule {
         self.metadata
     }
     fn enter_stmt(&mut self, stmt: &ast::Stmt, context: &Context) -> Option<Vec<Finding>> {
+        // Assert is valid in tests
+        if context.is_test_file {
+            return None;
+        }
+
         if matches!(stmt, ast::Stmt::Assert(_)) {
             return Some(vec![create_finding(
                 "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",

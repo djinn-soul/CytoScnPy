@@ -1,4 +1,4 @@
-use super::ranges::{find_def_range, find_import_edit, ImportEdit};
+use super::ranges::{find_def_range, find_import_edit, find_method_edit, ImportEdit};
 use crate::fix::Edit;
 
 use anyhow::Result;
@@ -8,7 +8,7 @@ use std::path::Path;
 pub(super) struct PlannedEdit {
     pub(super) start_byte: usize,
     pub(super) end_byte: usize,
-    pub(super) replacement: Option<&'static str>,
+    pub(super) replacement: Option<String>,
     pub(super) name: String,
     pub(super) item_type: &'static str,
     pub(super) line: usize,
@@ -54,12 +54,20 @@ fn plan_item_edit(
     cst_mapper: Option<&crate::cst::AstCstMapper>,
 ) -> Option<PlannedEdit> {
     let mut edit_range = None;
-    let mut replacement = None;
+    let mut replacement: Option<String> = None;
 
     if item_type == "variable" {
         if def.end_byte > def.start_byte {
             edit_range = Some((def.start_byte, def.end_byte));
-            replacement = Some("_");
+            replacement = Some("_".to_owned());
+        }
+    } else if item_type == "method" {
+        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte));
+        if let Some(edit) = edit {
+            edit_range = Some((edit.start, edit.end));
+            if edit.class_would_be_empty {
+                replacement = Some("pass".to_owned());
+            }
         }
     } else if item_type == "import" {
         if let Some(edit) = find_import_edit(&module.body, &def.simple_name, content) {
@@ -75,7 +83,7 @@ fn plan_item_edit(
 
     let (start, end) = edit_range?;
     let (start, end) = if let Some(mapper) = cst_mapper {
-        if item_type == "function" || item_type == "class" {
+        if item_type == "function" || item_type == "method" || item_type == "class" {
             mapper.precise_range_for_def(start, end)
         } else {
             (start, end)
@@ -102,12 +110,20 @@ fn plan_item_edit(
     content: &str,
 ) -> Option<PlannedEdit> {
     let mut edit_range = None;
-    let mut replacement = None;
+    let mut replacement: Option<String> = None;
 
     if item_type == "variable" {
         if def.end_byte > def.start_byte {
             edit_range = Some((def.start_byte, def.end_byte));
-            replacement = Some("_");
+            replacement = Some("_".to_owned());
+        }
+    } else if item_type == "method" {
+        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte));
+        if let Some(edit) = edit {
+            edit_range = Some((edit.start, edit.end));
+            if edit.class_would_be_empty {
+                replacement = Some("pass".to_owned());
+            }
         }
     } else if item_type == "import" {
         if let Some(edit) = find_import_edit(&module.body, &def.simple_name, content) {
@@ -139,11 +155,13 @@ pub(super) fn write_dry_run<W: Write>(
 ) -> Result<()> {
     for item in planned {
         if item.replacement.is_some() {
+            let replacement = item.replacement.as_deref().unwrap_or("_");
             writeln!(
                 writer,
-                "  Would replace {} '{}' with '_' at {}:{}",
+                "  Would replace {} '{}' with '{}' at {}:{}",
                 item.item_type,
                 item.name,
+                replacement,
                 crate::utils::normalize_display_path(file_path),
                 item.line
             )?;
@@ -167,7 +185,7 @@ pub(super) fn build_edits(planned: Vec<PlannedEdit>) -> (Vec<Edit>, Vec<String>)
 
     for item in planned {
         if let Some(replacement) = item.replacement {
-            edits.push(Edit::new(item.start_byte, item.end_byte, replacement));
+            edits.push(Edit::new(item.start_byte, item.end_byte, &replacement));
         } else {
             edits.push(Edit::delete(item.start_byte, item.end_byte));
         }

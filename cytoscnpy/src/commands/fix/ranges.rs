@@ -7,7 +7,17 @@ pub(super) enum ImportEdit {
     DeleteAlias(usize, usize),
 }
 
+pub(super) struct MethodEdit {
+    pub(super) start: usize,
+    pub(super) end: usize,
+    pub(super) class_would_be_empty: bool,
+}
+
 pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Option<(usize, usize)> {
+    if def_type == "method" {
+        return find_method_edit(body, name, None).map(|edit| (edit.start, edit.end));
+    }
+
     for stmt in body {
         match stmt {
             Stmt::FunctionDef(f) if def_type == "function" => {
@@ -55,6 +65,51 @@ pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Optio
             _ => {}
         }
     }
+    None
+}
+
+pub(super) fn find_method_edit(
+    body: &[Stmt],
+    name: &str,
+    target_start_byte: Option<usize>,
+) -> Option<MethodEdit> {
+    for stmt in body {
+        if let Stmt::ClassDef(class_def) = stmt {
+            for class_stmt in &class_def.body {
+                if let Stmt::FunctionDef(func) = class_stmt {
+                    if func.name.as_str() != name {
+                        continue;
+                    }
+                    let method_start_byte = func.range().start().to_usize();
+                    let method_name_start_byte = func.name.range().start().to_usize();
+                    if let Some(target) = target_start_byte {
+                        if method_start_byte != target && method_name_start_byte != target {
+                            continue;
+                        }
+                    }
+                    let start = func.range().start().to_usize();
+                    let start = func
+                        .decorator_list
+                        .iter()
+                        .map(|decorator| decorator.range().start().to_usize())
+                        .min()
+                        .unwrap_or(start)
+                        .min(start);
+                    return Some(MethodEdit {
+                        start,
+                        end: func.range().end().to_usize(),
+                        class_would_be_empty: class_def.body.len() == 1,
+                    });
+                }
+            }
+
+            // Recurse through nested classes in this class body.
+            if let Some(edit) = find_method_edit(&class_def.body, name, target_start_byte) {
+                return Some(edit);
+            }
+        }
+    }
+
     None
 }
 

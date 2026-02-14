@@ -38,6 +38,7 @@ impl CytoScnPy {
 
         let mut file_complexity = 0.0;
         let mut file_mi = 0.0;
+        let is_test_file = crate::utils::is_test_path(&file_path.to_string_lossy());
 
         let source = if is_notebook {
             match crate::ipynb::extract_notebook_code(file_path, Some(&self.analysis_root)) {
@@ -96,6 +97,7 @@ impl CytoScnPy {
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
         let mut call_graph = CallGraph::new();
+        let mut fixture_metadata = crate::analyzer::fixtures::FileFixtureMetadata::default();
 
         match parse_module(&source) {
             Ok(parsed) => {
@@ -112,6 +114,7 @@ impl CytoScnPy {
                         &file_path.to_path_buf(),
                         &self.config.cytoscnpy.secrets_config,
                         Some(&docstring_lines),
+                        is_test_file,
                     );
                 }
 
@@ -140,6 +143,13 @@ impl CytoScnPy {
                         visitor.add_ref(qualified);
                     }
                 }
+
+                fixture_metadata = crate::analyzer::fixtures::collect_file_fixture_metadata(
+                    &visitor,
+                    &test_visitor,
+                    file_path,
+                    &module_name,
+                );
 
                 let exports = visitor.exports.clone();
                 for export_name in &exports {
@@ -297,6 +307,7 @@ impl CytoScnPy {
                         file_path.to_path_buf(),
                         line_index.clone(),
                         self.config.clone(),
+                        is_test_file,
                     );
                     for stmt in &module.body {
                         linter.visit_stmt(stmt);
@@ -431,6 +442,7 @@ impl CytoScnPy {
                         &file_path.to_path_buf(),
                         &self.config.cytoscnpy.secrets_config,
                         None,
+                        is_test_file,
                     );
                 }
                 let error_msg = format!("{e}");
@@ -465,6 +477,10 @@ impl CytoScnPy {
             mi: file_mi,
             file_size,
             call_graph,
+            fixture_definitions: fixture_metadata.fixture_definitions,
+            fixture_requests: fixture_metadata.fixture_requests,
+            fixture_imports: fixture_metadata.fixture_imports,
+            pytest_plugins: fixture_metadata.pytest_plugins,
         }
     }
 
@@ -475,6 +491,7 @@ impl CytoScnPy {
         let source = code.to_owned();
         let line_index = LineIndex::new(&source);
         let ignored_lines = crate::utils::get_ignored_lines(&source);
+        let is_test_file = crate::utils::is_test_path(&file_path.to_string_lossy());
 
         let module_name = file_path
             .file_stem()
@@ -502,6 +519,23 @@ impl CytoScnPy {
                     framework_visitor.visit_stmt(stmt);
                     test_visitor.visit_stmt(stmt);
                     visitor.visit_stmt(stmt);
+                }
+
+                let fixture_metadata = crate::analyzer::fixtures::collect_file_fixture_metadata(
+                    &visitor,
+                    &test_visitor,
+                    file_path,
+                    &module_name,
+                );
+                let fixture_increments =
+                    crate::analyzer::fixtures::resolve_fixture_reference_increments(
+                        &fixture_metadata.fixture_definitions,
+                        &fixture_metadata.fixture_requests,
+                        &fixture_metadata.fixture_imports,
+                        &fixture_metadata.pytest_plugins,
+                    );
+                for (full_name, count) in fixture_increments {
+                    *visitor.references.entry(full_name).or_insert(0) += count;
                 }
 
                 // Sync and Refine
@@ -704,6 +738,7 @@ impl CytoScnPy {
                         &file_path.to_path_buf(),
                         &self.config.cytoscnpy.secrets_config,
                         Some(&docstring_lines),
+                        is_test_file,
                     );
                 }
 
@@ -722,6 +757,7 @@ impl CytoScnPy {
                         file_path.to_path_buf(),
                         line_index.clone(),
                         self.config.clone(),
+                        is_test_file,
                     );
                     for stmt in &module.body {
                         linter.visit_stmt(stmt);
@@ -830,6 +866,7 @@ impl CytoScnPy {
                         &file_path.to_path_buf(),
                         &self.config.cytoscnpy.secrets_config,
                         None,
+                        is_test_file,
                     );
                 }
                 parse_errors.push(ParseError {

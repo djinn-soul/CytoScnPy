@@ -285,6 +285,16 @@ fn test_is_not_sanitizer() {
     }
 }
 
+#[test]
+fn test_urlquote_is_not_global_sanitizer() {
+    let expr = parse_expr("django.utils.http.urlquote(x)");
+    if let ast::Expr::Call(call) = expr {
+        assert!(!is_sanitizer_call(&call));
+    } else {
+        panic!("Expected call expression");
+    }
+}
+
 // ============================================================================
 // is_parameterized_query Tests
 // ============================================================================

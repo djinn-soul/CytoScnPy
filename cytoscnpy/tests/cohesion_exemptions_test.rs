@@ -18,6 +18,7 @@ fn run_quality(source: &str) -> Vec<cytoscnpy::rules::Finding> {
         PathBuf::from("test.py"),
         line_index,
         Config::default(),
+        false,
     );
 
     if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {

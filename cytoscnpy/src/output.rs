@@ -213,6 +213,12 @@ fn create_table(headers: Vec<&str>) -> Table {
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(headers);
+
+    // Use a fixed width for stable output when capturing or in tests.
+    // This prevents random terminal width from affecting snapshots.
+    if cfg!(test) {
+        table.set_width(120);
+    }
     table
 }
 

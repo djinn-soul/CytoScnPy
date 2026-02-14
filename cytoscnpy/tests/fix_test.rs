@@ -245,3 +245,57 @@ fn test_add_multiple_edits() {
     let result = rewriter.apply().expect("should apply");
     assert_eq!(result, "AAA123ZZZ");
 }
+
+fn lcg_next(seed: &mut u64) -> u64 {
+    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+    *seed
+}
+
+#[test]
+fn property_non_overlapping_rewrites_remain_valid_python() {
+    let source = "def f():\n    a = 1\n    b = 2\n    c = 3\n    return a + b + c\n";
+
+    for case in 0..64_u64 {
+        let mut seed = 0xC0FFEE_u64 ^ case;
+        let mut edits = Vec::new();
+
+        // Replace numeric literals with other numeric literals.
+        let mut positions = vec![
+            source.find("1").unwrap(),
+            source.find("2").unwrap(),
+            source.find("3").unwrap(),
+        ];
+        positions.sort_unstable();
+
+        for pos in positions {
+            let next = (lcg_next(&mut seed) % 9) + 1;
+            edits.push(Edit::new(pos, pos + 1, next.to_string()));
+        }
+
+        let mut rewriter = ByteRangeRewriter::new(source);
+        rewriter.add_edits(edits);
+        let rewritten = rewriter.apply().expect("rewrite should succeed");
+        assert!(ruff_python_parser::parse_module(&rewritten).is_ok());
+    }
+}
+
+#[test]
+fn fuzz_overlap_and_bounds_edges_fail_safely() {
+    for idx in 0..128_usize {
+        let source = "abcdef";
+        let mut rewriter = ByteRangeRewriter::new(source);
+        let start = idx % 6;
+        let end = (start + 2).min(6);
+        rewriter.add_edit(Edit::new(start, end, "X"));
+        // Intentionally overlapping or out-of-bounds second edit.
+        if idx % 2 == 0 {
+            rewriter.add_edit(Edit::new(start + 1, (end + 1).min(6), "Y"));
+            let result = rewriter.apply();
+            assert!(matches!(result, Err(RewriteError::OverlappingEdits { .. })));
+        } else {
+            rewriter.add_edit(Edit::new(0, 100, "Y"));
+            let result = rewriter.apply();
+            assert!(matches!(result, Err(RewriteError::OutOfBounds { .. })));
+        }
+    }
+}

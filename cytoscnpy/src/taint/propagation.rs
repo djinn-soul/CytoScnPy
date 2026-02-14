@@ -169,6 +169,8 @@ pub fn is_sanitizer_call(call: &ast::ExprCall) -> bool {
                 | "escape"
                 | "cgi.escape"
                 | "markupsafe.escape"
+                | "flask.escape"
+                | "django.utils.html.escape"
                 | "shlex.quote"
                 | "shlex.split"
                 | "urllib.parse.quote"

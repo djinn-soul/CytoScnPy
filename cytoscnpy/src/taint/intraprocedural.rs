@@ -590,5 +590,11 @@ fn create_finding(
         severity: sink_info.severity,
         file: file_path.to_path_buf(),
         remediation: sink_info.remediation.clone(),
+        exploitability_score: super::types::score_exploitability(
+            &taint_info.source,
+            &sink_info.vuln_type,
+            sink_info.severity,
+            taint_info.path.len(),
+        ),
     }
 }

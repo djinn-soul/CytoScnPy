@@ -6,7 +6,7 @@ use std::path::PathBuf;
 fn test_regex_recognizer_github_token() {
     let recognizer = RegexRecognizer;
     let content = "token = 'ghp_abcdefghijklmnopqrstuvwxyz1234567890'";
-    let findings = recognizer.scan_text(content, &PathBuf::from("test.py"));
+    let findings = recognizer.scan_text_fallback(content, &PathBuf::from("test.py"));
 
     // May match multiple patterns (GitHub Token + Generic API Key)
     assert!(!findings.is_empty());
@@ -140,4 +140,160 @@ fn test_extract_string_literals_with_escapes() {
     assert_eq!(literals.len(), 2);
     assert_eq!(literals[0], "string with \\\" escaped quote");
     assert_eq!(literals[1], "another \\' one");
+}
+
+#[test]
+fn test_entropy_sql_query_ignored() {
+    let recognizer = EntropyRecognizer::default();
+    let content = "sql_query = 'SELECT * FROM users WHERE status = \"active\" AND last_login > \"2023-01-01\"'";
+    let findings = recognizer.scan_text_fallback(content, &PathBuf::from("test.py"));
+    assert!(
+        findings.is_empty(),
+        "SQL query should be ignored due to space density"
+    );
+}
+
+#[test]
+fn test_entropy_base64_blob_ignored() {
+    let recognizer = EntropyRecognizer::default();
+    // Long Base64 string with padding
+    let content = "data = 'SGVsbG8gd29ybGQhIFRoaXMgaXMgYSBiYXNlNjQgZW5jb2RlZCBzdHJpbmcgdGhhdCBtaWdodCBoYXZlIGhpZ2ggZW50cm9weS4='";
+    let findings = recognizer.scan_text_fallback(content, &PathBuf::from("test.py"));
+    assert!(findings.is_empty(), "Long Base64 blob should be ignored");
+}
+
+#[test]
+fn test_ast_keyboard_ignored() {
+    let recognizer = AstRecognizer::default();
+    let code = "keyboard_layout = 'QWERTY'";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(
+        findings.is_empty(),
+        "Variable 'keyboard_layout' should be ignored"
+    );
+}
+
+#[test]
+fn test_ast_monkey_patch_ignored() {
+    let recognizer = AstRecognizer::default();
+    let code = "monkey_patch = True";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(
+        findings.is_empty(),
+        "Variable 'monkey_patch' should be ignored"
+    );
+}
+
+#[test]
+fn test_ast_valid_key_flagged() {
+    let recognizer = AstRecognizer::default();
+    let code = "api_key = 'secret123'";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(!findings.is_empty(), "Variable 'api_key' should be flagged");
+}
+
+#[test]
+fn test_ast_key_multiple_segments() {
+    let recognizer = AstRecognizer::default();
+    let code = "my_custom_key_identifier = 'secret123'";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(
+        !findings.is_empty(),
+        "Variable with 'key' segment should be flagged"
+    );
+}
+
+#[test]
+fn test_ast_camel_case_access_key_id_flagged() {
+    let recognizer = AstRecognizer::default();
+    let code = "AccessKeyId = 'secret123'";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(
+        !findings.is_empty(),
+        "CamelCase AccessKeyId should be flagged"
+    );
+}
+
+#[test]
+fn test_ast_camel_case_auth_token_flagged() {
+    let recognizer = AstRecognizer::default();
+    let code = "authToken = 'secret123'";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(
+        !findings.is_empty(),
+        "CamelCase authToken should be flagged"
+    );
+}
+
+#[test]
+fn test_ast_camel_case_acronym_prefix_key_flagged() {
+    let recognizer = AstRecognizer::default();
+    let code = "AWSKey = 'secret123'";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(
+        !findings.is_empty(),
+        "Acronym-prefix CamelCase AWSKey should be flagged"
+    );
+}
+
+#[test]
+fn test_ast_camel_case_acronym_prefix_api_key_flagged() {
+    let recognizer = AstRecognizer::default();
+    let code = "APIKey = 'secret123'";
+    let parsed = ruff_python_parser::parse_module(code).unwrap();
+    let findings = recognizer.scan_ast(
+        &parsed.into_syntax().body,
+        &PathBuf::from("test.py"),
+        &LineIndex::new(code),
+    );
+    assert!(
+        !findings.is_empty(),
+        "Acronym-prefix CamelCase APIKey should be flagged"
+    );
+}
+
+#[test]
+fn test_entropy_high_entropy_two_spaces_is_not_auto_excluded() {
+    let recognizer = EntropyRecognizer::default();
+    let content = "v = 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789  AaBbCcDdEeFfGgHhIiJj'";
+    let findings = recognizer.scan_text_fallback(content, &PathBuf::from("test.py"));
+    assert!(
+        findings.iter().any(|f| f.rule_id == "CSP-S200"),
+        "Two-space high-entropy strings should still be evaluated"
+    );
 }

@@ -9,6 +9,7 @@ Thank you for your interest in contributing to the Rust implementation of CytoSc
 - **Python**: Version 3.8 or higher (for hybrid packaging).
 - **UV or pip**: For Python package management.
 - **Maturin**: For building PyO3 extensions.
+- **Prek**: Rust-based pre-commit runner. Install via `cargo install prek`. Note: `prek` is a standalone binary that automatically handles its own Python runtimes and virtual environments for hooks, so no manual Python environment management is needed for the hooks themselves.
 - **Git**: For version control.
 
 ## Setup Development Environment
@@ -72,6 +73,13 @@ Thank you for your interest in contributing to the Rust implementation of CytoSc
 
    # Or using pip
    pip install -e ".[dev]"
+   ```
+
+4. **Install Pre-commit Hooks:**
+
+   ```bash
+   # Install hooks (use -f to force/override if pre-commit was previously used)
+   prek install -f
    ```
 
 ## Developing cytoscnpy-mcp
@@ -154,31 +162,36 @@ act -W .github/workflows/rust-ci.yml
    git checkout -b feature/your-rust-feature
    ```
 
-2. **Make Your Changes:**
+2. **Environment & TDD First:**
+   - **Always activate your environment** (`.venv\Scripts\activate` on Windows) before starting.
+   - **Follow TDD (Test-Driven Development):** Write your test cases first (Rust in `tests/` or Python in `python/tests/`) to define the expected behavior.
+   - Run tests frequently as you develop to ensure your changes are correct.
+
+3. **Make Your Changes:**
    - Follow Rust best practices and idioms.
    - Use `rustfmt` for formatting: `cargo fmt`.
    - Use `clippy` for linting: `cargo clippy`.
 
-3. **Test Your Changes:**
+4. **Verify Parity & Correctness:**
 
    ```bash
-   # Run all tests
+   # Run Rust tests
    cargo test
 
-   # Check compilation
-   cargo check
+   # Run Python tests (if applicable)
+   pytest python/tests/
 
    # Run on test data
-   cargo run -- ../test/sample_repo
+   cargo run --bin cytoscnpy-cli -- ../test/sample_repo
    ```
 
-4. **Build Release Version:**
-
+5. **Final Quality Gate:**
+   Before committing, run the full suite across the entire codebase to ensure everything is perfect:
    ```bash
-   cargo build --release
+   prek run --all-files
    ```
 
-5. **Commit and Push:**
+6. **Commit and Push:**
 
    ```bash
    git add .
@@ -186,7 +199,7 @@ act -W .github/workflows/rust-ci.yml
    git push origin feature/your-rust-feature
    ```
 
-6. **Open Pull Request:**
+7. **Open Pull Request:**
    - Open a PR against the `main` branch.
    - Describe your changes and link to any relevant issues.
 
@@ -639,6 +652,20 @@ RUST_LOG=debug cargo test
 - **Control Flow Graph**: CFG construction, behavioral validation
 
 See [`cytoscnpy/tests/README.md`](cytoscnpy/tests/README.md) for detailed test documentation.
+
+### Benchmarking
+
+To ensure no performance or accuracy regressions, run the benchmark suite:
+
+```bash
+# Standard benchmark run
+python benchmark/benchmark_and_verify.py
+
+# Compare against baseline to detect regressions
+python benchmark/benchmark_and_verify.py --compare-json benchmark/baseline_win32.json
+```
+
+See [`benchmark/README.md`](benchmark/README.md) for more details.
 
 ## ❓ Getting Help
 

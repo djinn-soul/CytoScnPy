@@ -30,12 +30,21 @@ jobs:
           comment-summary-in-pr: always
           # License check - allow common permissive licenses
           # Allow known unavailable vulnerabilities for Python 3.8 support
-          # setuptools path traversal (requires Py 3.9+)
-          allow-ghsas:
-            - GHSA-5rjg-fvgr-3xxf
-            # urllib3 (requires Py 3.9+)
-            - GHSA-g4mx-q9vg-27p4
-            - GHSA-34jh-p97f-mpxf
+          allow-ghsas: >-
+            # setuptools path traversal (fix requires Py 3.9+)
+            GHSA-5rjg-fvgr-3xxf,
+            # urllib3: redirect body handling (fix requires Py 3.9+)
+            GHSA-g4mx-q9vg-27p4,
+            # urllib3: Proxy-Authorization leakage (fix requires Py 3.9+)
+            GHSA-34jh-p97f-mpxf,
+            # urllib3: decompression chain DoS (fix requires Py 3.9+)
+            GHSA-gm62-xv2j-4w53,
+            # urllib3: streaming API highly compressed data DoS (fix requires Py 3.9+)
+            GHSA-2xpw-w6gg-jr37,
+            # filelock: TOCTOU race condition (fix requires Py 3.9+)
+            GHSA-pw2r-r8wx-5mcc,
+            # pip: path traversal in fallback tar extraction (fix requires Py 3.9+)
+            GHSA-4xh5-x5gv-qwph
 
           # License check - allow common permissive licenses
           allow-licenses:

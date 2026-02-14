@@ -39,3 +39,59 @@ def client():
         "Expected unused production function `client` to be reported"
     );
 }
+
+#[test]
+fn non_test_function_with_fix_alias_decorator_is_still_flagged_unused() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("main.py");
+    let mut file = File::create(&file_path).unwrap();
+    let content = r#"
+def fix(fn):
+    return fn
+
+@fix
+def decorated():
+    return "unused"
+"#;
+    write!(file, "{content}").unwrap();
+
+    let mut analyzer = CytoScnPy::default().with_confidence(1).with_tests(false);
+    let result = analyzer.analyze(dir.path());
+
+    assert!(
+        result
+            .unused_functions
+            .iter()
+            .any(|item| item.simple_name == "decorated"),
+        "Expected @fix-decorated production function to be reported as unused"
+    );
+}
+
+#[test]
+fn usefixtures_does_not_mark_non_fixture_local_symbol_as_used() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("main.py");
+    let mut file = File::create(&file_path).unwrap();
+    let content = r#"
+import pytest
+
+@pytest.mark.usefixtures("client")
+def test_thing():
+    assert True
+
+def client():
+    return "unused production helper"
+"#;
+    write!(file, "{content}").unwrap();
+
+    let mut analyzer = CytoScnPy::default().with_confidence(1).with_tests(false);
+    let result = analyzer.analyze(dir.path());
+
+    assert!(
+        result
+            .unused_functions
+            .iter()
+            .any(|item| item.simple_name == "client"),
+        "Expected non-fixture local symbol referenced only by usefixtures to stay unused"
+    );
+}

@@ -30,7 +30,7 @@ impl ContextScorer {
         false
     }
 
-    /// Checks if the value looks like a placeholder.
+    /// Checks if a path looks like a placeholder.
     #[allow(clippy::unused_self)]
     pub(crate) fn is_placeholder(&self, line: &str) -> bool {
         let lower = line.to_lowercase();
@@ -48,5 +48,12 @@ impl ContextScorer {
             || lower.contains("<your_")
             || lower.contains("${")
             || lower.contains("{{")
+    }
+
+    /// Checks if a path is a test file.
+    #[cfg(test)]
+    #[allow(clippy::unused_self)]
+    pub(crate) fn is_test_file(&self, path: &std::path::Path) -> bool {
+        crate::utils::is_test_path(&path.to_string_lossy())
     }
 }

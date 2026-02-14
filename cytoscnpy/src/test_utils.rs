@@ -17,6 +17,8 @@ pub struct TestAwareVisitor<'a> {
     /// List of line numbers that contain fixture definitions.
     /// These receive a softer penalty to allow for "Low Confidence" reporting.
     pub fixture_decorated_lines: Vec<usize>,
+    /// Names of local fixture definitions in this file.
+    pub fixture_names: Vec<String>,
 
     /// Fixture names referenced via `@pytest.mark.usefixtures("name")`.
     /// These should be treated as "used" even without direct parameter reference.
@@ -39,6 +41,7 @@ impl<'a> TestAwareVisitor<'a> {
             is_test_file,
             test_decorated_lines: Vec::new(),
             fixture_decorated_lines: Vec::new(),
+            fixture_names: Vec::new(),
             usefixtures_names: Vec::new(),
             line_index,
         }
@@ -57,6 +60,7 @@ impl<'a> TestAwareVisitor<'a> {
                 }
 
                 // Check decorators for pytest fixtures or markers.
+                let mut is_fixture_definition = false;
                 for decorator in &node.decorator_list {
                     let decorator_name = match &decorator.expression {
                         Expr::Name(name_node) => name_node.id.to_string(),
@@ -94,9 +98,13 @@ impl<'a> TestAwareVisitor<'a> {
 
                     if FIXTURE_DECOR_RE().is_match(&decorator_name) {
                         self.fixture_decorated_lines.push(line);
+                        is_fixture_definition = true;
                     } else if TEST_DECOR_RE().is_match(&decorator_name) {
                         self.test_decorated_lines.push(line);
                     }
+                }
+                if is_fixture_definition {
+                    self.fixture_names.push(name.to_string());
                 }
 
                 // Recurse into the function body.

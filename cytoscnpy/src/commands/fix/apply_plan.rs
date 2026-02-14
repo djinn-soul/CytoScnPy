@@ -62,8 +62,7 @@ fn plan_item_edit(
             replacement = Some("_".to_owned());
         }
     } else if item_type == "method" {
-        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte))
-            .or_else(|| find_method_edit(&module.body, &def.simple_name, None));
+        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte));
         if let Some(edit) = edit {
             edit_range = Some((edit.start, edit.end));
             if edit.class_would_be_empty {
@@ -119,8 +118,7 @@ fn plan_item_edit(
             replacement = Some("_".to_owned());
         }
     } else if item_type == "method" {
-        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte))
-            .or_else(|| find_method_edit(&module.body, &def.simple_name, None));
+        let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte));
         if let Some(edit) = edit {
             edit_range = Some((edit.start, edit.end));
             if edit.class_would_be_empty {

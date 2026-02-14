@@ -1,3 +1,8 @@
+//! Integration tests for the settings module.
+//!
+//! These tests verify the global initialization, reset, and access patterns
+//! for the application configuration stored in the settings singleton.
+
 use cytoscnpy::config::Config;
 use cytoscnpy::settings::{self, SettingsError};
 

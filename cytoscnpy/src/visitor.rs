@@ -1924,13 +1924,29 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
         }
 
+        let is_pytest_usefixtures_call = Self::is_pytest_usefixtures_call(node);
+
         self.visit_expr(&node.func);
         for arg in &node.arguments.args {
+            if is_pytest_usefixtures_call && matches!(arg, Expr::StringLiteral(_)) {
+                continue;
+            }
             self.visit_expr(arg);
         }
         // Don't forget keyword arguments (e.g., func(a=b))
         for keyword in &node.arguments.keywords {
             self.visit_expr(&keyword.value);
+        }
+    }
+
+    fn is_pytest_usefixtures_call(node: &ast::ExprCall) -> bool {
+        match &*node.func {
+            Expr::Attribute(attr) if attr.attr.as_str() == "usefixtures" => match &*attr.value {
+                Expr::Attribute(inner) => inner.attr.as_str() == "mark",
+                Expr::Name(name) => name.id.as_str() == "mark",
+                _ => false,
+            },
+            _ => false,
         }
     }
 

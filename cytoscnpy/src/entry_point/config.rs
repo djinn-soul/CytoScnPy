@@ -63,7 +63,28 @@ pub(crate) fn resolve_scan_flag(
     if is_vscode {
         cli_flag
     } else {
-        // Default to true if not specified in CLI or config
-        cli_flag || config_flag.unwrap_or(true)
+        // Keep scan categories opt-in unless enabled via CLI or config.
+        cli_flag || config_flag.unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_scan_flag;
+
+    #[test]
+    fn test_resolve_scan_flag_defaults_to_disabled_outside_vscode() {
+        assert!(!resolve_scan_flag(false, None, false));
+    }
+
+    #[test]
+    fn test_resolve_scan_flag_enabled_by_config_outside_vscode() {
+        assert!(resolve_scan_flag(false, Some(true), false));
+    }
+
+    #[test]
+    fn test_resolve_scan_flag_vscode_uses_cli_only() {
+        assert!(!resolve_scan_flag(false, Some(true), true));
+        assert!(resolve_scan_flag(true, Some(false), true));
     }
 }

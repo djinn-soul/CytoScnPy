@@ -76,38 +76,36 @@ pub(super) fn find_method_edit(
     for stmt in body {
         if let Stmt::ClassDef(class_def) = stmt {
             for class_stmt in &class_def.body {
-                match class_stmt {
-                    Stmt::FunctionDef(func) => {
-                        if func.name.as_str() == name {
-                            let method_start_byte = func.range().start().to_usize();
-                            if let Some(target) = target_start_byte {
-                                if method_start_byte != target {
-                                    continue;
-                                }
-                            }
-                            let start = func.range().start().to_usize();
-                            let start = func
-                                .decorator_list
-                                .iter()
-                                .map(|decorator| decorator.range().start().to_usize())
-                                .min()
-                                .unwrap_or(start)
-                                .min(start);
-                            return Some(MethodEdit {
-                                start,
-                                end: func.range().end().to_usize(),
-                                class_would_be_empty: class_def.body.len() == 1,
-                            });
+                if let Stmt::FunctionDef(func) = class_stmt {
+                    if func.name.as_str() != name {
+                        continue;
+                    }
+                    let method_start_byte = func.range().start().to_usize();
+                    let method_name_start_byte = func.name.range().start().to_usize();
+                    if let Some(target) = target_start_byte {
+                        if method_start_byte != target && method_name_start_byte != target {
+                            continue;
                         }
                     }
-                    Stmt::ClassDef(nested) => {
-                        if let Some(edit) = find_method_edit(&nested.body, name, target_start_byte)
-                        {
-                            return Some(edit);
-                        }
-                    }
-                    _ => {}
+                    let start = func.range().start().to_usize();
+                    let start = func
+                        .decorator_list
+                        .iter()
+                        .map(|decorator| decorator.range().start().to_usize())
+                        .min()
+                        .unwrap_or(start)
+                        .min(start);
+                    return Some(MethodEdit {
+                        start,
+                        end: func.range().end().to_usize(),
+                        class_would_be_empty: class_def.body.len() == 1,
+                    });
                 }
+            }
+
+            // Recurse through nested classes in this class body.
+            if let Some(edit) = find_method_edit(&class_def.body, name, target_start_byte) {
+                return Some(edit);
             }
         }
     }

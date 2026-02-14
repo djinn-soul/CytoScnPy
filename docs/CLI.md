@@ -41,6 +41,10 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--clone-similarity <N>`: Sets the similarity threshold for clone detection (0.0 to 1.0). A value of `1.0` finds only exact duplicates; a lower value like `0.8` (default) finds similar logic that might be refactored.
 - `--fix`: Enables "Dead Code Auto-Fix" mode. By default, this is a **dry-run**—it will show you exactly what code would be removed without touching your files.
 - `--apply`, `-a`: Executes the changes suggested by `--fix`. **Warning: This modifies your source code.** It is highly recommended to run with `--fix` first to review changes, and to have a clean Git state before applying.
+  - `--fix` targets: functions, methods, classes, imports, and unused variables.
+  - `--fix` always enforces a minimum confidence floor of **80%** for safety, even if `--confidence` is set lower.
+  - In dry-run mode with `--json`, CytoScnPy emits a deterministic JSON fix plan (`kind: "dead_code_fix_plan"`) suitable for editor/CI consumption.
+  - When removing the only method in a class, CytoScnPy inserts `pass` to keep valid Python syntax.
 
 ### Quality Thresholds (Gate Overrides)
 

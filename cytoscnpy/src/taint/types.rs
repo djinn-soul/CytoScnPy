@@ -173,6 +173,9 @@ pub struct TaintFinding {
     pub file: PathBuf,
     /// Suggested remediation
     pub remediation: String,
+    /// Confidence-scored exploitability (0-100).
+    #[serde(default)]
+    pub exploitability_score: u8,
 }
 
 /// Information about a matched sink.
@@ -204,6 +207,52 @@ impl TaintFinding {
             let path = self.flow_path.join(" → ");
             format!("{} → {} → {}", self.source, path, self.sink)
         }
+    }
+}
+
+/// Computes a confidence-scored exploitability (0-100) for a source->sink flow.
+#[must_use]
+pub fn score_exploitability(
+    source: &TaintSource,
+    vuln_type: &VulnType,
+    severity: Severity,
+    flow_hops: usize,
+) -> u8 {
+    let mut score: i64 = match severity {
+        Severity::Critical => 90,
+        Severity::High => 75,
+        Severity::Medium => 60,
+        Severity::Low => 45,
+    };
+
+    score += match vuln_type {
+        VulnType::CodeInjection | VulnType::CommandInjection => 10,
+        VulnType::SqlInjection | VulnType::Deserialization => 8,
+        VulnType::Ssrf => 6,
+        VulnType::PathTraversal => 5,
+        VulnType::Xss => 4,
+        VulnType::OpenRedirect => 2,
+    };
+
+    score += match source {
+        TaintSource::Input
+        | TaintSource::FlaskRequest(_)
+        | TaintSource::DjangoRequest(_)
+        | TaintSource::FastApiParam(_)
+        | TaintSource::AzureFunctionsRequest(_) => 8,
+        TaintSource::CommandLine | TaintSource::Environment | TaintSource::ExternalData => 5,
+        TaintSource::FunctionParam(_) | TaintSource::FunctionReturn(_) => 3,
+        TaintSource::FileRead | TaintSource::Custom(_) => 2,
+    };
+
+    // Longer propagation usually lowers confidence.
+    let flow_hops_i64 = i64::try_from(flow_hops).unwrap_or(i64::MAX);
+    let hop_penalty = flow_hops_i64.saturating_sub(1).saturating_mul(2);
+    score -= hop_penalty;
+
+    match u8::try_from(score.clamp(0, 100)) {
+        Ok(value) => value,
+        Err(_) => unreachable!("clamped exploitability score should always fit in u8"),
     }
 }
 

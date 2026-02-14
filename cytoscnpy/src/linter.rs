@@ -20,6 +20,7 @@ impl LinterVisitor {
         filename: PathBuf,
         line_index: LineIndex,
         config: Config,
+        is_test_file: bool,
     ) -> Self {
         Self {
             rules,
@@ -27,6 +28,7 @@ impl LinterVisitor {
                 filename,
                 line_index,
                 config,
+                is_test_file,
             },
             findings: Vec::new(),
         }

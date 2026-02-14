@@ -82,3 +82,34 @@ fn test_find_def_range_import_from_multi() {
     let range = find_def_range(&body, "a", "import");
     assert!(range.is_none());
 }
+
+#[test]
+fn test_find_def_range_method() {
+    let source = "
+class Service:
+    def used(self): pass
+
+    def unused(self):
+        pass
+";
+    let parsed = ruff_python_parser::parse_module(source).unwrap();
+    let body = parsed.into_syntax().body;
+
+    let range = find_def_range(&body, "unused", "method");
+    assert!(range.is_some());
+}
+
+#[test]
+fn test_find_def_range_method_includes_decorators() {
+    let source = "
+class Service:
+    @classmethod
+    def unused(cls):
+        pass
+";
+    let parsed = ruff_python_parser::parse_module(source).unwrap();
+    let body = parsed.into_syntax().body;
+
+    let range = find_def_range(&body, "unused", "method").unwrap();
+    assert_eq!(range.0, source.find('@').unwrap());
+}

@@ -45,6 +45,10 @@ impl Rule for EvalRule {
         self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if context.is_test_file {
+            return None;
+        }
+
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if name == "eval" {
@@ -82,6 +86,10 @@ impl Rule for ExecRule {
         self.metadata
     }
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        if context.is_test_file {
+            return None;
+        }
+
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if name == "exec" {

@@ -17,6 +17,7 @@ fn run_linter(source: &str, config: Config) -> LinterVisitor {
         PathBuf::from("performance_test.py"),
         line_index,
         config,
+        false,
     );
 
     if let ruff_python_ast::Mod::Module(module) = tree.into_syntax() {

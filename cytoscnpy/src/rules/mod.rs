@@ -13,6 +13,8 @@ pub struct Context {
     pub line_index: LineIndex,
     /// Configuration settings.
     pub config: Config,
+    /// Whether the file is a test file.
+    pub is_test_file: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -138,6 +138,7 @@ impl SecretScanner {
         file_path: &PathBuf,
         line_index: &LineIndex,
         docstring_lines: Option<&FxHashSet<usize>>,
+        is_test_file: bool,
     ) -> Vec<SecretFinding> {
         let mut all_findings = Vec::new();
         let lines: Vec<&str> = content.lines().collect();
@@ -194,6 +195,7 @@ impl SecretScanner {
                 file_path,
                 is_comment,
                 is_docstring,
+                is_test_file,
             };
 
             // Score the finding
@@ -286,6 +288,7 @@ pub fn scan_secrets(
     file_path: &PathBuf,
     config: &SecretsConfig,
     docstring_lines: Option<&FxHashSet<usize>>,
+    is_test_file: bool,
 ) -> Vec<SecretFinding> {
     let scanner = SecretScanner::new(config);
     let line_index = LineIndex::new(content);
@@ -301,13 +304,21 @@ pub fn scan_secrets(
         file_path,
         &line_index,
         docstring_lines,
+        is_test_file,
     )
 }
 
 /// Backward-compatible scan function (uses default config, no docstring filtering).
 #[must_use]
 pub fn scan_secrets_compat(content: &str, file_path: &PathBuf) -> Vec<SecretFinding> {
-    scan_secrets(content, file_path, &SecretsConfig::default(), None)
+    let is_test_file = crate::utils::is_test_path(&file_path.to_string_lossy());
+    scan_secrets(
+        content,
+        file_path,
+        &SecretsConfig::default(),
+        None,
+        is_test_file,
+    )
 }
 
 // ============================================================================
@@ -363,7 +374,7 @@ mod tests {
     fn test_scanner_detects_github_token() {
         let config = default_config();
         let content = "token = 'ghp_abcdefghijklmnopqrstuvwxyz1234567890'";
-        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
+        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
 
         assert!(!findings.is_empty());
         assert!(findings.iter().any(|f| f.rule_id == "CSP-S104"));
@@ -373,7 +384,7 @@ mod tests {
     fn test_scanner_detects_suspicious_variable() {
         let config = default_config();
         let content = r#"database_password = "super_secret_123""#;
-        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
+        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
 
         assert!(!findings.is_empty());
         assert!(findings.iter().any(|f| f.rule_id == "CSP-S300"));
@@ -383,7 +394,7 @@ mod tests {
     fn test_scanner_skips_env_var() {
         let config = default_config();
         let content = r#"password = os.environ.get("PASSWORD")"#;
-        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
+        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
 
         // Should not detect CSP-S300 for env var access
         assert!(
@@ -396,7 +407,7 @@ mod tests {
     fn test_scanner_entropy_fallback_when_ast_parse_fails() {
         let config = default_config();
         let content = r#"if True print("aB3xY7mN9pQ2rS5tU8vW0zK4cF6gH1jL")"#;
-        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
+        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
 
         assert!(
             findings.iter().any(|f| f.rule_id == "CSP-S200"),
@@ -410,11 +421,17 @@ mod tests {
         let content = r#"api_key = "test_secret_value_12345""#;
 
         // Normal file
-        let normal_findings = scan_secrets(content, &PathBuf::from("src/main.py"), &config, None);
+        let normal_findings =
+            scan_secrets(content, &PathBuf::from("src/main.py"), &config, None, false);
 
         // Test file
-        let test_findings =
-            scan_secrets(content, &PathBuf::from("tests/test_main.py"), &config, None);
+        let test_findings = scan_secrets(
+            content,
+            &PathBuf::from("tests/test_main.py"),
+            &config,
+            None,
+            true,
+        );
 
         // Test file findings should have lower confidence
         if !normal_findings.is_empty() && !test_findings.is_empty() {
@@ -432,7 +449,7 @@ mod tests {
         let config = default_config();
         // This line matches both regex pattern AND suspicious variable name
         let content = r#"api_key = "ghp_abcdefghijklmnopqrstuvwxyz1234567890""#;
-        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None);
+        let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
 
         // Should only have one finding per line (highest confidence)
         let line_1_findings: Vec<_> = findings.iter().filter(|f| f.line == 1).collect();

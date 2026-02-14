@@ -8,6 +8,7 @@
 
 mod aggregation;
 mod builder;
+mod fixtures;
 mod heuristics;
 pub mod single_file;
 mod traversal;

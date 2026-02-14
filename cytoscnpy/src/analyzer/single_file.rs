@@ -97,6 +97,7 @@ impl CytoScnPy {
         let mut quality = Vec::new();
         let mut parse_errors = Vec::new();
         let mut call_graph = CallGraph::new();
+        let mut fixture_metadata = crate::analyzer::fixtures::FileFixtureMetadata::default();
 
         match parse_module(&source) {
             Ok(parsed) => {
@@ -143,21 +144,12 @@ impl CytoScnPy {
                     }
                 }
 
-                let local_fixture_names: FxHashSet<&str> = test_visitor
-                    .fixture_names
-                    .iter()
-                    .map(String::as_str)
-                    .collect();
-                for fixture in &test_visitor.usefixtures_names {
-                    if !local_fixture_names.contains(fixture.as_str()) {
-                        continue;
-                    }
-                    visitor.add_ref(fixture.clone());
-                    if !module_name.is_empty() {
-                        let qualified = format!("{module_name}.{fixture}");
-                        visitor.add_ref(qualified);
-                    }
-                }
+                fixture_metadata = crate::analyzer::fixtures::collect_file_fixture_metadata(
+                    &visitor,
+                    &test_visitor,
+                    file_path,
+                    &module_name,
+                );
 
                 let exports = visitor.exports.clone();
                 for export_name in &exports {
@@ -485,6 +477,10 @@ impl CytoScnPy {
             mi: file_mi,
             file_size,
             call_graph,
+            fixture_definitions: fixture_metadata.fixture_definitions,
+            fixture_requests: fixture_metadata.fixture_requests,
+            fixture_imports: fixture_metadata.fixture_imports,
+            pytest_plugins: fixture_metadata.pytest_plugins,
         }
     }
 
@@ -525,20 +521,21 @@ impl CytoScnPy {
                     visitor.visit_stmt(stmt);
                 }
 
-                let local_fixture_names: FxHashSet<&str> = test_visitor
-                    .fixture_names
-                    .iter()
-                    .map(String::as_str)
-                    .collect();
-                for fixture in &test_visitor.usefixtures_names {
-                    if !local_fixture_names.contains(fixture.as_str()) {
-                        continue;
-                    }
-                    visitor.add_ref(fixture.clone());
-                    if !module_name.is_empty() {
-                        let qualified = format!("{module_name}.{fixture}");
-                        visitor.add_ref(qualified);
-                    }
+                let fixture_metadata = crate::analyzer::fixtures::collect_file_fixture_metadata(
+                    &visitor,
+                    &test_visitor,
+                    file_path,
+                    &module_name,
+                );
+                let fixture_increments =
+                    crate::analyzer::fixtures::resolve_fixture_reference_increments(
+                        &fixture_metadata.fixture_definitions,
+                        &fixture_metadata.fixture_requests,
+                        &fixture_metadata.fixture_imports,
+                        &fixture_metadata.pytest_plugins,
+                    );
+                for (full_name, count) in fixture_increments {
+                    *visitor.references.entry(full_name).or_insert(0) += count;
                 }
 
                 // Sync and Refine

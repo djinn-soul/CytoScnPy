@@ -26,6 +26,10 @@ impl CytoScnPy {
         let mut all_danger = Vec::new();
         let mut all_quality = Vec::new();
         let mut all_parse_errors = Vec::new();
+        let mut all_fixture_definitions = Vec::new();
+        let mut all_fixture_requests = Vec::new();
+        let mut all_fixture_imports = Vec::new();
+        let mut all_pytest_plugins = Vec::new();
 
         let mut total_complexity = 0.0;
         let mut total_mi = 0.0;
@@ -55,6 +59,10 @@ impl CytoScnPy {
                 mi,
                 file_size: size,
                 call_graph,
+                fixture_definitions,
+                fixture_requests,
+                fixture_imports,
+                pytest_plugins,
             } = res;
             global_call_graph.merge(call_graph);
             let file_path: &std::path::PathBuf = &files[i];
@@ -107,6 +115,10 @@ impl CytoScnPy {
             all_danger.extend(danger);
             all_quality.extend(quality);
             all_parse_errors.extend(parse_errors);
+            all_fixture_definitions.extend(fixture_definitions);
+            all_fixture_requests.extend(fixture_requests);
+            all_fixture_imports.extend(fixture_imports);
+            all_pytest_plugins.extend(pytest_plugins);
             self.total_lines_analyzed += lines;
 
             if complexity > 0.0 || mi > 0.0 {
@@ -115,6 +127,21 @@ impl CytoScnPy {
                 files_with_quality_metrics += 1;
             }
         }
+
+        let fixture_ref_increments =
+            crate::analyzer::fixtures::resolve_fixture_reference_increments(
+                &all_fixture_definitions,
+                &all_fixture_requests,
+                &all_fixture_imports,
+                &all_pytest_plugins,
+            );
+        for (full_name, count) in fixture_ref_increments {
+            *ref_counts.entry(full_name).or_insert(0) += count;
+        }
+        let fixture_definition_names: FxHashSet<String> = all_fixture_definitions
+            .iter()
+            .map(|def| def.full_name.clone())
+            .collect();
 
         // --- Phase 2: Duck Typing Logic ---
         // 1. Map Class -> Function Names
@@ -305,7 +332,8 @@ impl CytoScnPy {
                 if !matched && !def.is_enum_member {
                     let should_fallback = def.def_type != "variable"
                         && def.def_type != "parameter"
-                        && def.def_type != "import";
+                        && def.def_type != "import"
+                        && !fixture_definition_names.contains(&def.full_name);
 
                     if should_fallback {
                         if let Some(count) = ref_counts.get(&def.simple_name) {

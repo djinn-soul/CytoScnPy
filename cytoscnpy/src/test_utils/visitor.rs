@@ -19,6 +19,7 @@ pub struct FixtureImportHint {
     pub local_name: String,
     pub source_module: String,
     pub source_symbol: String,
+    pub level: u32,
 }
 
 /// A visitor that detects test-related code.
@@ -206,10 +207,6 @@ impl<'a> TestAwareVisitor<'a> {
     }
 
     fn extract_import_bindings(&mut self, node: &ruff_python_ast::StmtImportFrom) {
-        let Some(module) = &node.module else {
-            return;
-        };
-
         for alias in &node.names {
             if alias.name.as_str() == "*" {
                 continue;
@@ -217,8 +214,12 @@ impl<'a> TestAwareVisitor<'a> {
             let local_name = alias.asname.as_ref().unwrap_or(&alias.name).to_string();
             self.fixture_imports.push(FixtureImportHint {
                 local_name,
-                source_module: module.to_string(),
+                source_module: node
+                    .module
+                    .as_ref()
+                    .map_or_else(String::new, ToString::to_string),
                 source_symbol: alias.name.to_string(),
+                level: node.level,
             });
         }
     }

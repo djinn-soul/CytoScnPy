@@ -242,3 +242,37 @@ def test_alias(api_client):
         "fixture alias name from decorator should mark implementation as used"
     );
 }
+
+#[test]
+fn relative_imported_fixture_module_is_resolved() {
+    let dir = project_tempdir();
+    write_file(&dir.path().join("tests/__init__.py"), "");
+    write_file(
+        &dir.path().join("tests/fixtures.py"),
+        r#"
+import pytest
+
+@pytest.fixture
+def db():
+    return {}
+"#,
+    );
+    write_file(
+        &dir.path().join("tests/test_db.py"),
+        r#"
+from .fixtures import db
+
+def test_db(db):
+    assert db == {}
+"#,
+    );
+
+    let result = analyze(dir.path());
+    assert!(
+        !result
+            .unused_functions
+            .iter()
+            .any(|f| { f.simple_name == "db" && f.file.ends_with("tests\\fixtures.py") }),
+        "fixture imported via relative module path should be resolved and marked used"
+    );
+}

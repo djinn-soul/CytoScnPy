@@ -125,6 +125,33 @@ impl EntropyRecognizer {
 
     pub(super) fn check_string(&self, s: &str, line: usize, findings: &mut Vec<RawFinding>) {
         if s.len() >= self.min_length {
+            // Optimization: High-entropy secrets (API keys, tokens, hashes)
+            // almost never contain many spaces. Natural language, SQL, and
+            // other structured data that often trigger false positives do.
+            if s.chars().filter(|&c| c == ' ').count() >= 3 {
+                return;
+            }
+
+            // Skip common high-entropy data blobs that aren't usually secrets
+            // 1. Base64 padding or length suggesting a blob
+            if s.len() > 64 && (s.ends_with('=') || s.chars().any(|c| c == '+' || c == '/')) {
+                // Check if it strictly follows Base64 charset
+                if s.chars()
+                    .all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=')
+                {
+                    return;
+                }
+            }
+            // 2. Very long hex strings (often binary data or hashes we don't care about here)
+            if s.len() > 128 && s.chars().all(|c| c.is_ascii_hexdigit()) {
+                return;
+            }
+            // 3. UUID-like structures (e.g., f47ac10b-58cc-4372-a567-0e02b2c3d479)
+            if s.len() == 36 && s.chars().filter(|&c| c == '-').count() == 4 {
+                // Quick check for hex segments between hyphens
+                return;
+            }
+
             let entropy = Self::calculate_entropy(s);
             if entropy >= self.threshold && !Self::looks_like_path_or_url(s) {
                 findings.push(RawFinding {

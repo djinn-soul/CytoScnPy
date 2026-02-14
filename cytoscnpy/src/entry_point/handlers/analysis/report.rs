@@ -210,17 +210,7 @@ fn stable_findings(result: &crate::analyzer::AnalysisResult) -> Vec<Value> {
         }));
     }
     for finding in &result.secrets {
-        let file = crate::utils::normalize_display_path(&finding.file);
-        let stable_id = format!("secret:{}:{}:{}", finding.rule_id, file, finding.line);
-        items.push(serde_json::json!({
-            "stable_id": stable_id,
-            "kind": "secret",
-            "rule_id": finding.rule_id,
-            "file": file,
-            "line": finding.line,
-            "severity": finding.severity,
-            "confidence": finding.confidence,
-        }));
+        items.push(stable_secret_item(finding));
     }
     for finding in &result.quality {
         let file = crate::utils::normalize_display_path(&finding.file);
@@ -287,6 +277,74 @@ fn stable_dead_code_item(kind: &str, def: &crate::visitor::Definition) -> Value 
         "end_byte": def.end_byte,
         "confidence": def.confidence,
     })
+}
+
+fn stable_secret_item(finding: &crate::rules::secrets::SecretFinding) -> Value {
+    let file = crate::utils::normalize_display_path(&finding.file);
+    let matched = finding.matched_value.as_deref().unwrap_or("-");
+    let entropy = finding
+        .entropy
+        .map(|value| format!("{value:.4}"))
+        .unwrap_or_else(|| "-".to_owned());
+    let stable_id = format!(
+        "secret:{}:{}:{}:{}:{}:{}:{}",
+        finding.rule_id, file, finding.line, finding.confidence, finding.message, matched, entropy
+    );
+    serde_json::json!({
+        "stable_id": stable_id,
+        "kind": "secret",
+        "rule_id": finding.rule_id,
+        "file": file,
+        "line": finding.line,
+        "severity": finding.severity,
+        "confidence": finding.confidence,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stable_findings;
+
+    #[test]
+    fn secret_stable_ids_include_disambiguators() {
+        let mut result = crate::analyzer::AnalysisResult::default();
+        let file = std::path::PathBuf::from("test.py");
+        result.secrets.push(crate::rules::secrets::SecretFinding {
+            message: "Hardcoded password".to_owned(),
+            rule_id: "CSP-S001".to_owned(),
+            category: "Secrets".to_owned(),
+            file: file.clone(),
+            line: 20,
+            severity: "CRITICAL".to_owned(),
+            matched_value: Some("abcd...wxyz".to_owned()),
+            entropy: None,
+            confidence: 100,
+        });
+        result.secrets.push(crate::rules::secrets::SecretFinding {
+            message: "Hardcoded password variant".to_owned(),
+            rule_id: "CSP-S001".to_owned(),
+            category: "Secrets".to_owned(),
+            file,
+            line: 20,
+            severity: "CRITICAL".to_owned(),
+            matched_value: Some("1234...7890".to_owned()),
+            entropy: None,
+            confidence: 95,
+        });
+
+        let stable_ids: Vec<String> = stable_findings(&result)
+            .into_iter()
+            .filter(|item| item.get("kind").and_then(serde_json::Value::as_str) == Some("secret"))
+            .filter_map(|item| {
+                item.get("stable_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .collect();
+
+        assert_eq!(stable_ids.len(), 2);
+        assert_ne!(stable_ids[0], stable_ids[1]);
+    }
 }
 
 fn print_summary<W: std::io::Write>(

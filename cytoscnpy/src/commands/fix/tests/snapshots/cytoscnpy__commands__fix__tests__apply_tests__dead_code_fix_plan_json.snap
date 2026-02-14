@@ -1,0 +1,32 @@
+---
+source: cytoscnpy/src/commands/fix/tests/apply_tests.rs
+assertion_line: 423
+expression: normalized
+---
+{
+  "kind": "dead_code_fix_plan",
+  "min_confidence": 80,
+  "planned_files": 1,
+  "planned_items": 1,
+  "plans": [
+    {
+      "file": "[TMP]\\test.py",
+      "items_removed": 1,
+      "lines_removed": 0,
+      "planned_edits": [
+        {
+          "end_byte": 31,
+          "item_type": "function",
+          "line": 1,
+          "name": "unused_function",
+          "stable_id": "function:unused_function:0:31",
+          "start_byte": 0
+        }
+      ],
+      "removed_names": [
+        "unused_function"
+      ]
+    }
+  ],
+  "schema_version": "2"
+}

@@ -124,7 +124,6 @@ pub fn get_test_import_re() -> &'static Regex {
 /// Matches:
 /// - `pytest.fixture`
 /// - Bare `fixture`
-/// - `fix`, `fx`
 ///
 /// # Panics
 ///
@@ -148,7 +147,6 @@ pub fn get_fixture_decor_re() -> &'static Regex {
 /// Matches:
 /// - `pytest.fixture`, `pytest.mark.*`
 /// - Bare `fixture` (from `from pytest import fixture`)
-/// - Common aliases: `fix`, `fx`
 /// - `patch`, `responses.activate`, `freeze_time`
 ///
 /// # Panics
@@ -162,8 +160,6 @@ pub fn get_test_decor_re() -> &'static Regex {
             r"(?x)^(
             pytest\.(fixture|mark) |
             fixture |
-            fix |
-            fx |
             patch(\.|$) |
             responses\.activate |
             freeze_time

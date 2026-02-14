@@ -143,7 +143,15 @@ impl CytoScnPy {
                     }
                 }
 
+                let local_fixture_names: FxHashSet<&str> = test_visitor
+                    .fixture_names
+                    .iter()
+                    .map(String::as_str)
+                    .collect();
                 for fixture in &test_visitor.usefixtures_names {
+                    if !local_fixture_names.contains(fixture.as_str()) {
+                        continue;
+                    }
                     visitor.add_ref(fixture.clone());
                     if !module_name.is_empty() {
                         let qualified = format!("{module_name}.{fixture}");
@@ -517,7 +525,15 @@ impl CytoScnPy {
                     visitor.visit_stmt(stmt);
                 }
 
+                let local_fixture_names: FxHashSet<&str> = test_visitor
+                    .fixture_names
+                    .iter()
+                    .map(String::as_str)
+                    .collect();
                 for fixture in &test_visitor.usefixtures_names {
+                    if !local_fixture_names.contains(fixture.as_str()) {
+                        continue;
+                    }
                     visitor.add_ref(fixture.clone());
                     if !module_name.is_empty() {
                         let qualified = format!("{module_name}.{fixture}");

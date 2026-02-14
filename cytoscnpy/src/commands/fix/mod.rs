@@ -102,18 +102,9 @@ pub fn run_fix_deadcode<W: Write>(
     let items_by_file = plan::collect_items_to_fix(results, options);
 
     if items_by_file.is_empty() {
-        if options.dry_run && options.json_output {
-            let payload = serde_json::json!({
-                "schema_version": "2",
-                "kind": "dead_code_fix_plan",
-                "min_confidence": options.min_confidence,
-                "planned_files": 0,
-                "planned_items": 0,
-                "plans": []
-            });
-            serde_json::to_writer_pretty(&mut writer, &payload)?;
-            writeln!(writer)?;
-        } else if !options.json_output {
+        if options.json_output {
+            write_json_fix_payload(&mut writer, options, &[])?;
+        } else {
             writeln!(
                 writer,
                 "  No items with confidence >= {} to fix.",
@@ -144,29 +135,23 @@ pub fn run_fix_deadcode<W: Write>(
                 .then_with(|| type_a.cmp(type_b))
                 .then_with(|| def_a.simple_name.cmp(&def_b.simple_name))
         });
-        if let Some(res) =
+        let res = if options.json_output {
+            let mut quiet = Vec::new();
+            apply::apply_dead_code_fix_to_file(&mut quiet, &file_path, &items, options)?
+        } else {
             apply::apply_dead_code_fix_to_file(&mut writer, &file_path, &items, options)?
-        {
+        };
+        if let Some(res) = res {
             all_results.push(res);
         }
     }
 
-    if options.dry_run && options.json_output {
-        let planned_items: usize = all_results.iter().map(|result| result.items_removed).sum();
-        let payload = serde_json::json!({
-            "schema_version": "2",
-            "kind": "dead_code_fix_plan",
-            "min_confidence": options.min_confidence,
-            "planned_files": all_results.len(),
-            "planned_items": planned_items,
-            "plans": all_results,
-        });
-        serde_json::to_writer_pretty(&mut writer, &payload)?;
-        writeln!(writer)?;
+    if options.json_output {
+        write_json_fix_payload(&mut writer, options, &all_results)?;
         return Ok(all_results);
     }
 
-    if !all_results.is_empty() && !options.dry_run {
+    if !all_results.is_empty() && !options.dry_run && !options.json_output {
         let total_items_removed: usize = all_results.iter().map(|r| r.items_removed).sum();
         let total_lines_removed: usize = all_results.iter().map(|r| r.lines_removed).sum();
 
@@ -221,4 +206,40 @@ fn total_targeted_items(
         total += results.unused_variables.len();
     }
     total
+}
+
+fn write_json_fix_payload<W: Write>(
+    writer: &mut W,
+    options: &DeadCodeFixOptions,
+    all_results: &[FixResult],
+) -> Result<()> {
+    if options.dry_run {
+        let planned_items: usize = all_results.iter().map(|result| result.items_removed).sum();
+        let payload = serde_json::json!({
+            "schema_version": "2",
+            "kind": "dead_code_fix_plan",
+            "min_confidence": options.min_confidence,
+            "planned_files": all_results.len(),
+            "planned_items": planned_items,
+            "plans": all_results,
+        });
+        serde_json::to_writer_pretty(&mut *writer, &payload)?;
+        writeln!(writer)?;
+        return Ok(());
+    }
+
+    let items_removed: usize = all_results.iter().map(|result| result.items_removed).sum();
+    let lines_removed: usize = all_results.iter().map(|result| result.lines_removed).sum();
+    let payload = serde_json::json!({
+        "schema_version": "2",
+        "kind": "dead_code_fix_report",
+        "min_confidence": options.min_confidence,
+        "applied_files": all_results.len(),
+        "items_removed": items_removed,
+        "lines_removed": lines_removed,
+        "results": all_results,
+    });
+    serde_json::to_writer_pretty(&mut *writer, &payload)?;
+    writeln!(writer)?;
+    Ok(())
 }

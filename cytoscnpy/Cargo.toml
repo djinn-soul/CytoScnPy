@@ -50,7 +50,7 @@ serde_json = { version = "1.0", features = [
     "std",
 ] } # Restoring default briefly to ensure it works, then trim
 nbformat = "0.15"
-once_cell = "1.21.3"
+once_cell = "1.21"
 regex = { version = "1.10", default-features = false, features = [
     "std",
     "unicode-perl",

@@ -1,3 +1,6 @@
+use super::fixtures::{
+    FixtureDefinitionRecord, FixtureImportBinding, FixtureRequestRecord, PytestPluginDeclaration,
+};
 use crate::clones::CloneFinding;
 use crate::halstead::HalsteadMetrics;
 use crate::raw_metrics::RawMetrics;
@@ -102,6 +105,14 @@ pub struct FileAnalysisResult {
     pub file_size: usize,
     /// Per-file call graph.
     pub call_graph: CallGraph,
+    /// Fixture definitions declared in this file.
+    pub(crate) fixture_definitions: Vec<FixtureDefinitionRecord>,
+    /// Fixture requests declared in this file (params + usefixtures).
+    pub(crate) fixture_requests: Vec<FixtureRequestRecord>,
+    /// Static import bindings from this file.
+    pub(crate) fixture_imports: Vec<FixtureImportBinding>,
+    /// `pytest_plugins` module declarations from this file.
+    pub(crate) pytest_plugins: Vec<PytestPluginDeclaration>,
 }
 
 impl FileAnalysisResult {
@@ -123,6 +134,10 @@ impl FileAnalysisResult {
             mi: 0.0,
             file_size: 0,
             call_graph: CallGraph::new(),
+            fixture_definitions: Vec::new(),
+            fixture_requests: Vec::new(),
+            fixture_imports: Vec::new(),
+            pytest_plugins: Vec::new(),
         }
     }
 

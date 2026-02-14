@@ -17,6 +17,12 @@ pub(crate) fn run_fix_if_requested<W: std::io::Write>(
     // Only run if we didn't also run clones (clones are report-only)
     if cli_var.fix && !cli_var.clones {
         let fix_confidence = resolve_fix_confidence(confidence);
+        if !cli_var.output.json && confidence < MIN_FIX_CONFIDENCE {
+            writeln!(
+                writer,
+                "[INFO] Fix confidence floor enforced: using {fix_confidence}% (requested {confidence}%)"
+            )?;
+        }
         if cli_var.output.verbose && !cli_var.output.json {
             eprintln!("[VERBOSE] Dead code fix mode enabled");
             eprintln!(
@@ -37,6 +43,7 @@ pub(crate) fn run_fix_if_requested<W: std::io::Write>(
         let fix_options = crate::commands::DeadCodeFixOptions {
             min_confidence: fix_confidence,
             dry_run: !cli_var.apply,
+            json_output: cli_var.output.json,
             fix_functions: true,
             fix_methods: true,
             fix_classes: true,

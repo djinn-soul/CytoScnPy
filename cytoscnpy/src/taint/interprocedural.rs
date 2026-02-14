@@ -397,6 +397,12 @@ fn analyze_module_level(
                                 severity: sink_match.severity,
                                 file: file_path.to_path_buf(),
                                 remediation: sink_match.remediation.clone(),
+                                exploitability_score: super::types::score_exploitability(
+                                    &taint_info.source,
+                                    &sink_match.vuln_type,
+                                    sink_match.severity,
+                                    0,
+                                ),
                             });
                         }
                     }

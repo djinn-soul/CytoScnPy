@@ -18,6 +18,7 @@ def unused_function():
     let options = DeadCodeFixOptions {
         min_confidence: 60,
         dry_run: true,
+        json_output: false,
         fix_functions: true,
         fix_methods: false,
         fix_classes: false,
@@ -59,6 +60,7 @@ def unused_function():
     let options = DeadCodeFixOptions {
         min_confidence: 60,
         dry_run: false,
+        json_output: false,
         fix_functions: true,
         fix_methods: false,
         fix_classes: false,
@@ -235,6 +237,93 @@ class Service:
 }
 
 #[test]
+fn test_apply_dead_code_fix_removes_nested_method() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("test.py");
+    let source = "
+class Outer:
+    class Inner:
+        def stale(self):
+            return 1
+
+        def keep(self):
+            return 2
+";
+    std::fs::write(&file_path, source).unwrap();
+
+    let def = create_definition("stale", "method", file_path.clone(), 4);
+    let options = DeadCodeFixOptions {
+        dry_run: false,
+        analysis_root: dir.path().to_path_buf(),
+        ..DeadCodeFixOptions::default()
+    };
+
+    let mut buffer = Vec::new();
+    let res = apply_dead_code_fix_to_file(&mut buffer, &file_path, &[("method", &def)], &options)
+        .unwrap();
+    assert!(res.is_some());
+
+    let content = std::fs::read_to_string(&file_path).unwrap();
+    assert!(!content.contains("def stale"));
+    assert!(content.contains("def keep"));
+    assert!(ruff_python_parser::parse_module(&content).is_ok());
+}
+
+#[test]
+fn test_apply_dead_code_fix_removes_decorated_methods() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("test.py");
+    let source = "
+class Decorated:
+    @staticmethod
+    def stale_static():
+        return 1
+
+    @property
+    def stale_prop(self):
+        return 2
+
+    @classmethod
+    def stale_class(cls):
+        return 3
+
+    def keep(self):
+        return 4
+";
+    std::fs::write(&file_path, source).unwrap();
+
+    let def_static = create_definition("stale_static", "method", file_path.clone(), 4);
+    let def_prop = create_definition("stale_prop", "method", file_path.clone(), 8);
+    let def_class = create_definition("stale_class", "method", file_path.clone(), 12);
+    let options = DeadCodeFixOptions {
+        dry_run: false,
+        analysis_root: dir.path().to_path_buf(),
+        ..DeadCodeFixOptions::default()
+    };
+
+    let mut buffer = Vec::new();
+    let res = apply_dead_code_fix_to_file(
+        &mut buffer,
+        &file_path,
+        &[
+            ("method", &def_static),
+            ("method", &def_prop),
+            ("method", &def_class),
+        ],
+        &options,
+    )
+    .unwrap();
+    assert!(res.is_some());
+
+    let content = std::fs::read_to_string(&file_path).unwrap();
+    assert!(!content.contains("stale_static"));
+    assert!(!content.contains("stale_prop"));
+    assert!(!content.contains("stale_class"));
+    assert!(content.contains("def keep"));
+    assert!(ruff_python_parser::parse_module(&content).is_ok());
+}
+
+#[test]
 fn test_collect_items_to_fix() {
     let dir = TempDir::new().unwrap();
     let file_path = dir.path().join("test.py");
@@ -289,6 +378,46 @@ fn test_collect_items_to_fix_respects_min_confidence_for_methods() {
     let items = collected.values().next().unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].1.simple_name, "method_high");
+}
+
+#[test]
+fn test_run_fix_deadcode_dry_run_json_output() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("test.py");
+    std::fs::write(&file_path, "def unused_function():\n    pass\n").unwrap();
+
+    let def = create_definition("unused_function", "function", file_path, 1);
+    let mut results = AnalysisResult::default();
+    results.unused_functions.push(def);
+
+    let options = DeadCodeFixOptions {
+        min_confidence: 80,
+        dry_run: true,
+        json_output: true,
+        fix_functions: true,
+        fix_methods: false,
+        fix_classes: false,
+        fix_imports: false,
+        fix_variables: false,
+        verbose: false,
+        with_cst: false,
+        analysis_root: dir.path().to_path_buf(),
+    };
+
+    let mut buffer = Vec::new();
+    let fix_results = run_fix_deadcode(&results, &options, &mut buffer).unwrap();
+    assert_eq!(fix_results.len(), 1);
+
+    let payload: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+    assert_eq!(payload["schema_version"], "2");
+    assert_eq!(payload["kind"], "dead_code_fix_plan");
+    assert_eq!(payload["planned_items"], 1);
+    assert!(payload["plans"][0]["planned_edits"][0]["stable_id"].is_string());
+
+    let normalized = String::from_utf8(buffer)
+        .unwrap()
+        .replace(dir.path().to_string_lossy().as_ref(), "[TMP]");
+    insta::assert_snapshot!("dead_code_fix_plan_json", normalized);
 }
 
 #[test]

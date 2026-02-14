@@ -452,7 +452,8 @@ fn test_run_fix_deadcode_dry_run_json_output() {
     let normalized = String::from_utf8(buffer)
         .unwrap()
         .replace(&temp_path, "[TMP]")
-        .replace(&escaped_temp_path, "[TMP]");
+        .replace(&escaped_temp_path, "[TMP]")
+        .replace("[TMP]\\\\", "[TMP]/");
     insta::assert_snapshot!("dead_code_fix_plan_json", normalized);
 }
 

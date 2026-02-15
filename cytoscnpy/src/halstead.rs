@@ -427,11 +427,35 @@ impl HalsteadVisitor {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::FunctionDef(node) => self.visit_function_def(node),
             Stmt::ClassDef(node) => self.visit_class_def(node),
+            Stmt::Return(_)
+            | Stmt::Delete(_)
+            | Stmt::Expr(_)
+            | Stmt::Pass(_)
+            | Stmt::Break(_)
+            | Stmt::Continue(_) => self.visit_simple_stmt(stmt),
+            Stmt::Assign(node) => self.visit_assign(node),
+            Stmt::AugAssign(node) => self.visit_aug_assign(node),
+            Stmt::AnnAssign(node) => self.visit_ann_assign(node),
+            Stmt::If(_) | Stmt::For(_) | Stmt::While(_) | Stmt::With(_) => {
+                self.visit_control_flow(stmt);
+            }
+            Stmt::Raise(node) => self.visit_raise(node),
+            Stmt::Try(node) => self.visit_try_stmt(node),
+            Stmt::Assert(node) => self.visit_assert(node),
+            Stmt::Import(node) => self.visit_import(node),
+            Stmt::ImportFrom(node) => self.visit_import_from(node),
+            Stmt::Global(node) => self.visit_name_list_stmt("global", &node.names),
+            Stmt::Nonlocal(node) => self.visit_name_list_stmt("nonlocal", &node.names),
+            _ => {}
+        }
+    }
+
+    fn visit_simple_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
             Stmt::Return(node) => {
                 self.add_operator("return");
                 if let Some(value) = &node.value {
@@ -444,42 +468,20 @@ impl HalsteadVisitor {
                     self.visit_expr(target);
                 }
             }
-            Stmt::Assign(node) => self.visit_assign(node),
-            Stmt::AugAssign(node) => self.visit_aug_assign(node),
-            Stmt::AnnAssign(node) => self.visit_ann_assign(node),
-            Stmt::If(_) | Stmt::For(_) | Stmt::While(_) | Stmt::With(_) => {
-                self.visit_control_flow(stmt);
-            }
-            Stmt::Raise(node) => self.visit_raise(node),
-            Stmt::Try(node) => self.visit_try_stmt(node),
-            Stmt::Assert(node) => self.visit_assert(node),
-            Stmt::Import(node) => self.visit_import(node),
-            Stmt::ImportFrom(node) => self.visit_import_from(node),
-            Stmt::Global(node) => {
-                self.add_operator("global");
-                for name in &node.names {
-                    self.add_operand(name);
-                }
-            }
-            Stmt::Nonlocal(node) => {
-                self.add_operator("nonlocal");
-                for name in &node.names {
-                    self.add_operand(name);
-                }
-            }
             Stmt::Expr(node) => {
                 self.visit_expr(&node.value);
             }
-            Stmt::Pass(_) => {
-                self.add_operator("pass");
-            }
-            Stmt::Break(_) => {
-                self.add_operator("break");
-            }
-            Stmt::Continue(_) => {
-                self.add_operator("continue");
-            }
+            Stmt::Pass(_) => self.add_operator("pass"),
+            Stmt::Break(_) => self.add_operator("break"),
+            Stmt::Continue(_) => self.add_operator("continue"),
             _ => {}
+        }
+    }
+
+    fn visit_name_list_stmt(&mut self, keyword: &str, names: &[ast::Identifier]) {
+        self.add_operator(keyword);
+        for name in names {
+            self.add_operand(name.as_str());
         }
     }
 
@@ -704,7 +706,6 @@ impl HalsteadVisitor {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn visit_expr(&mut self, expr: &Expr) {
         match expr {
             Expr::BoolOp(node) => self.visit_bool_op(node),

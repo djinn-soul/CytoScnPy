@@ -1,5 +1,5 @@
 use super::duck_typing::apply_duck_typing_usage;
-use super::parsed_module::analyze_parsed_module;
+use super::parsed_module::{analyze_parsed_module, ParsedModuleContext};
 use crate::analyzer::{CytoScnPy, ParseError};
 use crate::framework::FrameworkAwareVisitor;
 use crate::rules::secrets::scan_secrets;
@@ -69,7 +69,7 @@ pub(super) fn run_pipeline<'a>(
     match ruff_python_parser::parse_module(source) {
         Ok(parsed) => {
             let module = parsed.into_syntax();
-            analyze_parsed_module(
+            let parsed_ctx = ParsedModuleContext {
                 analyzer,
                 source,
                 file_path,
@@ -77,9 +77,9 @@ pub(super) fn run_pipeline<'a>(
                 line_index,
                 ignored_lines,
                 is_test_file,
-                &mut output,
-                &module,
-            );
+                module: &module,
+            };
+            analyze_parsed_module(&parsed_ctx, &mut output);
 
             if matches!(mode, PipelineMode::AnalyzeCode) {
                 apply_duck_typing_usage(

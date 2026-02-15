@@ -6,6 +6,7 @@ use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::report::generator::generate_report;
 use cytoscnpy::rules::Finding;
 use cytoscnpy::visitor::Definition;
+use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -20,6 +21,35 @@ fn project_tempdir() -> TempDir {
         .prefix("report_test_")
         .tempdir_in(target_dir)
         .unwrap()
+}
+
+fn extract_score_and_grade(html: &str) -> (u8, String) {
+    let score_re = Regex::new(r#"stat-value[^>]*>\s*(\d+)\s*</div>"#).unwrap();
+    let grade_re = Regex::new(r#"Grade:\s*([A-F])"#).unwrap();
+
+    let score = score_re
+        .captures(html)
+        .and_then(|caps| caps.get(1))
+        .and_then(|m| m.as_str().parse::<u8>().ok())
+        .expect("Expected quality score in dashboard HTML");
+
+    let grade = grade_re
+        .captures(html)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_owned())
+        .expect("Expected grade in dashboard HTML");
+
+    (score, grade)
+}
+
+fn grade_rank(grade: &str) -> u8 {
+    match grade {
+        "A" => 5,
+        "B" => 4,
+        "C" => 3,
+        "D" => 2,
+        _ => 1,
+    }
 }
 
 #[test]
@@ -172,6 +202,7 @@ fn test_calculate_score_logic() {
     generate_report(&result, analysis_root, output_dir).unwrap();
     let html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
     assert!(html.contains("Grade: A") || html.contains("Grade: B") || html.contains(">A<"));
+    let (baseline_score, baseline_grade) = extract_score_and_grade(&html);
 
     // 2. High penalty (Unused code)
     for i in 0..50 {
@@ -207,5 +238,15 @@ fn test_calculate_score_logic() {
         });
     }
     generate_report(&result, analysis_root, output_dir).unwrap();
-    let _html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
+    let html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
+    let (penalty_score, penalty_grade) = extract_score_and_grade(&html);
+
+    assert!(
+        penalty_score < baseline_score,
+        "Expected degraded score after high-penalty input, baseline={baseline_score}, penalty={penalty_score}"
+    );
+    assert!(
+        grade_rank(&penalty_grade) <= grade_rank(&baseline_grade),
+        "Expected degraded or equal grade after penalties, baseline={baseline_grade}, penalty={penalty_grade}"
+    );
 }

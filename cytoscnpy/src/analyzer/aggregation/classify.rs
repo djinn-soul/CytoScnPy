@@ -3,6 +3,52 @@ use crate::analyzer::apply_heuristics;
 use crate::visitor::Definition;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+const WEIGHT_FULL_NAME_REF: f64 = 1.0;
+const WEIGHT_ENUM_MEMBER_REF: f64 = 1.0;
+const WEIGHT_SIMPLE_FALLBACK: f64 = 0.35;
+const WEIGHT_LOOSE_ATTR_FALLBACK: f64 = 0.60;
+const WEIGHT_IMPLICIT_METHOD: f64 = 1.0;
+
+#[derive(Default, Clone, Copy)]
+struct UsageEvidence {
+    full_name_ref: bool,
+    enum_member_ref: bool,
+    simple_fallback: bool,
+    loose_attr_fallback: bool,
+    implicit_method: bool,
+}
+
+impl UsageEvidence {
+    fn has_strong_exact(self) -> bool {
+        self.full_name_ref || self.enum_member_ref
+    }
+
+    fn score(self) -> f64 {
+        let mut score = 0.0;
+        if self.full_name_ref {
+            score += WEIGHT_FULL_NAME_REF;
+        }
+        if self.enum_member_ref {
+            score += WEIGHT_ENUM_MEMBER_REF;
+        }
+        if self.simple_fallback {
+            score += WEIGHT_SIMPLE_FALLBACK;
+        }
+        if self.loose_attr_fallback {
+            score += WEIGHT_LOOSE_ATTR_FALLBACK;
+        }
+        if self.implicit_method {
+            score += WEIGHT_IMPLICIT_METHOD;
+        }
+        score.min(1.0)
+    }
+}
+
+fn min_usage_score(def_type: &str) -> f64 {
+    let _ = def_type;
+    0.0
+}
+
 pub(super) struct ClassificationResult {
     pub(super) unused_functions: Vec<Definition>,
     pub(super) unused_methods: Vec<Definition>,
@@ -37,7 +83,8 @@ pub(super) fn classify_definitions(
     let mut result = ClassificationResult::new();
 
     for mut def in definitions {
-        sync_definition_reference(&mut def, ref_counts, fixture_definition_names);
+        let mut evidence =
+            sync_definition_reference(&mut def, ref_counts, fixture_definition_names);
 
         apply_heuristics(&mut def);
 
@@ -45,6 +92,7 @@ pub(super) fn classify_definitions(
             .implicitly_used_methods
             .contains(&def.full_name)
         {
+            evidence.implicit_method = true;
             def.references = std::cmp::max(def.references, 1);
         }
 
@@ -61,6 +109,15 @@ pub(super) fn classify_definitions(
                 def.is_unreachable = true;
                 def.references = 0;
             }
+        }
+
+        if (!def.is_unreachable || evidence.has_strong_exact())
+            && def.references > 0
+            && !evidence.has_strong_exact()
+            && evidence.score() < min_usage_score(&def.def_type)
+        {
+            // Weak fallback evidence did not clear the minimum score for this symbol type.
+            def.references = 0;
         }
 
         if def.def_type == "method" && def.references > 0 {
@@ -99,16 +156,19 @@ fn sync_definition_reference(
     def: &mut Definition,
     ref_counts: &FxHashMap<String, usize>,
     fixture_definition_names: &FxHashSet<String>,
-) {
+) -> UsageEvidence {
+    let mut evidence = UsageEvidence::default();
+
     if let Some(count) = ref_counts.get(&def.full_name) {
         if (def.def_type == "variable" || def.def_type == "parameter")
             && !def.is_enum_member
             && *count == 0
         {
-            return;
+            return evidence;
         }
         def.references = *count;
-        return;
+        evidence.full_name_ref = *count > 0;
+        return evidence;
     }
 
     let mut matched = false;
@@ -120,6 +180,7 @@ fn sync_definition_reference(
                 let class_member = format!("{}.{}", &parent[class_dot + 1..], def.simple_name);
                 if let Some(count) = ref_counts.get(&class_member) {
                     def.references = *count;
+                    evidence.enum_member_ref = *count > 0;
                     matched = true;
                 }
             }
@@ -135,6 +196,7 @@ fn sync_definition_reference(
         if should_fallback {
             if let Some(count) = ref_counts.get(&def.simple_name) {
                 def.references = *count;
+                evidence.simple_fallback = *count > 0;
             }
         }
     }
@@ -144,9 +206,12 @@ fn sync_definition_reference(
         if let Some(count) = ref_counts.get(&loose_attr_key) {
             if *count > 0 {
                 def.references = *count;
+                evidence.loose_attr_fallback = true;
             }
         }
     }
+
+    evidence
 }
 
 pub(super) fn promote_methods_from_unused_classes(

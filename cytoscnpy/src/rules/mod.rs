@@ -83,5 +83,7 @@ pub mod danger;
 pub mod ids;
 /// Module containing code quality rules.
 pub mod quality;
+/// Typed registry for rule metadata (id/category/severity/docs URL).
+pub mod rule_registry;
 /// Module containing secret scanning rules.
 pub mod secrets;

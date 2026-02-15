@@ -1,50 +1,50 @@
-use super::common::{apply_danger_config_filters, apply_taint_filters, split_lint_finding};
 use super::pipeline::PipelineOutput;
+use super::rule_engine::{apply_rule_engine, RuleEngineContext};
 use crate::analyzer::{apply_heuristics, apply_penalties, CytoScnPy};
-use crate::halstead::analyze_halstead;
-use crate::metrics::mi_compute;
-use crate::raw_metrics::analyze_raw;
 use crate::rules::secrets::scan_secrets;
-use crate::rules::Finding;
 use crate::utils::{LineIndex, Suppression};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::path::Path;
 
 use crate::analyzer::traversal::collect_docstring_lines;
 
-#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
+pub(super) struct ParsedModuleContext<'a> {
+    pub(super) analyzer: &'a CytoScnPy,
+    pub(super) source: &'a str,
+    pub(super) file_path: &'a Path,
+    pub(super) module_name: &'a str,
+    pub(super) line_index: &'a LineIndex,
+    pub(super) ignored_lines: &'a FxHashMap<usize, Suppression>,
+    pub(super) is_test_file: bool,
+    pub(super) module: &'a ruff_python_ast::ModModule,
+}
+
+#[allow(clippy::cast_precision_loss)]
 pub(super) fn analyze_parsed_module(
-    analyzer: &CytoScnPy,
-    source: &str,
-    file_path: &Path,
-    module_name: &str,
-    line_index: &LineIndex,
-    ignored_lines: &FxHashMap<usize, Suppression>,
-    is_test_file: bool,
+    ctx: &ParsedModuleContext<'_>,
     output: &mut PipelineOutput<'_>,
-    module: &ruff_python_ast::ModModule,
 ) {
     let mut docstring_lines = FxHashSet::default();
-    if analyzer.enable_secrets && analyzer.config.cytoscnpy.secrets_config.skip_docstrings {
-        collect_docstring_lines(&module.body, line_index, &mut docstring_lines, 0);
+    if ctx.analyzer.enable_secrets && ctx.analyzer.config.cytoscnpy.secrets_config.skip_docstrings {
+        collect_docstring_lines(&ctx.module.body, ctx.line_index, &mut docstring_lines, 0);
     }
 
-    if analyzer.enable_secrets {
+    if ctx.analyzer.enable_secrets {
         output.secrets = scan_secrets(
-            source,
-            &file_path.to_path_buf(),
-            &analyzer.config.cytoscnpy.secrets_config,
+            ctx.source,
+            &ctx.file_path.to_path_buf(),
+            &ctx.analyzer.config.cytoscnpy.secrets_config,
             Some(&docstring_lines),
-            is_test_file,
+            ctx.is_test_file,
         );
     }
 
     output
         .call_graph
-        .build_from_module(&module.body, module_name);
-    let entry_point_calls = crate::entry_point::detect_entry_point_calls(&module.body);
+        .build_from_module(&ctx.module.body, ctx.module_name);
+    let entry_point_calls = crate::entry_point::detect_entry_point_calls(&ctx.module.body);
 
-    for stmt in &module.body {
+    for stmt in &ctx.module.body {
         output.framework_visitor.visit_stmt(stmt);
         output.test_visitor.visit_stmt(stmt);
         output.visitor.visit_stmt(stmt);
@@ -52,25 +52,27 @@ pub(super) fn analyze_parsed_module(
 
     for call_name in &entry_point_calls {
         output.visitor.add_ref(call_name.clone());
-        if !module_name.is_empty() {
-            output.visitor.add_ref(format!("{module_name}.{call_name}"));
+        if !ctx.module_name.is_empty() {
+            output
+                .visitor
+                .add_ref(format!("{}.{}", ctx.module_name, call_name));
         }
     }
 
     for framework_ref in &output.framework_visitor.framework_references {
         output.visitor.add_ref(framework_ref.clone());
-        if !module_name.is_empty() {
+        if !ctx.module_name.is_empty() {
             output
                 .visitor
-                .add_ref(format!("{module_name}.{framework_ref}"));
+                .add_ref(format!("{}.{}", ctx.module_name, framework_ref));
         }
     }
 
     output.fixture_metadata = crate::analyzer::fixtures::collect_file_fixture_metadata(
         &output.visitor,
         &output.test_visitor,
-        file_path,
-        module_name,
+        ctx.file_path,
+        ctx.module_name,
     );
     let fixture_increments = crate::analyzer::fixtures::resolve_fixture_reference_increments(
         &output.fixture_metadata.fixture_definitions,
@@ -84,10 +86,10 @@ pub(super) fn analyze_parsed_module(
 
     for export_name in output.visitor.exports.clone() {
         output.visitor.add_ref(export_name.clone());
-        if !module_name.is_empty() {
+        if !ctx.module_name.is_empty() {
             output
                 .visitor
-                .add_ref(format!("{module_name}.{export_name}"));
+                .add_ref(format!("{}.{}", ctx.module_name, export_name));
         }
     }
 
@@ -102,7 +104,7 @@ pub(super) fn analyze_parsed_module(
 
     #[cfg(feature = "cfg")]
     CytoScnPy::refine_flow_sensitive(
-        source,
+        ctx.source,
         &mut output.visitor.definitions,
         &output.visitor.dynamic_scopes,
     );
@@ -112,10 +114,10 @@ pub(super) fn analyze_parsed_module(
             def,
             &output.framework_visitor,
             &output.test_visitor,
-            ignored_lines,
-            analyzer.include_tests,
+            ctx.ignored_lines,
+            ctx.analyzer.include_tests,
             &output.visitor.dynamic_scopes,
-            module_name,
+            ctx.module_name,
         );
         apply_heuristics(def);
 
@@ -129,65 +131,16 @@ pub(super) fn analyze_parsed_module(
         }
     }
 
-    let mut rules = Vec::new();
-    if analyzer.enable_danger {
-        rules.extend(crate::rules::danger::get_danger_rules());
-    }
-    if analyzer.enable_quality {
-        rules.extend(crate::rules::quality::get_quality_rules(&analyzer.config));
-    }
-
-    if !rules.is_empty() {
-        let mut linter = crate::linter::LinterVisitor::new(
-            rules,
-            file_path.to_path_buf(),
-            line_index.clone(),
-            analyzer.config.clone(),
-            is_test_file,
-        );
-        for stmt in &module.body {
-            linter.visit_stmt(stmt);
-        }
-
-        for finding in linter.findings {
-            if crate::utils::is_line_suppressed(ignored_lines, finding.line, &finding.rule_id) {
-                continue;
-            }
-            split_lint_finding(finding, &mut output.danger, &mut output.quality);
-        }
-
-        let filtered = apply_taint_filters(
-            analyzer,
-            source,
-            file_path,
-            std::mem::take(&mut output.danger),
-        );
-        output.danger = filtered;
-        apply_danger_config_filters(analyzer, &mut output.danger);
-    }
-
-    if analyzer.enable_quality {
-        let raw = analyze_raw(source);
-        let halstead = analyze_halstead(&ruff_python_ast::Mod::Module(module.clone()));
-        let complexity = crate::complexity::calculate_module_complexity(source).unwrap_or(1);
-        output.file_complexity = complexity as f64;
-        output.file_mi = mi_compute(halstead.volume, complexity, raw.sloc, raw.comments);
-
-        if let Some(min_mi) = analyzer.config.cytoscnpy.min_mi {
-            if output.file_mi < min_mi {
-                output.quality.push(Finding {
-                    message: format!(
-                        "Maintainability Index too low ({:.2} < {:.2})",
-                        output.file_mi, min_mi
-                    ),
-                    rule_id: crate::rules::ids::RULE_ID_MIN_MI.to_owned(),
-                    category: "Maintainability".to_owned(),
-                    file: file_path.to_path_buf(),
-                    line: 1,
-                    col: 0,
-                    severity: "HIGH".to_owned(),
-                });
-            }
-        }
-    }
+    apply_rule_engine(
+        &RuleEngineContext {
+            analyzer: ctx.analyzer,
+            source: ctx.source,
+            module: ctx.module,
+            file_path: ctx.file_path,
+            line_index: ctx.line_index,
+            ignored_lines: ctx.ignored_lines,
+            is_test_file: ctx.is_test_file,
+        },
+        output,
+    );
 }

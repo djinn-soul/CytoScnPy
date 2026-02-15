@@ -105,6 +105,8 @@ pub struct FileAnalysisResult {
     pub file_size: usize,
     /// Per-file call graph.
     pub call_graph: CallGraph,
+    /// Dynamic module imports discovered from runtime import patterns.
+    pub dynamic_imports: Vec<String>,
     /// Fixture definitions declared in this file.
     pub(crate) fixture_definitions: Vec<FixtureDefinitionRecord>,
     /// Fixture requests declared in this file (params + usefixtures).
@@ -134,6 +136,7 @@ impl FileAnalysisResult {
             mi: 0.0,
             file_size: 0,
             call_graph: CallGraph::new(),
+            dynamic_imports: Vec::new(),
             fixture_definitions: Vec::new(),
             fixture_requests: Vec::new(),
             fixture_imports: Vec::new(),

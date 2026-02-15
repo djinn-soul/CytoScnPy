@@ -63,6 +63,9 @@ pub struct CytoScnPyConfig {
     pub ignore: Option<Vec<String>>,
     /// Fail threshold percentage (0.0-100.0).
     pub fail_threshold: Option<f64>,
+    /// Project type tunes export/public-API assumptions for dead-code analysis.
+    #[serde(default)]
+    pub project_type: Option<ProjectType>,
     /// Track if deprecated keys were used in the configuration.
     #[serde(skip)]
     deprecated_keys_used: bool,
@@ -81,6 +84,23 @@ impl CytoScnPyConfig {
     /// Sets whether deprecated keys were used (internal use).
     pub(crate) fn set_uses_deprecated_keys(&mut self, value: bool) {
         self.deprecated_keys_used = value;
+    }
+}
+
+/// Project mode for dead-code export heuristics.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectType {
+    /// Library-style analysis: treat public symbols as exported API.
+    #[default]
+    Library,
+    /// Application-style analysis: avoid broad public-API export assumptions.
+    Application,
+}
+
+fn mark_deprecated_keys_for_cytoscnpy_table(config: &mut Config, table: &toml::Value) {
+    if table.get("complexity").is_some() || table.get("nesting").is_some() {
+        config.cytoscnpy.set_uses_deprecated_keys(true);
     }
 }
 
@@ -232,11 +252,7 @@ impl Config {
                         // Check for deprecated keys using Value for robustness
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
                             if let Some(cytoscnpy) = value.get("cytoscnpy") {
-                                if cytoscnpy.get("complexity").is_some()
-                                    || cytoscnpy.get("nesting").is_some()
-                                {
-                                    config.cytoscnpy.set_uses_deprecated_keys(true);
-                                }
+                                mark_deprecated_keys_for_cytoscnpy_table(&mut config, cytoscnpy);
                             }
                         }
                         return config;
@@ -257,11 +273,10 @@ impl Config {
                         if let Ok(value) = toml::from_str::<toml::Value>(&content) {
                             if let Some(tool) = value.get("tool") {
                                 if let Some(cytoscnpy) = tool.get("cytoscnpy") {
-                                    if cytoscnpy.get("complexity").is_some()
-                                        || cytoscnpy.get("nesting").is_some()
-                                    {
-                                        config.cytoscnpy.set_uses_deprecated_keys(true);
-                                    }
+                                    mark_deprecated_keys_for_cytoscnpy_table(
+                                        &mut config,
+                                        cytoscnpy,
+                                    );
                                 }
                             }
                         }
@@ -294,9 +309,7 @@ complexity = 10
         let mut config = toml::from_str::<Config>(content).unwrap();
         if let Ok(value) = toml::from_str::<toml::Value>(content) {
             if let Some(cytoscnpy) = value.get("cytoscnpy") {
-                if cytoscnpy.get("complexity").is_some() || cytoscnpy.get("nesting").is_some() {
-                    config.cytoscnpy.set_uses_deprecated_keys(true);
-                }
+                mark_deprecated_keys_for_cytoscnpy_table(&mut config, cytoscnpy);
             }
         }
         assert!(config.cytoscnpy.uses_deprecated_keys());
@@ -317,9 +330,7 @@ nesting = 5
         if let Ok(value) = toml::from_str::<toml::Value>(content) {
             if let Some(tool) = value.get("tool") {
                 if let Some(cytoscnpy) = tool.get("cytoscnpy") {
-                    if cytoscnpy.get("complexity").is_some() || cytoscnpy.get("nesting").is_some() {
-                        config.cytoscnpy.set_uses_deprecated_keys(true);
-                    }
+                    mark_deprecated_keys_for_cytoscnpy_table(&mut config, cytoscnpy);
                 }
             }
         }

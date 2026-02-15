@@ -1,7 +1,19 @@
 use anyhow::Result;
+use once_cell::sync::Lazy;
+use regex::Regex;
 
 use super::context::AnalysisContext;
 use super::run::AnalysisRun;
+
+static MCCABE_RE: Lazy<Option<Regex>> = Lazy::new(|| Regex::new(r"McCabe\s*=\s*(\d+)").ok());
+
+fn extract_mccabe_value(message: &str) -> Option<usize> {
+    MCCABE_RE
+        .as_ref()
+        .and_then(|re| re.captures(message))
+        .and_then(|caps| caps.get(1))
+        .and_then(|m| m.as_str().parse::<usize>().ok())
+}
 
 pub(crate) fn apply_gates<W: std::io::Write>(
     cli_var: &crate::cli::Cli,
@@ -66,13 +78,7 @@ pub(crate) fn apply_gates<W: std::io::Write>(
             .quality
             .iter()
             .filter(|f| f.rule_id == crate::rules::ids::RULE_ID_COMPLEXITY)
-            .filter_map(|f| {
-                // Extract complexity value from message like "Function is too complex (McCabe=15)"
-                f.message
-                    .split("McCabe=")
-                    .nth(1)
-                    .and_then(|s| s.trim_end_matches(')').parse::<usize>().ok())
-            })
+            .filter_map(|f| extract_mccabe_value(&f.message))
             .collect();
 
         if let Some(&max_found) = complexity_violations.iter().max() {

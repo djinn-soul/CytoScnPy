@@ -104,6 +104,22 @@ fn mark_deprecated_keys_for_cytoscnpy_table(config: &mut Config, table: &toml::V
     }
 }
 
+fn value_at_path<'a>(value: &'a toml::Value, path: &[&str]) -> Option<&'a toml::Value> {
+    let mut current = value;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    Some(current)
+}
+
+fn mark_deprecated_keys_from_content(config: &mut Config, content: &str, path: &[&str]) {
+    if let Ok(value) = toml::from_str::<toml::Value>(content) {
+        if let Some(cytoscnpy_table) = value_at_path(&value, path) {
+            mark_deprecated_keys_for_cytoscnpy_table(config, cytoscnpy_table);
+        }
+    }
+}
+
 /// Configuration for advanced secrets scanning (Secret Scanning).
 #[derive(Debug, Deserialize, Clone)]
 pub struct SecretsConfig {
@@ -249,12 +265,7 @@ impl Config {
                 if let Ok(content) = fs::read_to_string(&cytoscnpy_toml) {
                     if let Ok(mut config) = toml::from_str::<Config>(&content) {
                         config.config_file_path = Some(cytoscnpy_toml);
-                        // Check for deprecated keys using Value for robustness
-                        if let Ok(value) = toml::from_str::<toml::Value>(&content) {
-                            if let Some(cytoscnpy) = value.get("cytoscnpy") {
-                                mark_deprecated_keys_for_cytoscnpy_table(&mut config, cytoscnpy);
-                            }
-                        }
+                        mark_deprecated_keys_from_content(&mut config, &content, &["cytoscnpy"]);
                         return config;
                     }
                 }
@@ -269,17 +280,11 @@ impl Config {
                             cytoscnpy: pyproject.tool.cytoscnpy,
                             config_file_path: Some(pyproject_toml),
                         };
-                        // Check for deprecated keys in the tool section using Value
-                        if let Ok(value) = toml::from_str::<toml::Value>(&content) {
-                            if let Some(tool) = value.get("tool") {
-                                if let Some(cytoscnpy) = tool.get("cytoscnpy") {
-                                    mark_deprecated_keys_for_cytoscnpy_table(
-                                        &mut config,
-                                        cytoscnpy,
-                                    );
-                                }
-                            }
-                        }
+                        mark_deprecated_keys_from_content(
+                            &mut config,
+                            &content,
+                            &["tool", "cytoscnpy"],
+                        );
                         return config;
                     }
                 }
@@ -307,11 +312,7 @@ mod tests {
 complexity = 10
 ";
         let mut config = toml::from_str::<Config>(content).unwrap();
-        if let Ok(value) = toml::from_str::<toml::Value>(content) {
-            if let Some(cytoscnpy) = value.get("cytoscnpy") {
-                mark_deprecated_keys_for_cytoscnpy_table(&mut config, cytoscnpy);
-            }
-        }
+        mark_deprecated_keys_from_content(&mut config, content, &["cytoscnpy"]);
         assert!(config.cytoscnpy.uses_deprecated_keys());
         assert_eq!(config.cytoscnpy.max_complexity, Some(10));
     }
@@ -327,13 +328,7 @@ nesting = 5
             cytoscnpy: pyproject.tool.cytoscnpy,
             config_file_path: None,
         };
-        if let Ok(value) = toml::from_str::<toml::Value>(content) {
-            if let Some(tool) = value.get("tool") {
-                if let Some(cytoscnpy) = tool.get("cytoscnpy") {
-                    mark_deprecated_keys_for_cytoscnpy_table(&mut config, cytoscnpy);
-                }
-            }
-        }
+        mark_deprecated_keys_from_content(&mut config, content, &["tool", "cytoscnpy"]);
         assert!(config.cytoscnpy.uses_deprecated_keys());
         assert_eq!(config.cytoscnpy.max_nesting, Some(5));
     }

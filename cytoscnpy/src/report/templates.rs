@@ -138,7 +138,7 @@ pub struct IssuesTemplate {
     /// List of unused code issues.
     pub unused_code: Vec<IssueItem>,
     /// List of security issues.
-    pub securityable: Vec<IssueItem>,
+    pub security: Vec<IssueItem>,
     /// List of quality issues.
     pub quality: Vec<IssueItem>,
     /// Generation timestamp.

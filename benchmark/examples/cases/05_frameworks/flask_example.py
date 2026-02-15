@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint
+from framework_mocks import Flask, Blueprint
 
 app = Flask(__name__)
 bp = Blueprint("bp", __name__)

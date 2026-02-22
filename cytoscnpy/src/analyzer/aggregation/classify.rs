@@ -1,6 +1,7 @@
 use super::reachability::ReachabilityContext;
 use crate::analyzer::apply_heuristics;
 use crate::visitor::Definition;
+use crate::whitelist::WhitelistMatcher;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 const WEIGHT_FULL_NAME_REF: f64 = 1.0;
@@ -79,10 +80,19 @@ pub(super) fn classify_definitions(
     reachability: &ReachabilityContext,
     fixture_definition_names: &FxHashSet<String>,
     confidence_threshold: u8,
+    whitelist: Option<&WhitelistMatcher>,
 ) -> ClassificationResult {
     let mut result = ClassificationResult::new();
 
     for mut def in definitions {
+        // Check if this definition is whitelisted
+        if let Some(matcher) = whitelist {
+            let file_path = def.file.to_str();
+            if matcher.is_whitelisted(&def.name, file_path) {
+                continue; // Skip whitelisted definitions
+            }
+        }
+
         let mut evidence =
             sync_definition_reference(&mut def, ref_counts, fixture_definition_names);
 

@@ -62,6 +62,18 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
 
     let json_fix_plan_mode =
         cli_var.fix && !cli_var.apply && cli_var.output.json && !cli_var.clones;
+    if cli_var.make_whitelist {
+        let mut whitelist_entries = Vec::new();
+        whitelist_entries.extend(run.result.unused_functions.iter().cloned());
+        whitelist_entries.extend(run.result.unused_methods.iter().cloned());
+        whitelist_entries.extend(run.result.unused_classes.iter().cloned());
+        whitelist_entries.extend(run.result.unused_imports.iter().cloned());
+        whitelist_entries.extend(run.result.unused_variables.iter().cloned());
+        whitelist_entries.extend(run.result.unused_parameters.iter().cloned());
+        crate::whitelist::generate_whitelist(&whitelist_entries, writer)?;
+        writer.flush()?;
+        return Ok(0);
+    }
     if !json_fix_plan_mode {
         report_results(cli_var, analysis_root, &context, &run, writer)?;
     }

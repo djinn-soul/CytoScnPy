@@ -26,6 +26,9 @@ CONFIGURATION FILE (.cytoscnpy.toml):
   exclude_folders = [\"build\", \"dist\", \".venv\"]
   include_folders = [\"src\"]  # Force-include these
 
+  # Per-file rule ignores (glob -> rule IDs)
+  per-file-ignores = { \"tests/*\" = [\"S101\"], \"__init__.py\" = [\"F401\"], \"migrations/*\" = [\"E501\"] }
+
   # CI/CD
   fail_threshold = 5.0       # Exit 1 if >N% unused code
 ";
@@ -300,6 +303,19 @@ pub struct Cli {
     /// Without this flag, --fix only shows a preview of what would be changed.
     #[arg(short = 'a', long)]
     pub apply: bool,
+
+    /// Generate a whitelist file from detected unused code.
+    /// Outputs valid Python syntax that can be used to suppress false positives.
+    /// The whitelist can be added to your project and scanned alongside your code.
+    /// Example: cytoscnpy src/ --make-whitelist > whitelist.py
+    #[arg(long)]
+    pub make_whitelist: bool,
+
+    /// Path to an existing whitelist file to load.
+    /// The whitelist can be a Python file (like Vulture's format) or a TOML file.
+    /// Multiple whitelist files can be specified.
+    #[arg(long = "whitelist")]
+    pub whitelist_files: Vec<PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]

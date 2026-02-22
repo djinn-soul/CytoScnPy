@@ -51,7 +51,11 @@ pub(super) fn apply_complexity_rules(ctx: &RuleEngineContext<'_>, output: &mut P
     }
 
     for finding in linter.findings {
-        if crate::utils::is_line_suppressed(ctx.ignored_lines, finding.line, &finding.rule_id) {
+        if crate::utils::is_line_suppressed(ctx.ignored_lines, finding.line, &finding.rule_id)
+            || ctx
+                .analyzer
+                .is_rule_ignored_for_path(ctx.file_path, &finding.rule_id)
+        {
             continue;
         }
         split_lint_finding(finding, &mut output.danger, &mut output.quality);

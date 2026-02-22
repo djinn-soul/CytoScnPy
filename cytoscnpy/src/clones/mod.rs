@@ -7,9 +7,6 @@
 //!
 //! For code rewriting, use the shared `crate::fix` module.
 
-// Allow dead code for WIP module - will be used when CLI integration is added
-#![allow(dead_code)]
-
 mod confidence;
 mod config;
 mod hasher;
@@ -40,7 +37,6 @@ use std::sync::Arc;
 /// Main clone detector orchestrator
 pub struct CloneDetector {
     config: CloneConfig,
-    confidence_scorer: ConfidenceScorer,
     /// Progress bar for tracking detection progress (shared with main analyzer)
     pub progress_bar: Option<Arc<ProgressBar>>,
 }
@@ -51,7 +47,6 @@ impl CloneDetector {
     pub fn new() -> Self {
         Self {
             config: CloneConfig::default(),
-            confidence_scorer: ConfidenceScorer::default(),
             progress_bar: None,
         }
     }
@@ -60,10 +55,6 @@ impl CloneDetector {
     #[must_use]
     pub const fn with_config(config: CloneConfig) -> Self {
         Self {
-            confidence_scorer: ConfidenceScorer::new(
-                config.auto_fix_threshold,
-                config.suggest_threshold,
-            ),
             config,
             progress_bar: None,
         }
@@ -398,6 +389,7 @@ impl CloneDetector {
     /// Filters out pairs where the control flow structure differs significantly.
     /// Only applies to function-level clones (functions have meaningful CFG).
     #[cfg(feature = "cfg")]
+    #[allow(dead_code)] // Optional validation path, enabled for future CLI wiring.
     #[allow(clippy::unused_self)]
     fn validate_with_cfg(
         &self,

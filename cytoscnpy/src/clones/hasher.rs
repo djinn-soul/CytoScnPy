@@ -39,7 +39,8 @@ impl LshHasher {
         self.minhash(&shingles)
     }
 
-    /// Find candidate pairs from a collection of trees
+    /// Find candidate pairs from a collection of trees.
+    #[cfg(test)]
     #[must_use]
     pub fn find_candidates(&self, trees: &[NormalizedTree]) -> Vec<(usize, usize)> {
         let signatures: Vec<Vec<u64>> = trees.iter().map(|t| self.signature(t)).collect();
@@ -65,7 +66,8 @@ impl LshHasher {
         Self::collect_pairs_from_buckets(&buckets)
     }
 
-    /// Internal helper to find candidates from signatures
+    /// Internal helper to find candidates from signatures.
+    #[cfg(test)]
     fn find_candidates_from_signatures(&self, signatures: &[Vec<u64>]) -> Vec<(usize, usize)> {
         let mut buckets: FxHashMap<(usize, u64), Vec<usize>> = FxHashMap::default();
 

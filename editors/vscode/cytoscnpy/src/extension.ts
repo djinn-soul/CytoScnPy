@@ -331,14 +331,14 @@ export function activate(context: vscode.ExtensionContext) {
               break;
             case "MEDIUM":
             case "INFO":
-              severity = vscode.DiagnosticSeverity.Information;
+              severity = vscode.DiagnosticSeverity.Warning;
               break;
             case "LOW":
             case "HINT":
-              severity = vscode.DiagnosticSeverity.Hint;
+              severity = vscode.DiagnosticSeverity.Warning;
               break;
             default:
-              severity = vscode.DiagnosticSeverity.Information;
+              severity = vscode.DiagnosticSeverity.Warning;
           }
 
           const diagnostic = new vscode.Diagnostic(
@@ -424,10 +424,10 @@ export function activate(context: vscode.ExtensionContext) {
                     break;
                   case "MEDIUM":
                   case "INFO":
-                    severity = vscode.DiagnosticSeverity.Information;
+                    severity = vscode.DiagnosticSeverity.Warning;
                     break;
                   default:
-                    severity = vscode.DiagnosticSeverity.Hint;
+                    severity = vscode.DiagnosticSeverity.Warning;
                 }
 
                 const diagnostic = new vscode.Diagnostic(

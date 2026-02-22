@@ -437,6 +437,14 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
   ```
 
 - For bulk ignores, use the `.cytoscnpy.toml` configuration file's ignore list.
+  For per-file rule scopes, add a `[tool.cytoscnpy.per-file-ignores]` table (or `per-file-ignores` inside `.cytoscnpy.toml`) with glob keys mapped to rule lists:
+
+  ```toml
+  [tool.cytoscnpy.per-file-ignores]
+  "tests/*" = ["S101"]       # Allow assert statements in tests
+  "__init__.py" = ["F401"]   # Allow unused imports in __init__.py
+  "migrations/*" = ["E501"]  # Allow long lines in migrations
+  ```
 
 **3. Performance is slow**
 

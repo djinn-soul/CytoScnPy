@@ -1,6 +1,9 @@
 //! Builder-style methods for CytoScnPy analyzer.
 
-use super::CytoScnPy;
+use globset::GlobBuilder;
+use rustc_hash::{FxHashMap, FxHashSet};
+
+use super::{CytoScnPy, PerFileIgnoreRule};
 use crate::config::Config;
 
 impl CytoScnPy {
@@ -19,6 +22,9 @@ impl CytoScnPy {
         ipynb_cells: bool,
         config: Config,
     ) -> Self {
+        let per_file_ignore_rules =
+            build_per_file_ignore_rules(config.cytoscnpy.per_file_ignores.as_ref());
+
         #[allow(deprecated)]
         Self {
             confidence_threshold,
@@ -37,6 +43,8 @@ impl CytoScnPy {
             progress_bar: None,
             verbose: false,
             analysis_root: std::path::PathBuf::from("."),
+            whitelist_matcher: None,
+            per_file_ignore_rules,
         }
     }
 
@@ -121,6 +129,8 @@ impl CytoScnPy {
     #[must_use]
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = config;
+        self.per_file_ignore_rules =
+            build_per_file_ignore_rules(self.config.cytoscnpy.per_file_ignores.as_ref());
         self
     }
 
@@ -151,4 +161,36 @@ impl CytoScnPy {
             })
             .sum()
     }
+}
+
+fn build_per_file_ignore_rules(
+    per_file_ignores: Option<&FxHashMap<String, Vec<String>>>,
+) -> Vec<PerFileIgnoreRule> {
+    let mut rules = Vec::new();
+    if let Some(mapping) = per_file_ignores {
+        for (pattern, ids) in mapping {
+            match GlobBuilder::new(pattern).literal_separator(true).build() {
+                Ok(glob) => {
+                    let rule_ids = ids
+                        .iter()
+                        .map(|id| id.trim().to_uppercase())
+                        .filter(|id| !id.is_empty())
+                        .collect::<FxHashSet<_>>();
+
+                    if rule_ids.is_empty() {
+                        continue;
+                    }
+
+                    rules.push(PerFileIgnoreRule {
+                        matcher: glob.compile_matcher(),
+                        rule_ids,
+                    });
+                }
+                Err(err) => {
+                    eprintln!("[WARN] Skipping invalid per-file ignore glob '{pattern}': {err}");
+                }
+            }
+        }
+    }
+    rules
 }

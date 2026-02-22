@@ -38,10 +38,7 @@ mod tests {
     fn test_analyzer_respects_suppression() {
         use cytoscnpy::analyzer::CytoScnPy;
         let source = "import os\nos.system('ls') # noqa: CSP\n";
-        let analyzer = CytoScnPy {
-            enable_danger: true,
-            ..CytoScnPy::default()
-        };
+        let analyzer = CytoScnPy::default().with_danger(true);
 
         let result = analyzer.analyze_code(source, &std::path::PathBuf::from("test.py"));
 
@@ -59,10 +56,7 @@ mod tests {
         use std::path::PathBuf;
 
         let file_path = PathBuf::from("tests/python_files/suppression_case.py");
-        let mut analyzer = CytoScnPy {
-            enable_danger: true,
-            ..CytoScnPy::default()
-        };
+        let mut analyzer = CytoScnPy::default().with_danger(true);
 
         let result = analyzer.analyze_paths(&[file_path]);
 

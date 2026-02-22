@@ -431,6 +431,7 @@ dependencies = [
  "compact_str",
  "ctrlc",
  "dhat",
+ "globset",
  "ignore",
  "indicatif",
  "insta",

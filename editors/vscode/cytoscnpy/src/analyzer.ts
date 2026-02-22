@@ -132,8 +132,6 @@ function transformRawResult(
         return "error";
       case "MEDIUM":
         return "warning";
-      case "LOW":
-        return "info";
       default:
         return "warning";
     }
@@ -205,7 +203,7 @@ function transformRawResult(
     "unused-parameter",
     "Dead Code",
     (f) => `Parameter '${f.name}' is never used`,
-    "info",
+    "warning",
   );
 
   // Security categories
@@ -264,7 +262,7 @@ function transformRawResult(
     }
   }
 
-  // Process clone findings (displayed as hints with navigation suggestions)
+  // Process clone findings (displayed as warnings with navigation suggestions)
   // Clone detection uses AST-based hashing and edit distance (not CFG)
   // Deduplicate: keep only the highest-similarity clone per location
   if (rawResult.clones) {
@@ -301,7 +299,7 @@ function transformRawResult(
         message,
         rule_id: clone.rule_id,
         category: "Clones",
-        severity: clone.is_duplicate ? "warning" : "hint",
+        severity: "warning",
       });
     }
   }

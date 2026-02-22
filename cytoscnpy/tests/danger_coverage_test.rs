@@ -8,11 +8,7 @@ fn test_danger_rules_full_coverage() {
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(false);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     // Run analysis
     let result = analyzer.analyze_code(source, &PathBuf::from("python_files/danger_corpus.py"));
@@ -99,11 +95,7 @@ fn test_eval_not_filtered_by_taint() {
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -127,11 +119,7 @@ os.path.abspath(user_input)
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -159,11 +147,7 @@ requests.get(url=user_url)
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -190,11 +174,7 @@ zipfile.Path('archive.zip', at=user_path)
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -221,11 +201,7 @@ Template(user_sql).substitute(id=1) # Should be flagged
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -252,11 +228,7 @@ requests.request('GET', user_url)
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -283,11 +255,7 @@ requests.get(uri=user_url)
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -314,11 +282,7 @@ j.prepare_query(user_sql, {})
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 
@@ -345,11 +309,7 @@ os.path.join('a', 'b', 'c', tainted)
     let mut config = cytoscnpy::config::Config::default();
     config.cytoscnpy.danger_config.enable_taint = Some(true);
 
-    let analyzer = CytoScnPy {
-        enable_danger: true,
-        config,
-        ..CytoScnPy::default()
-    };
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
 
     let result = analyzer.analyze_code(source, &PathBuf::from("test.py"));
 

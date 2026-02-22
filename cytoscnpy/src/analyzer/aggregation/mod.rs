@@ -60,6 +60,7 @@ impl CytoScnPy {
             &reachability,
             &fixture_definition_names,
             self.confidence_threshold,
+            self.whitelist_matcher.as_ref(),
         );
 
         promote_methods_from_unused_classes(

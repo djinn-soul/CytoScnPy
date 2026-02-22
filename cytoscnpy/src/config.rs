@@ -2,6 +2,8 @@ use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
+use rustc_hash::FxHashMap;
+
 use crate::constants::{CONFIG_FILENAME, PYPROJECT_FILENAME};
 
 #[derive(Debug, Deserialize, Default, Clone)]
@@ -61,6 +63,9 @@ pub struct CytoScnPyConfig {
     pub min_mi: Option<f64>,
     /// List of rule codes to ignore.
     pub ignore: Option<Vec<String>>,
+    /// Per-file ignore overrides (glob -> rule IDs).
+    #[serde(alias = "per-file-ignores")]
+    pub per_file_ignores: Option<FxHashMap<String, Vec<String>>>,
     /// Fail threshold percentage (0.0-100.0).
     pub fail_threshold: Option<f64>,
     /// Project type tunes export/public-API assumptions for dead-code analysis.
@@ -72,6 +77,10 @@ pub struct CytoScnPyConfig {
     /// Advanced secrets scanning configuration.
     #[serde(default)]
     pub secrets_config: Box<SecretsConfig>,
+    /// Whitelist of symbol names to ignore during dead code detection.
+    /// Supports exact names, wildcards (e.g., "test_*"), and regex patterns.
+    #[serde(default)]
+    pub whitelist: Vec<WhitelistEntry>,
 }
 
 impl CytoScnPyConfig {
@@ -231,6 +240,903 @@ pub struct CustomSecretPattern {
 
 fn default_severity() -> String {
     "HIGH".to_owned()
+}
+
+/// A whitelist entry for ignoring false positives in dead code detection.
+///
+/// Whitelists allow users to mark symbols as "used" even when the static
+/// analyzer cannot detect usage. This is useful for:
+/// - Dynamically accessed code (e.g., plugin systems, entry points)
+/// - Framework-managed code (e.g., Django models, Flask routes)
+/// - Public API symbols in libraries
+///
+/// # Example TOML Configuration
+///
+/// ```toml
+/// [cytoscnpy]
+/// whitelist = [
+///     { name = "my_plugin_hook" },
+///     { name = "test_*", pattern = "wildcard" },
+///     { name = "api_.*", pattern = "regex" },
+/// ]
+/// ```
+#[derive(Debug, Deserialize, Clone)]
+pub struct WhitelistEntry {
+    /// The symbol name or pattern to whitelist.
+    pub name: String,
+
+    /// The type of pattern matching to use.
+    /// - `exact` (default): Match the name exactly
+    /// - `wildcard`: Use glob-style wildcards (e.g., `test_*`)
+    /// - `regex`: Use regular expressions
+    #[serde(default)]
+    pub pattern: Option<WhitelistPattern>,
+
+    /// Optional file path to restrict the whitelist to a specific file.
+    /// Supports glob patterns (e.g., `src/api/*.py`).
+    #[serde(default)]
+    pub file: Option<String>,
+
+    /// Optional category for documentation/organization purposes.
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
+/// Pattern matching type for whitelist entries.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum WhitelistPattern {
+    /// Exact string match (default).
+    #[default]
+    Exact,
+    /// Glob-style wildcard matching (e.g., `test_*`, `*_handler`).
+    Wildcard,
+    /// Regular expression matching.
+    Regex,
+}
+
+impl WhitelistEntry {
+    /// Check if a symbol name matches this whitelist entry.
+    ///
+    /// # Arguments
+    /// * `symbol_name` - The name of the symbol to check.
+    /// * `file_path` - Optional file path for file-specific whitelisting.
+    ///
+    /// # Returns
+    /// `true` if the symbol matches this whitelist entry.
+    pub fn matches(&self, symbol_name: &str, file_path: Option<&str>) -> bool {
+        // Check file restriction first
+        if let Some(ref file_pattern) = self.file {
+            if let Some(path) = file_path {
+                if !Self::matches_file_pattern(file_pattern, path) {
+                    return false;
+                }
+            } else {
+                // File pattern specified but no file path provided
+                return false;
+            }
+        }
+
+        // Match based on pattern type
+        match self.pattern.unwrap_or_default() {
+            WhitelistPattern::Exact => self.name == symbol_name,
+            WhitelistPattern::Wildcard => self.matches_wildcard(symbol_name),
+            WhitelistPattern::Regex => self.matches_regex(symbol_name),
+        }
+    }
+
+    fn matches_wildcard(&self, symbol_name: &str) -> bool {
+        // Convert glob pattern to regex
+        // Simple implementation: only handle * (any characters) and ? (single character)
+        let mut regex_pattern = String::new();
+        regex_pattern.push('^');
+        for ch in self.name.chars() {
+            match ch {
+                '*' => regex_pattern.push_str(".*"),
+                '?' => regex_pattern.push('.'),
+                // Escape regex special characters
+                '.' | '^' | '$' | '+' | '[' | ']' | '(' | ')' | '{' | '}' | '\\' | '|' => {
+                    regex_pattern.push('\\');
+                    regex_pattern.push(ch);
+                }
+                _ => regex_pattern.push(ch),
+            }
+        }
+        regex_pattern.push('$');
+
+        // Use regex crate to match
+        match regex::Regex::new(&regex_pattern) {
+            Ok(re) => re.is_match(symbol_name),
+            Err(_) => false,
+        }
+    }
+
+    fn matches_regex(&self, symbol_name: &str) -> bool {
+        match regex::Regex::new(&self.name) {
+            Ok(re) => re.is_match(symbol_name),
+            Err(_) => false,
+        }
+    }
+
+    fn matches_file_pattern(pattern: &str, path: &str) -> bool {
+        // Simple glob matching for file paths
+        let pattern_lower = pattern.to_lowercase();
+        let path_lower = path.to_lowercase();
+
+        // Handle ** for recursive matching
+        if pattern_lower.contains("**") {
+            let parts: Vec<&str> = pattern_lower.split("**").collect();
+            if parts.len() == 2 {
+                let prefix = parts[0].trim_end_matches('/');
+                let suffix = parts[1].trim_start_matches('/');
+                return (prefix.is_empty() || path_lower.starts_with(prefix))
+                    && (suffix.is_empty() || path_lower.ends_with(suffix));
+            }
+        }
+
+        // Handle simple * wildcard
+        if pattern_lower.contains('*') {
+            let mut regex_pattern = String::new();
+            regex_pattern.push('^');
+            for ch in pattern_lower.chars() {
+                match ch {
+                    '*' => regex_pattern.push_str(".*"),
+                    '.' | '^' | '$' | '+' | '[' | ']' | '(' | ')' | '{' | '}' | '\\' | '|' => {
+                        regex_pattern.push('\\');
+                        regex_pattern.push(ch);
+                    }
+                    _ => regex_pattern.push(ch),
+                }
+            }
+            regex_pattern.push('$');
+
+            match regex::Regex::new(&regex_pattern) {
+                Ok(re) => re.is_match(&path_lower),
+                Err(_) => false,
+            }
+        } else {
+            // Exact match or prefix match for directories
+            path_lower == pattern_lower || path_lower.starts_with(&format!("{pattern_lower}/"))
+        }
+    }
+}
+
+/// Returns built-in default whitelists for common Python modules.
+///
+/// These whitelists cover symbols that are typically accessed dynamically
+/// or through reflection, which static analysis cannot detect.
+///
+/// Inspired by Vulture's whitelist approach:
+/// <https://github.com/jendrikseipp/vulture/tree/main/vulture/whitelists>
+#[must_use]
+pub fn get_builtin_whitelists() -> Vec<WhitelistEntry> {
+    vec![
+        // argparse - argument parser attributes
+        WhitelistEntry {
+            name: "add_argument".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "parse_args".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "parse_known_args".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "set_defaults".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "get_default".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "add_subparsers".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "add_parser".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "set_defaults".into(),
+            category: Some("argparse".into()),
+            ..Default::default()
+        },
+        // logging - logger methods and attributes
+        WhitelistEntry {
+            name: "getLogger".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "debug".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "info".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "warning".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "error".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "critical".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "exception".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "log".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "addHandler".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "removeHandler".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "addFilter".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "removeFilter".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "propagate".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "setLevel".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "getEffectiveLevel".into(),
+            category: Some("logging".into()),
+            ..Default::default()
+        },
+        // threading - thread attributes
+        WhitelistEntry {
+            name: "is_alive".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "getName".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "setName".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "isDaemon".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "setDaemon".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "start".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "join".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "run".into(),
+            category: Some("threading".into()),
+            ..Default::default()
+        },
+        // enum - enum attributes
+        WhitelistEntry {
+            name: "name".into(),
+            category: Some("enum".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "value".into(),
+            category: Some("enum".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_value_".into(),
+            category: Some("enum".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_name_".into(),
+            category: Some("enum".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_missing_".into(),
+            category: Some("enum".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_generate_next_value_".into(),
+            category: Some("enum".into()),
+            ..Default::default()
+        },
+        // ctypes - foreign function interface
+        WhitelistEntry {
+            name: "restype".into(),
+            category: Some("ctypes".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "argtypes".into(),
+            category: Some("ctypes".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "errcheck".into(),
+            category: Some("ctypes".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "value".into(),
+            category: Some("ctypes".into()),
+            ..Default::default()
+        },
+        // socketserver - server attributes
+        WhitelistEntry {
+            name: "allow_reuse_address".into(),
+            category: Some("socketserver".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "address_family".into(),
+            category: Some("socketserver".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "socket_type".into(),
+            category: Some("socketserver".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "request_queue_size".into(),
+            category: Some("socketserver".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "timeout".into(),
+            category: Some("socketserver".into()),
+            ..Default::default()
+        },
+        // ssl - SSL context attributes
+        WhitelistEntry {
+            name: "check_hostname".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "verify_mode".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "protocol".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "options".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "load_cert_chain".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "load_verify_locations".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "set_ciphers".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "wrap_socket".into(),
+            category: Some("ssl".into()),
+            ..Default::default()
+        },
+        // string - formatter attributes
+        WhitelistEntry {
+            name: "parse".into(),
+            category: Some("string".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "format_field".into(),
+            category: Some("string".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "get_field".into(),
+            category: Some("string".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "get_value".into(),
+            category: Some("string".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "convert_field".into(),
+            category: Some("string".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "format".into(),
+            category: Some("string".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "vformat".into(),
+            category: Some("string".into()),
+            ..Default::default()
+        },
+        // sys - system attributes
+        WhitelistEntry {
+            name: "excepthook".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "displayhook".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "exitfunc".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "stdin".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "stdout".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "stderr".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "path".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "modules".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "meta_path".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "path_hooks".into(),
+            category: Some("sys".into()),
+            ..Default::default()
+        },
+        // unittest - test methods
+        WhitelistEntry {
+            name: "setUp".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "tearDown".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "setUpClass".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "tearDownClass".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "setUpModule".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "tearDownModule".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "run".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "debug".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "countTestCases".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "defaultTestResult".into(),
+            category: Some("unittest".into()),
+            ..Default::default()
+        },
+        // collections - special methods
+        WhitelistEntry {
+            name: "__missing__".into(),
+            category: Some("collections".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_asdict".into(),
+            category: Some("collections".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_make".into(),
+            category: Some("collections".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_replace".into(),
+            category: Some("collections".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "_fields".into(),
+            category: Some("collections".into()),
+            ..Default::default()
+        },
+        // ast - AST visitor methods
+        WhitelistEntry {
+            name: "visit".into(),
+            category: Some("ast".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "generic_visit".into(),
+            category: Some("ast".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "visit_*".into(),
+            pattern: Some(WhitelistPattern::Wildcard),
+            category: Some("ast".into()),
+            ..Default::default()
+        },
+        // pint - physics units
+        WhitelistEntry {
+            name: "Quantity".into(),
+            category: Some("pint".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "UnitRegistry".into(),
+            category: Some("pint".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "Measurement".into(),
+            category: Some("pint".into()),
+            ..Default::default()
+        },
+        // Django-style patterns (common in web frameworks)
+        WhitelistEntry {
+            name: "Meta".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "Objects".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "DoesNotExist".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "MultipleObjectsReturned".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "save".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "delete".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "clean".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "validate_unique".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "get_absolute_url".into(),
+            category: Some("django".into()),
+            ..Default::default()
+        },
+        // Flask-style patterns
+        WhitelistEntry {
+            name: "before_request".into(),
+            category: Some("flask".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "after_request".into(),
+            category: Some("flask".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "teardown_request".into(),
+            category: Some("flask".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "errorhandler".into(),
+            category: Some("flask".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "context_processor".into(),
+            category: Some("flask".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "url_value_preprocessor".into(),
+            category: Some("flask".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "url_defaults".into(),
+            category: Some("flask".into()),
+            ..Default::default()
+        },
+        // Pytest fixtures and hooks (already covered by framework detection, but explicit here)
+        WhitelistEntry {
+            name: "pytest_configure".into(),
+            category: Some("pytest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "pytest_unconfigure".into(),
+            category: Some("pytest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "pytest_collection_modifyitems".into(),
+            category: Some("pytest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "pytest_addoption".into(),
+            category: Some("pytest".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "pytest_generate_tests".into(),
+            category: Some("pytest".into()),
+            ..Default::default()
+        },
+        // Entry points and plugin patterns
+        WhitelistEntry {
+            name: "main".into(),
+            category: Some("entry_point".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "setup".into(),
+            category: Some("entry_point".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "teardown".into(),
+            category: Some("entry_point".into()),
+            ..Default::default()
+        },
+        // Magic methods that are called dynamically
+        WhitelistEntry {
+            name: "__call__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__getattr__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__setattr__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__delattr__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__getattribute__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__dir__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__len__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__iter__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__next__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__contains__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__bool__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__str__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__repr__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__hash__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__eq__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__ne__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__lt__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__le__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__gt__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__ge__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__getitem__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__setitem__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+        WhitelistEntry {
+            name: "__delitem__".into(),
+            category: Some("magic".into()),
+            ..Default::default()
+        },
+    ]
+}
+
+impl Default for WhitelistEntry {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            pattern: Some(WhitelistPattern::Exact),
+            file: None,
+            category: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]

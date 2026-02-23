@@ -10,7 +10,6 @@ use crate::constants::MAX_RECURSION_DEPTH;
 use crate::constants::PYTEST_HOOKS;
 use crate::utils::LineIndex;
 use compact_str::CompactString;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
@@ -19,8 +18,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
-static EVAL_IDENTIFIER_RE: Lazy<Option<Regex>> = Lazy::new(|| Regex::new(r"\b[a-zA-Z_]\w*\b").ok());
+static EVAL_IDENTIFIER_RE: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"\b[a-zA-Z_]\w*\b").ok());
 
 mod constructor;
 mod definition;

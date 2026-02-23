@@ -1,11 +1,12 @@
 use anyhow::Result;
-use once_cell::sync::Lazy;
 use regex::Regex;
+use std::sync::LazyLock;
 
 use super::context::AnalysisContext;
 use super::run::AnalysisRun;
 
-static MCCABE_RE: Lazy<Option<Regex>> = Lazy::new(|| Regex::new(r"McCabe\s*=\s*(\d+)").ok());
+static MCCABE_RE: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"McCabe\s*=\s*(\d+)").ok());
 
 fn extract_mccabe_value(message: &str) -> Option<usize> {
     MCCABE_RE

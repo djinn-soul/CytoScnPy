@@ -27,6 +27,7 @@ pub(crate) struct FixtureImportBinding {
     pub(crate) local_name: String,
     pub(crate) source_module: String,
     pub(crate) source_symbol: String,
+    pub(crate) level: u32,
     pub(crate) requester_file: PathBuf,
 }
 
@@ -92,16 +93,19 @@ pub(crate) fn collect_file_fixture_metadata(
     }
 
     for import in &test_visitor.fixture_imports {
-        if import.local_name.is_empty()
-            || import.source_module.is_empty()
-            || import.source_symbol.is_empty()
-        {
+        if import.local_name.is_empty() || import.source_symbol.is_empty() {
             continue;
         }
+        let Some(source_module) =
+            resolve_import_source_module(module_name, &import.source_module, import.level)
+        else {
+            continue;
+        };
         metadata.fixture_imports.push(FixtureImportBinding {
             local_name: import.local_name.clone(),
-            source_module: import.source_module.clone(),
+            source_module,
             source_symbol: import.source_symbol.clone(),
+            level: import.level,
             requester_file: file_path.to_path_buf(),
         });
     }
@@ -292,4 +296,29 @@ fn plugin_visible_to_request(plugin: &PytestPluginDeclaration, requester_file: &
 
 fn path_depth(path: &Path) -> usize {
     path.components().count()
+}
+
+fn resolve_import_source_module(
+    requester_module: &str,
+    source_module: &str,
+    level: u32,
+) -> Option<String> {
+    if level == 0 {
+        return Some(source_module.to_owned());
+    }
+
+    let mut package_parts: Vec<&str> = requester_module.split('.').collect();
+    package_parts.pop();
+
+    let ascend = usize::try_from(level - 1).ok()?;
+    if ascend > package_parts.len() {
+        return None;
+    }
+    package_parts.truncate(package_parts.len().saturating_sub(ascend));
+
+    if !source_module.is_empty() {
+        package_parts.extend(source_module.split('.'));
+    }
+
+    Some(package_parts.join("."))
 }

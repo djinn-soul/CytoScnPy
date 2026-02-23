@@ -85,18 +85,25 @@ pub(super) fn apply_raw_rules(ctx: &RuleEngineContext<'_>, output: &mut Pipeline
 
     if let Some(min_mi) = ctx.analyzer.config.cytoscnpy.min_mi {
         if output.file_mi < min_mi {
-            output.quality.push(Finding {
-                message: format!(
-                    "Maintainability Index too low ({:.2} < {:.2})",
-                    output.file_mi, min_mi
-                ),
-                rule_id: crate::rules::ids::RULE_ID_MIN_MI.to_owned(),
-                category: "Maintainability".to_owned(),
-                file: ctx.file_path.to_path_buf(),
-                line: 1,
-                col: 0,
-                severity: "HIGH".to_owned(),
-            });
+            let rule_id = crate::rules::ids::RULE_ID_MIN_MI;
+            if !crate::utils::is_line_suppressed(ctx.ignored_lines, 1, rule_id)
+                && !ctx
+                    .analyzer
+                    .is_rule_ignored_for_path(ctx.file_path, rule_id)
+            {
+                output.quality.push(Finding {
+                    message: format!(
+                        "Maintainability Index too low ({:.2} < {:.2})",
+                        output.file_mi, min_mi
+                    ),
+                    rule_id: rule_id.to_owned(),
+                    category: "Maintainability".to_owned(),
+                    file: ctx.file_path.to_path_buf(),
+                    line: 1,
+                    col: 0,
+                    severity: "HIGH".to_owned(),
+                });
+            }
         }
     }
 }

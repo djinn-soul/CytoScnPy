@@ -46,8 +46,10 @@ impl UsageEvidence {
 }
 
 fn min_usage_score(def_type: &str) -> f64 {
-    let _ = def_type;
-    0.0
+    match def_type {
+        "function" | "method" | "class" => 0.35,
+        _ => 0.0,
+    }
 }
 
 pub(super) struct ClassificationResult {
@@ -118,17 +120,12 @@ pub(super) fn classify_definitions(
             if !loose_ref_exists {
                 def.is_unreachable = true;
                 def.references = 0;
-                if def.confidence > 0 {
-                    // Unreachable symbols are strong dead-code evidence.
-                    // Keep them visible under default confidence even if private-name
-                    // heuristics previously lowered confidence.
-                    def.confidence = def.confidence.max(60);
-                }
             }
         }
 
         if (!def.is_unreachable || evidence.has_strong_exact())
             && def.references > 0
+            && evidence.score() > 0.0
             && !evidence.has_strong_exact()
             && evidence.score() < min_usage_score(&def.def_type)
         {
@@ -140,7 +137,7 @@ pub(super) fn classify_definitions(
             result.methods_with_refs.push(def.clone());
         }
 
-        if def.references != 0 || def.confidence < confidence_threshold {
+        if !should_report_definition(&def, confidence_threshold) {
             continue;
         }
 
@@ -168,6 +165,21 @@ pub(super) fn classify_definitions(
     result
 }
 
+fn should_report_definition(def: &Definition, confidence_threshold: u8) -> bool {
+    if def.references != 0 {
+        return false;
+    }
+
+    // Structural reachability evidence should not be hidden by intent penalties.
+    // Keep this constrained to executable/type container symbols to avoid surfacing
+    // low-confidence variables/imports solely due heuristic interactions.
+    if def.is_unreachable && matches!(def.def_type.as_str(), "function" | "method" | "class") {
+        return true;
+    }
+
+    def.confidence >= confidence_threshold
+}
+
 fn sync_definition_reference(
     def: &mut Definition,
     ref_counts: &FxHashMap<String, usize>,
@@ -176,15 +188,17 @@ fn sync_definition_reference(
     let mut evidence = UsageEvidence::default();
 
     if let Some(count) = ref_counts.get(&def.full_name) {
-        if (def.def_type == "variable" || def.def_type == "parameter")
-            && !def.is_enum_member
-            && *count == 0
-        {
+        let is_var_like = def.def_type == "variable" || def.def_type == "parameter";
+        if is_var_like && !def.is_enum_member && *count == 0 {
             return evidence;
         }
         def.references = *count;
         evidence.full_name_ref = *count > 0;
-        return evidence;
+        // Do not return early for zero-count non var/param symbols.
+        // They may still have valid fallback evidence (e.g. `.method_name`).
+        if *count > 0 || is_var_like {
+            return evidence;
+        }
     }
 
     let mut matched = false;

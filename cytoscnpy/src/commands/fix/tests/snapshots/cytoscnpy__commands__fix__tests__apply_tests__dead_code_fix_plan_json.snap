@@ -10,7 +10,7 @@ expression: normalized
   "planned_items": 1,
   "plans": [
     {
-      "file": "[TMP]\\test.py",
+      "file": "[TMP]/test.py",
       "items_removed": 1,
       "lines_removed": 0,
       "planned_edits": [

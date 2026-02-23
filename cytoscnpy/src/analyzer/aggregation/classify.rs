@@ -118,6 +118,12 @@ pub(super) fn classify_definitions(
             if !loose_ref_exists {
                 def.is_unreachable = true;
                 def.references = 0;
+                if def.confidence > 0 {
+                    // Unreachable symbols are strong dead-code evidence.
+                    // Keep them visible under default confidence even if private-name
+                    // heuristics previously lowered confidence.
+                    def.confidence = def.confidence.max(60);
+                }
             }
         }
 

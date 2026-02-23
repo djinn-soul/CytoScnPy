@@ -42,6 +42,8 @@ impl<'a> CytoScnPyVisitor<'a> {
             }
         }
 
+        let resolved_base_module = self.resolve_import_from_base_module(node);
+
         for alias in &node.names {
             let asname = alias.asname.as_ref().unwrap_or(&alias.name);
             let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
@@ -60,8 +62,8 @@ impl<'a> CytoScnPyVisitor<'a> {
             });
             self.add_local_def(asname.to_string(), qualified_name);
 
-            if let Some(module) = &node.module {
-                let full_name = format!("{}.{}", module, alias.name);
+            if let Some(base_module) = resolved_base_module.as_deref() {
+                let full_name = format!("{base_module}.{}", alias.name);
                 self.add_ref(full_name.clone());
                 self.alias_map.insert(asname.to_string(), full_name);
             } else {
@@ -78,6 +80,45 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.add_ref(qualified_name);
                 self.add_ref(asname.to_string());
             }
+        }
+    }
+
+    fn resolve_import_from_base_module(&self, node: &ast::StmtImportFrom) -> Option<String> {
+        let level = node.level as usize;
+        if level == 0 {
+            return node.module.as_ref().map(ToString::to_string);
+        }
+
+        let mut package_parts: Vec<&str> = self
+            .module_name
+            .split('.')
+            .filter(|part| !part.is_empty())
+            .collect();
+
+        let is_init_module = self
+            .file_path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .is_some_and(|stem| stem == "__init__");
+
+        if !is_init_module {
+            let _ = package_parts.pop();
+        }
+
+        for _ in 1..level {
+            if package_parts.pop().is_none() {
+                break;
+            }
+        }
+
+        if let Some(module) = &node.module {
+            package_parts.push(module.as_str());
+        }
+
+        if package_parts.is_empty() {
+            node.module.as_ref().map(ToString::to_string)
+        } else {
+            Some(package_parts.join("."))
         }
     }
 }

@@ -60,7 +60,8 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         run.result.unused_parameters.clear();
     }
 
-    let json_fix_mode = cli_var.fix && cli_var.output.json && !cli_var.clones;
+    let json_fix_plan_mode =
+        cli_var.fix && !cli_var.apply && cli_var.output.json && !cli_var.clones;
     if cli_var.make_whitelist {
         let mut whitelist_entries = Vec::new();
         whitelist_entries.extend(run.result.unused_functions.iter().cloned());
@@ -73,7 +74,7 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         writer.flush()?;
         return Ok(0);
     }
-    if !json_fix_mode {
+    if !json_fix_plan_mode {
         report_results(cli_var, analysis_root, &context, &run, writer)?;
     }
     run_fix_if_requested(

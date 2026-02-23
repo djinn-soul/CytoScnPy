@@ -51,6 +51,7 @@ pub(super) fn run_taint_analysis(
                 .into_iter()
                 .filter(move |finding| {
                     !crate::utils::is_line_suppressed(&ignored, finding.sink_line, &finding.rule_id)
+                        && !analyzer.is_rule_ignored_for_path(&finding.file, &finding.rule_id)
                 })
                 .collect::<Vec<_>>()
         })

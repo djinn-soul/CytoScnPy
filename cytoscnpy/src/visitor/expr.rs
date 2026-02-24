@@ -36,7 +36,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                 let mut handled_as_literal = false;
                 if let Some(Expr::StringLiteral(s)) = node.arguments.args.first() {
                     let val = s.value.to_string();
-                    if let Some(re) = EVAL_IDENTIFIER_RE.as_ref() {
+                    if let Some(re) =
+                        EVAL_IDENTIFIER_RE.get_or_init(|| Regex::new(r"\b[a-zA-Z_]\w*\b").ok())
+                    {
                         for m in re.find_iter(&val) {
                             self.add_ref(m.as_str().to_owned());
                         }

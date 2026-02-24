@@ -37,6 +37,11 @@ pub(super) fn analyze_parsed_module(
             Some(&docstring_lines),
             ctx.is_test_file,
         );
+
+        output.secrets.retain(|finding| {
+            !ctx.analyzer
+                .is_rule_ignored_for_path(ctx.file_path, &finding.rule_id)
+        });
     }
 
     output
@@ -92,6 +97,12 @@ pub(super) fn analyze_parsed_module(
                 .add_ref(format!("{}.{}", ctx.module_name, export_name));
         }
     }
+
+    CytoScnPy::mark_dynamic_import_references(
+        &output.visitor.dynamic_scopes,
+        &output.visitor.definitions,
+        &mut output.visitor.references,
+    );
 
     CytoScnPy::sync_definition_references(
         &mut output.visitor.definitions,

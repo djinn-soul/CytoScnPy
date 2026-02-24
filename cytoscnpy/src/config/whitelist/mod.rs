@@ -1,5 +1,6 @@
 mod builtin;
 
+use globset::GlobBuilder;
 use serde::Deserialize;
 
 /// A whitelist entry for ignoring false positives in dead code detection.
@@ -88,36 +89,17 @@ impl WhitelistEntry {
     }
 
     fn matches_file_pattern(pattern: &str, path: &str) -> bool {
-        let pattern_lower = pattern.to_lowercase();
-        let path_lower = path.to_lowercase();
+        let normalized_pattern = pattern.replace('\\', "/");
+        let normalized_path = path.replace('\\', "/");
 
-        if pattern_lower.contains("**") {
-            let parts: Vec<&str> = pattern_lower.split("**").collect();
-            if parts.len() == 2 {
-                let prefix = parts[0].trim_end_matches('/');
-                let suffix = parts[1].trim_start_matches('/');
-                return (prefix.is_empty() || path_lower.starts_with(prefix))
-                    && (suffix.is_empty() || path_lower.ends_with(suffix));
-            }
-        }
+        let Ok(glob) = GlobBuilder::new(&normalized_pattern)
+            .case_insensitive(true)
+            .build()
+        else {
+            return false;
+        };
 
-        if pattern_lower.contains('*') {
-            let mut regex_pattern = String::from("^");
-            for ch in pattern_lower.chars() {
-                match ch {
-                    '*' => regex_pattern.push_str(".*"),
-                    '.' | '^' | '$' | '+' | '[' | ']' | '(' | ')' | '{' | '}' | '\\' | '|' => {
-                        regex_pattern.push('\\');
-                        regex_pattern.push(ch);
-                    }
-                    _ => regex_pattern.push(ch),
-                }
-            }
-            regex_pattern.push('$');
-            return regex::Regex::new(&regex_pattern).is_ok_and(|re| re.is_match(&path_lower));
-        }
-
-        path_lower == pattern_lower || path_lower.starts_with(&format!("{pattern_lower}/"))
+        glob.compile_matcher().is_match(normalized_path)
     }
 }
 
@@ -135,5 +117,30 @@ impl Default for WhitelistEntry {
             file: None,
             category: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WhitelistEntry;
+
+    #[test]
+    fn file_pattern_supports_double_star_with_suffix_wildcard() {
+        assert!(WhitelistEntry::matches_file_pattern(
+            "**/api/*.py",
+            "src/app/api/users.py"
+        ));
+        assert!(!WhitelistEntry::matches_file_pattern(
+            "**/api/*.py",
+            "src/app/apis/users.py"
+        ));
+    }
+
+    #[test]
+    fn file_pattern_is_case_insensitive_and_separator_agnostic() {
+        assert!(WhitelistEntry::matches_file_pattern(
+            "SRC/**/API/*.PY",
+            r"src\core\api\handler.py"
+        ));
     }
 }

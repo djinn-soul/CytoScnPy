@@ -18,10 +18,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 
-static EVAL_IDENTIFIER_RE: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r"\b[a-zA-Z_]\w*\b").ok());
+static EVAL_IDENTIFIER_RE: OnceLock<Option<Regex>> = OnceLock::new();
 
 mod constructor;
 mod definition;

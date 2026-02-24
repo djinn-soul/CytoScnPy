@@ -47,6 +47,7 @@ impl CytoScnPy {
         FileAnalysisResult {
             definitions: output.visitor.definitions,
             references: output.visitor.references,
+            import_bindings: output.visitor.import_bindings,
             protocol_methods: output.visitor.protocol_methods,
             secrets: output.secrets,
             danger: output.danger,

@@ -236,3 +236,50 @@ async def _process_single_field(field: str) -> str:
         "unreachable private async function should be reported at default confidence"
     );
 }
+
+#[test]
+fn test_unreachable_private_functions_reported_even_above_private_penalty_threshold() {
+    let dir = project_tempdir();
+    let pkg_dir = dir.path().join("tmc");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    File::create(pkg_dir.join("__init__.py")).unwrap();
+
+    let mut am_file = File::create(pkg_dir.join("am.py")).unwrap();
+    write!(
+        am_file,
+        r#"
+FIELD_REGIRSTRY: dict[str, str] = {{"key": "value"}}
+"#
+    )
+    .unwrap();
+
+    let mut ma_file = File::create(pkg_dir.join("ma.py")).unwrap();
+    write!(
+        ma_file,
+        r#"
+from .am import FIELD_REGIRSTRY
+
+def _get_field_registry() -> dict[str, str]:
+    return FIELD_REGIRSTRY
+
+async def _process_single_field(field: str) -> str:
+    registry = _get_field_registry()
+    return registry.get(field, "default_value")
+"#
+    )
+    .unwrap();
+
+    // Private-name penalty drives these functions to confidence 20.
+    // They should still be reported because reachability proves they are unreachable.
+    let mut cytoscnpy = CytoScnPy::default().with_confidence(90).with_tests(false);
+    let result = cytoscnpy.analyze(dir.path());
+
+    let unused_funcs: Vec<String> = result
+        .unused_functions
+        .iter()
+        .map(|f| f.simple_name.clone())
+        .collect();
+
+    assert!(unused_funcs.contains(&"_get_field_registry".to_owned()));
+    assert!(unused_funcs.contains(&"_process_single_field".to_owned()));
+}

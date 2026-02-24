@@ -85,6 +85,10 @@ pub mod taint;
 /// Provides Type-1/2/3 clone detection with safe `--fix` support.
 pub mod clones;
 
+/// Module for whitelist management (false positive suppression).
+/// Provides Vulture-compatible whitelist generation and loading.
+pub mod whitelist;
+
 /// Shared fix module for auto-remediation.
 /// Provides reusable byte-range safe code rewriting for `--fix` support.
 pub mod fix;

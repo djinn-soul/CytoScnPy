@@ -522,7 +522,6 @@ x = 1 + \
 }
 
 #[test]
-#[ignore] // TODO: Fix line continuation handling
 fn test_raw_line_continuation_with_string() {
     let code = r#"
 def foo(n=1):
@@ -542,7 +541,6 @@ def foo(n=1):
 }
 
 #[test]
-#[ignore] // TODO: Fix line continuation handling
 fn test_raw_line_continuation_with_comment() {
     let code = r#"
 def foo(n=1):

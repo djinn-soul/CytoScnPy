@@ -1,5 +1,5 @@
-from fastapi import FastAPI, APIRouter, Depends
-from pydantic import BaseModel, field_validator
+from framework_mocks import FastAPI, APIRouter, Depends
+from framework_mocks import BaseModel, field_validator
 from typing import Any  # unused
 
 app = FastAPI()

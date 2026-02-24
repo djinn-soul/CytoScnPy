@@ -100,6 +100,10 @@ pub const RULE_ID_DJANGO_SECURITY: &str = "CSP-D902";
 
 /// XSS (Generic fallback for taint analysis)
 pub const RULE_ID_XSS_GENERIC: &str = "CSP-X001";
+/// Secrets: Regex/known-pattern secret detection
+pub const RULE_ID_SECRET_PATTERN: &str = "CSP-S200";
+/// Secrets: Suspicious hardcoded secret assignment
+pub const RULE_ID_SECRET_ASSIGNMENT: &str = "CSP-S300";
 /// Quality: Mutable default argument (use None + initialize inside)
 pub const RULE_ID_MUTABLE_DEFAULT: &str = "CSP-L001";
 /// Quality: Bare except block

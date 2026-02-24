@@ -89,7 +89,7 @@
         font-size: 0.75rem;
         margin-left: 0.5rem;
       "
-      >{{ securityable.len() }}</span
+      >{{ security.len() }}</span
     >
   </button>
   <button class="tab-btn" onclick="openTab('quality')">
@@ -156,7 +156,7 @@
 <!-- Security Tab -->
 <div id="security" class="tab-content active" data-category="security">
   <div class="issue-list-container" data-page-size="5">
-    {% for issue in securityable %}
+    {% for issue in security %}
     <div
       class="report-item border-{{ issue.severity.to_lowercase() }}"
       data-severity="{{ issue.severity }}"

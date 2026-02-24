@@ -25,8 +25,8 @@ fn test_modern_python_features() {
         .iter()
         .find(|f| f.name == "match_example")
         .expect("match_example not found");
-    // 1 (base) + 4 (cases) = 5
-    assert_eq!(match_ex.complexity, 5);
+    // 1 (base) + 3 non-wildcard cases = 4
+    assert_eq!(match_ex.complexity, 4);
 
     // walrus_example
     let walrus = findings

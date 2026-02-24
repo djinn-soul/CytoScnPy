@@ -1,5 +1,11 @@
 //! Stats and files commands.
 
+mod collect;
+mod markdown;
+mod model;
+
+pub use model::{Inspections, ScanOptions};
+
 use super::utils::find_python_files;
 use crate::analyzer::CytoScnPy;
 use crate::config::Config;
@@ -9,122 +15,20 @@ use anyhow::Result;
 use colored::Colorize;
 use comfy_table::Table;
 use rayon::prelude::*;
-use serde::Serialize;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-#[derive(Serialize, Clone)]
-struct FileMetrics {
-    file: String,
-    code_lines: usize,
-    comment_lines: usize,
-    empty_lines: usize,
-    total_lines: usize,
-    size_kb: f64,
-}
-
-#[derive(Serialize)]
-struct StatsReport {
-    total_files: usize,
-    total_directories: usize,
-    total_size_kb: f64,
-    total_lines: usize,
-    code_lines: usize,
-    comment_lines: usize,
-    empty_lines: usize,
-    total_functions: usize,
-    total_classes: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    files: Option<Vec<FileMetrics>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    secrets: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    danger: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    quality: Option<Vec<String>>,
-}
-
-fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) {
-    use ruff_python_ast::Stmt;
-    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
-        let m = parsed.into_syntax();
-        let mut functions = 0;
-        let mut classes = 0;
-        for stmt in &m.body {
-            match stmt {
-                Stmt::FunctionDef(_) => functions += 1,
-                Stmt::ClassDef(c) => {
-                    classes += 1;
-                    for item in &c.body {
-                        if matches!(item, Stmt::FunctionDef(_)) {
-                            functions += 1;
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        (functions, classes)
-    } else {
-        (0, 0)
-    }
-}
-
-/// Flags for enabling specific inspection types
-#[derive(Serialize, Clone, Copy, Debug, Default)]
-pub struct Inspections {
-    /// Include secrets findings
-    pub secrets: bool,
-    /// Include dangerous pattern findings
-    pub danger: bool,
-    /// Include code quality findings
-    pub quality: bool,
-}
-
-/// Options for scanning during stats analysis
-#[derive(Serialize, Clone, Copy, Debug, Default)]
-pub struct ScanOptions {
-    /// Include all file-level and finding metrics
-    pub all: bool,
-    /// Inspections flags
-    pub inspections: Inspections,
-    /// Return output as JSON
-    pub json: bool,
-}
-
-impl ScanOptions {
-    /// Checks if any analysis mode is enabled
-    #[must_use]
-    pub fn is_any_enabled(self) -> bool {
-        self.all || self.inspections.secrets || self.inspections.danger || self.inspections.quality
-    }
-
-    /// Whether to include secrets in the scan
-    #[must_use]
-    pub fn include_secrets(self) -> bool {
-        self.all || self.inspections.secrets
-    }
-
-    /// Whether to include dangerous patterns in the scan
-    #[must_use]
-    pub fn include_danger(self) -> bool {
-        self.all || self.inspections.danger
-    }
-
-    /// Whether to include quality issues in the scan
-    #[must_use]
-    pub fn include_quality(self) -> bool {
-        self.all || self.inspections.quality
-    }
-}
+use collect::collect_project_stats;
+use markdown::generate_markdown_report_v2;
+use model::{FileMetrics, ProjectStats, StatsReport};
 
 /// Executes the stats command - generates comprehensive project report.
 ///
 /// # Errors
 ///
 /// Returns an error if file I/O fails or JSON serialization fails.
-#[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss)]
 pub fn run_stats_v2<W: Write>(
     root: &Path,
     roots: &[PathBuf],
@@ -147,7 +51,6 @@ pub fn run_stats_v2<W: Write>(
     };
 
     let stats = collect_project_stats(roots, exclude, include_folders, include_tests, verbose);
-
     let (analysis_result, report) = perform_stats_analysis(
         &stats,
         roots,
@@ -167,13 +70,7 @@ pub fn run_stats_v2<W: Write>(
         writer,
     )?;
 
-    // Return quality issue count for fail-on-quality gate
-    let quality_count = analysis_result
-        .as_ref()
-        .map(|r| r.quality.len())
-        .unwrap_or(0);
-
-    Ok(quality_count)
+    Ok(analysis_result.as_ref().map_or(0, |r| r.quality.len()))
 }
 
 fn perform_stats_analysis(
@@ -274,7 +171,7 @@ fn generate_stats_output<W: Write>(
     mut writer: W,
 ) -> Result<()> {
     if options.json {
-        let json_output = serde_json::to_string_pretty(&report)?;
+        let json_output = serde_json::to_string_pretty(report)?;
         if let Some(ref file_path) = output {
             fs::write(file_path, &json_output)?;
             writeln!(writer, "Report written to: {}", file_path.display())?;
@@ -283,7 +180,6 @@ fn generate_stats_output<W: Write>(
         }
     } else {
         let md = generate_markdown_report_v2(report, analysis_result, file_metrics, options);
-
         if let Some(output_path) = output {
             fs::write(&output_path, &md)?;
             writeln!(writer, "{}", "Report generated successfully!".green())?;
@@ -313,14 +209,13 @@ pub fn run_files<W: Write>(
     mut writer: W,
 ) -> Result<()> {
     let files = find_python_files(roots, exclude, verbose);
-
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()
         .filter(|p| p.is_file())
         .map(|file_path| {
             let code = fs::read_to_string(file_path).unwrap_or_default();
             let metrics = analyze_raw(&code);
-            let size_bytes = fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
+            let size_bytes = fs::metadata(file_path).map_or(0, |m| m.len());
             FileMetrics {
                 file: file_path.to_string_lossy().to_string(),
                 code_lines: metrics.sloc,
@@ -334,35 +229,34 @@ pub fn run_files<W: Write>(
 
     if json {
         writeln!(writer, "{}", serde_json::to_string_pretty(&file_metrics)?)?;
-    } else {
-        let mut table = Table::new();
-        table.set_header(vec![
-            "File",
-            "Code",
-            "Comments",
-            "Empty",
-            "Total",
-            "Size (KB)",
-        ]);
-
-        for f in file_metrics {
-            let short_name = Path::new(&f.file)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| f.file.clone());
-            table.add_row(vec![
-                short_name,
-                f.code_lines.to_string(),
-                f.comment_lines.to_string(),
-                f.empty_lines.to_string(),
-                f.total_lines.to_string(),
-                format!("{:.2}", f.size_kb),
-            ]);
-        }
-
-        writeln!(writer, "{table}")?;
+        return Ok(());
     }
 
+    let mut table = Table::new();
+    table.set_header(vec![
+        "File",
+        "Code",
+        "Comments",
+        "Empty",
+        "Total",
+        "Size (KB)",
+    ]);
+
+    for f in file_metrics {
+        let short_name = Path::new(&f.file)
+            .file_name()
+            .map_or_else(|| f.file.clone(), |n| n.to_string_lossy().to_string());
+        table.add_row(vec![
+            short_name,
+            f.code_lines.to_string(),
+            f.comment_lines.to_string(),
+            f.empty_lines.to_string(),
+            f.total_lines.to_string(),
+            format!("{:.2}", f.size_kb),
+        ]);
+    }
+
+    writeln!(writer, "{table}")?;
     Ok(())
 }
 
@@ -400,243 +294,10 @@ pub fn run_stats<W: Write>(
         },
         output,
         exclude,
-        false, // include_tests defaults to false
-        &[],   // include_folders defaults to empty
+        false,
+        &[],
         verbose,
         Config::default(),
         writer,
     )
-}
-
-struct ProjectStats {
-    total_files: usize,
-    total_directories: usize,
-    total_size_kb: f64,
-    total_lines: usize,
-    code_lines: usize,
-    comment_lines: usize,
-    empty_lines: usize,
-    total_functions: usize,
-    total_classes: usize,
-    file_metrics: Vec<FileMetrics>,
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn collect_project_stats(
-    roots: &[PathBuf],
-    exclude: &[String],
-    include_folders: &[String],
-    include_tests: bool,
-    verbose: bool,
-) -> ProjectStats {
-    let mut files = Vec::new();
-    let mut num_directories = 0;
-    for path in roots {
-        let (f, d) = crate::utils::collect_python_files_gitignore(
-            path,
-            exclude,
-            include_folders,
-            false,
-            verbose,
-        );
-        files.extend(f);
-        num_directories += d;
-    }
-
-    if !include_tests {
-        files.retain(|p| !crate::utils::is_test_path(&p.to_string_lossy()));
-    }
-
-    let file_metrics: Vec<FileMetrics> = files
-        .par_iter()
-        .filter(|p| p.is_file())
-        .map(|file_path| {
-            let code = fs::read_to_string(file_path).unwrap_or_default();
-            let metrics = analyze_raw(&code);
-            let size_bytes = fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
-            FileMetrics {
-                file: file_path.to_string_lossy().to_string(),
-                code_lines: metrics.sloc,
-                comment_lines: metrics.comments,
-                empty_lines: metrics.blank,
-                total_lines: metrics.loc,
-                size_kb: size_bytes as f64 / 1024.0,
-            }
-        })
-        .collect();
-
-    let (total_functions, total_classes): (usize, usize) = files
-        .par_iter()
-        .filter(|p| p.is_file())
-        .map(|file_path| {
-            let code = fs::read_to_string(file_path).unwrap_or_default();
-            count_functions_and_classes(&code, file_path)
-        })
-        .reduce(|| (0, 0), |(f1, c1), (f2, c2)| (f1 + f2, c1 + c2));
-
-    let total_files = file_metrics.len();
-    let total_size_kb: f64 = file_metrics.iter().map(|f| f.size_kb).sum();
-    let total_lines: usize = file_metrics.iter().map(|f| f.total_lines).sum();
-    let code_lines: usize = file_metrics.iter().map(|f| f.code_lines).sum();
-    let comment_lines: usize = file_metrics.iter().map(|f| f.comment_lines).sum();
-    let empty_lines: usize = file_metrics.iter().map(|f| f.empty_lines).sum();
-
-    ProjectStats {
-        total_files,
-        total_directories: num_directories,
-        total_size_kb,
-        total_lines,
-        code_lines,
-        comment_lines,
-        empty_lines,
-        total_functions,
-        total_classes,
-        file_metrics,
-    }
-}
-
-fn generate_markdown_report_v2(
-    report: &StatsReport,
-    analysis_result: Option<&crate::analyzer::AnalysisResult>,
-    file_metrics: &[FileMetrics],
-    options: ScanOptions,
-) -> String {
-    generate_markdown_report(report, analysis_result, file_metrics, options)
-}
-
-#[allow(clippy::too_many_lines)]
-fn generate_markdown_report(
-    report: &StatsReport,
-    analysis_result: Option<&crate::analyzer::AnalysisResult>,
-    file_metrics: &[FileMetrics],
-    options: ScanOptions,
-) -> String {
-    let mut md = String::new();
-    md.push_str("# CytoScnPy Project Statistics Report\n\n");
-    md.push_str("## Overview\n\n");
-    md.push_str("| Metric              |        Value |\n");
-    md.push_str("|---------------------|-------------:|\n");
-    md.push_str(&format!(
-        "| Total Files         | {:>12} |\n",
-        report.total_files
-    ));
-    md.push_str(&format!(
-        "| Total Directories   | {:>12} |\n",
-        report.total_directories
-    ));
-    md.push_str(&format!(
-        "| Total Size          | {:>9.2} KB |\n",
-        report.total_size_kb
-    ));
-    md.push_str(&format!(
-        "| Total Lines         | {:>12} |\n",
-        report.total_lines
-    ));
-    md.push_str(&format!(
-        "| Code Lines          | {:>12} |\n",
-        report.code_lines
-    ));
-    md.push_str(&format!(
-        "| Comment Lines       | {:>12} |\n",
-        report.comment_lines
-    ));
-    md.push_str(&format!(
-        "| Empty Lines         | {:>12} |\n",
-        report.empty_lines
-    ));
-    md.push_str(&format!(
-        "| Functions           | {:>12} |\n",
-        report.total_functions
-    ));
-    md.push_str(&format!(
-        "| Classes             | {:>12} |\n",
-        report.total_classes
-    ));
-
-    if options.all {
-        md.push_str("\n## Per-File Metrics\n\n");
-        md.push_str("| File | Code | Comments | Empty | Total | Size (KB) |\n");
-        md.push_str("|------|------|----------|-------|-------|----------|\n");
-        for f in file_metrics {
-            let short_name = Path::new(&f.file)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| f.file.clone());
-            md.push_str(&format!(
-                "| {} | {} | {} | {} | {} | {:.2} |\n",
-                short_name, f.code_lines, f.comment_lines, f.empty_lines, f.total_lines, f.size_kb
-            ));
-        }
-    }
-
-    if options.include_secrets() {
-        md.push_str("\n## Secrets Scan\n\n");
-        if let Some(result) = analysis_result {
-            if result.secrets.is_empty() {
-                md.push_str("No secrets detected.\n");
-            } else {
-                md.push_str("| File | Line | Issue |\n");
-                md.push_str("|------|------|-------|\n");
-                for s in &result.secrets {
-                    let short_file = s
-                        .file
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| s.file.display().to_string());
-                    md.push_str(&format!(
-                        "| {} | {} | {} |\n",
-                        short_file, s.line, s.message
-                    ));
-                }
-            }
-        }
-    }
-
-    if options.include_danger() {
-        md.push_str("\n## Dangerous Code\n\n");
-        if let Some(result) = analysis_result {
-            if result.danger.is_empty() {
-                md.push_str("No dangerous code patterns detected.\n");
-            } else {
-                md.push_str("| File | Line | Issue |\n");
-                md.push_str("|------|------|-------|\n");
-                for d in &result.danger {
-                    let short_file = d
-                        .file
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| d.file.display().to_string());
-                    md.push_str(&format!(
-                        "| {} | {} | {} |\n",
-                        short_file, d.line, d.message
-                    ));
-                }
-            }
-        }
-    }
-
-    if options.include_quality() {
-        md.push_str("\n## Quality Issues\n\n");
-        if let Some(result) = analysis_result {
-            if result.quality.is_empty() {
-                md.push_str("No quality issues detected.\n");
-            } else {
-                md.push_str("| File | Line | Issue |\n");
-                md.push_str("|------|------|-------|\n");
-                for q in &result.quality {
-                    let short_file = q
-                        .file
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| q.file.display().to_string());
-                    md.push_str(&format!(
-                        "| {} | {} | {} |\n",
-                        short_file, q.line, q.message
-                    ));
-                }
-            }
-        }
-    }
-
-    md
 }

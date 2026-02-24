@@ -40,6 +40,20 @@ pub fn analyze_complexity(
             class_stack: Vec::new(),
             no_assert,
         };
+        let module_complexity = calculate_complexity(&module.body, no_assert);
+        if module_complexity > 1 {
+            let line = module
+                .body
+                .first()
+                .map_or(1, |stmt| line_index.line_index(stmt.start()));
+            visitor.findings.push(ComplexityFinding {
+                name: "<module>".to_owned(),
+                complexity: module_complexity,
+                rank: cc_rank(module_complexity),
+                type_: "module".to_owned(),
+                line,
+            });
+        }
         visitor.visit_body(&module.body);
         findings = visitor.findings;
     }
@@ -170,6 +184,13 @@ struct BlockComplexityVisitor {
     no_assert: bool,
 }
 
+fn is_wildcard_case(pattern: &ast::Pattern) -> bool {
+    match pattern {
+        ast::Pattern::MatchAs(node) => node.pattern.is_none() && node.name.is_none(),
+        _ => false,
+    }
+}
+
 impl BlockComplexityVisitor {
     fn visit_body(&mut self, body: &[Stmt]) {
         for stmt in body {
@@ -197,12 +218,18 @@ impl BlockComplexityVisitor {
                 self.visit_expr(&node.target);
                 self.visit_expr(&node.iter);
                 self.visit_body(&node.body);
+                if !node.orelse.is_empty() {
+                    self.complexity += 1;
+                }
                 self.visit_body(&node.orelse);
             }
             Stmt::While(node) => {
                 self.complexity += 1;
                 self.visit_expr(&node.test);
                 self.visit_body(&node.body);
+                if !node.orelse.is_empty() {
+                    self.complexity += 1;
+                }
                 self.visit_body(&node.orelse);
             }
             Stmt::Try(node) => {
@@ -214,6 +241,9 @@ impl BlockComplexityVisitor {
                         self.visit_expr(type_);
                     }
                     self.visit_body(&h.body);
+                }
+                if !node.orelse.is_empty() {
+                    self.complexity += 1;
                 }
                 self.visit_body(&node.orelse);
                 self.visit_body(&node.finalbody);
@@ -240,7 +270,9 @@ impl BlockComplexityVisitor {
             Stmt::Match(node) => {
                 self.visit_expr(&node.subject);
                 for case in &node.cases {
-                    self.complexity += 1;
+                    if !is_wildcard_case(&case.pattern) {
+                        self.complexity += 1;
+                    }
                     if let Some(guard) = &case.guard {
                         self.visit_expr(guard);
                     }
@@ -359,17 +391,64 @@ impl BlockComplexityVisitor {
                 }
                 self.visit_expr(&node.elt);
             }
-            Expr::Lambda(_node) => {
-                // Lambda is a function, does it add to current complexity?
-                // Radon: "Lambdas are functions, so they have their own complexity."
-                // But does the *enclosing* function get +1?
-                // No.
-                // But we should probably visit lambda body?
-                // If we visit lambda body, we might count branches inside lambda towards enclosing function?
-                // That would be wrong if lambda is separate block.
-                // So we should NOT visit lambda body for *this* block's complexity.
+            Expr::Lambda(node) => {
+                self.visit_expr(&node.body);
             }
-            // Recurse for other expressions
+            Expr::BinOp(node) => {
+                self.visit_expr(&node.left);
+                self.visit_expr(&node.right);
+            }
+            Expr::UnaryOp(node) => {
+                self.visit_expr(&node.operand);
+            }
+            Expr::Compare(node) => {
+                self.visit_expr(&node.left);
+                for cmp in &node.comparators {
+                    self.visit_expr(cmp);
+                }
+            }
+            Expr::Attribute(node) => {
+                self.visit_expr(&node.value);
+            }
+            Expr::Subscript(node) => {
+                self.visit_expr(&node.value);
+                self.visit_expr(&node.slice);
+            }
+            Expr::Tuple(node) => {
+                for elt in &node.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            Expr::List(node) => {
+                for elt in &node.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            Expr::Set(node) => {
+                for elt in &node.elts {
+                    self.visit_expr(elt);
+                }
+            }
+            Expr::Dict(node) => {
+                for item in &node.items {
+                    if let Some(key) = &item.key {
+                        self.visit_expr(key);
+                    }
+                    self.visit_expr(&item.value);
+                }
+            }
+            Expr::Named(node) => {
+                self.visit_expr(&node.target);
+                self.visit_expr(&node.value);
+            }
+            Expr::Await(node) => {
+                self.visit_expr(&node.value);
+            }
+            Expr::Yield(node) => {
+                if let Some(value) = &node.value {
+                    self.visit_expr(value);
+                }
+            }
             Expr::Call(node) => {
                 self.visit_expr(&node.func);
                 for arg in &node.arguments.args {

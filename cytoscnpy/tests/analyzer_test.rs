@@ -3,6 +3,8 @@
 #![allow(clippy::panic)]
 
 use cytoscnpy::analyzer::CytoScnPy;
+use cytoscnpy::config::{WhitelistEntry, WhitelistPattern};
+use cytoscnpy::whitelist::WhitelistMatcher;
 use std::fs::{self, File};
 use std::io::Write;
 use tempfile::TempDir;
@@ -81,7 +83,7 @@ fn test_analyze_empty_directory() {
 }
 
 #[test]
-fn test_confidence_threshold_filtering() {
+fn test_confidence_threshold_filtering_for_unreachable_functions() {
     let dir = project_tempdir();
     let file_path = dir.path().join("main.py");
     let mut file = File::create(&file_path).unwrap();
@@ -96,11 +98,9 @@ def _private_unused():
 ";
     write!(file, "{content}").unwrap();
 
-    // High threshold: _private_unused should be filtered out (low confidence)
-    // regular_unused (100) should remain
-    // _private_unused (100 - 80 = 20)
-
-    // Set threshold to 30
+    // Unreachable function/class/method symbols are now reported based on structural
+    // reachability even when confidence heuristics would normally suppress them.
+    // Set threshold to 30: both functions should remain.
     let mut cytoscnpy_high = CytoScnPy::default().with_confidence(30).with_tests(false);
     let result_high = cytoscnpy_high.analyze(dir.path());
 
@@ -111,9 +111,9 @@ def _private_unused():
         .collect();
 
     assert!(funcs_high.contains(&"regular_unused".to_owned()));
-    assert!(!funcs_high.contains(&"_private_unused".to_owned()));
+    assert!(funcs_high.contains(&"_private_unused".to_owned()));
 
-    // Low threshold: both should be present
+    // Low threshold: both should still be present
     let mut cytoscnpy_low = CytoScnPy::default().with_confidence(10).with_tests(false);
     let result_low = cytoscnpy_low.analyze(dir.path());
 
@@ -254,4 +254,40 @@ my_func()
         .collect();
 
     assert!(!unused_funcs.contains(&"my_func".to_owned()));
+}
+
+#[test]
+fn test_file_scoped_whitelist_matches_relative_path_under_absolute_root() {
+    let dir = project_tempdir();
+    let src_dir = dir.path().join("src");
+    fs::create_dir_all(&src_dir).unwrap();
+    let file_path = src_dir.join("main.py");
+    let mut file = File::create(&file_path).unwrap();
+
+    let content = r"
+def unused_in_file_scope():
+    pass
+";
+    write!(file, "{content}").unwrap();
+
+    let mut cytoscnpy = CytoScnPy::default()
+        .with_confidence(0)
+        .with_tests(false)
+        .with_root(dir.path().to_path_buf());
+    cytoscnpy.whitelist_matcher = Some(WhitelistMatcher::with_user_entries(vec![WhitelistEntry {
+        name: "src.main.unused_in_file_scope".to_owned(),
+        pattern: Some(WhitelistPattern::Exact),
+        file: Some("src/main.py".to_owned()),
+        category: None,
+    }]));
+
+    let result = cytoscnpy.analyze(dir.path());
+
+    assert!(
+        !result
+            .unused_functions
+            .iter()
+            .any(|f| f.simple_name == "unused_in_file_scope"),
+        "File-scoped whitelist should suppress symbol when file is matched by root-relative path"
+    );
 }

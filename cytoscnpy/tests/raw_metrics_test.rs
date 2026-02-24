@@ -58,13 +58,13 @@ def foo():
     // LOC: 7
     // Blank: 2 (lines 1 and 7)
     // Multi: 3 (lines 3, 4, 5)
-    // SLOC: 2 (lines 2 and 6)
+    // SLOC: 5 (code + multiline string lines)
     // Comments: 0
 
     assert_eq!(metrics.loc, 7);
     assert_eq!(metrics.blank, 2);
     assert_eq!(metrics.multi, 3);
-    assert_eq!(metrics.sloc, 2);
+    assert_eq!(metrics.sloc, 5);
 }
 
 #[test]
@@ -100,12 +100,12 @@ def main():
     // Blank: 4 (1, 3, 7, 13)
     // Comments: 1 (5)
     // Multi: 4 (8, 9, 10, 11)
-    // SLOC: 4 (2, 4, 6, 12)
+    // SLOC: 8 (code lines + multiline string lines)
 
     let metrics = analyze_raw(code);
     assert_eq!(metrics.loc, 13);
     assert_eq!(metrics.blank, 4);
     assert_eq!(metrics.comments, 1);
     assert_eq!(metrics.multi, 4);
-    assert_eq!(metrics.sloc, 4);
+    assert_eq!(metrics.sloc, 8);
 }

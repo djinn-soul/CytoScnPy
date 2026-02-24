@@ -243,6 +243,57 @@ fn test_cli_fix_flag_coverage() {
 }
 
 #[test]
+fn test_cli_make_whitelist_outputs_entries() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test.py");
+    std::fs::write(&file_path, "def unused_function():\n    return 1\n").unwrap();
+
+    let mut buffer = Vec::new();
+    let result = run_with_args_to(
+        vec![
+            "--make-whitelist".to_owned(),
+            file_path.to_string_lossy().to_string(),
+        ],
+        &mut buffer,
+    )
+    .unwrap();
+    assert_eq!(result, 0);
+
+    let output = String::from_utf8(buffer).unwrap();
+    assert!(output.contains("# CytoScnPy Whitelist"));
+    assert!(output.contains("unused_function"));
+}
+
+#[test]
+fn test_cli_whitelist_flag_suppresses_unused_symbol() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test.py");
+    let whitelist_path = dir.path().join("whitelist.py");
+    std::fs::write(&file_path, "def unused_function():\n    return 1\n").unwrap();
+    std::fs::write(&whitelist_path, "unused_function\n").unwrap();
+
+    let mut buffer = Vec::new();
+    let result = run_with_args_to(
+        vec![
+            "--json".to_owned(),
+            "--whitelist".to_owned(),
+            whitelist_path.to_string_lossy().to_string(),
+            file_path.to_string_lossy().to_string(),
+        ],
+        &mut buffer,
+    )
+    .unwrap();
+    assert_eq!(result, 0);
+
+    let payload: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+    let unused_functions = payload
+        .get("unused_functions")
+        .and_then(serde_json::Value::as_array)
+        .unwrap();
+    assert!(unused_functions.is_empty());
+}
+
+#[test]
 fn test_cli_fix_apply_json_outputs_single_fix_payload() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test.py");

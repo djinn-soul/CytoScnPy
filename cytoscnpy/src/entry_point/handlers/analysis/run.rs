@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::path::Path;
 
 use super::context::AnalysisContext;
 use colored::Colorize;
@@ -80,6 +81,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
     )
     .with_verbose(cli_var.output.verbose)
     .with_root(analysis_root.to_path_buf());
+    analyzer.whitelist_matcher = build_whitelist_matcher(config, &cli_var.whitelist_files)?;
 
     // Set debug delay if provided
     if let Some(delay_ms) = cli_var.debug_delay {
@@ -169,4 +171,60 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         clone_pairs_found,
         start_time,
     })
+}
+
+fn build_whitelist_matcher(
+    config: &crate::config::Config,
+    whitelist_files: &[std::path::PathBuf],
+) -> Result<Option<crate::whitelist::WhitelistMatcher>> {
+    if config.cytoscnpy.whitelist.is_empty() && whitelist_files.is_empty() {
+        return Ok(None);
+    }
+
+    let mut matcher =
+        crate::whitelist::WhitelistMatcher::with_user_entries(config.cytoscnpy.whitelist.clone());
+
+    for path in whitelist_files {
+        let whitelist = crate::whitelist::load_whitelist_file(path).map_err(|err| {
+            anyhow::anyhow!(
+                "failed to load whitelist file '{}': {err}",
+                normalize_path_for_error(path)
+            )
+        })?;
+        matcher.add_external(whitelist);
+    }
+
+    Ok(Some(matcher))
+}
+
+fn normalize_path_for_error(path: &Path) -> String {
+    path.to_string_lossy().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_whitelist_matcher;
+
+    #[test]
+    fn build_whitelist_matcher_skips_when_no_entries() {
+        let config = crate::config::Config::default();
+        let matcher = build_whitelist_matcher(&config, &[]).expect("matcher build should succeed");
+        assert!(matcher.is_none());
+    }
+
+    #[test]
+    fn build_whitelist_matcher_loads_external_whitelist_file() {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        let whitelist_path = dir.path().join("whitelist.py");
+        std::fs::write(&whitelist_path, "known_symbol\n")
+            .expect("whitelist file should be written");
+
+        let config = crate::config::Config::default();
+        let files = vec![whitelist_path];
+        let matcher = build_whitelist_matcher(&config, &files)
+            .expect("matcher build should succeed")
+            .expect("matcher should be present");
+
+        assert!(matcher.is_whitelisted("known_symbol", None));
+    }
 }

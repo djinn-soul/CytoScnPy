@@ -31,6 +31,13 @@ struct StringCollector {
 
 impl<'a> Visitor<'a> for StringCollector {
     fn visit_expr(&mut self, expr: &'a Expr) {
+        self.collect_string_range(expr);
+        visitor::walk_expr(self, expr);
+    }
+}
+
+impl StringCollector {
+    fn collect_string_range(&mut self, expr: &Expr) {
         match expr {
             Expr::StringLiteral(s) => {
                 let range = s.range();
@@ -49,7 +56,6 @@ impl<'a> Visitor<'a> for StringCollector {
             }
             _ => {}
         }
-        visitor::walk_expr(self, expr);
     }
 }
 
@@ -162,7 +168,10 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
 
     for t in line_types.iter().skip(1) {
         match t {
-            LineType::Multi => metrics.multi += 1,
+            LineType::Multi => {
+                metrics.multi += 1;
+                metrics.sloc += 1;
+            }
             LineType::Comment => {
                 metrics.comments += 1;
                 metrics.single_comments += 1;

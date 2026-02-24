@@ -148,7 +148,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement for-else complexity
 fn test_radon_for_else() {
     let code = r"
 def f():
@@ -170,7 +169,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement while-else complexity
 fn test_radon_while_else() {
     let code = r"
 def f():
@@ -192,7 +190,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement while-else complexity
 fn test_radon_while_complex() {
     let code = r"
 def f():
@@ -262,7 +259,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement nested generator complexity
 fn test_radon_nested_generator() {
     let code = r"
 def f():
@@ -344,7 +340,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement try-else complexity
 fn test_radon_try_except_else() {
     let code = r"
 def f():
@@ -380,7 +375,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement try-else complexity
 fn test_radon_try_except_else_finally() {
     let code = r"
 def f():
@@ -408,7 +402,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement lambda-ternary complexity
 fn test_radon_lambda_ternary() {
     let code = r"
 def f():
@@ -433,7 +426,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement ternary-with-generator complexity
 fn test_radon_ternary_with_generator() {
     let code = r"
 def f():
@@ -573,7 +565,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement match wildcard handling
 fn test_radon_match_with_wildcard() {
     let code = r"
 def f():
@@ -598,7 +589,6 @@ def f():
 }
 
 #[test]
-#[ignore] // TODO: Implement match wildcard handling
 fn test_radon_match_two_cases_wildcard() {
     let code = r"
 def f():
@@ -662,7 +652,6 @@ def memoize(func):
 // =============================================================================
 
 #[test]
-#[ignore] // TODO: Implement or-in-condition complexity
 fn test_radon_class_methods() {
     let code = r"
 class A(object):
@@ -744,7 +733,6 @@ fn get_module_complexity(code: &str) -> usize {
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_if() {
     // Module-level if statement (not inside any function)
     let code = r"
@@ -756,7 +744,6 @@ if a: pass
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_if_elif() {
     let code = r"
 if a: pass
@@ -768,7 +755,6 @@ else: pass
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_for() {
     let code = r"
 for x in range(10): print(x)
@@ -778,7 +764,6 @@ for x in range(10): print(x)
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_while() {
     let code = r"
 while a < 4: pass
@@ -788,7 +773,6 @@ while a < 4: pass
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_try_except() {
     let code = r"
 try: raise TypeError
@@ -799,7 +783,6 @@ except TypeError: pass
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_mixed_with_function() {
     // Both module-level code AND a function
     let code = r"
@@ -836,7 +819,6 @@ def process():
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_comprehension() {
     let code = r"
 [i for i in range(4) if i&1]
@@ -846,7 +828,6 @@ fn test_radon_module_level_comprehension() {
 }
 
 #[test]
-#[ignore] // TODO: Implement module-level complexity
 fn test_radon_module_level_boolean_expr() {
     let code = r"
 if a and b or c: pass

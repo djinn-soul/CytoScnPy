@@ -36,6 +36,7 @@ ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "3f63ea4
 # Gitignore-aware file walking (same as ripgrep uses)
 # Disable default features to avoid bloat (simd-accel, etc.)
 ignore = { version = "0.4", default-features = false }
+globset = "0.4"
 rayon = "1.10"
 serde = { version = "1.0", default-features = false, features = [
     "derive",

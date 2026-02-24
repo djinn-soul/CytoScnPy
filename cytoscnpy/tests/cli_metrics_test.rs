@@ -435,7 +435,6 @@ fn test_cli_files_multiple_files() {
 }
 
 #[test]
-#[ignore] // TODO: WalkDir exclude filtering needs deeper investigation for nested dirs
 fn test_cli_files_exclude_folder() {
     let dir = project_tempdir();
 

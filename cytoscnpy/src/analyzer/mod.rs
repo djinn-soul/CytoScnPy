@@ -22,10 +22,17 @@ pub use heuristics::{apply_heuristics, apply_penalties};
 pub use types::{AnalysisResult, AnalysisSummary, FileAnalysisResult, ParseError};
 
 use crate::config::Config;
+use crate::whitelist::WhitelistMatcher;
+use globset::GlobMatcher;
+use rustc_hash::FxHashSet;
 
-/// The main analyzer struct.
-/// Configuration options for the analysis are stored here.
+pub(crate) struct PerFileIgnoreRule {
+    matcher: GlobMatcher,
+    rule_ids: FxHashSet<String>,
+}
+
 #[allow(clippy::struct_excessive_bools)]
+/// Main analyzer state and runtime configuration.
 pub struct CytoScnPy {
     /// Confidence threshold (0-100). Findings below this are ignored.
     pub confidence_threshold: u8,
@@ -59,6 +66,9 @@ pub struct CytoScnPy {
     pub verbose: bool,
     /// Analysis root for path containment and relative resolution.
     pub analysis_root: std::path::PathBuf,
+    /// Optional whitelist matcher for dead-code suppression.
+    pub whitelist_matcher: Option<WhitelistMatcher>,
+    per_file_ignore_rules: Vec<PerFileIgnoreRule>,
 }
 
 impl Default for CytoScnPy {
@@ -80,6 +90,38 @@ impl Default for CytoScnPy {
             progress_bar: None,
             verbose: false,
             analysis_root: std::path::PathBuf::from("."),
+            whitelist_matcher: None,
+            per_file_ignore_rules: Vec::new(),
         }
+    }
+}
+
+impl CytoScnPy {
+    /// Returns whether a rule id should be ignored for a given file path.
+    #[must_use]
+    pub fn is_rule_ignored_for_path(&self, file_path: &std::path::Path, rule_id: &str) -> bool {
+        if self.per_file_ignore_rules.is_empty() {
+            return false;
+        }
+
+        let normalized_rule_id = rule_id.trim().to_uppercase();
+        if normalized_rule_id.is_empty() {
+            return false;
+        }
+
+        let relative_path = match file_path.strip_prefix(&self.analysis_root) {
+            Ok(p) => p,
+            Err(_) => file_path,
+        };
+
+        let normalized_path = Self::normalize_glob_path(relative_path);
+        self.per_file_ignore_rules.iter().any(|rule| {
+            rule.rule_ids.contains(&normalized_rule_id) && rule.matcher.is_match(&normalized_path)
+        })
+    }
+
+    #[must_use]
+    fn normalize_glob_path(path: &std::path::Path) -> String {
+        path.to_string_lossy().replace('\\', "/")
     }
 }

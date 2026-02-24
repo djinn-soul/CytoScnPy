@@ -37,6 +37,60 @@ fn per_file_ignore_rules_apply() {
 }
 
 #[test]
+fn per_file_ignore_single_star_is_not_recursive() {
+    let mut mapping = FxHashMap::default();
+    mapping.insert("tests/*".to_owned(), vec!["S101".to_owned()]);
+
+    let mut config = Config::default();
+    config.cytoscnpy.per_file_ignores = Some(mapping);
+
+    let analyzer = CytoScnPy::new(
+        60,
+        false,
+        false,
+        false,
+        false,
+        Vec::new(),
+        Vec::new(),
+        false,
+        false,
+        config,
+    )
+    .with_root(PathBuf::from("project"));
+
+    assert!(analyzer.is_rule_ignored_for_path(Path::new("project/tests/test_api.py"), "S101",));
+    assert!(
+        !analyzer.is_rule_ignored_for_path(Path::new("project/tests/unit/test_api.py"), "S101",)
+    );
+}
+
+#[test]
+fn per_file_ignore_double_star_is_recursive() {
+    let mut mapping = FxHashMap::default();
+    mapping.insert("tests/**".to_owned(), vec!["S101".to_owned()]);
+
+    let mut config = Config::default();
+    config.cytoscnpy.per_file_ignores = Some(mapping);
+
+    let analyzer = CytoScnPy::new(
+        60,
+        false,
+        false,
+        false,
+        false,
+        Vec::new(),
+        Vec::new(),
+        false,
+        false,
+        config,
+    )
+    .with_root(PathBuf::from("project"));
+
+    assert!(analyzer.is_rule_ignored_for_path(Path::new("project/tests/test_api.py"), "S101",));
+    assert!(analyzer.is_rule_ignored_for_path(Path::new("project/tests/unit/test_api.py"), "S101",));
+}
+
+#[test]
 fn per_file_ignore_suppresses_min_mi_finding() {
     let temp = tempdir().unwrap();
     let root = temp.path().to_path_buf();
@@ -113,5 +167,44 @@ fn per_file_ignore_suppresses_taint_finding() {
             .iter()
             .any(|f| f.rule_id == "CSP-D003" && f.file == file_path),
         "CSP-D003 taint finding should respect per-file ignore for src/main.py"
+    );
+}
+
+#[test]
+fn per_file_ignore_suppresses_secret_finding() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().to_path_buf();
+    let src_dir = root.join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    let file_path = src_dir.join("main.py");
+    std::fs::write(&file_path, "api_key = 'super_secret_value_12345'\n").unwrap();
+
+    let mut mapping = FxHashMap::default();
+    mapping.insert("src/main.py".to_owned(), vec!["CSP-S300".to_owned()]);
+
+    let mut config = Config::default();
+    config.cytoscnpy.per_file_ignores = Some(mapping);
+
+    let mut analyzer = CytoScnPy::new(
+        60,
+        true,
+        false,
+        false,
+        false,
+        Vec::new(),
+        Vec::new(),
+        false,
+        false,
+        config,
+    )
+    .with_root(root.clone());
+
+    let result = analyzer.analyze(&root);
+    assert!(
+        !result
+            .secrets
+            .iter()
+            .any(|f| f.rule_id == "CSP-S300" && f.file == file_path),
+        "CSP-S300 secret finding should respect per-file ignore for src/main.py"
     );
 }

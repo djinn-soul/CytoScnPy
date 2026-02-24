@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_load_python_whitelist() {
-        let content = r#"
+        let content = r"
 # This is a comment
 my_function  # Trailing comment
 MyUnusedClass
@@ -239,7 +239,7 @@ _private_var
 
 # Another comment
 another_function
-"#;
+";
         let whitelist = load_python_whitelist_from_str(content);
 
         assert!(whitelist.is_whitelisted("my_function", None));

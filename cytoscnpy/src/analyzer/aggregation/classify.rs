@@ -83,14 +83,19 @@ pub(super) fn classify_definitions(
     fixture_definition_names: &FxHashSet<String>,
     confidence_threshold: u8,
     whitelist: Option<&WhitelistMatcher>,
+    analysis_root: &std::path::Path,
 ) -> ClassificationResult {
     let mut result = ClassificationResult::new();
 
     for mut def in definitions {
         // Check if this definition is whitelisted
         if let Some(matcher) = whitelist {
-            let file_path = def.file.to_str();
-            if matcher.is_whitelisted(&def.name, file_path) {
+            let relative_path = def
+                .file
+                .strip_prefix(analysis_root)
+                .unwrap_or(def.file.as_path());
+            let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
+            if matcher.is_whitelisted(&def.name, Some(&normalized_path)) {
                 continue; // Skip whitelisted definitions
             }
         }

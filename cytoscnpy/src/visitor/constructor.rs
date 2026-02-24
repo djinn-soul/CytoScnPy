@@ -32,6 +32,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             class_stack: SmallVec::new(),
             line_index,
             alias_map: FxHashMap::default(),
+            import_bindings: FxHashMap::default(),
             function_stack: SmallVec::new(),
             function_params: FxHashMap::default(),
             model_class_stack: SmallVec::new(),

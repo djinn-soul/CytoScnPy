@@ -7,6 +7,22 @@ use crate::visitor::Definition;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 impl CytoScnPy {
+    pub(super) fn mark_dynamic_import_references(
+        dynamic_scopes: &FxHashSet<String>,
+        definitions: &[Definition],
+        ref_counts: &mut FxHashMap<String, usize>,
+    ) {
+        if dynamic_scopes.is_empty() {
+            return;
+        }
+
+        for def in definitions {
+            if def.def_type == "import" {
+                *ref_counts.entry(def.full_name.clone()).or_insert(0) += 1;
+            }
+        }
+    }
+
     pub(super) fn sync_definition_references(
         definitions: &mut [Definition],
         ref_counts: &FxHashMap<String, usize>,

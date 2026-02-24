@@ -34,6 +34,7 @@ impl CytoScnPy {
         }
 
         state.apply_fixture_reference_increments();
+        state.apply_import_binding_reference_increments();
         let total_definitions = state.all_defs.len();
         let functions_count = state
             .all_defs
@@ -61,6 +62,7 @@ impl CytoScnPy {
             &fixture_definition_names,
             self.confidence_threshold,
             self.whitelist_matcher.as_ref(),
+            &self.analysis_root,
         );
 
         promote_methods_from_unused_classes(

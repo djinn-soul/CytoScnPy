@@ -22,6 +22,10 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             self.alias_map
                 .insert(simple_name.to_string(), alias.name.to_string());
+            self.import_bindings.insert(
+                self.get_qualified_name(simple_name.as_str()),
+                alias.name.to_string(),
+            );
 
             if self.in_import_error_block {
                 let qualified_name = if self.module_name.is_empty() {
@@ -64,11 +68,19 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             if let Some(base_module) = resolved_base_module.as_deref() {
                 let full_name = format!("{base_module}.{}", alias.name);
-                self.add_ref(full_name.clone());
-                self.alias_map.insert(asname.to_string(), full_name);
+                self.alias_map.insert(asname.to_string(), full_name.clone());
+                self.import_bindings
+                    .insert(self.get_qualified_name(asname.as_str()), full_name.clone());
+                // Importing a symbol is itself a static dependency on that source symbol.
+                self.add_ref(full_name);
             } else {
                 self.alias_map
                     .insert(asname.to_string(), alias.name.to_string());
+                self.import_bindings.insert(
+                    self.get_qualified_name(asname.as_str()),
+                    alias.name.to_string(),
+                );
+                self.add_ref(alias.name.to_string());
             }
 
             if self.in_import_error_block {

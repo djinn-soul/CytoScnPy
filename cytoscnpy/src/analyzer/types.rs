@@ -81,6 +81,8 @@ pub struct FileAnalysisResult {
     pub definitions: Vec<Definition>,
     /// Map of referenced symbols and their usage counts.
     pub references: FxHashMap<String, usize>,
+    /// Import binding graph (local import symbol -> source symbol) for re-export usage propagation.
+    pub import_bindings: FxHashMap<String, String>,
     /// Map of protocol methods and the classes that implement them.
     pub protocol_methods: FxHashMap<String, FxHashSet<String>>,
     /// Secrets findings (e.g. API keys).
@@ -124,6 +126,7 @@ impl FileAnalysisResult {
         Self {
             definitions: Vec::new(),
             references: FxHashMap::default(),
+            import_bindings: FxHashMap::default(),
             protocol_methods: FxHashMap::default(),
             secrets: Vec::new(),
             danger: Vec::new(),

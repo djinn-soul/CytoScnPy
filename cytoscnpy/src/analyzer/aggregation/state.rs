@@ -15,6 +15,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub(super) struct AggregationState {
     pub(super) all_defs: Vec<Definition>,
     pub(super) ref_counts: FxHashMap<String, usize>,
+    pub(super) all_import_bindings: FxHashMap<String, String>,
     pub(super) all_secrets: Vec<SecretFinding>,
     pub(super) all_danger: Vec<Finding>,
     pub(super) all_quality: Vec<Finding>,
@@ -45,6 +46,7 @@ impl AggregationState {
         let FileAnalysisResult {
             definitions,
             references,
+            import_bindings,
             protocol_methods,
             secrets,
             danger,
@@ -102,6 +104,7 @@ impl AggregationState {
         for (name, count) in references {
             *self.ref_counts.entry(name).or_insert(0) += count;
         }
+        self.all_import_bindings.extend(import_bindings);
 
         for (proto, methods) in protocol_methods {
             self.all_protocols.entry(proto).or_default().extend(methods);
@@ -143,6 +146,32 @@ impl AggregationState {
 
         for (full_name, count) in fixture_ref_increments {
             *self.ref_counts.entry(full_name).or_insert(0) += count;
+        }
+    }
+
+    pub(super) fn apply_import_binding_reference_increments(&mut self) {
+        let mut used_symbols: FxHashSet<String> = self
+            .ref_counts
+            .iter()
+            .filter_map(|(name, count)| if *count > 0 { Some(name.clone()) } else { None })
+            .collect();
+
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for (import_symbol, source_symbol) in &self.all_import_bindings {
+                if used_symbols.contains(import_symbol) && !used_symbols.contains(source_symbol) {
+                    used_symbols.insert(source_symbol.clone());
+                    changed = true;
+                }
+            }
+        }
+
+        for symbol in used_symbols {
+            self.ref_counts
+                .entry(symbol)
+                .and_modify(|count| *count = (*count).max(1))
+                .or_insert(1);
         }
     }
 

@@ -1,15 +1,15 @@
 use anyhow::Result;
 use regex::Regex;
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 
 use super::context::AnalysisContext;
 use super::run::AnalysisRun;
 
-static MCCABE_RE: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r"McCabe\s*=\s*(\d+)").ok());
+static MCCABE_RE: OnceLock<Option<Regex>> = OnceLock::new();
 
 fn extract_mccabe_value(message: &str) -> Option<usize> {
     MCCABE_RE
+        .get_or_init(|| Regex::new(r"McCabe\s*=\s*(\d+)").ok())
         .as_ref()
         .and_then(|re| re.captures(message))
         .and_then(|caps| caps.get(1))

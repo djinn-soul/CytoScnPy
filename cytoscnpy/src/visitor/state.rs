@@ -27,6 +27,9 @@ pub struct CytoScnPyVisitor<'a> {
     pub line_index: &'a LineIndex,
     /// Map of import aliases to their original names (alias -> original).
     pub alias_map: FxHashMap<String, String>,
+    /// Import binding graph: local qualified import symbol -> source qualified symbol.
+    /// Used in aggregation to propagate references across re-export chains.
+    pub import_bindings: FxHashMap<String, String>,
     /// Stack of function names to track which function we're currently inside.
     /// Uses `SmallVec` - most code has < 4 nested functions.
     pub function_stack: SmallVec<[String; 4]>,

@@ -8,7 +8,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
 
-mod apply_tests;
+mod apply_basic_tests;
+mod apply_edit_tests;
+mod apply_json_tests;
 mod import_tests;
 mod ranges_tests;
 

@@ -31,9 +31,9 @@ cytoscnpy [OPTIONS] [COMMAND]
 
 ### Analysis Configuration
 
-- `--confidence <N>`: Sets a minimum confidence threshold (0-100). CytoScnPy uses a scoring system for dead code; setting this to `80`, for example, will suppress "noisy" findings where the tool isn't certain the code is unused.
-- `--exclude-folder <DIR>`: Exclude specific folders from analysis. Can be used multiple times.
-- `--include-folder <DIR>`: Force-include specific folders in analysis. Can be used multiple times.
+- `--confidence <N>`, `-c`: Sets a minimum confidence threshold (0-100). CytoScnPy uses a scoring system for dead code; setting this to `80`, for example, will suppress "noisy" findings where the tool isn't certain the code is unused.
+- `--exclude-folders <DIRS>`: Exclude specific folders from analysis. Can be used multiple times.
+- `--include-folders <DIRS>`: Force-include specific folders in analysis. Can be used multiple times.
 - `--include-tests`: By default, CytoScnPy ignores files in folders like `tests/` or `test/` starting from version 1.2.2. Use this flag to include them in the analysis.
 - `--include-ipynb`: Enables scanning of Jupyter Notebook files. CytoScnPy extracts the Python code from cells and analyzes it as a virtual module.
 - `--ipynb-cells`: When combined with `--include-ipynb`, this reports findings with cell numbers instead of just line numbers, making it easier to locate issues in the Notebook UI.
@@ -45,6 +45,8 @@ cytoscnpy [OPTIONS] [COMMAND]
   - `--fix` always enforces a minimum confidence floor of **80%** for safety, even if `--confidence` is set lower.
   - In dry-run mode with `--json`, CytoScnPy emits a deterministic JSON fix plan (`kind: "dead_code_fix_plan"`) suitable for editor/CI consumption.
   - When removing the only method in a class, CytoScnPy inserts `pass` to keep valid Python syntax.
+- `--make-whitelist`: Generates a Python whitelist from currently detected unused symbols.
+- `--whitelist <PATH>`: Loads one or more whitelist files to suppress matching dead-code findings.
 
 ### Quality Thresholds (Gate Overrides)
 
@@ -143,7 +145,7 @@ cytoscnpy stats [OPTIONS] <PATH>
 - `-q`, `--quality`: Scan for quality issues.
 - `-j`, `--json`: Output JSON.
 - `-o`, `--output <FILE>`: Output file path.
-- `--exclude-folder <DIR>`: Exclude specific folders from analysis.
+- `--exclude-folders <DIRS>`: Exclude specific folders from analysis.
 
 ### `files`
 
@@ -154,7 +156,7 @@ cytoscnpy files [OPTIONS] <PATH>
 ```
 
 - `-j`, `--json`: Output only JSON.
-- `--exclude-folder <DIR>`: Exclude specific folders from analysis.
+- `--exclude-folders <DIRS>`: Exclude specific folders from analysis.
 
 ### `mcp-server`
 
@@ -189,6 +191,7 @@ danger = true
 quality = true
 include_tests = false
 include_ipynb = false
+project_type = "library" # "library" (default) or "application"
 # Note: ipynb_cells is currently a CLI-only option
 
 # Quality thresholds
@@ -201,6 +204,9 @@ min_mi = 40.0              # Min Maintainability Index
 # Path filters
 exclude_folders = ["build", "dist", ".venv"]
 include_folders = ["src"]
+ignore = ["CSP-P003"] # Globally ignore specific rule IDs
+per-file-ignores = { "tests/*" = ["CSP-D701"], "**/__init__.py" = ["CSP-L001"] }
+# Glob behavior: "*" matches a single path segment, "**" matches recursively.
 
 # CI/CD
 fail_threshold = 5.0

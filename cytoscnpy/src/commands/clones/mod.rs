@@ -159,16 +159,11 @@ pub fn run_clones<W: Write>(
             ]);
 
         let display_limit = 100;
-        let mut count = 0;
-        for finding in &findings {
-            if !finding.is_duplicate {
-                continue;
-            }
-            count += 1;
-            if count > display_limit {
-                continue;
-            }
-
+        for finding in findings
+            .iter()
+            .filter(|f| f.is_duplicate)
+            .take(display_limit)
+        {
             let type_str = finding.clone_type.display_name();
             let name = finding
                 .name

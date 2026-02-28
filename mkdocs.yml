@@ -43,6 +43,9 @@ plugins:
   - minify:
       minify_html: true
   - blog
+  - mkdocstrings:
+      handlers:
+        python: {}
 
 extra_css:
   - stylesheets/extra.css
@@ -75,6 +78,14 @@ nav:
               - "CSP-L001: Mutable Default Arguments": rule/CSP-L001.md
               - "CSP-L002: Bare Except": rule/CSP-L002.md
               - "CSP-L003: Dangerous Comparison": rule/CSP-L003.md
+          - Maintainability & Complexity:
+              - "CSP-Q301: Cyclomatic Complexity": rule/CSP-Q301.md
+              - "CSP-Q302: Excessive Nesting Depth": rule/CSP-Q302.md
+              - "CSP-Q303: Low Maintainability Index": rule/CSP-Q303.md
+              - "CSP-Q304: Cognitive Complexity": rule/CSP-Q304.md
+              - "CSP-Q305: Low Cohesion (LCOM4)": rule/CSP-Q305.md
+              - "CSP-C303: Too Many Function Arguments": rule/CSP-C303.md
+              - "CSP-C304: Function Too Long": rule/CSP-C304.md
           - Performance:
               - "CSP-P001: Membership in List": rule/CSP-P001.md
               - "CSP-P002: File Read Memory Risk": rule/CSP-P002.md
@@ -95,6 +106,9 @@ nav:
   - Roadmap: roadmap.md
   - Security:
       - Overview: security.md
+      - Secret Scanning Rules:
+          - "CSP-S200: Secret Pattern Match": rule/CSP-S200.md
+          - "CSP-S300: Suspicious Secret Assignment": rule/CSP-S300.md
       - Dangerous Code Rules:
           - "Basics & Guidance":
               - Overview: dangerous-code.md

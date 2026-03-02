@@ -12,12 +12,16 @@
 pub mod analyzer;
 /// Call graph construction for interprocedural analysis.
 pub mod call_graph;
+/// Taint analyzer configuration types.
+pub mod config;
 /// Cross-file taint analysis.
 pub mod crossfile;
 /// Interprocedural taint analysis logic.
 pub mod interprocedural;
 /// Intraprocedural (single function) taint analysis.
 pub mod intraprocedural;
+/// Plugin traits/registry and built-in plugins.
+pub mod plugins;
 /// Taint propagation logic.
 pub mod propagation;
 /// Taint sink detection and classification.

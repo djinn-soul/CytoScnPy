@@ -1,6 +1,6 @@
 ---
-source: cytoscnpy/src/commands/fix/tests/apply_tests.rs
-assertion_line: 423
+source: cytoscnpy/src/commands/fix/tests/apply_json_tests.rs
+assertion_line: 44
 expression: normalized
 ---
 {

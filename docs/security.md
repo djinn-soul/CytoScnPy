@@ -21,6 +21,11 @@ Detects hardcoded secrets, API keys, and credentials using a combination of rege
 - **Private Keys**: RSA, DSA, EC private keys.
 - **High Entropy Strings**: Random strings that look like secrets but don't match specific patterns.
 
+### Secret Rules
+
+- [CSP-S200: Secret Pattern Match](rule/CSP-S200.md)
+- [CSP-S300: Suspicious Hardcoded Secret Assignment](rule/CSP-S300.md)
+
 ### Secret Scanning Configuration
 
 Tune detection via `.cytoscnpy.toml` or `pyproject.toml`:
@@ -61,7 +66,10 @@ For a complete list of all rules organized by category, see: **[Dangerous Code R
 
 ## Rule Count
 
-The current danger rule set includes 31 rules.
+The current security rule set includes:
+
+- 44 dangerous code rules (`CSP-D*`)
+- 2 secret rules (`CSP-S*`)
 
 ### Danger + Taint Configuration
 

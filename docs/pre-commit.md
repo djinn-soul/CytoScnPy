@@ -47,7 +47,7 @@ If you only want to fail on security issues but want to see quality warnings, us
 - id: cytoscnpy-security
   args: ["--fail-threshold", "0"]
 - id: cytoscnpy-quality
-  args: ["--fail-on-quality", "false"]
+  # no quality gate flags => findings are reported without forcing failure
 ```
 
 ### Strictness Levels

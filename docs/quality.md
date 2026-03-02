@@ -19,7 +19,7 @@ cytoscnpy . --quality
 | `CSP-C`  | Maintainability Limits (Args/Length)  |
 | `CSP-P`  | Performance                           |
 
-> Individual rule pages are available for **Best Practices** and **Performance**. Maintainability rules are summarized in this index.
+> Individual rule pages are available for **Best Practices**, **Maintainability & Complexity**, and **Performance**.
 
 ## Best Practices
 
@@ -31,15 +31,15 @@ cytoscnpy . --quality
 
 ## Maintainability & Complexity
 
-| ID          | Rule                         | Description                                                                 | Config                                |
-| :---------- | :--------------------------- | :-------------------------------------------------------------------------- | :------------------------------------ |
-| `CSP-Q301`  | `ComplexityRule`             | Function cyclomatic complexity (McCabe) exceeds threshold.                  | `max_complexity`                      |
-| `CSP-Q302`  | `NestingRule`                | Code block is nested too deeply.                                            | `max_nesting`                         |
-| `CSP-Q303`  | Maintainability Index Gate   | File MI below threshold (only emitted when `min_mi` is set).                | `min_mi`                              |
-| `CSP-Q304`  | `CognitiveComplexityRule`    | Cognitive complexity exceeds fixed threshold (default 15).                  | Fixed threshold (not configurable)    |
-| `CSP-Q305`  | `CohesionRule`               | Class lacks cohesion (LCOM4 > 1).                                           | Fixed threshold (not configurable)    |
-| `CSP-C303`  | `ArgumentCountRule`          | Function has too many arguments.                                            | `max_args`                            |
-| `CSP-C304`  | `FunctionLengthRule`         | Function is too long (line count).                                          | `max_lines`                           |
+| ID                              | Rule                         | Description                                                                 | Config                                |
+| :------------------------------ | :--------------------------- | :-------------------------------------------------------------------------- | :------------------------------------ |
+| [CSP-Q301](rule/CSP-Q301.md)    | `ComplexityRule`             | Function cyclomatic complexity (McCabe) exceeds threshold.                  | `max_complexity`                      |
+| [CSP-Q302](rule/CSP-Q302.md)    | `NestingRule`                | Code block is nested too deeply.                                            | `max_nesting`                         |
+| [CSP-Q303](rule/CSP-Q303.md)    | Maintainability Index Gate   | File MI below threshold (only emitted when `min_mi` is set).                | `min_mi`                              |
+| [CSP-Q304](rule/CSP-Q304.md)    | `CognitiveComplexityRule`    | Cognitive complexity exceeds fixed threshold (default 15).                  | Fixed threshold (not configurable)    |
+| [CSP-Q305](rule/CSP-Q305.md)    | `CohesionRule`               | Class lacks cohesion (LCOM4 > 1).                                           | Fixed threshold (not configurable)    |
+| [CSP-C303](rule/CSP-C303.md)    | `ArgumentCountRule`          | Function has too many arguments.                                            | `max_args`                            |
+| [CSP-C304](rule/CSP-C304.md)    | `FunctionLengthRule`         | Function is too long (line count).                                          | `max_lines`                           |
 
 ## Performance
 

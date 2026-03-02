@@ -226,6 +226,8 @@ exclude = [
 dev = [
     "basedpyright>=1.37.3",
     "maturin>=1.0,<2.0",
+    "mkdocs>=1.6.1,<2.0.0",
+    "mkdocs-material>=9.7.2",
     "pip-audit>=2.7.3",
     "poethepoet>=0.30.0",
     "prek",
@@ -238,8 +240,10 @@ dev = [
     "ty",
 ]
 docs = [
+    "mkdocs>=1.6.1,<2.0.0",
     "mkdocs-material>=9.5.0; python_version >= '3.9'",
     "mkdocs-minify-plugin>=0.8.0; python_version >= '3.9'",
+    "mkdocstrings[python]>=0.24.0",
     "pymdown-extensions>=10.0; python_version >= '3.9'",
 ]
 

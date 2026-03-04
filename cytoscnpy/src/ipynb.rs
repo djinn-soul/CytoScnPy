@@ -24,8 +24,7 @@ pub fn extract_notebook_code(path: &Path, root: Option<&Path>) -> Result<String>
             .collect(),
         Notebook::V3(nb) => nb
             .worksheets
-            .as_ref()
-            .into_iter()
+            .iter()
             .flatten()
             .flat_map(|ws| ws.cells.iter())
             .filter_map(|cell| match cell {
@@ -68,15 +67,12 @@ pub fn extract_notebook_cells(path: &Path, root: Option<&Path>) -> Result<Vec<(u
             .collect(),
         Notebook::V3(nb) => nb
             .worksheets
-            .as_ref()
-            .into_iter()
+            .iter()
             .flatten()
             .flat_map(|ws| ws.cells.iter())
             .enumerate()
             .filter_map(|(idx, cell)| match cell {
-                nbformat::v3::Cell::Code { input, .. } => {
-                    input.as_ref().map(|i| (idx, i.join("")))
-                }
+                nbformat::v3::Cell::Code { input, .. } => input.as_ref().map(|i| (idx, i.join(""))),
                 _ => None,
             })
             .collect(),

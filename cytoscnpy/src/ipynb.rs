@@ -22,6 +22,17 @@ pub fn extract_notebook_code(path: &Path, root: Option<&Path>) -> Result<String>
                 _ => None,
             })
             .collect(),
+        Notebook::V3(nb) => nb
+            .worksheets
+            .as_ref()
+            .into_iter()
+            .flatten()
+            .flat_map(|ws| ws.cells.iter())
+            .filter_map(|cell| match cell {
+                nbformat::v3::Cell::Code { input, .. } => input.as_ref().map(|i| i.join("")),
+                _ => None,
+            })
+            .collect(),
         Notebook::Legacy(nb) => nb
             .cells
             .iter()
@@ -52,6 +63,20 @@ pub fn extract_notebook_cells(path: &Path, root: Option<&Path>) -> Result<Vec<(u
             .enumerate()
             .filter_map(|(idx, cell)| match cell {
                 nbformat::v4::Cell::Code { source, .. } => Some((idx, source.join(""))),
+                _ => None,
+            })
+            .collect(),
+        Notebook::V3(nb) => nb
+            .worksheets
+            .as_ref()
+            .into_iter()
+            .flatten()
+            .flat_map(|ws| ws.cells.iter())
+            .enumerate()
+            .filter_map(|(idx, cell)| match cell {
+                nbformat::v3::Cell::Code { input, .. } => {
+                    input.as_ref().map(|i| (idx, i.join("")))
+                }
                 _ => None,
             })
             .collect(),

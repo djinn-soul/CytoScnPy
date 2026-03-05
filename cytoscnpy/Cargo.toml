@@ -50,7 +50,7 @@ toml = { version = "0.9", default-features = false, features = [
 serde_json = { version = "1.0", features = [
     "std",
 ] } # Restoring default briefly to ensure it works, then trim
-nbformat = "0.15"
+nbformat = "1.2"
 regex = { version = "1.10", default-features = false, features = [
     "std",
     "unicode-perl",

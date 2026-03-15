@@ -12,8 +12,11 @@ pub(super) fn apply_clone_fixes_internal<W: Write>(
     findings: &[CloneFinding],
     all_files: &[(PathBuf, String)],
     dry_run: bool,
-    #[allow(unused_variables)] with_cst: bool,
+    with_cst: bool,
 ) -> Result<()> {
+    #[cfg(not(feature = "cst"))]
+    let _ = with_cst;
+
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
 
@@ -32,24 +35,33 @@ pub(super) fn apply_clone_fixes_internal<W: Write>(
 
     for finding in findings {
         if finding.is_duplicate && finding.fix_confidence >= 90 {
-            #[allow(unused_mut)]
-            let mut start_byte = finding.start_byte;
-            #[allow(unused_mut)]
-            let mut end_byte = finding.end_byte;
-
-            #[cfg(feature = "cst")]
-            if with_cst {
-                if let Some((_, content)) = all_files.iter().find(|(p, _)| p == &finding.file) {
-                    if let Ok(mut parser) = CstParser::new() {
-                        if let Ok(tree) = parser.parse(content) {
-                            let mapper = AstCstMapper::new(tree);
-                            let (s, e) = mapper.precise_range_for_def(start_byte, end_byte);
-                            start_byte = s;
-                            end_byte = e;
+            let (start_byte, end_byte) = {
+                #[cfg(feature = "cst")]
+                {
+                    let mut start_byte = finding.start_byte;
+                    let mut end_byte = finding.end_byte;
+                    if with_cst {
+                        if let Some((_, content)) =
+                            all_files.iter().find(|(p, _)| p == &finding.file)
+                        {
+                            if let Ok(mut parser) = CstParser::new() {
+                                if let Ok(tree) = parser.parse(content) {
+                                    let mapper = AstCstMapper::new(tree);
+                                    let (s, e) = mapper.precise_range_for_def(start_byte, end_byte);
+                                    start_byte = s;
+                                    end_byte = e;
+                                }
+                            }
                         }
                     }
+                    (start_byte, end_byte)
                 }
-            }
+
+                #[cfg(not(feature = "cst"))]
+                {
+                    (finding.start_byte, finding.end_byte)
+                }
+            };
 
             let range_key = (finding.file.clone(), start_byte, end_byte);
             if seen_ranges.contains(&range_key) {

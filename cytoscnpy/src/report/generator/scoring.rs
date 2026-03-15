@@ -1,12 +1,12 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    clippy::too_many_lines
+    clippy::cast_precision_loss
 )]
 
 use crate::analyzer::AnalysisResult;
 use crate::report::templates::{CategoryScore, FormattedHalsteadMetrics, OverallScore};
+use crate::rules::Finding;
 
 pub(super) fn build_halstead_view(result: &AnalysisResult) -> FormattedHalsteadMetrics {
     let file_count = result.analysis_summary.total_files.max(1) as f64;
@@ -73,41 +73,6 @@ pub(super) fn build_halstead_view(result: &AnalysisResult) -> FormattedHalsteadM
 }
 
 pub(super) fn calculate_score(result: &AnalysisResult) -> OverallScore {
-    let mut complexity_penalty: f64 = 0.0;
-
-    for file_metric in &result.file_metrics {
-        if file_metric.sloc > 500 {
-            complexity_penalty += 2.0;
-        }
-    }
-
-    for issue in &result.quality {
-        if issue.message.to_lowercase().contains("complex") {
-            if let Some(val) = issue
-                .message
-                .split('=')
-                .nth(1)
-                .and_then(|s| s.trim_end_matches(')').parse::<f64>().ok())
-            {
-                if val > 10.0 {
-                    complexity_penalty += (val - 10.0) * 2.0;
-                }
-            } else {
-                complexity_penalty += 5.0;
-            }
-        }
-        if issue.message.to_lowercase().contains("nested")
-            || issue.message.to_lowercase().contains("nesting")
-        {
-            complexity_penalty += 5.0;
-        }
-        if issue.message.to_lowercase().contains("too long") {
-            complexity_penalty += 5.0;
-        }
-    }
-    complexity_penalty = complexity_penalty.min(25.0);
-
-    let mut maintainability_penalty: f64 = 0.0;
     let unused_count = result.unused_functions.len()
         + result.unused_classes.len()
         + result.unused_imports.len()
@@ -115,55 +80,11 @@ pub(super) fn calculate_score(result: &AnalysisResult) -> OverallScore {
         + result.unused_methods.len()
         + result.unused_parameters.len();
 
-    maintainability_penalty += (unused_count as f64) * 2.0;
-
-    for clone in &result.clones {
-        if clone.is_duplicate {
-            maintainability_penalty += 3.0;
-        }
-    }
-    maintainability_penalty = maintainability_penalty.min(45.0);
-
-    let mut reliability_penalty: f64 = 0.0;
-    for issue in &result.quality {
-        let msg = issue.message.to_lowercase();
-        if msg.contains("error")
-            || msg.contains("exception")
-            || msg.contains("panic")
-            || msg.contains("unwrap")
-            || msg.contains("expect")
-        {
-            reliability_penalty += 5.0;
-        }
-    }
-    reliability_penalty = reliability_penalty.min(15.0);
-
-    let mut security_penalty: f64 = 0.0;
-    for _ in &result.secrets {
-        security_penalty += 30.0;
-    }
-    for _ in &result.danger {
-        security_penalty += 15.0;
-    }
-    for _ in &result.taint_findings {
-        security_penalty += 20.0;
-    }
-
-    let mut style_penalty: f64 = 0.0;
-    for issue in &result.quality {
-        let msg = issue.message.to_lowercase();
-        if !msg.contains("complex")
-            && !msg.contains("nested")
-            && !msg.contains("too long")
-            && !msg.contains("error")
-            && !msg.contains("exception")
-            && !msg.contains("panic")
-            && !msg.contains("unwrap")
-        {
-            style_penalty += 2.0;
-        }
-    }
-    style_penalty = style_penalty.min(5.0);
+    let complexity_penalty = compute_complexity_penalty(result);
+    let maintainability_penalty = compute_maintainability_penalty(result, unused_count);
+    let reliability_penalty = compute_reliability_penalty(result);
+    let security_penalty = compute_security_penalty(result);
+    let style_penalty = compute_style_penalty(result);
 
     let complexity_score = (100.0 - complexity_penalty).max(0.0);
     let maintainability_score = (100.0 - maintainability_penalty).max(0.0);
@@ -207,43 +128,35 @@ pub(super) fn calculate_score(result: &AnalysisResult) -> OverallScore {
         total_score: total,
         grade,
         categories: vec![
-            CategoryScore {
-                name: "Complexity".into(),
-                score: complexity_score as u8,
-                issue_count: 0,
-                grade: complexity_grade.into(),
-                color: grade_color(complexity_grade),
-            },
-            CategoryScore {
-                name: "Maintainability".into(),
-                score: maintainability_score as u8,
-                issue_count: unused_count,
-                grade: maintainability_grade.into(),
-                color: grade_color(maintainability_grade),
-            },
-            CategoryScore {
-                name: "Security".into(),
-                score: security_score as u8,
-                issue_count: result.secrets.len()
-                    + result.danger.len()
-                    + result.taint_findings.len(),
-                grade: security_grade.into(),
-                color: grade_color(security_grade),
-            },
-            CategoryScore {
-                name: "Reliability".into(),
-                score: reliability_score as u8,
-                issue_count: 0,
-                grade: reliability_grade.into(),
-                color: grade_color(reliability_grade),
-            },
-            CategoryScore {
-                name: "Style".into(),
-                score: style_score as u8,
-                issue_count: 0,
-                grade: style_grade.into(),
-                color: grade_color(style_grade),
-            },
+            build_category(
+                "Complexity",
+                complexity_score as u8,
+                0,
+                complexity_grade,
+                &grade_color,
+            ),
+            build_category(
+                "Maintainability",
+                maintainability_score as u8,
+                unused_count,
+                maintainability_grade,
+                &grade_color,
+            ),
+            build_category(
+                "Security",
+                security_score as u8,
+                result.secrets.len() + result.danger.len() + result.taint_findings.len(),
+                security_grade,
+                &grade_color,
+            ),
+            build_category(
+                "Reliability",
+                reliability_score as u8,
+                0,
+                reliability_grade,
+                &grade_color,
+            ),
+            build_category("Style", style_score as u8, 0, style_grade, &grade_color),
         ],
     }
 }
@@ -254,5 +167,111 @@ fn to_letter_grade(score: u8) -> &'static str {
         75..=89 => "B",
         60..=74 => "C",
         _ => "F",
+    }
+}
+
+fn compute_complexity_penalty(result: &AnalysisResult) -> f64 {
+    let file_penalty: f64 = result
+        .file_metrics
+        .iter()
+        .filter(|file_metric| file_metric.sloc > 500)
+        .map(|_| 2.0)
+        .sum();
+    let issue_penalty: f64 = result
+        .quality
+        .iter()
+        .map(complexity_penalty_from_issue)
+        .sum();
+    (file_penalty + issue_penalty).min(25.0)
+}
+
+fn complexity_penalty_from_issue(issue: &Finding) -> f64 {
+    let msg = issue.message.to_lowercase();
+    let complex_penalty = if msg.contains("complex") {
+        issue
+            .message
+            .split('=')
+            .nth(1)
+            .and_then(|s| s.trim_end_matches(')').parse::<f64>().ok())
+            .map_or(5.0, |val| ((val - 10.0) * 2.0).max(0.0))
+    } else {
+        0.0
+    };
+
+    let nesting_penalty = if msg.contains("nested") || msg.contains("nesting") {
+        5.0
+    } else {
+        0.0
+    };
+
+    let length_penalty = if msg.contains("too long") { 5.0 } else { 0.0 };
+    complex_penalty + nesting_penalty + length_penalty
+}
+
+fn compute_maintainability_penalty(result: &AnalysisResult, unused_count: usize) -> f64 {
+    let duplicate_clone_penalty: f64 = result
+        .clones
+        .iter()
+        .filter(|clone| clone.is_duplicate)
+        .map(|_| 3.0)
+        .sum();
+    ((unused_count as f64) * 2.0 + duplicate_clone_penalty).min(45.0)
+}
+
+fn compute_reliability_penalty(result: &AnalysisResult) -> f64 {
+    let penalty: f64 = result
+        .quality
+        .iter()
+        .filter(|issue| {
+            let msg = issue.message.to_lowercase();
+            msg.contains("error")
+                || msg.contains("exception")
+                || msg.contains("panic")
+                || msg.contains("unwrap")
+                || msg.contains("expect")
+        })
+        .map(|_| 5.0)
+        .sum();
+    penalty.min(15.0)
+}
+
+fn compute_security_penalty(result: &AnalysisResult) -> f64 {
+    result.secrets.iter().map(|_| 30.0).sum::<f64>()
+        + result.danger.iter().map(|_| 15.0).sum::<f64>()
+        + result.taint_findings.iter().map(|_| 20.0).sum::<f64>()
+}
+
+fn compute_style_penalty(result: &AnalysisResult) -> f64 {
+    let penalty: f64 = result
+        .quality
+        .iter()
+        .filter(|issue| {
+            let msg = issue.message.to_lowercase();
+            !msg.contains("complex")
+                && !msg.contains("nested")
+                && !msg.contains("too long")
+                && !msg.contains("error")
+                && !msg.contains("exception")
+                && !msg.contains("panic")
+                && !msg.contains("unwrap")
+        })
+        .map(|_| 2.0)
+        .sum();
+    penalty.min(5.0)
+}
+
+fn build_category(
+    name: &str,
+    score: u8,
+    issue_count: usize,
+    grade: &str,
+    grade_color: &impl Fn(&str) -> String,
+) -> CategoryScore {
+    CategoryScore {
+        name: name.into(),
+        score,
+        issue_count,
+        grade: grade.into(),
+        color: grade_color(grade),
     }
 }

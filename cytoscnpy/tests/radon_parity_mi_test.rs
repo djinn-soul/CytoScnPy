@@ -136,13 +136,13 @@ fn test_mi_visit_empty() {
 #[test]
 fn test_mi_visit_simple_function() {
     // first_mi from Radon
-    let code = r#"
+    let code = r"
 def f(a, b, c):
     return (a ** b) % c
 
 k = f(1, 2, 3)
 print(k ** 2 - 1)
-"#;
+";
     // Radon expects: 75.40162245189028
     // We should get a reasonable MI (50-90 range)
     let mi = compute_mi_for_code(code, true);
@@ -178,9 +178,7 @@ a.m(42)  # i don't know why, but it works
     // With multi-line strings counted as comments, MI should be higher
     assert!(
         mi_with_multi >= mi_without_multi,
-        "MI with multi ({}) should be >= MI without multi ({})",
-        mi_with_multi,
-        mi_without_multi
+        "MI with multi ({mi_with_multi}) should be >= MI without multi ({mi_without_multi})"
     );
     // Both should be in reasonable range
     assert!(mi_with_multi > 60.0 && mi_with_multi <= 100.0);
@@ -251,7 +249,7 @@ fn test_mi_only_docstring() {
 "#;
     let mi = compute_mi_for_code(code, true);
     // Should be high MI since it's just a docstring
-    assert!(mi >= 90.0 && mi <= 100.0, "Docstring-only MI was {}", mi);
+    assert!((90.0..=100.0).contains(&mi), "Docstring-only MI was {}", mi);
 }
 
 #[test]

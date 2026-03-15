@@ -99,7 +99,6 @@ pub fn analyze_stmt_public(
 }
 
 /// Analyzes a statement for taint flow.
-#[allow(clippy::too_many_lines)]
 pub(super) fn analyze_stmt(
     stmt: &Stmt,
     analyzer: &TaintAnalyzer,
@@ -108,15 +107,32 @@ pub(super) fn analyze_stmt(
     file_path: &Path,
     line_index: &LineIndex,
 ) {
+    if analyze_data_flow_stmt(stmt, analyzer, state, findings, file_path, line_index) {
+        return;
+    }
+    analyze_control_flow_stmt(stmt, analyzer, state, findings, file_path, line_index);
+}
+
+fn analyze_data_flow_stmt(
+    stmt: &Stmt,
+    analyzer: &TaintAnalyzer,
+    state: &mut TaintState,
+    findings: &mut Vec<TaintFinding>,
+    file_path: &Path,
+    line_index: &LineIndex,
+) -> bool {
     match stmt {
         Stmt::Assign(assign) => {
             handle_assign(assign, analyzer, state, findings, file_path, line_index);
+            true
         }
         Stmt::AnnAssign(assign) => {
             handle_ann_assign(assign, analyzer, state, line_index);
+            true
         }
         Stmt::AugAssign(assign) => {
             handle_aug_assign(assign, analyzer, state, findings, file_path, line_index);
+            true
         }
         Stmt::Expr(expr_stmt) => {
             check_expr_for_sinks(
@@ -127,12 +143,27 @@ pub(super) fn analyze_stmt(
                 file_path,
                 line_index,
             );
+            true
         }
         Stmt::Return(ret) => {
             if let Some(value) = &ret.value {
                 check_expr_for_sinks(value, analyzer, state, findings, file_path, line_index);
             }
+            true
         }
+        _ => false,
+    }
+}
+
+fn analyze_control_flow_stmt(
+    stmt: &Stmt,
+    analyzer: &TaintAnalyzer,
+    state: &mut TaintState,
+    findings: &mut Vec<TaintFinding>,
+    file_path: &Path,
+    line_index: &LineIndex,
+) {
+    match stmt {
         Stmt::If(if_stmt) => handle_if(if_stmt, analyzer, state, findings, file_path, line_index),
         Stmt::For(for_stmt) => {
             handle_for(for_stmt, analyzer, state, findings, file_path, line_index);

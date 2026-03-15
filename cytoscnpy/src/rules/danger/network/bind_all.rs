@@ -3,6 +3,12 @@ use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
 
+fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+}
+
 /// Rule for detecting hardcoded network binds to all interfaces.
 pub struct HardcodedBindAllInterfacesRule {
     /// Rule metadata.
@@ -68,7 +74,6 @@ impl Rule for HardcodedBindAllInterfacesRule {
         None
     }
 
-    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             for keyword in &call.arguments.keywords {
@@ -90,7 +95,9 @@ impl Rule for HardcodedBindAllInterfacesRule {
                 }
             }
             if let Some(name) = get_call_name(&call.func) {
-                if (name == "bind" || name.ends_with(".bind")) && !call.arguments.args.is_empty() {
+                if (name == "bind" || has_case_insensitive_suffix(&name, ".bind"))
+                    && !call.arguments.args.is_empty()
+                {
                     if let Expr::Tuple(tuple) = &call.arguments.args[0] {
                         if !tuple.elts.is_empty() {
                             if let Expr::StringLiteral(string) = &tuple.elts[0] {

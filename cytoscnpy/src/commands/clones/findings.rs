@@ -9,8 +9,11 @@ use std::path::PathBuf;
 pub fn generate_clone_findings(
     pairs: &[ClonePair],
     all_files: &[(PathBuf, String)],
-    #[allow(unused_variables)] with_cst: bool,
+    with_cst: bool,
 ) -> Vec<CloneFinding> {
+    #[cfg(not(feature = "cst"))]
+    let _ = with_cst;
+
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
 
@@ -33,22 +36,31 @@ pub fn generate_clone_findings(
     let mut findings: Vec<CloneFinding> = pairs
         .par_iter()
         .flat_map(|pair| {
-            #[allow(unused_variables)]
             let calc_conf = |inst: &crate::clones::CloneInstance| -> u8 {
-                #[allow(unused_mut)]
-                let mut ctx = FixContext {
+                let ctx = FixContext {
                     same_file: pair.is_same_file(),
                     ..FixContext::default()
                 };
 
                 #[cfg(feature = "cst")]
-                if with_cst {
-                    if let Some(mapper) = mappers.get(&inst.file) {
-                        ctx.has_interleaved_comments =
-                            mapper.has_interleaved_comments(inst.start_byte, inst.end_byte);
-                        ctx.deeply_nested = mapper.is_deeply_nested(inst.start_byte, inst.end_byte);
+                let ctx = {
+                    let mut ctx = ctx;
+                    if with_cst {
+                        if let Some(mapper) = mappers.get(&inst.file) {
+                            ctx.has_interleaved_comments =
+                                mapper.has_interleaved_comments(inst.start_byte, inst.end_byte);
+                            ctx.deeply_nested =
+                                mapper.is_deeply_nested(inst.start_byte, inst.end_byte);
+                        }
                     }
-                }
+                    ctx
+                };
+
+                #[cfg(not(feature = "cst"))]
+                let _ = inst;
+
+                #[cfg(not(feature = "cst"))]
+                let ctx = ctx;
 
                 scorer.score(pair, &ctx).score
             };

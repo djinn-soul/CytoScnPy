@@ -5,7 +5,6 @@ use super::CfgBuilder;
 use crate::cfg::StmtKind;
 
 impl CfgBuilder<'_> {
-    #[allow(clippy::match_same_arms)]
     pub(super) fn visit_stmt(&mut self, stmt: &Stmt) {
         let line = self.line_index.line_index(stmt.range().start());
 

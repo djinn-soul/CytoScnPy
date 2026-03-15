@@ -4,8 +4,7 @@ use super::ContextScorer;
 
 impl ContextScorer {
     /// Checks if the line contains an environment variable access pattern.
-    #[allow(clippy::unused_self)]
-    pub(crate) fn is_env_var_access(&self, line: &str) -> bool {
+    pub(crate) fn is_env_var_access(line: &str) -> bool {
         let lower = line.to_lowercase();
         lower.contains("os.environ")
             || lower.contains("os.getenv")
@@ -14,8 +13,7 @@ impl ContextScorer {
     }
 
     /// Checks if a string looks like a file path or URL.
-    #[allow(clippy::unused_self)]
-    pub(crate) fn looks_like_path_or_url(&self, s: &str) -> bool {
+    pub(crate) fn looks_like_path_or_url(s: &str) -> bool {
         // URL patterns
         if s.contains("http://") || s.contains("https://") || s.contains("ftp://") {
             return true;
@@ -31,8 +29,7 @@ impl ContextScorer {
     }
 
     /// Checks if a path looks like a placeholder.
-    #[allow(clippy::unused_self)]
-    pub(crate) fn is_placeholder(&self, line: &str) -> bool {
+    pub(crate) fn is_placeholder(line: &str) -> bool {
         let lower = line.to_lowercase();
         // Common placeholder patterns
         lower.contains("\"xxx")
@@ -52,8 +49,7 @@ impl ContextScorer {
 
     /// Checks if a path is a test file.
     #[cfg(test)]
-    #[allow(clippy::unused_self)]
-    pub(crate) fn is_test_file(&self, path: &std::path::Path) -> bool {
+    pub(crate) fn is_test_file(path: &std::path::Path) -> bool {
         crate::utils::is_test_path(&path.to_string_lossy())
     }
 }

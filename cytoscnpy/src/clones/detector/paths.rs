@@ -151,7 +151,16 @@ fn find_and_group_clones(
         pb.finish_and_clear();
     }
 
-    let groups = detector.group_clones(&pairs);
+    #[cfg(feature = "cfg")]
+    if detector.config.cfg_validation {
+        let cfg_subtrees: Vec<parser::Subtree> = subtree_cache
+            .values()
+            .flat_map(|subtrees| subtrees.iter().cloned())
+            .collect();
+        pairs = CloneDetector::validate_with_cfg(pairs, &cfg_subtrees);
+    }
+
+    let groups = CloneDetector::group_clones(&pairs);
     let summary = CloneSummary::from_groups(&groups);
     CloneDetectionResult {
         pairs,

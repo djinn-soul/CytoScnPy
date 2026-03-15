@@ -61,15 +61,7 @@ pub fn analyze_module(
                     findings.append(&mut intra_findings);
 
                     // Level 2: Interprocedural analysis using summaries
-                    let context_findings = analyze_with_context(
-                        f,
-                        analyzer,
-                        file_path,
-                        line_index,
-                        &state,
-                        &summaries,
-                        &call_graph,
-                    );
+                    let context_findings = analyze_with_context(f, line_index, &state, &summaries);
                     findings.extend(context_findings);
                 }
                 FunctionDef::Async(f) => {
@@ -89,15 +81,8 @@ pub fn analyze_module(
                     );
                     findings.append(&mut intra_findings);
 
-                    let context_findings = analyze_async_with_context(
-                        f,
-                        analyzer,
-                        file_path,
-                        line_index,
-                        &state,
-                        &summaries,
-                        &call_graph,
-                    );
+                    let context_findings =
+                        analyze_async_with_context(f, line_index, &state, &summaries);
                     findings.extend(context_findings);
                 }
             }
@@ -174,73 +159,42 @@ fn qualify_name(module_name: &str, class_name: Option<&str>, func_name: &str) ->
 /// Analyzes a function with interprocedural context.
 fn analyze_with_context(
     func: &ast::StmtFunctionDef,
-    analyzer: &TaintAnalyzer,
-    file_path: &Path,
     line_index: &LineIndex,
     initial_state: &TaintState,
     summaries: &SummaryDatabase,
-    call_graph: &CallGraph,
 ) -> Vec<TaintFinding> {
     let mut state = initial_state.clone();
-    let mut findings = Vec::new();
 
     // Analyze statements with context
     for stmt in &func.body {
-        analyze_stmt_with_context(
-            stmt,
-            &mut state,
-            &mut findings,
-            file_path,
-            line_index,
-            analyzer,
-            summaries,
-            call_graph,
-        );
+        analyze_stmt_with_context(stmt, &mut state, line_index, summaries);
     }
 
-    findings
+    Vec::new()
 }
 
 /// Analyzes an async function with context.
 fn analyze_async_with_context(
     func: &ast::StmtFunctionDef,
-    analyzer: &TaintAnalyzer,
-    file_path: &Path,
     line_index: &LineIndex,
     initial_state: &TaintState,
     summaries: &SummaryDatabase,
-    call_graph: &CallGraph,
 ) -> Vec<TaintFinding> {
     let mut state = initial_state.clone();
-    let mut findings = Vec::new();
 
     for stmt in &func.body {
-        analyze_stmt_with_context(
-            stmt,
-            &mut state,
-            &mut findings,
-            file_path,
-            line_index,
-            analyzer,
-            summaries,
-            call_graph,
-        );
+        analyze_stmt_with_context(stmt, &mut state, line_index, summaries);
     }
 
-    findings
+    Vec::new()
 }
 
 /// Analyzes a statement with interprocedural context.
-#[allow(clippy::only_used_in_recursion)]
 fn analyze_stmt_with_context(
     stmt: &Stmt,
     state: &mut TaintState,
-    findings: &mut Vec<TaintFinding>,
-    file_path: &Path,
     line_index: &LineIndex,
-    analyzer: &TaintAnalyzer,
     summaries: &SummaryDatabase,
-    call_graph: &CallGraph,
 ) {
     match stmt {
         Stmt::Assign(assign) => {
@@ -288,55 +242,41 @@ fn analyze_stmt_with_context(
 
         Stmt::If(if_stmt) => {
             for s in &if_stmt.body {
-                analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
-                );
+                analyze_stmt_with_context(s, state, line_index, summaries);
             }
             for clause in &if_stmt.elif_else_clauses {
                 for s in &clause.body {
-                    analyze_stmt_with_context(
-                        s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
-                    );
+                    analyze_stmt_with_context(s, state, line_index, summaries);
                 }
             }
         }
 
         Stmt::For(for_stmt) => {
             for s in &for_stmt.body {
-                analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
-                );
+                analyze_stmt_with_context(s, state, line_index, summaries);
             }
         }
 
         Stmt::While(while_stmt) => {
             for s in &while_stmt.body {
-                analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
-                );
+                analyze_stmt_with_context(s, state, line_index, summaries);
             }
         }
 
         Stmt::With(with_stmt) => {
             for s in &with_stmt.body {
-                analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
-                );
+                analyze_stmt_with_context(s, state, line_index, summaries);
             }
         }
 
         Stmt::Try(try_stmt) => {
             for s in &try_stmt.body {
-                analyze_stmt_with_context(
-                    s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
-                );
+                analyze_stmt_with_context(s, state, line_index, summaries);
             }
             for handler in &try_stmt.handlers {
                 let ast::ExceptHandler::ExceptHandler(h) = handler;
                 for s in &h.body {
-                    analyze_stmt_with_context(
-                        s, state, findings, file_path, line_index, analyzer, summaries, call_graph,
-                    );
+                    analyze_stmt_with_context(s, state, line_index, summaries);
                 }
             }
         }

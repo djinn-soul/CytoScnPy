@@ -19,7 +19,13 @@ def login(token="sk_live_abcdefghijklmnopqrstuvwx"):
 "#;
 
     let config = SecretsConfig::default();
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     // Should detect Stripe live key in default parameter
     assert!(
@@ -50,7 +56,13 @@ def authenticate(*, api_key="ghp_abcdefghijklmnopqrstuvwxyz123456"):
 "#;
 
     let config = SecretsConfig::default();
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     assert!(
         !findings.is_empty(),
@@ -79,12 +91,17 @@ def protected_endpoint():
 "#;
 
     let config = SecretsConfig::default();
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     assert!(
         !findings.is_empty(),
-        "Should detect secret in decorator argument. Got: {:?}",
-        findings
+        "Should detect secret in decorator argument. Got: {findings:?}"
     );
 }
 
@@ -97,7 +114,13 @@ def connect(host, password="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", /):
 "#;
 
     let config = SecretsConfig::default();
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     assert!(
         !findings.is_empty(),

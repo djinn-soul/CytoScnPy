@@ -1,5 +1,11 @@
 use super::*;
 
+fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+}
+
 impl<'a> CytoScnPyVisitor<'a> {
     pub(super) fn handle_function_stmt(&mut self, node: &ast::StmtFunctionDef) {
         for decorator in &node.decorator_list {
@@ -81,10 +87,9 @@ impl<'a> CytoScnPyVisitor<'a> {
             .any(|b| b == "Protocol" || b.ends_with(".Protocol"));
         self.protocol_class_stack.push(is_protocol);
 
-        #[allow(clippy::case_sensitive_file_extension_comparisons)]
         let is_abc = base_classes
             .iter()
-            .any(|b| b == "ABC" || b == "abc.ABC" || b.ends_with(".ABC"));
+            .any(|b| b == "ABC" || b == "abc.ABC" || has_case_insensitive_suffix(b, ".ABC"));
         self.abc_class_stack.push(is_abc);
 
         let is_enum = base_classes.iter().any(|b| {

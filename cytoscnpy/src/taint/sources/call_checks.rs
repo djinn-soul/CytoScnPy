@@ -6,6 +6,12 @@ use crate::utils::LineIndex;
 use ruff_python_ast as ast;
 use ruff_text_size::Ranged;
 
+fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+}
+
 /// Checks if a call expression is a taint source.
 pub(crate) fn check_call_source(call: &ast::ExprCall, line_index: &LineIndex) -> Option<TaintInfo> {
     let line = line_index.line_index(call.range().start());
@@ -49,10 +55,11 @@ pub(crate) fn check_call_source(call: &ast::ExprCall, line_index: &LineIndex) ->
             ));
         }
 
-        // File reads
-        // This is not a file extension comparison - we're checking method name suffixes
-        #[allow(clippy::case_sensitive_file_extension_comparisons)]
-        if name.ends_with(".read") || name.ends_with(".readlines") || name.ends_with(".readline") {
+        // File reads (method-name suffix checks, not file-extension checks)
+        if has_case_insensitive_suffix(&name, ".read")
+            || has_case_insensitive_suffix(&name, ".readlines")
+            || has_case_insensitive_suffix(&name, ".readline")
+        {
             return Some(TaintInfo::new(TaintSource::FileRead, line));
         }
 

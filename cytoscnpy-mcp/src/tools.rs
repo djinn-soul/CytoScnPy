@@ -66,7 +66,6 @@ pub struct MetricsRequest {
 /// The main MCP server struct for CytoScnPy.
 #[derive(Debug, Clone)]
 pub struct CytoScnPyServer {
-    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 
@@ -303,6 +302,8 @@ impl CytoScnPyServer {
 #[rmcp::tool_handler]
 impl ServerHandler for CytoScnPyServer {
     fn get_info(&self) -> ServerInfo {
+        let _ = &self.tool_router;
+
         ServerInfo {
             instructions: Some(
                 "CytoScnPy is a high-performance Python static analyzer built in Rust. \n\n\

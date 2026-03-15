@@ -83,21 +83,12 @@ pub struct FixPlanItem {
 /// # Errors
 ///
 /// Returns an error if file I/O fails or fix fails.
-#[allow(clippy::too_many_lines)]
 pub fn run_fix_deadcode<W: Write>(
     results: &crate::analyzer::AnalysisResult,
     options: &DeadCodeFixOptions,
     mut writer: W,
 ) -> Result<Vec<FixResult>> {
-    if options.dry_run && !options.json_output {
-        writeln!(
-            writer,
-            "\n{}",
-            "[DRY-RUN] Dead code that would be removed:".yellow()
-        )?;
-    } else if !options.dry_run && !options.json_output {
-        writeln!(writer, "\n{}", "Applying dead code fixes...".cyan())?;
-    }
+    write_fix_mode_header(&mut writer, options)?;
 
     let items_by_file = plan::collect_items_to_fix(results, options);
 
@@ -118,6 +109,39 @@ pub fn run_fix_deadcode<W: Write>(
         plan::print_fix_stats(&mut writer, &items_by_file, results, options)?;
     }
 
+    let all_results = apply_fix_work_items(&mut writer, items_by_file, options)?;
+
+    if options.json_output {
+        write_json_fix_payload(&mut writer, options, &all_results)?;
+        return Ok(all_results);
+    }
+
+    write_fix_summary(&mut writer, results, options, &all_results)?;
+
+    Ok(all_results)
+}
+
+fn write_fix_mode_header<W: Write>(writer: &mut W, options: &DeadCodeFixOptions) -> Result<()> {
+    if options.dry_run && !options.json_output {
+        writeln!(
+            writer,
+            "\n{}",
+            "[DRY-RUN] Dead code that would be removed:".yellow()
+        )?;
+    } else if !options.dry_run && !options.json_output {
+        writeln!(writer, "\n{}", "Applying dead code fixes...".cyan())?;
+    }
+    Ok(())
+}
+
+fn apply_fix_work_items<W: Write>(
+    writer: &mut W,
+    items_by_file: std::collections::HashMap<
+        PathBuf,
+        Vec<(&'static str, &crate::visitor::Definition)>,
+    >,
+    options: &DeadCodeFixOptions,
+) -> Result<Vec<FixResult>> {
     let mut work_items: Vec<_> = items_by_file.into_iter().collect();
     work_items.sort_by(|(path_a, _), (path_b, _)| {
         crate::utils::normalize_display_path(path_a)
@@ -125,7 +149,6 @@ pub fn run_fix_deadcode<W: Write>(
     });
 
     let mut all_results = Vec::new();
-
     for (file_path, mut items) in work_items {
         items.sort_by(|(type_a, def_a), (type_b, def_b)| {
             def_a
@@ -139,50 +162,52 @@ pub fn run_fix_deadcode<W: Write>(
             let mut quiet = Vec::new();
             apply::apply_dead_code_fix_to_file(&mut quiet, &file_path, &items, options)?
         } else {
-            apply::apply_dead_code_fix_to_file(&mut writer, &file_path, &items, options)?
+            apply::apply_dead_code_fix_to_file(writer, &file_path, &items, options)?
         };
         if let Some(res) = res {
             all_results.push(res);
         }
     }
-
-    if options.json_output {
-        write_json_fix_payload(&mut writer, options, &all_results)?;
-        return Ok(all_results);
-    }
-
-    if !all_results.is_empty() && !options.dry_run && !options.json_output {
-        let total_items_removed: usize = all_results.iter().map(|r| r.items_removed).sum();
-        let total_lines_removed: usize = all_results.iter().map(|r| r.lines_removed).sum();
-
-        let total_targeted = total_targeted_items(results, options);
-
-        let items_pct = if total_targeted > 0 {
-            (total_items_removed as f64 / total_targeted as f64) * 100.0
-        } else {
-            0.0
-        };
-
-        let lines_pct = if results.analysis_summary.total_lines_analyzed > 0 {
-            (total_lines_removed as f64 / results.analysis_summary.total_lines_analyzed as f64)
-                * 100.0
-        } else {
-            0.0
-        };
-
-        writeln!(writer, "\n{}", "Fix Summary:".green().bold())?;
-        writeln!(
-            writer,
-            "  Total items fixed: {total_items_removed}/{total_targeted} ({items_pct:.1}%)"
-        )?;
-        writeln!(
-            writer,
-            "  Total lines removed: {total_lines_removed}/{} ({lines_pct:.2}%)",
-            results.analysis_summary.total_lines_analyzed
-        )?;
-    }
-
     Ok(all_results)
+}
+
+fn write_fix_summary<W: Write>(
+    writer: &mut W,
+    results: &crate::analyzer::AnalysisResult,
+    options: &DeadCodeFixOptions,
+    all_results: &[FixResult],
+) -> Result<()> {
+    if all_results.is_empty() || options.dry_run || options.json_output {
+        return Ok(());
+    }
+
+    let total_items_removed: usize = all_results.iter().map(|r| r.items_removed).sum();
+    let total_lines_removed: usize = all_results.iter().map(|r| r.lines_removed).sum();
+
+    let total_targeted = total_targeted_items(results, options);
+    let items_pct = if total_targeted > 0 {
+        (total_items_removed as f64 / total_targeted as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    let lines_pct = if results.analysis_summary.total_lines_analyzed > 0 {
+        (total_lines_removed as f64 / results.analysis_summary.total_lines_analyzed as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    writeln!(writer, "\n{}", "Fix Summary:".green().bold())?;
+    writeln!(
+        writer,
+        "  Total items fixed: {total_items_removed}/{total_targeted} ({items_pct:.1}%)"
+    )?;
+    writeln!(
+        writer,
+        "  Total lines removed: {total_lines_removed}/{} ({lines_pct:.2}%)",
+        results.analysis_summary.total_lines_analyzed
+    )?;
+    Ok(())
 }
 
 fn total_targeted_items(

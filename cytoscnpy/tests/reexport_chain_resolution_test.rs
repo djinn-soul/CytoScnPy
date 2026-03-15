@@ -39,7 +39,7 @@ fn test_nested_reexport_chain_marks_imports_used_when_chain_is_complete() {
             .join("__init__.py"),
     )
     .unwrap();
-    write!(core_init, "from .service import exposed_api\n").unwrap();
+    writeln!(core_init, "from .service import exposed_api").unwrap();
 
     let mut service = File::create(app_pkg_core.join("service.py")).unwrap();
     write!(service, "def exposed_api():\n    return 1\n").unwrap();
@@ -71,7 +71,7 @@ fn test_nested_reexport_chain_reports_unused_imports_when_chain_is_broken() {
 
     let mut pkg_init =
         File::create(dir.path().join("app").join("pkg").join("__init__.py")).unwrap();
-    write!(pkg_init, "from .core import exposed_api\n").unwrap();
+    writeln!(pkg_init, "from .core import exposed_api").unwrap();
 
     let mut core_init = File::create(
         dir.path()
@@ -81,7 +81,7 @@ fn test_nested_reexport_chain_reports_unused_imports_when_chain_is_broken() {
             .join("__init__.py"),
     )
     .unwrap();
-    write!(core_init, "from .service import exposed_api\n").unwrap();
+    writeln!(core_init, "from .service import exposed_api").unwrap();
 
     let mut service = File::create(app_pkg_core.join("service.py")).unwrap();
     write!(service, "def exposed_api():\n    return 1\n").unwrap();

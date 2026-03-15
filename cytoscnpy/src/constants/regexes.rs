@@ -1,6 +1,13 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
+fn compile_regex(pattern: &str, error_context: &str) -> Regex {
+    Regex::new(pattern).unwrap_or_else(|error| {
+        eprintln!("{error_context}: {error}");
+        std::process::abort();
+    })
+}
+
 /// Returns supported inline suppression token patterns.
 pub fn get_suppression_patterns() -> &'static [&'static str] {
     static PATTERNS: OnceLock<Vec<&'static str>> = OnceLock::new();
@@ -10,56 +17,55 @@ pub fn get_suppression_patterns() -> &'static [&'static str] {
 /// Returns the compiled suppression-comment regex.
 pub fn get_suppression_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
-        Regex::new(r"(?i)#\s*(?:pragma:\s*no\s*cytoscnpy|(?:noqa|ignore)(?::\s*([^#\n]+))?)")
-            .expect("Invalid suppression regex pattern")
+        compile_regex(
+            r"(?i)#\s*(?:pragma:\s*no\s*cytoscnpy|(?:noqa|ignore)(?::\s*([^#\n]+))?)",
+            "Invalid suppression regex pattern",
+        )
     })
 }
 
 /// Returns the compiled regex for test-file path detection.
 pub fn get_test_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
-        Regex::new(
+        compile_regex(
             r"(?:^|[/\\])tests?[/\\]|(?:^|[/\\])test_[^/\\]+\.py$|[^/\\]+_test\.py$|conftest\.py$",
+            "Invalid test file regex pattern",
         )
-        .expect("Invalid test file regex pattern")
     })
 }
 
 /// Returns the compiled regex for test-framework imports.
 pub fn get_test_import_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
-        Regex::new(r"^(pytest|unittest|nose|mock|responses)(\.|$)")
-            .expect("Invalid test import regex pattern")
+        compile_regex(
+            r"^(pytest|unittest|nose|mock|responses)(\.|$)",
+            "Invalid test import regex pattern",
+        )
     })
 }
 
 /// Returns the compiled regex for fixture decorators.
 pub fn get_fixture_decor_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
-        Regex::new(
+        compile_regex(
             r"(?x)^(
             pytest\.fixture |
             fixture
         )$",
+            "Invalid fixture decorator regex pattern",
         )
-        .expect("Invalid fixture decorator regex pattern")
     })
 }
 
 /// Returns the compiled regex for test-specific decorators.
 pub fn get_test_decor_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
-        Regex::new(
+        compile_regex(
             r"(?x)^(
             pytest\.(fixture|mark) |
             fixture |
@@ -67,24 +73,24 @@ pub fn get_test_decor_re() -> &'static Regex {
             responses\.activate |
             freeze_time
         )$",
+            "Invalid test decorator regex pattern",
         )
-        .expect("Invalid test decorator regex pattern")
     })
 }
 
 /// Returns the compiled regex for `test_*` method names.
 pub fn get_test_method_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    #[allow(clippy::expect_used)]
-    RE.get_or_init(|| Regex::new(r"^test_\w+$").expect("Invalid test method regex pattern"))
+    RE.get_or_init(|| compile_regex(r"^test_\w+$", "Invalid test method regex pattern"))
 }
 
 /// Returns the compiled regex for framework-convention file names.
 pub fn get_framework_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    #[allow(clippy::expect_used)]
     RE.get_or_init(|| {
-        Regex::new(r"(?i)(?:views|handlers|endpoints|routes|api|urls|function_app)\.py$")
-            .expect("Invalid framework file regex pattern")
+        compile_regex(
+            r"(?i)(?:views|handlers|endpoints|routes|api|urls|function_app)\.py$",
+            "Invalid framework file regex pattern",
+        )
     })
 }

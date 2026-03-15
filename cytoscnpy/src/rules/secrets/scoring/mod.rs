@@ -113,17 +113,17 @@ impl ContextScorer {
         }
 
         // Check for environment variable patterns
-        if self.is_env_var_access(ctx.line_content) {
+        if Self::is_env_var_access(ctx.line_content) {
             score += self.adjustments.is_env_var;
         }
 
         // Check for path/URL patterns
-        if self.looks_like_path_or_url(ctx.line_content) {
+        if Self::looks_like_path_or_url(ctx.line_content) {
             score += self.adjustments.is_path_or_url;
         }
 
         // Check for placeholder patterns
-        if self.is_placeholder(ctx.line_content) {
+        if Self::is_placeholder(ctx.line_content) {
             score += self.adjustments.is_placeholder;
         }
 

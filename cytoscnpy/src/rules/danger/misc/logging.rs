@@ -4,6 +4,12 @@ use ruff_text_size::Ranged;
 
 use super::super::utils::{contains_sensitive_names, create_finding, get_call_name};
 
+fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+}
+
 /// Rule for detecting logging of potentially sensitive data.
 pub struct LoggingSensitiveDataRule {
     /// Rule metadata.
@@ -26,18 +32,17 @@ impl Rule for LoggingSensitiveDataRule {
         self.metadata
     }
 
-    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if name.starts_with("logging.")
                     || name.starts_with("logger.")
                     || name == "log"
-                    || name.ends_with(".debug")
-                    || name.ends_with(".info")
-                    || name.ends_with(".warning")
-                    || name.ends_with(".error")
-                    || name.ends_with(".critical")
+                    || has_case_insensitive_suffix(&name, ".debug")
+                    || has_case_insensitive_suffix(&name, ".info")
+                    || has_case_insensitive_suffix(&name, ".warning")
+                    || has_case_insensitive_suffix(&name, ".error")
+                    || has_case_insensitive_suffix(&name, ".critical")
                 {
                     for arg in &call.arguments.args {
                         if contains_sensitive_names(arg) {

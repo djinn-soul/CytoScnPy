@@ -18,6 +18,17 @@ pub(super) enum PipelineMode {
     AnalyzeCode,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct PipelineInput<'a> {
+    pub(super) source: &'a str,
+    pub(super) file_path: &'a Path,
+    pub(super) module_name: &'a str,
+    pub(super) line_index: &'a LineIndex,
+    pub(super) ignored_lines: &'a FxHashMap<usize, Suppression>,
+    pub(super) is_test_file: bool,
+    pub(super) mode: PipelineMode,
+}
+
 pub(super) struct PipelineOutput<'a> {
     pub(super) visitor: CytoScnPyVisitor<'a>,
     pub(super) framework_visitor: FrameworkAwareVisitor<'a>,
@@ -32,17 +43,20 @@ pub(super) struct PipelineOutput<'a> {
     pub(super) file_mi: f64,
 }
 
-#[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
 pub(super) fn run_pipeline<'a>(
     analyzer: &CytoScnPy,
-    source: &str,
-    file_path: &Path,
-    module_name: &str,
-    line_index: &'a LineIndex,
-    ignored_lines: &FxHashMap<usize, Suppression>,
-    is_test_file: bool,
-    mode: PipelineMode,
+    input: PipelineInput<'a>,
 ) -> PipelineOutput<'a> {
+    let PipelineInput {
+        source,
+        file_path,
+        module_name,
+        line_index,
+        ignored_lines,
+        is_test_file,
+        mode,
+    } = input;
+
     let visitor = CytoScnPyVisitor::with_project_type(
         file_path.to_path_buf(),
         module_name.to_owned(),
@@ -94,7 +108,7 @@ pub(super) fn run_pipeline<'a>(
                     source,
                     &file_path.to_path_buf(),
                     &analyzer.config.cytoscnpy.secrets_config,
-                    None,
+                    None::<&rustc_hash::FxHashSet<usize>>,
                     is_test_file,
                 );
             }

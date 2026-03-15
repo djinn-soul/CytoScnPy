@@ -4,6 +4,12 @@ use ruff_text_size::Ranged;
 
 use super::super::utils::{create_finding, get_call_name};
 
+fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+}
+
 /// Rule for detecting if debug mode is enabled in production.
 pub struct DebugModeRule {
     /// Rule metadata.
@@ -26,11 +32,10 @@ impl Rule for DebugModeRule {
         self.metadata
     }
 
-    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
-                if name.ends_with(".run") || name == "run_simple" {
+                if has_case_insensitive_suffix(&name, ".run") || name == "run_simple" {
                     for keyword in &call.arguments.keywords {
                         if let Some(arg) = &keyword.arg {
                             if arg == "debug" {

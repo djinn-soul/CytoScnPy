@@ -119,7 +119,7 @@ fn test_collect_items_to_fix_respects_min_confidence_for_methods() {
     let file_path = dir.path().join("test.py");
     let mut method_low = create_definition("method_low", "method", file_path.clone(), 10);
     method_low.confidence = 79;
-    let mut method_high = create_definition("method_high", "method", file_path.clone(), 20);
+    let mut method_high = create_definition("method_high", "method", file_path, 20);
     method_high.confidence = 80;
 
     let mut results = AnalysisResult::default();

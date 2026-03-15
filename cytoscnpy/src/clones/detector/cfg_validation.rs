@@ -8,10 +8,7 @@ impl CloneDetector {
     /// Filters out pairs where the control flow structure differs significantly.
     /// Only applies to function-level clones (functions have meaningful CFG).
     #[cfg(feature = "cfg")]
-    #[allow(dead_code)] // Optional validation path, enabled for future CLI wiring.
-    #[allow(clippy::unused_self)]
     pub(super) fn validate_with_cfg(
-        &self,
         pairs: Vec<ClonePair>,
         subtrees: &[parser::Subtree],
     ) -> Vec<ClonePair> {

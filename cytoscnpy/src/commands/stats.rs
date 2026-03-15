@@ -161,7 +161,6 @@ fn create_stats_report(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn generate_stats_output<W: Write>(
     report: &StatsReport,
     analysis_result: Option<&crate::analyzer::AnalysisResult>,

@@ -1,4 +1,4 @@
-use super::pipeline::{run_pipeline, PipelineMode};
+use super::pipeline::{run_pipeline, PipelineInput, PipelineMode};
 use crate::analyzer::{AnalysisResult, AnalysisSummary, CytoScnPy};
 use crate::utils::LineIndex;
 
@@ -18,13 +18,15 @@ impl CytoScnPy {
 
         let output = run_pipeline(
             self,
-            &source,
-            file_path,
-            &module_name,
-            &line_index,
-            &ignored_lines,
-            is_test_file,
-            PipelineMode::AnalyzeCode,
+            PipelineInput {
+                source: &source,
+                file_path,
+                module_name: &module_name,
+                line_index: &line_index,
+                ignored_lines: &ignored_lines,
+                is_test_file,
+                mode: PipelineMode::AnalyzeCode,
+            },
         );
 
         let total_definitions = output.visitor.definitions.len();

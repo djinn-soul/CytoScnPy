@@ -8,22 +8,21 @@ use crate::clones::types::CloneType;
 
 /// Tree similarity calculator
 #[derive(Debug, Clone)]
-#[allow(clippy::struct_field_names)] // _cost suffix is intentional for clarity
 pub struct TreeSimilarity {
     /// Cost of inserting a node
-    pub insert_cost: usize,
+    pub insert: usize,
     /// Cost of deleting a node
-    pub delete_cost: usize,
+    pub delete: usize,
     /// Cost of updating a node (label change)
-    pub update_cost: usize,
+    pub update: usize,
 }
 
 impl Default for TreeSimilarity {
     fn default() -> Self {
         Self {
-            insert_cost: 1,
-            delete_cost: 1,
-            update_cost: 1,
+            insert: 1,
+            delete: 1,
+            update: 1,
         }
     }
 }
@@ -58,8 +57,7 @@ impl TreeSimilarity {
 
     /// Classify clone type based on similarity
     #[must_use]
-    #[allow(clippy::unused_self)] // Method interface for consistency
-    pub fn classify_by_similarity(&self, similarity: f64) -> CloneType {
+    pub fn classify_by_similarity(similarity: f64) -> CloneType {
         if similarity >= 0.99 {
             CloneType::Type1
         } else if similarity >= 0.90 {
@@ -71,8 +69,7 @@ impl TreeSimilarity {
 
     /// Classify clone type by comparing raw vs normalized trees
     #[must_use]
-    #[allow(clippy::unused_self)] // Method interface for consistency
-    pub fn classify(&self, raw_similarity: f64, normalized_similarity: f64) -> CloneType {
+    pub fn classify(raw_similarity: f64, normalized_similarity: f64) -> CloneType {
         if raw_similarity >= 0.99 {
             CloneType::Type1
         } else if normalized_similarity >= 0.95 {
@@ -113,10 +110,10 @@ impl TreeSimilarity {
 
         // Base cases
         for (i, row) in dp.iter_mut().enumerate() {
-            row[0] = i * self.delete_cost;
+            row[0] = i * self.delete;
         }
         for (j, cell) in dp[0].iter_mut().enumerate() {
-            *cell = j * self.insert_cost;
+            *cell = j * self.insert;
         }
 
         // Fill DP table
@@ -128,14 +125,14 @@ impl TreeSimilarity {
                 let cost = if node_a.0 == node_b.0 && node_a.1 == node_b.1 {
                     0 // Identical nodes
                 } else if node_a.0 == node_b.0 {
-                    self.update_cost // Same kind, different label
+                    self.update // Same kind, different label
                 } else {
-                    self.update_cost * 2 // Different kind
+                    self.update * 2 // Different kind
                 };
 
                 dp[i][j] = (dp[i - 1][j - 1] + cost)
-                    .min(dp[i - 1][j] + self.delete_cost)
-                    .min(dp[i][j - 1] + self.insert_cost);
+                    .min(dp[i - 1][j] + self.delete)
+                    .min(dp[i][j - 1] + self.insert);
             }
         }
 
@@ -204,12 +201,25 @@ mod tests {
 
     #[test]
     fn test_classify_by_similarity() {
-        let calc = TreeSimilarity::default();
-
-        assert_eq!(calc.classify_by_similarity(1.0), CloneType::Type1);
-        assert_eq!(calc.classify_by_similarity(0.99), CloneType::Type1);
-        assert_eq!(calc.classify_by_similarity(0.95), CloneType::Type2);
-        assert_eq!(calc.classify_by_similarity(0.85), CloneType::Type3);
-        assert_eq!(calc.classify_by_similarity(0.70), CloneType::Type3);
+        assert_eq!(
+            TreeSimilarity::classify_by_similarity(1.0),
+            CloneType::Type1
+        );
+        assert_eq!(
+            TreeSimilarity::classify_by_similarity(0.99),
+            CloneType::Type1
+        );
+        assert_eq!(
+            TreeSimilarity::classify_by_similarity(0.95),
+            CloneType::Type2
+        );
+        assert_eq!(
+            TreeSimilarity::classify_by_similarity(0.85),
+            CloneType::Type3
+        );
+        assert_eq!(
+            TreeSimilarity::classify_by_similarity(0.70),
+            CloneType::Type3
+        );
     }
 }

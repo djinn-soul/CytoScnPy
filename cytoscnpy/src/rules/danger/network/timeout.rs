@@ -3,6 +3,22 @@ use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
+fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+}
+
+fn is_request_method_call(name: &str) -> bool {
+    has_case_insensitive_suffix(name, ".get")
+        || has_case_insensitive_suffix(name, ".post")
+        || has_case_insensitive_suffix(name, ".put")
+        || has_case_insensitive_suffix(name, ".delete")
+        || has_case_insensitive_suffix(name, ".head")
+        || has_case_insensitive_suffix(name, ".patch")
+        || has_case_insensitive_suffix(name, ".request")
+}
+
 /// Rule for detecting request calls without safe timeout settings.
 pub struct RequestWithoutTimeoutRule {
     /// Rule metadata.
@@ -22,18 +38,11 @@ impl Rule for RequestWithoutTimeoutRule {
     fn metadata(&self) -> RuleMetadata {
         self.metadata
     }
-    #[allow(clippy::case_sensitive_file_extension_comparisons)]
     fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
         if let Expr::Call(call) = expr {
             if let Some(name) = get_call_name(&call.func) {
                 if (name.starts_with("requests.") || name.starts_with("httpx."))
-                    && (name.ends_with(".get")
-                        || name.ends_with(".post")
-                        || name.ends_with(".put")
-                        || name.ends_with(".delete")
-                        || name.ends_with(".head")
-                        || name.ends_with(".patch")
-                        || name.ends_with(".request"))
+                    && is_request_method_call(&name)
                 {
                     let mut bad_timeout = true;
                     for keyword in &call.arguments.keywords {

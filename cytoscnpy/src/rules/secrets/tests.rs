@@ -12,7 +12,13 @@ fn default_config() -> SecretsConfig {
 fn test_scanner_detects_github_token() {
     let config = default_config();
     let content = "token = 'ghp_abcdefghijklmnopqrstuvwxyz1234567890'";
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     assert!(!findings.is_empty());
     assert!(findings.iter().any(|f| f.rule_id == "CSP-S104"));
@@ -22,7 +28,13 @@ fn test_scanner_detects_github_token() {
 fn test_scanner_detects_suspicious_variable() {
     let config = default_config();
     let content = r#"database_password = "super_secret_123""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     assert!(!findings.is_empty());
     assert!(findings.iter().any(|f| f.rule_id == "CSP-S300"));
@@ -32,7 +44,13 @@ fn test_scanner_detects_suspicious_variable() {
 fn test_scanner_skips_env_var() {
     let config = default_config();
     let content = r#"password = os.environ.get("PASSWORD")"#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     assert!(!findings.iter().any(|f| f.rule_id == "CSP-S300"));
 }
@@ -41,7 +59,13 @@ fn test_scanner_skips_env_var() {
 fn test_scanner_entropy_fallback_when_ast_parse_fails() {
     let config = default_config();
     let content = r#"if True print("aB3xY7mN9pQ2rS5tU8vW0zK4cF6gH1jL")"#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     assert!(findings.iter().any(|f| f.rule_id == "CSP-S200"));
 }
@@ -51,13 +75,18 @@ fn test_scanner_reduces_score_in_test_file() {
     let config = default_config();
     let content = r#"api_key = "test_secret_value_12345""#;
 
-    let normal_findings =
-        scan_secrets(content, &PathBuf::from("src/main.py"), &config, None, false);
+    let normal_findings = scan_secrets(
+        content,
+        &PathBuf::from("src/main.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
     let test_findings = scan_secrets(
         content,
         &PathBuf::from("tests/test_main.py"),
         &config,
-        None,
+        None::<&rustc_hash::FxHashSet<usize>>,
         true,
     );
 
@@ -72,7 +101,13 @@ fn test_scanner_reduces_score_in_test_file() {
 fn test_scanner_deduplicates_findings() {
     let config = default_config();
     let content = r#"api_key = "ghp_abcdefghijklmnopqrstuvwxyz1234567890""#;
-    let findings = scan_secrets(content, &PathBuf::from("test.py"), &config, None, false);
+    let findings = scan_secrets(
+        content,
+        &PathBuf::from("test.py"),
+        &config,
+        None::<&rustc_hash::FxHashSet<usize>>,
+        false,
+    );
 
     let line_1_findings: Vec<_> = findings.iter().filter(|f| f.line == 1).collect();
     assert_eq!(line_1_findings.len(), 1);

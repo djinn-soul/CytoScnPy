@@ -46,6 +46,18 @@ impl MethodMisuseRule {
 }
 
 impl MethodMisuseRule {
+    const PROTOCOL_METHODS: [&'static str; 9] = [
+        "__len__",
+        "__iter__",
+        "__contains__",
+        "__str__",
+        "__repr__",
+        "__eq__",
+        "__ne__",
+        "__hash__",
+        "__bool__",
+    ];
+
     fn get_variable_type(&self, name: &str) -> Option<&String> {
         for scope in self.scope_stack.iter().rev() {
             if let Some(type_name) = scope.variables.get(name) {
@@ -82,190 +94,199 @@ impl MethodMisuseRule {
         }
     }
 
-    #[allow(clippy::too_many_lines)] // This function lists all Python built-in type methods
+    fn is_valid_str_method(method_name: &str) -> bool {
+        matches!(
+            method_name,
+            "capitalize"
+                | "casefold"
+                | "center"
+                | "count"
+                | "encode"
+                | "endswith"
+                | "expandtabs"
+                | "find"
+                | "format"
+                | "format_map"
+                | "index"
+                | "isalnum"
+                | "isalpha"
+                | "isascii"
+                | "isdecimal"
+                | "isdigit"
+                | "isidentifier"
+                | "islower"
+                | "isnumeric"
+                | "isprintable"
+                | "isspace"
+                | "istitle"
+                | "isupper"
+                | "join"
+                | "ljust"
+                | "lower"
+                | "lstrip"
+                | "maketrans"
+                | "partition"
+                | "removeprefix"
+                | "removesuffix"
+                | "replace"
+                | "rfind"
+                | "rindex"
+                | "rjust"
+                | "rpartition"
+                | "rsplit"
+                | "rstrip"
+                | "split"
+                | "splitlines"
+                | "startswith"
+                | "strip"
+                | "swapcase"
+                | "title"
+                | "translate"
+                | "upper"
+                | "zfill"
+        )
+    }
+
+    fn is_valid_bytes_method(method_name: &str) -> bool {
+        matches!(
+            method_name,
+            "capitalize"
+                | "center"
+                | "count"
+                | "decode"
+                | "endswith"
+                | "expandtabs"
+                | "find"
+                | "fromhex"
+                | "hex"
+                | "index"
+                | "isalnum"
+                | "isalpha"
+                | "isascii"
+                | "isdigit"
+                | "islower"
+                | "isspace"
+                | "istitle"
+                | "isupper"
+                | "join"
+                | "ljust"
+                | "lower"
+                | "lstrip"
+                | "maketrans"
+                | "partition"
+                | "removeprefix"
+                | "removesuffix"
+                | "replace"
+                | "rfind"
+                | "rindex"
+                | "rjust"
+                | "rpartition"
+                | "rsplit"
+                | "rstrip"
+                | "split"
+                | "splitlines"
+                | "startswith"
+                | "strip"
+                | "swapcase"
+                | "title"
+                | "translate"
+                | "upper"
+                | "zfill"
+        )
+    }
+
+    fn is_valid_list_method(method_name: &str) -> bool {
+        matches!(
+            method_name,
+            "append"
+                | "clear"
+                | "copy"
+                | "count"
+                | "extend"
+                | "index"
+                | "insert"
+                | "pop"
+                | "remove"
+                | "reverse"
+                | "sort"
+        )
+    }
+
+    fn is_valid_dict_method(method_name: &str) -> bool {
+        matches!(
+            method_name,
+            "clear"
+                | "copy"
+                | "fromkeys"
+                | "get"
+                | "items"
+                | "keys"
+                | "pop"
+                | "popitem"
+                | "setdefault"
+                | "update"
+                | "values"
+        )
+    }
+
+    fn is_valid_set_method(method_name: &str) -> bool {
+        matches!(
+            method_name,
+            "add"
+                | "clear"
+                | "copy"
+                | "difference"
+                | "difference_update"
+                | "discard"
+                | "intersection"
+                | "intersection_update"
+                | "isdisjoint"
+                | "issubset"
+                | "issuperset"
+                | "pop"
+                | "remove"
+                | "symmetric_difference"
+                | "symmetric_difference_update"
+                | "union"
+                | "update"
+        )
+    }
+
+    fn is_valid_int_method(method_name: &str) -> bool {
+        matches!(
+            method_name,
+            "bit_length"
+                | "bit_count"
+                | "to_bytes"
+                | "from_bytes"
+                | "as_integer_ratio"
+                | "conjugate"
+                | "real"
+                | "imag"
+        )
+    }
+
+    fn is_valid_float_method(method_name: &str) -> bool {
+        matches!(
+            method_name,
+            "as_integer_ratio" | "is_integer" | "hex" | "fromhex" | "conjugate" | "real" | "imag"
+        )
+    }
+
     fn is_valid_method(type_name: &str, method_name: &str) -> bool {
-        // Common protocol methods available on most types
-        let protocol_methods = [
-            "__len__",
-            "__iter__",
-            "__contains__",
-            "__str__",
-            "__repr__",
-            "__eq__",
-            "__ne__",
-            "__hash__",
-            "__bool__",
-        ];
-        if protocol_methods.contains(&method_name) {
+        if Self::PROTOCOL_METHODS.contains(&method_name) {
             return true;
         }
 
         match type_name {
-            "str" => matches!(
-                method_name,
-                "capitalize"
-                    | "casefold"
-                    | "center"
-                    | "count"
-                    | "encode"
-                    | "endswith"
-                    | "expandtabs"
-                    | "find"
-                    | "format"
-                    | "format_map"
-                    | "index"
-                    | "isalnum"
-                    | "isalpha"
-                    | "isascii"
-                    | "isdecimal"
-                    | "isdigit"
-                    | "isidentifier"
-                    | "islower"
-                    | "isnumeric"
-                    | "isprintable"
-                    | "isspace"
-                    | "istitle"
-                    | "isupper"
-                    | "join"
-                    | "ljust"
-                    | "lower"
-                    | "lstrip"
-                    | "maketrans"
-                    | "partition"
-                    | "removeprefix"
-                    | "removesuffix"
-                    | "replace"
-                    | "rfind"
-                    | "rindex"
-                    | "rjust"
-                    | "rpartition"
-                    | "rsplit"
-                    | "rstrip"
-                    | "split"
-                    | "splitlines"
-                    | "startswith"
-                    | "strip"
-                    | "swapcase"
-                    | "title"
-                    | "translate"
-                    | "upper"
-                    | "zfill"
-            ),
-            "bytes" => matches!(
-                method_name,
-                "capitalize"
-                    | "center"
-                    | "count"
-                    | "decode"
-                    | "endswith"
-                    | "expandtabs"
-                    | "find"
-                    | "fromhex"
-                    | "hex"
-                    | "index"
-                    | "isalnum"
-                    | "isalpha"
-                    | "isascii"
-                    | "isdigit"
-                    | "islower"
-                    | "isspace"
-                    | "istitle"
-                    | "isupper"
-                    | "join"
-                    | "ljust"
-                    | "lower"
-                    | "lstrip"
-                    | "maketrans"
-                    | "partition"
-                    | "removeprefix"
-                    | "removesuffix"
-                    | "replace"
-                    | "rfind"
-                    | "rindex"
-                    | "rjust"
-                    | "rpartition"
-                    | "rsplit"
-                    | "rstrip"
-                    | "split"
-                    | "splitlines"
-                    | "startswith"
-                    | "strip"
-                    | "swapcase"
-                    | "title"
-                    | "translate"
-                    | "upper"
-                    | "zfill"
-            ),
-            "list" => matches!(
-                method_name,
-                "append"
-                    | "clear"
-                    | "copy"
-                    | "count"
-                    | "extend"
-                    | "index"
-                    | "insert"
-                    | "pop"
-                    | "remove"
-                    | "reverse"
-                    | "sort"
-            ),
+            "str" => Self::is_valid_str_method(method_name),
+            "bytes" => Self::is_valid_bytes_method(method_name),
+            "list" => Self::is_valid_list_method(method_name),
             "tuple" => matches!(method_name, "count" | "index"),
-            "dict" => matches!(
-                method_name,
-                "clear"
-                    | "copy"
-                    | "fromkeys"
-                    | "get"
-                    | "items"
-                    | "keys"
-                    | "pop"
-                    | "popitem"
-                    | "setdefault"
-                    | "update"
-                    | "values"
-            ),
-            "set" => matches!(
-                method_name,
-                "add"
-                    | "clear"
-                    | "copy"
-                    | "difference"
-                    | "difference_update"
-                    | "discard"
-                    | "intersection"
-                    | "intersection_update"
-                    | "isdisjoint"
-                    | "issubset"
-                    | "issuperset"
-                    | "pop"
-                    | "remove"
-                    | "symmetric_difference"
-                    | "symmetric_difference_update"
-                    | "union"
-                    | "update"
-            ),
-            "int" => matches!(
-                method_name,
-                "bit_length"
-                    | "bit_count"
-                    | "to_bytes"
-                    | "from_bytes"
-                    | "as_integer_ratio"
-                    | "conjugate"
-                    | "real"
-                    | "imag"
-            ),
-            "float" => matches!(
-                method_name,
-                "as_integer_ratio"
-                    | "is_integer"
-                    | "hex"
-                    | "fromhex"
-                    | "conjugate"
-                    | "real"
-                    | "imag"
-            ),
+            "dict" => Self::is_valid_dict_method(method_name),
+            "set" => Self::is_valid_set_method(method_name),
+            "int" => Self::is_valid_int_method(method_name),
+            "float" => Self::is_valid_float_method(method_name),
             "bool" | "None" => false, // These don't have meaningful mutable methods
             _ => true,                // Unknown type, assume valid to reduce false positives
         }

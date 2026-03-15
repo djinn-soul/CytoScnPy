@@ -1,6 +1,5 @@
 use crate::config::SecretsConfig;
 use crate::utils::LineIndex;
-use rustc_hash::FxHashSet;
 use std::path::PathBuf;
 
 use super::finding::SecretFinding;
@@ -36,12 +35,11 @@ pub fn validate_secrets_config(
 
 /// Scans file content for secrets using regex/AST/entropy analysis.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
 pub fn scan_secrets(
     content: &str,
     file_path: &PathBuf,
     config: &SecretsConfig,
-    docstring_lines: Option<&FxHashSet<usize>>,
+    docstring_lines: Option<&std::collections::HashSet<usize, impl std::hash::BuildHasher>>,
     is_test_file: bool,
 ) -> Vec<SecretFinding> {
     let scanner = SecretScanner::new(config);
@@ -69,7 +67,7 @@ pub fn scan_secrets_compat(content: &str, file_path: &PathBuf) -> Vec<SecretFind
         content,
         file_path,
         &SecretsConfig::default(),
-        None,
+        None::<&rustc_hash::FxHashSet<usize>>,
         is_test_file,
     )
 }

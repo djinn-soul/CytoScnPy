@@ -46,8 +46,7 @@ impl CloneDetector {
     }
 
     /// Group related clone pairs into clone groups
-    #[allow(clippy::unused_self)]
-    pub(super) fn group_clones(&self, _pairs: &[ClonePair]) -> Vec<CloneGroup> {
+    pub(super) fn group_clones(_pairs: &[ClonePair]) -> Vec<CloneGroup> {
         // TODO: implement union-find grouping
         Vec::new()
     }

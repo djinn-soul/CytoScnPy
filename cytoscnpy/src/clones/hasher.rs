@@ -35,7 +35,7 @@ impl LshHasher {
     /// Generate `MinHash` signature for a normalized tree
     #[must_use]
     pub fn signature(&self, tree: &NormalizedTree) -> Vec<u64> {
-        let shingles = self.generate_shingles(tree);
+        let shingles = Self::generate_shingles(tree);
         self.minhash(&shingles)
     }
 
@@ -110,8 +110,7 @@ impl LshHasher {
     }
 
     /// Generate shingles (n-grams) from the tree structure
-    #[allow(clippy::unused_self)]
-    fn generate_shingles(&self, tree: &NormalizedTree) -> Vec<u64> {
+    fn generate_shingles(tree: &NormalizedTree) -> Vec<u64> {
         let kinds = tree.kind_sequence();
         if kinds.len() < 3 {
             // Too short, use individual kinds

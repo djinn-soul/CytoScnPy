@@ -61,7 +61,9 @@ pub fn analyze_module(
                     findings.append(&mut intra_findings);
 
                     // Level 2: Interprocedural analysis using summaries
-                    let context_findings = analyze_with_context(f, line_index, &state, &summaries);
+                    let context_findings = analyze_with_context(
+                        f, analyzer, file_path, line_index, &state, &summaries,
+                    );
                     findings.extend(context_findings);
                 }
                 FunctionDef::Async(f) => {
@@ -81,8 +83,9 @@ pub fn analyze_module(
                     );
                     findings.append(&mut intra_findings);
 
-                    let context_findings =
-                        analyze_async_with_context(f, line_index, &state, &summaries);
+                    let context_findings = analyze_async_with_context(
+                        f, analyzer, file_path, line_index, &state, &summaries,
+                    );
                     findings.extend(context_findings);
                 }
             }
@@ -159,40 +162,65 @@ fn qualify_name(module_name: &str, class_name: Option<&str>, func_name: &str) ->
 /// Analyzes a function with interprocedural context.
 fn analyze_with_context(
     func: &ast::StmtFunctionDef,
+    analyzer: &TaintAnalyzer,
+    file_path: &Path,
     line_index: &LineIndex,
     initial_state: &TaintState,
     summaries: &SummaryDatabase,
 ) -> Vec<TaintFinding> {
     let mut state = initial_state.clone();
+    let mut findings = Vec::new();
 
     // Analyze statements with context
     for stmt in &func.body {
-        analyze_stmt_with_context(stmt, &mut state, line_index, summaries);
+        analyze_stmt_with_context(
+            stmt,
+            &mut state,
+            &mut findings,
+            analyzer,
+            file_path,
+            line_index,
+            summaries,
+        );
     }
 
-    Vec::new()
+    findings
 }
 
 /// Analyzes an async function with context.
 fn analyze_async_with_context(
     func: &ast::StmtFunctionDef,
+    analyzer: &TaintAnalyzer,
+    file_path: &Path,
     line_index: &LineIndex,
     initial_state: &TaintState,
     summaries: &SummaryDatabase,
 ) -> Vec<TaintFinding> {
     let mut state = initial_state.clone();
+    let mut findings = Vec::new();
 
     for stmt in &func.body {
-        analyze_stmt_with_context(stmt, &mut state, line_index, summaries);
+        analyze_stmt_with_context(
+            stmt,
+            &mut state,
+            &mut findings,
+            analyzer,
+            file_path,
+            line_index,
+            summaries,
+        );
     }
 
-    Vec::new()
+    findings
 }
 
 /// Analyzes a statement with interprocedural context.
 fn analyze_stmt_with_context(
     stmt: &Stmt,
     state: &mut TaintState,
+    findings: &mut Vec<TaintFinding>,
+    analyzer: &TaintAnalyzer,
+    file_path: &Path,
     line_index: &LineIndex,
     summaries: &SummaryDatabase,
 ) {
@@ -237,52 +265,110 @@ fn analyze_stmt_with_context(
                         }
                     }
                 }
+                check_call_sink_with_state(call, state, findings, analyzer, file_path, line_index);
+            }
+        }
+
+        Stmt::Expr(expr_stmt) => {
+            if let ast::Expr::Call(call) = &*expr_stmt.value {
+                check_call_sink_with_state(call, state, findings, analyzer, file_path, line_index);
             }
         }
 
         Stmt::If(if_stmt) => {
             for s in &if_stmt.body {
-                analyze_stmt_with_context(s, state, line_index, summaries);
+                analyze_stmt_with_context(
+                    s, state, findings, analyzer, file_path, line_index, summaries,
+                );
             }
             for clause in &if_stmt.elif_else_clauses {
                 for s in &clause.body {
-                    analyze_stmt_with_context(s, state, line_index, summaries);
+                    analyze_stmt_with_context(
+                        s, state, findings, analyzer, file_path, line_index, summaries,
+                    );
                 }
             }
         }
 
         Stmt::For(for_stmt) => {
             for s in &for_stmt.body {
-                analyze_stmt_with_context(s, state, line_index, summaries);
+                analyze_stmt_with_context(
+                    s, state, findings, analyzer, file_path, line_index, summaries,
+                );
             }
         }
 
         Stmt::While(while_stmt) => {
             for s in &while_stmt.body {
-                analyze_stmt_with_context(s, state, line_index, summaries);
+                analyze_stmt_with_context(
+                    s, state, findings, analyzer, file_path, line_index, summaries,
+                );
             }
         }
 
         Stmt::With(with_stmt) => {
             for s in &with_stmt.body {
-                analyze_stmt_with_context(s, state, line_index, summaries);
+                analyze_stmt_with_context(
+                    s, state, findings, analyzer, file_path, line_index, summaries,
+                );
             }
         }
 
         Stmt::Try(try_stmt) => {
             for s in &try_stmt.body {
-                analyze_stmt_with_context(s, state, line_index, summaries);
+                analyze_stmt_with_context(
+                    s, state, findings, analyzer, file_path, line_index, summaries,
+                );
             }
             for handler in &try_stmt.handlers {
                 let ast::ExceptHandler::ExceptHandler(h) = handler;
                 for s in &h.body {
-                    analyze_stmt_with_context(s, state, line_index, summaries);
+                    analyze_stmt_with_context(
+                        s, state, findings, analyzer, file_path, line_index, summaries,
+                    );
                 }
             }
         }
 
         _ => {
             // Fall back to intraprocedural analysis for other statements
+        }
+    }
+}
+
+fn check_call_sink_with_state(
+    call: &ast::ExprCall,
+    state: &TaintState,
+    findings: &mut Vec<TaintFinding>,
+    analyzer: &TaintAnalyzer,
+    file_path: &Path,
+    line_index: &LineIndex,
+) {
+    if let Some(sink_match) = analyzer.plugins.check_sinks(call) {
+        for arg in &call.arguments.args {
+            if let Some(taint_info) = super::propagation::is_expr_tainted(arg, state) {
+                use ruff_text_size::Ranged;
+                findings.push(super::types::TaintFinding {
+                    source: taint_info.source.to_string(),
+                    source_line: taint_info.source_line,
+                    category: "Taint Analysis".to_owned(),
+                    sink: sink_match.name.clone(),
+                    rule_id: sink_match.rule_id.clone(),
+                    sink_line: line_index.line_index(call.range().start()),
+                    sink_col: 0,
+                    flow_path: taint_info.path.clone(),
+                    vuln_type: sink_match.vuln_type.clone(),
+                    severity: sink_match.severity,
+                    file: file_path.to_path_buf(),
+                    remediation: sink_match.remediation.clone(),
+                    exploitability_score: super::types::score_exploitability(
+                        &taint_info.source,
+                        &sink_match.vuln_type,
+                        sink_match.severity,
+                        taint_info.path.len(),
+                    ),
+                });
+            }
         }
     }
 }

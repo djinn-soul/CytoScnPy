@@ -97,6 +97,9 @@ impl<'a> CytoScnPyVisitor<'a> {
                     .entry(class_name.clone())
                     .or_default()
                     .insert(name.to_owned());
+                if let Some(def) = self.definitions.last_mut() {
+                    def.confidence = 0;
+                }
             }
         }
     }

@@ -309,7 +309,8 @@ fn test_output_formatting_coverage() {
     buffer.clear();
     output::print_summary_pills(&mut buffer, &result).unwrap();
     let out = String::from_utf8(buffer.clone()).unwrap();
-    assert!(out.contains("Unreachable: 1"));
+    assert!(out.contains("Unreachable: 0"));
+    assert!(out.contains("Functions: 1"));
 
     // Test stats
     buffer.clear();

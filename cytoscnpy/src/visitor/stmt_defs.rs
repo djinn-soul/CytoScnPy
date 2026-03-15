@@ -6,6 +6,16 @@ fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
         .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
 }
 
+fn normalize_base_class_name(base: &Expr) -> Option<String> {
+    match base {
+        Expr::Name(base_name) => Some(base_name.id.to_string()),
+        Expr::Attribute(attr) => Some(attr.attr.to_string()),
+        // Handles generic bases such as `Protocol[T]` and `typing.Protocol[T]`.
+        Expr::Subscript(subscript) => normalize_base_class_name(&subscript.value),
+        _ => None,
+    }
+}
+
 impl<'a> CytoScnPyVisitor<'a> {
     pub(super) fn handle_function_stmt(&mut self, node: &ast::StmtFunctionDef) {
         for decorator in &node.decorator_list {
@@ -57,28 +67,14 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         let mut base_classes: SmallVec<[String; 2]> = SmallVec::new();
         for base in node.bases() {
-            match base {
-                Expr::Name(base_name) => {
-                    let b_name = base_name.id.as_str();
-                    base_classes.push(b_name.to_owned());
-                    if matches!(
-                        b_name,
-                        "BaseModel" | "TypedDict" | "NamedTuple" | "Protocol" | "Struct"
-                    ) {
-                        is_model_class = true;
-                    }
+            if let Some(base_name) = normalize_base_class_name(base) {
+                if matches!(
+                    base_name.as_str(),
+                    "BaseModel" | "TypedDict" | "NamedTuple" | "Protocol" | "Struct"
+                ) {
+                    is_model_class = true;
                 }
-                Expr::Attribute(attr) => {
-                    let b_name = attr.attr.as_str();
-                    base_classes.push(b_name.to_owned());
-                    if matches!(
-                        b_name,
-                        "BaseModel" | "TypedDict" | "NamedTuple" | "Protocol" | "Struct"
-                    ) {
-                        is_model_class = true;
-                    }
-                }
-                _ => {}
+                base_classes.push(base_name);
             }
         }
 

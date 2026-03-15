@@ -5,6 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub(super) struct ReachabilityContext {
     pub(super) implicitly_used_methods: FxHashSet<String>,
     pub(super) reachable_nodes: FxHashSet<String>,
+    pub(super) explicitly_called_nodes: FxHashSet<String>,
 }
 
 pub(super) fn build_reachability(
@@ -22,11 +23,26 @@ pub(super) fn build_reachability(
         dynamic_imported_modules,
         call_graph,
     );
+    let explicitly_called_nodes = collect_explicitly_called_nodes(call_graph);
 
     ReachabilityContext {
         implicitly_used_methods,
         reachable_nodes,
+        explicitly_called_nodes,
     }
+}
+
+fn collect_explicitly_called_nodes(call_graph: &CallGraph) -> FxHashSet<String> {
+    let mut called = FxHashSet::default();
+    for node in call_graph.nodes.values() {
+        for call in &node.calls {
+            if call.starts_with('.') {
+                continue;
+            }
+            called.insert(call.clone());
+        }
+    }
+    called
 }
 
 fn collect_class_methods(definitions: &[Definition]) -> FxHashMap<String, FxHashSet<String>> {

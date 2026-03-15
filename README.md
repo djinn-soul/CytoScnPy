@@ -293,7 +293,7 @@ Apache-2.0 License - see [License](License) file for details.
 
 ## Links
 
-- **Documentation**: [CytoScnPy](https://djinn09.github.io/CytoScnPy/)
+- **Documentation**: [CytoScnPy](https://djinn-soul.github.io/CytoScnPy/)
 - **PyPI**: [PyPi](https://pypi.org/project/cytoscnpy/)
 - **VS Code Extension**: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
 - **Roadmap**: [docs/roadmap.md](docs/roadmap.md)

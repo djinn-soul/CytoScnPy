@@ -90,6 +90,98 @@ fn generate_clone_suggestion(
     }
 }
 
+fn create_detector(options: &CloneOptions) -> CloneDetector {
+    let config = CloneConfig::default().with_min_similarity(options.similarity);
+    let mut detector = CloneDetector::with_config(config);
+    if let Some(ref pb) = options.progress_bar {
+        detector.progress_bar = Some(std::sync::Arc::clone(pb));
+    }
+    detector
+}
+
+fn write_clone_results<W: Write>(
+    writer: &mut W,
+    findings: &[CloneFinding],
+    options: &CloneOptions,
+) -> Result<()> {
+    if options.json {
+        let output = serde_json::to_string_pretty(findings)?;
+        writeln!(writer, "{output}")?;
+        return Ok(());
+    }
+
+    writeln!(writer, "\n{}", "Clone Detection Results".bold().cyan())?;
+    writeln!(writer, "{}\n", "=".repeat(40))?;
+    write_clone_table(writer, findings)?;
+    Ok(())
+}
+
+fn write_clone_table<W: Write>(writer: &mut W, findings: &[CloneFinding]) -> Result<()> {
+    let mut table = Table::new();
+    table
+        .load_preset(comfy_table::presets::UTF8_FULL)
+        .set_header(vec![
+            "Type",
+            "Name",
+            "Related To",
+            "Location",
+            "Similarity",
+            "Suggestion",
+        ]);
+
+    let display_limit = 100;
+    for finding in findings
+        .iter()
+        .filter(|f| f.is_duplicate)
+        .take(display_limit)
+    {
+        let type_str = finding.clone_type.display_name();
+        let name = finding
+            .name
+            .clone()
+            .unwrap_or_else(|| "<anonymous>".to_owned());
+        let location = format!(
+            "{}:{}",
+            crate::utils::normalize_display_path(&finding.file),
+            finding.line
+        );
+        let similarity = format!("{:.0}%", finding.similarity * 100.0);
+        let related = format!(
+            "{}:{}",
+            crate::utils::normalize_display_path(&finding.related_clone.file),
+            finding.related_clone.line
+        );
+        let suggestion = generate_clone_suggestion(
+            finding.clone_type,
+            finding.node_kind,
+            &name,
+            finding.similarity,
+        );
+
+        table.add_row(vec![
+            Cell::new(type_str).fg(Color::Yellow),
+            Cell::new(name),
+            Cell::new(related),
+            Cell::new(location),
+            Cell::new(similarity),
+            Cell::new(suggestion).fg(Color::Cyan),
+        ]);
+    }
+
+    writeln!(writer, "{table}")?;
+    if findings.len() / 2 > display_limit {
+        writeln!(
+            writer,
+            "\n{} Showing first {} results. Use --json to see all {} clone pairs.",
+            "Note:".yellow().bold(),
+            display_limit,
+            findings.len() / 2
+        )?;
+    }
+
+    Ok(())
+}
+
 /// Executes clone detection analysis.
 ///
 /// # Errors
@@ -97,7 +189,6 @@ fn generate_clone_suggestion(
 /// Returns an error if file I/O fails or analysis fails.
 ///
 /// Returns the number of clone pairs found.
-#[allow(clippy::too_many_lines)]
 pub fn run_clones<W: Write>(
     paths: &[PathBuf],
     options: &CloneOptions,
@@ -112,11 +203,7 @@ pub fn run_clones<W: Write>(
     }
 
     let file_count = file_paths.len();
-    let config = CloneConfig::default().with_min_similarity(options.similarity);
-    let mut detector = CloneDetector::with_config(config);
-    if let Some(ref pb) = options.progress_bar {
-        detector.progress_bar = Some(std::sync::Arc::clone(pb));
-    }
+    let detector = create_detector(options);
     let result = detector.detect_from_paths(&file_paths);
 
     if !options.json && options.verbose {
@@ -139,76 +226,7 @@ pub fn run_clones<W: Write>(
         pb.finish_and_clear();
     }
 
-    if options.json {
-        let output = serde_json::to_string_pretty(&findings)?;
-        writeln!(writer, "{output}")?;
-    } else {
-        writeln!(writer, "\n{}", "Clone Detection Results".bold().cyan())?;
-        writeln!(writer, "{}\n", "=".repeat(40))?;
-
-        let mut table = Table::new();
-        table
-            .load_preset(comfy_table::presets::UTF8_FULL)
-            .set_header(vec![
-                "Type",
-                "Name",
-                "Related To",
-                "Location",
-                "Similarity",
-                "Suggestion",
-            ]);
-
-        let display_limit = 100;
-        for finding in findings
-            .iter()
-            .filter(|f| f.is_duplicate)
-            .take(display_limit)
-        {
-            let type_str = finding.clone_type.display_name();
-            let name = finding
-                .name
-                .clone()
-                .unwrap_or_else(|| "<anonymous>".to_owned());
-            let location = format!(
-                "{}:{}",
-                crate::utils::normalize_display_path(&finding.file),
-                finding.line
-            );
-            let similarity = format!("{:.0}%", finding.similarity * 100.0);
-            let related = format!(
-                "{}:{}",
-                crate::utils::normalize_display_path(&finding.related_clone.file),
-                finding.related_clone.line
-            );
-            let suggestion = generate_clone_suggestion(
-                finding.clone_type,
-                finding.node_kind,
-                &name,
-                finding.similarity,
-            );
-
-            table.add_row(vec![
-                Cell::new(type_str).fg(Color::Yellow),
-                Cell::new(name),
-                Cell::new(related),
-                Cell::new(location),
-                Cell::new(similarity),
-                Cell::new(suggestion).fg(Color::Cyan),
-            ]);
-        }
-
-        writeln!(writer, "{table}")?;
-
-        if findings.len() / 2 > display_limit {
-            writeln!(
-                writer,
-                "\n{} Showing first {} results. Use --json to see all {} clone pairs.",
-                "Note:".yellow().bold(),
-                display_limit,
-                findings.len() / 2
-            )?;
-        }
-    }
+    write_clone_results(&mut writer, &findings, options)?;
 
     if options.fix {
         apply_clone_fixes_internal(

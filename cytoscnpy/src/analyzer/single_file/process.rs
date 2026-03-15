@@ -1,5 +1,5 @@
 use super::common::module_name_from_path;
-use super::pipeline::{run_pipeline, PipelineMode};
+use super::pipeline::{run_pipeline, PipelineInput, PipelineMode};
 use crate::analyzer::{CytoScnPy, FileAnalysisResult};
 use crate::halstead::HalsteadMetrics;
 use crate::raw_metrics::{analyze_raw, RawMetrics};
@@ -31,13 +31,15 @@ impl CytoScnPy {
 
         let output = run_pipeline(
             self,
-            &source,
-            file_path,
-            &module_name,
-            &line_index,
-            &ignored_lines,
-            is_test_file,
-            PipelineMode::ProcessFile,
+            PipelineInput {
+                source: &source,
+                file_path,
+                module_name: &module_name,
+                line_index: &line_index,
+                ignored_lines: &ignored_lines,
+                is_test_file,
+                mode: PipelineMode::ProcessFile,
+            },
         );
 
         if let Some(progress_bar) = &self.progress_bar {

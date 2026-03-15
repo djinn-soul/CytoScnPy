@@ -5,7 +5,6 @@ use crate::framework::FrameworkAwareVisitor;
 use crate::test_utils::TestAwareVisitor;
 use crate::utils::Suppression;
 use crate::visitor::Definition;
-use rustc_hash::FxHashMap;
 
 /// Applies penalty-based confidence adjustments to definitions.
 ///
@@ -15,7 +14,6 @@ use rustc_hash::FxHashMap;
 /// - Framework decorations (lowers confidence for framework-managed code).
 /// - Private naming conventions (lowers confidence for internal helpers).
 /// - Dunder methods (ignores magic methods).
-#[allow(clippy::implicit_hasher)]
 pub fn apply_penalties(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,
@@ -23,9 +21,9 @@ pub fn apply_penalties(
     // Map of ignored lines to their suppression type.
     // Uses `FxHashMap` (Rustc's fast hash map) for performance optimization,
     // as strict cryptographic security is not needed for integer line keys and small datasets.
-    ignored_lines: &FxHashMap<usize, Suppression>,
+    ignored_lines: &std::collections::HashMap<usize, Suppression, impl std::hash::BuildHasher>,
     include_tests: bool,
-    dynamic_scopes: &rustc_hash::FxHashSet<String>,
+    dynamic_scopes: &std::collections::HashSet<String, impl std::hash::BuildHasher>,
     module_name: &str,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)

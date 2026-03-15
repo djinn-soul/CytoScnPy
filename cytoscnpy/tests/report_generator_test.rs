@@ -24,8 +24,8 @@ fn project_tempdir() -> TempDir {
 }
 
 fn extract_score_and_grade(html: &str) -> (u8, String) {
-    let score_re = Regex::new(r#"stat-value[^>]*>\s*(\d+)\s*</div>"#).unwrap();
-    let grade_re = Regex::new(r#"Grade:\s*([A-F])"#).unwrap();
+    let score_re = Regex::new(r"stat-value[^>]*>\s*(\d+)\s*</div>").unwrap();
+    let grade_re = Regex::new(r"Grade:\s*([A-F])").unwrap();
 
     let score = score_re
         .captures(html)

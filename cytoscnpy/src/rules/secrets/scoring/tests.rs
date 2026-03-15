@@ -7,32 +7,40 @@ use std::path::{Path, PathBuf};
 
 #[test]
 fn test_scorer_test_file_detection() {
-    let scorer = ContextScorer::new();
-
-    assert!(scorer.is_test_file(Path::new("/project/tests/test_secrets.py")));
-    assert!(scorer.is_test_file(Path::new("/project/test/test_main.py")));
-    assert!(scorer.is_test_file(Path::new("/project/src/test_utils.py")));
-    assert!(scorer.is_test_file(Path::new("/project/conftest.py")));
-    assert!(!scorer.is_test_file(Path::new("/project/src/main.py")));
+    assert!(ContextScorer::is_test_file(Path::new(
+        "/project/tests/test_secrets.py"
+    )));
+    assert!(ContextScorer::is_test_file(Path::new(
+        "/project/test/test_main.py"
+    )));
+    assert!(ContextScorer::is_test_file(Path::new(
+        "/project/src/test_utils.py"
+    )));
+    assert!(ContextScorer::is_test_file(Path::new(
+        "/project/conftest.py"
+    )));
+    assert!(!ContextScorer::is_test_file(Path::new(
+        "/project/src/main.py"
+    )));
 }
 
 #[test]
 fn test_scorer_env_var_detection() {
-    let scorer = ContextScorer::new();
-
-    assert!(scorer.is_env_var_access("password = os.environ.get('PASSWORD')"));
-    assert!(scorer.is_env_var_access("key = os.getenv('API_KEY')"));
-    assert!(!scorer.is_env_var_access("password = 'hardcoded'"));
+    assert!(ContextScorer::is_env_var_access(
+        "password = os.environ.get('PASSWORD')"
+    ));
+    assert!(ContextScorer::is_env_var_access(
+        "key = os.getenv('API_KEY')"
+    ));
+    assert!(!ContextScorer::is_env_var_access("password = 'hardcoded'"));
 }
 
 #[test]
 fn test_scorer_placeholder_detection() {
-    let scorer = ContextScorer::new();
-
-    assert!(scorer.is_placeholder("api_key = 'xxx123'"));
-    assert!(scorer.is_placeholder("secret = 'your_secret_here'"));
-    assert!(scorer.is_placeholder("token = '${TOKEN}'"));
-    assert!(!scorer.is_placeholder("api_key = 'sk_live_abc123'"));
+    assert!(ContextScorer::is_placeholder("api_key = 'xxx123'"));
+    assert!(ContextScorer::is_placeholder("secret = 'your_secret_here'"));
+    assert!(ContextScorer::is_placeholder("token = '${TOKEN}'"));
+    assert!(!ContextScorer::is_placeholder("api_key = 'sk_live_abc123'"));
 }
 
 #[test]

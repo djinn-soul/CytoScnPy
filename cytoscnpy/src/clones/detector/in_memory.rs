@@ -63,7 +63,7 @@ pub(super) fn detect_from_memory(
         let id_sim = similarity_calc.similarity(&id_a, &id_b);
 
         if id_sim >= detector.config.min_similarity {
-            let clone_type = similarity_calc.classify_by_similarity(id_sim);
+            let clone_type = TreeSimilarity::classify_by_similarity(id_sim);
             if !detector.is_type_enabled(clone_type) {
                 continue;
             }
@@ -78,7 +78,12 @@ pub(super) fn detect_from_memory(
         }
     }
 
-    let groups = detector.group_clones(&pairs);
+    #[cfg(feature = "cfg")]
+    if detector.config.cfg_validation {
+        pairs = CloneDetector::validate_with_cfg(pairs, &all_subtrees);
+    }
+
+    let groups = CloneDetector::group_clones(&pairs);
     CloneDetectionResult {
         pairs,
         groups: groups.clone(),

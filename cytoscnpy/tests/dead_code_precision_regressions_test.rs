@@ -20,7 +20,7 @@ fn project_tempdir() -> TempDir {
 
 #[test]
 fn method_attr_reference_does_not_mark_same_named_function_used() {
-    let code = r#"
+    let code = r"
 def process():
     return 1
 
@@ -29,7 +29,7 @@ class Runner:
         return 2
 
 Runner().process()
-"#;
+";
 
     let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
     analyzer.config.cytoscnpy.project_type = Some(ProjectType::Application);
@@ -66,10 +66,10 @@ importlib.import_module("plugin")
 
     writeln!(
         plugin_file,
-        r#"
+        r"
 def plugin_entry():
     return 42
-"#
+"
     )
     .unwrap();
 

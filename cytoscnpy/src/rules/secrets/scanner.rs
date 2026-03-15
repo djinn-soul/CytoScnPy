@@ -54,7 +54,7 @@ impl SecretScanner {
         stmts: Option<&[Stmt]>,
         file_path: &PathBuf,
         line_index: &LineIndex,
-        docstring_lines: Option<&FxHashSet<usize>>,
+        docstring_lines: Option<&std::collections::HashSet<usize, impl std::hash::BuildHasher>>,
         is_test_file: bool,
     ) -> Vec<SecretFinding> {
         let mut all_findings = Vec::new();

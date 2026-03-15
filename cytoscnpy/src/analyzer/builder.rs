@@ -25,7 +25,6 @@ impl CytoScnPy {
         let per_file_ignore_rules =
             build_per_file_ignore_rules(config.cytoscnpy.per_file_ignores.as_ref());
 
-        #[allow(deprecated)]
         Self {
             confidence_threshold,
             enable_secrets,

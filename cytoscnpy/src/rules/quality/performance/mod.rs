@@ -94,9 +94,6 @@ pub(super) const META_PANDAS_CHUNK_RISK: RuleMetadata = RuleMetadata {
     category: CAT_PERFORMANCE,
 };
 
-// Note: META_TUPLE_OVER_LIST is defined but UseTupleOverListRule is not yet fully implemented
-// This is intentional for future enhancement.
-#[allow(dead_code)]
 pub(super) const META_TUPLE_OVER_LIST: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_TUPLE_OVER_LIST,
     category: CAT_PERFORMANCE,

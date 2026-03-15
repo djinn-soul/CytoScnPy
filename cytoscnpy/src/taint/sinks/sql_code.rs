@@ -1,6 +1,12 @@
 use super::{Severity, SinkInfo, VulnType};
 use crate::rules::ids;
 
+fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+}
+
 pub(super) fn check_code_injection_sinks(name: &str) -> Option<SinkInfo> {
     match name {
         "eval" => Some(SinkInfo {
@@ -44,11 +50,13 @@ pub(super) fn check_sql_injection_sinks(name: &str) -> Option<SinkInfo> {
         });
     }
 
-    #[allow(clippy::case_sensitive_file_extension_comparisons)]
-    if name == "sqlalchemy.text" || name.ends_with(".text") || name.ends_with(".objects.raw") {
-        let rule_id = if name.ends_with(".objects.raw")
+    if name == "sqlalchemy.text"
+        || has_case_insensitive_suffix(name, ".text")
+        || has_case_insensitive_suffix(name, ".objects.raw")
+    {
+        let rule_id = if has_case_insensitive_suffix(name, ".objects.raw")
             || name == "sqlalchemy.text"
-            || name.ends_with(".text")
+            || has_case_insensitive_suffix(name, ".text")
         {
             ids::RULE_ID_SQL_INJECTION.to_owned()
         } else {
@@ -61,7 +69,7 @@ pub(super) fn check_sql_injection_sinks(name: &str) -> Option<SinkInfo> {
             severity: Severity::Critical,
             dangerous_args: vec![0],
             dangerous_keywords: Vec::new(),
-            remediation: if name.ends_with(".objects.raw") {
+            remediation: if has_case_insensitive_suffix(name, ".objects.raw") {
                 "Use Django ORM methods instead of raw SQL.".to_owned()
             } else {
                 "Use bound parameters: text('SELECT * WHERE id=:id').bindparams(id=val)".to_owned()

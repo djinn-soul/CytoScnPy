@@ -420,7 +420,7 @@ dependencies = [
 
 [[package]]
 name = "cytoscnpy"
-version = "1.2.14"
+version = "1.2.15"
 dependencies = [
  "anyhow",
  "askama",
@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "cytoscnpy-cli"
-version = "1.2.14"
+version = "1.2.15"
 dependencies = [
  "anyhow",
  "cytoscnpy",
@@ -466,7 +466,7 @@ dependencies = [
 
 [[package]]
 name = "cytoscnpy-mcp"
-version = "1.2.14"
+version = "1.2.15"
 dependencies = [
  "cytoscnpy",
  "rmcp",
@@ -941,9 +941,9 @@ dependencies = [
 
 [[package]]
 name = "jupyter-protocol"
-version = "0.11.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e3070ed16d5582cfee6b2b770e5fe115936ea63199ea36c6915e97c4f79c01f"
+checksum = "4649647741f9794a7a02e3be976f1b248ba28a37dbfc626d5089316fd4fbf4c8"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1060,9 +1060,9 @@ dependencies = [
 
 [[package]]
 name = "nbformat"
-version = "0.15.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18ee6599bc9a2ac837fab4688c135867491cb4fc45972f3f924d0c5d8a16baed"
+checksum = "d4983a40792c45e8639f77ef8e4461c55679cbc618f4b9e83830e8c7e79c8383"
 dependencies = [
  "anyhow",
  "chrono",

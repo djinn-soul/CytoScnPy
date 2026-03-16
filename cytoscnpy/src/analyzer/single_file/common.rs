@@ -151,16 +151,15 @@ fn has_trusted_marker(text: &str) -> bool {
         "clean_",
         "allowlisted_",
         "whitelisted_",
-        "validate(",
-        "sanitize(",
-        "allowlist",
-        "whitelist",
-        "trusted",
         "checked_",
         "verified_",
     ]
     .iter()
-    .any(|marker| text.contains(marker))
+    .any(|marker| contains_identifier_prefix(text, marker))
+        || text.contains("validate(")
+        || text.contains("sanitize(")
+        || text.contains("allowlist(")
+        || text.contains("whitelist(")
 }
 
 fn has_strong_url_name_hint(line_lower: &str) -> bool {
@@ -184,15 +183,32 @@ fn has_url_validation_evidence(text: &str) -> bool {
         || text.contains("allowed_hosts")
         || text.contains("trusted_domains")
         || text.contains("trusted_hosts")
-        || text.contains("allowlist")
-        || text.contains("whitelist")
-        || text.contains("hostname");
+        || text.contains("allowlist(")
+        || text.contains("whitelist(");
     let has_private_ip_block = text.contains("ipaddress.ip_address")
         && (text.contains("is_private")
             || text.contains("is_loopback")
             || text.contains("is_link_local"));
 
     has_url_parse && (has_scheme_check || has_host_allowlist || has_private_ip_block)
+}
+
+fn contains_identifier_prefix(text: &str, prefix: &str) -> bool {
+    let mut offset = 0;
+    while let Some(index) = text[offset..].find(prefix) {
+        let absolute = offset + index;
+        let before = text[..absolute].chars().next_back();
+        if before.is_some_and(is_identifier_char) {
+            offset = absolute + prefix.len();
+            continue;
+        }
+        return true;
+    }
+    false
+}
+
+fn is_identifier_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
 }
 
 fn severity_value(label: &str) -> u8 {

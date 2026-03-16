@@ -122,3 +122,50 @@ def fetch_image(input_url):
         "unvalidated dynamic URL must still report CSP-D402"
     );
 }
+
+#[test]
+fn test_untrusted_marker_does_not_suppress() {
+    let code = r"
+import requests
+
+def fetch_image(untrusted_url):
+    return requests.get(untrusted_url, timeout=5)
+";
+    let mut config = Config::default();
+    config.cytoscnpy.danger = Some(true);
+    config.cytoscnpy.danger_config.enable_taint = Some(false);
+
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
+    let result = analyzer.analyze_code(code, Path::new("test.py"));
+
+    assert!(
+        result.danger.iter().any(|f| f.rule_id == "CSP-D402"),
+        "untrusted_* identifiers must not be treated as trusted mitigation"
+    );
+}
+
+#[test]
+fn test_hostname_without_allowlist_does_not_suppress() {
+    let code = r#"
+from urllib.parse import urlparse
+import requests
+
+def fetch_image(input_url):
+    parsed = urlparse(input_url)
+    host = parsed.hostname
+    if parsed.scheme not in ("http", "https"):
+        return None
+    return requests.get(input_url, timeout=5)
+"#;
+    let mut config = Config::default();
+    config.cytoscnpy.danger = Some(true);
+    config.cytoscnpy.danger_config.enable_taint = Some(false);
+
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
+    let result = analyzer.analyze_code(code, Path::new("test.py"));
+
+    assert!(
+        result.danger.iter().any(|f| f.rule_id == "CSP-D402"),
+        "parsing hostname alone is not host allowlist validation"
+    );
+}

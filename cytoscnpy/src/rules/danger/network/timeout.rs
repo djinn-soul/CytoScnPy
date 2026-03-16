@@ -3,20 +3,20 @@ use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{self as ast, Expr};
 use ruff_text_size::Ranged;
 
-fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
+fn has_case_sensitive_suffix(value: &str, suffix: &str) -> bool {
     value
         .get(value.len().saturating_sub(suffix.len())..)
-        .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
+        .is_some_and(|tail| tail == suffix)
 }
 
 fn is_request_method_call(name: &str) -> bool {
-    has_case_insensitive_suffix(name, ".get")
-        || has_case_insensitive_suffix(name, ".post")
-        || has_case_insensitive_suffix(name, ".put")
-        || has_case_insensitive_suffix(name, ".delete")
-        || has_case_insensitive_suffix(name, ".head")
-        || has_case_insensitive_suffix(name, ".patch")
-        || has_case_insensitive_suffix(name, ".request")
+    has_case_sensitive_suffix(name, ".get")
+        || has_case_sensitive_suffix(name, ".post")
+        || has_case_sensitive_suffix(name, ".put")
+        || has_case_sensitive_suffix(name, ".delete")
+        || has_case_sensitive_suffix(name, ".head")
+        || has_case_sensitive_suffix(name, ".patch")
+        || has_case_sensitive_suffix(name, ".request")
 }
 
 /// Rule for detecting request calls without safe timeout settings.

@@ -6,7 +6,7 @@
 use cytoscnpy::analyzer::CytoScnPy;
 use std::path::PathBuf;
 
-/// Test that analyze_code handles non-UTF-8 paths without panicking.
+/// Test that `analyze_code` handles non-UTF-8 paths without panicking.
 ///
 /// This test is Unix-only because Windows paths use UTF-16 internally
 /// and the `OsStrExt::from_bytes` trait is not available on Windows.

@@ -41,7 +41,7 @@ fn create_mock_result() -> AnalysisResult {
             is_enum_member: false,
             is_constant: false,
             is_potential_secret: false,
-            is_unreachable: false,
+            is_unreachable: true,
             category: cytoscnpy::visitor::UnusedCategory::default(),
         }],
         unused_methods: vec![],

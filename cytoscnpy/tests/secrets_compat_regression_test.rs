@@ -15,11 +15,12 @@ fn scan_secrets_compat_applies_test_file_penalty_from_path() {
         "Expected a finding for a non-test path"
     );
 
-    let prod_confidence = prod_findings
-        .iter()
-        .map(|finding| finding.confidence)
-        .max()
-        .expect("prod findings should contain at least one confidence score");
+    let prod_confidence_opt = prod_findings.iter().map(|finding| finding.confidence).max();
+    assert!(
+        prod_confidence_opt.is_some(),
+        "prod findings should contain at least one confidence score"
+    );
+    let prod_confidence = prod_confidence_opt.unwrap_or_default();
 
     if let Some(test_confidence) = test_findings.iter().map(|finding| finding.confidence).max() {
         assert!(

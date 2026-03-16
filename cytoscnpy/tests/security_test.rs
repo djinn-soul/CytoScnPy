@@ -968,6 +968,27 @@ requests.get("url", timeout=5.0)  # safe
 }
 
 #[test]
+fn test_request_timeout_case_sensitive_method_match() {
+    let source = r#"
+import requests
+requests.Get("url")
+requests.get("url")
+"#;
+    scan_danger!(source, linter);
+    let timeout_findings: Vec<_> = linter
+        .findings
+        .iter()
+        .filter(|f| f.rule_id == "CSP-D405")
+        .collect();
+
+    assert_eq!(
+        timeout_findings.len(),
+        1,
+        "Only lowercase requests.get should match timeout rule"
+    );
+}
+
+#[test]
 fn test_socket_bind_positional() {
     let source = r#"
 import socket

@@ -36,20 +36,20 @@ fn conftest_fixture_used_by_test_parameter_is_not_reported_unused() {
     let dir = project_tempdir();
     write_file(
         &dir.path().join("conftest.py"),
-        r#"
+        r"
 import pytest
 
 @pytest.fixture
 def client():
     return object()
-"#,
+",
     );
     write_file(
         &dir.path().join("tests/test_api.py"),
-        r#"
+        r"
 def test_api(client):
     assert client is not None
-"#,
+",
     );
 
     let result = analyze(dir.path());
@@ -67,13 +67,13 @@ fn conftest_fixture_used_by_usefixtures_is_not_reported_unused() {
     let dir = project_tempdir();
     write_file(
         &dir.path().join("conftest.py"),
-        r#"
+        r"
 import pytest
 
 @pytest.fixture
 def db():
     return {}
-"#,
+",
     );
     write_file(
         &dir.path().join("tests/test_db.py"),
@@ -227,10 +227,10 @@ def client_impl():
     );
     write_file(
         &dir.path().join("tests/test_alias.py"),
-        r#"
+        r"
 def test_alias(api_client):
     assert api_client is not None
-"#,
+",
     );
 
     let result = analyze(dir.path());
@@ -249,22 +249,22 @@ fn relative_imported_fixture_module_is_resolved() {
     write_file(&dir.path().join("tests/__init__.py"), "");
     write_file(
         &dir.path().join("tests/fixtures.py"),
-        r#"
+        r"
 import pytest
 
 @pytest.fixture
 def db():
     return {}
-"#,
+",
     );
     write_file(
         &dir.path().join("tests/test_db.py"),
-        r#"
+        r"
 from .fixtures import db
 
 def test_db(db):
     assert db == {}
-"#,
+",
     );
 
     let result = analyze(dir.path());

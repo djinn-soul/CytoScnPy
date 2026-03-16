@@ -168,13 +168,15 @@ suite("Quick Fix Provider Tests", () => {
     );
 
     // Verify suppression action
-    const suppressAction = actions.find((a) => a.title.includes("# noqa: CSP"));
+    const suppressAction = actions.find((a) =>
+      a.title.includes("# noqa: CSP-D102")
+    );
     assert.ok(suppressAction, "Should have CSP suppression action");
     const edit = suppressAction!.edit!.get(doc.uri);
     assert.strictEqual(edit.length, 1);
     assert.ok(
-      edit[0].newText.includes("# noqa: CSP"),
-      "Should append noqa: CSP"
+      edit[0].newText.includes("# noqa: CSP-D102"),
+      "Should append noqa: CSP-D102"
     );
   });
 
@@ -215,6 +217,39 @@ suite("Quick Fix Provider Tests", () => {
     assert.ok(
       edit[0].newText.includes("# noqa: E501, CSP"),
       "Should match merged comment with CSP"
+    );
+  });
+
+  test("Should not add suppression when pragma no cytoscnpy exists", async () => {
+    const pragmaDoc = await vscode.workspace.openTextDocument({
+      language: "python",
+      content: "value = user_input  # pragma: no cytoscnpy",
+    });
+
+    const diagnostic = new vscode.Diagnostic(
+      new vscode.Range(0, 0, 0, 5),
+      "Potential issue",
+      vscode.DiagnosticSeverity.Warning
+    );
+    diagnostic.source = "CytoScnPy";
+    diagnostic.code = "CSP-D402";
+
+    const context: vscode.CodeActionContext = {
+      diagnostics: [diagnostic],
+      triggerKind: vscode.CodeActionTriggerKind.Invoke,
+      only: undefined,
+    };
+
+    const actions = provider.provideCodeActions(
+      pragmaDoc,
+      diagnostic.range,
+      context,
+      new vscode.CancellationTokenSource().token
+    );
+
+    assert.ok(
+      !actions.some((a) => a.title.includes("Suppress with # noqa")),
+      "Should not offer suppression action when pragma suppression already exists"
     );
   });
 
@@ -725,5 +760,78 @@ suite("Quick Fix Provider Tests", () => {
       (a) => a.title === "Remove unused variable 'x'"
     );
     assert.ok(removeAction, "Should have Remove variable action");
+  });
+
+  test("Should map UTF-8 fix byte offsets correctly for remove action", async () => {
+    const unicodeDoc = await vscode.workspace.openTextDocument({
+      language: "python",
+      content: "emoji = '😀'\nimport os\nprint('hello')\n",
+    });
+
+    const hash = computeHash(unicodeDoc.getText());
+    const cacheKey = getCacheKey(unicodeDoc.uri.fsPath);
+    const text = unicodeDoc.getText();
+    const targetText = "import os\n";
+    const utf16Start = text.indexOf(targetText);
+    const utf16End = utf16Start + targetText.length;
+    const startByte = Buffer.byteLength(text.slice(0, utf16Start), "utf8");
+    const endByte = Buffer.byteLength(text.slice(0, utf16End), "utf8");
+
+    const mockFinding = {
+      rule_id: "unused-import",
+      line_number: 2,
+      message: "Unused import",
+      fix: {
+        start_byte: startByte,
+        end_byte: endByte,
+        replacement: "",
+      },
+    };
+
+    const entry: CacheEntry = {
+      hash: hash,
+      diagnostics: [],
+      findings: [mockFinding as any],
+      timestamp: Date.now(),
+    };
+    fileCache.set(cacheKey, [entry]);
+
+    const diagnostic = new vscode.Diagnostic(
+      new vscode.Range(1, 7, 1, 9),
+      "'os' is imported but never used",
+      vscode.DiagnosticSeverity.Warning
+    );
+    diagnostic.source = "CytoScnPy";
+    diagnostic.code = "unused-import";
+
+    const context: vscode.CodeActionContext = {
+      diagnostics: [diagnostic],
+      triggerKind: vscode.CodeActionTriggerKind.Invoke,
+      only: undefined,
+    };
+
+    const actions = provider.provideCodeActions(
+      unicodeDoc,
+      diagnostic.range,
+      context,
+      new vscode.CancellationTokenSource().token
+    );
+    const removeAction = actions.find(
+      (a) => a.title === "Remove unused import 'os'"
+    );
+    assert.ok(removeAction, "Should have Remove import action");
+
+    const edits = removeAction!.edit!.get(unicodeDoc.uri);
+    assert.strictEqual(edits.length, 1, "Should emit one remove edit");
+    assert.strictEqual(
+      unicodeDoc.offsetAt(edits[0].range.start),
+      utf16Start,
+      "Edit start should match UTF-16 position of import line"
+    );
+    assert.strictEqual(
+      unicodeDoc.offsetAt(edits[0].range.end),
+      utf16End,
+      "Edit end should match UTF-16 position of import line"
+    );
   });
 });

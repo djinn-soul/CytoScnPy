@@ -86,6 +86,10 @@ pub(super) fn classify_definitions(
     analysis_root: &std::path::Path,
 ) -> ClassificationResult {
     let mut result = ClassificationResult::new();
+    let definition_kinds: FxHashMap<String, String> = definitions
+        .iter()
+        .map(|def| (def.full_name.clone(), def.def_type.clone()))
+        .collect();
 
     for mut def in definitions {
         // Check if this definition is whitelisted
@@ -121,8 +125,13 @@ pub(super) fn classify_definitions(
             } else {
                 false
             };
+            let is_nested_under_callable = has_parent_callable(&def, &definition_kinds);
+            let is_explicitly_called = reachability
+                .explicitly_called_nodes
+                .contains(&def.full_name);
+            let captured_as_value_only = def.is_captured && !is_explicitly_called;
 
-            if !loose_ref_exists {
+            if !loose_ref_exists && !is_nested_under_callable && !captured_as_value_only {
                 def.is_unreachable = true;
                 def.references = 0;
             }
@@ -168,6 +177,20 @@ pub(super) fn classify_definitions(
     }
 
     result
+}
+
+fn has_parent_callable(def: &Definition, definition_kinds: &FxHashMap<String, String>) -> bool {
+    if def.def_type != "function" {
+        return false;
+    }
+
+    let Some((parent_name, _)) = def.full_name.rsplit_once('.') else {
+        return false;
+    };
+
+    definition_kinds
+        .get(parent_name)
+        .is_some_and(|kind| kind == "function" || kind == "method")
 }
 
 fn should_report_definition(def: &Definition, confidence_threshold: u8) -> bool {

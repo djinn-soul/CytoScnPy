@@ -6,12 +6,8 @@
   "rust-analyzer.check.extraArgs": [
     "--all-features",
     "--",
-    "-W",
-    "clippy::complexity",
-    "-W",
-    "clippy::pedantic",
-    "-W",
-    "clippy::perf"
+    "-D",
+    "warnings"
   ],
   "coverage-gutters.coverageFileNames": ["lcov.info"],
   "coverage-gutters.coverageBaseDir": ".",

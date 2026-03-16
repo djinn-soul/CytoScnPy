@@ -9,6 +9,7 @@ import {
   runWorkspaceAnalysis,
   CytoScnPyConfig,
   CytoScnPyFinding,
+  ParseError,
 } from "./analyzer";
 import { execFile } from "child_process"; // Import execFile for safer metric commands
 
@@ -25,6 +26,7 @@ export const fileCache = new Map<string, CacheEntry[]>();
 
 // Workspace-level cache for cross-file analysis
 let workspaceCache: Map<string, CytoScnPyFinding[]> | null = null;
+let workspaceParseErrorsCache: Map<string, ParseError[]> | null = null;
 let workspaceCacheTimestamp: number = 0;
 let isWorkspaceAnalysisRunning = false;
 
@@ -267,9 +269,14 @@ export function activate(context: vscode.ExtensionContext) {
     // Track time for performance logging
 
     // Helper function to check if a line is suppressed via noqa comment
-    function isLineSuppressed(lineText: string): boolean {
-      // Matches: # noqa, # noqa: CSP, # noqa: E501, CSP, etc.
-      const noqaRegex = /#\s*noqa(?::\s*([^#\n]+))?/i;
+    function isLineSuppressed(lineText: string, ruleId: string): boolean {
+      const pragmaRegex = /#\s*pragma:\s*no\s+cytoscnpy/i;
+      if (pragmaRegex.test(lineText)) {
+        return true;
+      }
+
+      // Matches: # noqa, # ignore, # noqa: CSP-D101, CSP, etc.
+      const noqaRegex = /#\s*(?:noqa|ignore)(?::\s*([^#\n]+))?/i;
       const match = lineText.match(noqaRegex);
       if (!match) {
         return false;
@@ -278,9 +285,12 @@ export function activate(context: vscode.ExtensionContext) {
       if (!match[1]) {
         return true;
       }
-      // Check if CSP is in the list
+      const normalizedRule = ruleId.toUpperCase();
       const codes = match[1].split(/,\s*/).map((s) => s.trim().toUpperCase());
-      return codes.includes("CSP") || codes.some((c) => c.startsWith("CSP"));
+      if (codes.includes("CSP")) {
+        return true;
+      }
+      return codes.includes(normalizedRule);
     }
 
     // Helper function to convert findings to diagnostics for a document
@@ -295,7 +305,7 @@ export function activate(context: vscode.ExtensionContext) {
             return true; // Keep - can't check suppression
           }
           const lineText = document.lineAt(lineIndex).text;
-          return !isLineSuppressed(lineText);
+          return !isLineSuppressed(lineText, finding.rule_id);
         })
         .map((finding) => {
           const lineIndex = finding.line_number - 1;
@@ -358,6 +368,34 @@ export function activate(context: vscode.ExtensionContext) {
         });
     }
 
+    function parseErrorsToDiagnostics(
+      document: vscode.TextDocument,
+      parseErrors: ParseError[],
+    ): vscode.Diagnostic[] {
+      return parseErrors.map((parseError) => {
+        const lineIndex = Math.max(
+          0,
+          Math.min(document.lineCount - 1, parseError.line - 1),
+        );
+        const lineText = document.lineAt(lineIndex);
+        const range = new vscode.Range(
+          new vscode.Position(
+            lineIndex,
+            lineText.firstNonWhitespaceCharacterIndex,
+          ),
+          new vscode.Position(lineIndex, lineText.text.length),
+        );
+        const diagnostic = new vscode.Diagnostic(
+          range,
+          `Parse error: ${parseError.message}`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diagnostic.source = "CytoScnPy [Parse]";
+        diagnostic.code = "parse-error";
+        return diagnostic;
+      });
+    }
+
     // Function to run workspace analysis and populate cache
     async function runFullWorkspaceAnalysis() {
       const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -385,11 +423,19 @@ export function activate(context: vscode.ExtensionContext) {
             progress.report({ message: "Scanning Python files..." });
             const startTime = Date.now();
 
-            workspaceCache = await runWorkspaceAnalysis(workspacePath, config);
+            const workspaceResult = await runWorkspaceAnalysis(
+              workspacePath,
+              config,
+            );
+            workspaceCache = workspaceResult.findingsByFile;
+            workspaceParseErrorsCache = workspaceResult.parseErrorsByFile;
             workspaceCacheTimestamp = Date.now();
 
             const duration = (Date.now() - startTime) / 1000;
-            const fileCount = workspaceCache.size;
+            const fileCount = new Set<string>([
+              ...workspaceCache.keys(),
+              ...(workspaceParseErrorsCache?.keys() ?? []),
+            ]).size;
             console.log(
               `[CytoScnPy] Workspace analysis completed in ${duration.toFixed(
                 2,
@@ -398,12 +444,25 @@ export function activate(context: vscode.ExtensionContext) {
 
             progress.report({ message: `Updating diagnostics...` });
 
-            // Set diagnostics for ALL files in the workspace cache
-            // This ensures Problems tab shows issues from all files, not just open ones
-            for (const [filePath, findings] of workspaceCache.entries()) {
+            // Clear previous workspace diagnostics first; the analyzer output only
+            // contains files with active findings, so this prevents stale entries
+            // from lingering after a user fixes an issue.
+            cytoscnpyDiagnostics.clear();
+
+            // Set diagnostics for ALL files in workspace findings + parse errors
+            // so the Problems view includes both categories.
+            const filesWithDiagnostics = new Set<string>([
+              ...workspaceCache.keys(),
+              ...(workspaceParseErrorsCache?.keys() ?? []),
+            ]);
+
+            for (const filePath of filesWithDiagnostics) {
               const uri = vscode.Uri.file(filePath);
+              const findings = workspaceCache.get(filePath) || [];
+              const parseErrors =
+                workspaceParseErrorsCache?.get(filePath) || [];
               // Create diagnostics with simplified info (no document access for closed files)
-              const diagnostics = findings.map((finding) => {
+              const findingDiagnostics = findings.map((finding) => {
                 const lineIndex = Math.max(0, finding.line_number - 1);
                 const startCol =
                   finding.col && finding.col > 0 ? finding.col : 0;
@@ -452,6 +511,22 @@ export function activate(context: vscode.ExtensionContext) {
 
                 return diagnostic;
               });
+              const parseDiagnostics = parseErrors.map((parseError) => {
+                const lineIndex = Math.max(0, parseError.line - 1);
+                const range = new vscode.Range(
+                  new vscode.Position(lineIndex, 0),
+                  new vscode.Position(lineIndex, 100),
+                );
+                const diagnostic = new vscode.Diagnostic(
+                  range,
+                  `Parse error: ${parseError.message}`,
+                  vscode.DiagnosticSeverity.Error,
+                );
+                diagnostic.source = "CytoScnPy [Parse]";
+                diagnostic.code = "parse-error";
+                return diagnostic;
+              });
+              const diagnostics = [...findingDiagnostics, ...parseDiagnostics];
 
               cytoscnpyDiagnostics.set(uri, diagnostics);
             }
@@ -461,7 +536,12 @@ export function activate(context: vscode.ExtensionContext) {
               const activeDoc = vscode.window.activeTextEditor.document;
               if (activeDoc.languageId === "python") {
                 const findings = workspaceCache.get(activeDoc.uri.fsPath) || [];
-                const diagnostics = findingsToDiagnostics(activeDoc, findings);
+                const parseErrors =
+                  workspaceParseErrorsCache?.get(activeDoc.uri.fsPath) || [];
+                const diagnostics = [
+                  ...findingsToDiagnostics(activeDoc, findings),
+                  ...parseErrorsToDiagnostics(activeDoc, parseErrors),
+                ];
 
                 applyGutterDecorations(
                   vscode.window.activeTextEditor,
@@ -483,6 +563,7 @@ export function activate(context: vscode.ExtensionContext) {
               `CytoScnPy analysis failed: ${error.message}`,
             );
             workspaceCache = null;
+            workspaceParseErrorsCache = null;
           } finally {
             isWorkspaceAnalysisRunning = false;
           }
@@ -493,6 +574,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Function to invalidate workspace cache
     function invalidateWorkspaceCache() {
       workspaceCache = null;
+      workspaceParseErrorsCache = null;
       workspaceCacheTimestamp = 0;
       fileCache.clear();
     }
@@ -506,7 +588,10 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         // Run single-file analysis
         const result = await runCytoScnPyAnalysis(filePath, config);
-        const diagnostics = findingsToDiagnostics(document, result.findings);
+        const diagnostics = [
+          ...findingsToDiagnostics(document, result.findings),
+          ...parseErrorsToDiagnostics(document, result.parseErrors),
+        ];
 
         // Update diagnostics for this file
         cytoscnpyDiagnostics.set(document.uri, diagnostics);
@@ -530,6 +615,9 @@ export function activate(context: vscode.ExtensionContext) {
         // Merge into workspace cache if it exists
         if (workspaceCache) {
           workspaceCache.set(filePath, result.findings);
+          if (workspaceParseErrorsCache) {
+            workspaceParseErrorsCache.set(filePath, result.parseErrors);
+          }
           workspaceCacheTimestamp = Date.now();
         }
 
@@ -573,7 +661,10 @@ export function activate(context: vscode.ExtensionContext) {
       if (config.analysisMode === "file") {
         try {
           const result = await runCytoScnPyAnalysis(fsPath, config);
-          const diagnostics = findingsToDiagnostics(document, result.findings);
+          const diagnostics = [
+            ...findingsToDiagnostics(document, result.findings),
+            ...parseErrorsToDiagnostics(document, result.parseErrors),
+          ];
           cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
           // Populate fileCache for CST-precise quick-fixes and diagnostics reuse
@@ -610,7 +701,11 @@ export function activate(context: vscode.ExtensionContext) {
       // If we have a workspace cache, use it
       if (workspaceCache) {
         const findings = workspaceCache.get(filePath) || [];
-        const diagnostics = findingsToDiagnostics(document, findings);
+        const parseErrors = workspaceParseErrorsCache?.get(filePath) || [];
+        const diagnostics = [
+          ...findingsToDiagnostics(document, findings),
+          ...parseErrorsToDiagnostics(document, parseErrors),
+        ];
         cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
         const contentHash = computeHash(document.getText());
@@ -754,7 +849,12 @@ export function activate(context: vscode.ExtensionContext) {
     // Clear diagnostics and cache when a document is closed
     context.subscriptions.push(
       vscode.workspace.onDidCloseTextDocument((document) => {
-        cytoscnpyDiagnostics.delete(document.uri);
+        const mode = getCytoScnPyConfiguration(context).analysisMode;
+        // In workspace mode we intentionally keep diagnostics for closed files
+        // so the Problems view remains complete across the whole project.
+        if (mode === "file") {
+          cytoscnpyDiagnostics.delete(document.uri);
+        }
         fileCache.delete(getCacheKey(document.uri.fsPath)); // Clear cache entry
       }),
     );
@@ -952,6 +1052,44 @@ function filterOverlappingFixes<T extends { finding: CytoScnPyFinding }>(
   return filtered;
 }
 
+function byteOffsetToUtf16Offset(text: string, byteOffset: number): number {
+  const utf8 = Buffer.from(text, "utf8");
+  const clamped = Math.max(0, Math.min(byteOffset, utf8.length));
+  return utf8.subarray(0, clamped).toString("utf8").length;
+}
+
+function rangeFromFixBytes(
+  document: vscode.TextDocument,
+  startByte: number,
+  endByte: number,
+): vscode.Range | undefined {
+  if (
+    !Number.isInteger(startByte) ||
+    !Number.isInteger(endByte) ||
+    startByte < 0 ||
+    endByte < startByte
+  ) {
+    return undefined;
+  }
+
+  const text = document.getText();
+  const utf8Len = Buffer.byteLength(text, "utf8");
+  if (endByte > utf8Len) {
+    return undefined;
+  }
+
+  const startOffset = byteOffsetToUtf16Offset(text, startByte);
+  const endOffset = byteOffsetToUtf16Offset(text, endByte);
+  if (endOffset < startOffset) {
+    return undefined;
+  }
+
+  return new vscode.Range(
+    document.positionAt(startOffset),
+    document.positionAt(endOffset),
+  );
+}
+
 export class QuickFixProvider implements vscode.CodeActionProvider {
   public provideCodeActions(
     document: vscode.TextDocument,
@@ -975,10 +1113,6 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
     const cacheKey = getCacheKey(document.uri.fsPath);
     const cachedHistory = fileCache.get(cacheKey) || [];
     const cachedEntry = cachedHistory.find((e) => e.hash === currentHash);
-    const workspaceFindings = workspaceCache
-      ? workspaceCache.get(cacheKey) || []
-      : [];
-
     const getRuleId = (diagnostic: vscode.Diagnostic): string | undefined =>
       typeof diagnostic.code === "object" &&
       diagnostic.code !== null &&
@@ -1023,10 +1157,6 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         : undefined;
       if (fromCache) {
         return fromCache;
-      }
-
-      if (workspaceFindings.length > 0) {
-        return pickClosest(workspaceFindings);
       }
 
       return undefined;
@@ -1085,17 +1215,17 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
           fixAction.diagnostics = [diagnostic];
           fixAction.isPreferred = true;
 
-          const edit = new vscode.WorkspaceEdit();
-          const startPos = document.positionAt(finding.fix.start_byte);
-          const endPos = document.positionAt(finding.fix.end_byte);
-
-          edit.replace(
-            document.uri,
-            new vscode.Range(startPos, endPos),
-            finding.fix.replacement,
+          const range = rangeFromFixBytes(
+            document,
+            finding.fix.start_byte,
+            finding.fix.end_byte,
           );
-          fixAction.edit = edit;
-          actions.push(fixAction);
+          if (range) {
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(document.uri, range, finding.fix.replacement);
+            fixAction.edit = edit;
+            actions.push(fixAction);
+          }
         }
       }
 
@@ -1131,17 +1261,23 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         (a, b) => b.finding.fix!.start_byte - a.finding.fix!.start_byte,
       );
 
+      let hasAllRanges = true;
       for (const { finding } of sortedItems) {
-        const startPos = document.positionAt(finding.fix!.start_byte);
-        const endPos = document.positionAt(finding.fix!.end_byte);
-        edit.replace(
-          document.uri,
-          new vscode.Range(startPos, endPos),
-          finding.fix!.replacement,
+        const range = rangeFromFixBytes(
+          document,
+          finding.fix!.start_byte,
+          finding.fix!.end_byte,
         );
+        if (!range) {
+          hasAllRanges = false;
+          break;
+        }
+        edit.replace(document.uri, range, finding.fix!.replacement);
       }
-      fixAllAction.edit = edit;
-      actions.push(fixAllAction);
+      if (hasAllRanges) {
+        fixAllAction.edit = edit;
+        actions.push(fixAllAction);
+      }
     }
 
     const filteredUnused = filterOverlappingFixes(fixableUnused);
@@ -1159,17 +1295,23 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         (a, b) => b.finding.fix!.start_byte - a.finding.fix!.start_byte,
       );
 
+      let hasAllRanges = true;
       for (const { finding } of sortedItems) {
-        const startPos = document.positionAt(finding.fix!.start_byte);
-        const endPos = document.positionAt(finding.fix!.end_byte);
-        edit.replace(
-          document.uri,
-          new vscode.Range(startPos, endPos),
-          finding.fix!.replacement,
+        const range = rangeFromFixBytes(
+          document,
+          finding.fix!.start_byte,
+          finding.fix!.end_byte,
         );
+        if (!range) {
+          hasAllRanges = false;
+          break;
+        }
+        edit.replace(document.uri, range, finding.fix!.replacement);
       }
-      fixAllDeadCodeAction.edit = edit;
-      actions.push(fixAllDeadCodeAction);
+      if (hasAllRanges) {
+        fixAllDeadCodeAction.edit = edit;
+        actions.push(fixAllDeadCodeAction);
+      }
     }
 
     return actions;
@@ -1179,7 +1321,17 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): vscode.CodeAction | undefined {
-    const actionTitle = "Suppress with # noqa: CSP";
+    const codeValue =
+      typeof diagnostic.code === "object" &&
+      diagnostic.code !== null &&
+      "value" in diagnostic.code
+        ? String(diagnostic.code.value)
+        : typeof diagnostic.code === "string"
+          ? diagnostic.code
+          : undefined;
+    const suppressionCode =
+      codeValue && /^CSP-[A-Z]\d{3}$/i.test(codeValue) ? codeValue : "CSP";
+    const actionTitle = `Suppress with # noqa: ${suppressionCode}`;
 
     const action = new vscode.CodeAction(
       actionTitle,
@@ -1190,9 +1342,13 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
     const lineIndex = diagnostic.range.start.line;
     const lineText = document.lineAt(lineIndex).text;
     const edit = new vscode.WorkspaceEdit();
+    const pragmaRegex = /#\s*pragma:\s*no\s+cytoscnpy/i;
+    if (pragmaRegex.test(lineText)) {
+      return undefined;
+    }
 
     // Check for existing suppression comment
-    const noqaRegex = /#\s*noqa(?::\s*([^#\n]+))?/;
+    const noqaRegex = /#\s*(?:noqa|ignore)(?::\s*([^#\n]+))?/i;
     const match = lineText.match(noqaRegex);
 
     if (match) {
@@ -1201,14 +1357,19 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         // Bare # noqa - already suppresses all
         return undefined;
       }
-      const existingCodes = match[1].split(/,\s*/).map((s) => s.trim());
-      if (existingCodes.includes("CSP")) {
+      const existingCodes = match[1]
+        .split(/,\s*/)
+        .map((s) => s.trim().toUpperCase());
+      if (
+        existingCodes.includes("CSP") ||
+        existingCodes.includes(suppressionCode.toUpperCase())
+      ) {
         return undefined; // Already suppressed
       }
-      // Append CSP to existing codes
+      // Append suppression code to existing codes
       const commentStart = match.index!;
       const commentContent = match[0];
-      const newComment = `${commentContent}, CSP`;
+      const newComment = `${commentContent}, ${suppressionCode}`;
       const range = new vscode.Range(
         new vscode.Position(lineIndex, commentStart),
         new vscode.Position(lineIndex, commentStart + commentContent.length),
@@ -1216,7 +1377,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       edit.replace(document.uri, range, newComment);
     } else {
       // No existing noqa, append new one
-      const insertText = "  # noqa: CSP";
+      const insertText = `  # noqa: ${suppressionCode}`;
       const insertPos = new vscode.Position(lineIndex, lineText.length);
       edit.insert(document.uri, insertPos, insertText);
     }

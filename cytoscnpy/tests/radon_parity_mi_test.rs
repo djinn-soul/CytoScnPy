@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::float_cmp)]
+#![allow(clippy::needless_raw_string_hashes)]
 
 use cytoscnpy::complexity::calculate_module_complexity;
 use cytoscnpy::halstead::analyze_halstead;
@@ -56,7 +57,7 @@ fn test_mi_compute_complex() {
     //                = 50 * sin(sqrt(1.384)) = 50 * sin(1.177) = 50 * 0.920 = 46.0
     // MI = 171 - 27.55 - 2.3 - 70.56 + 46.0 = 116.59 -> clamped to 100
     // Actually let's just verify it's reasonable
-    assert!(result >= 60.0 && result <= 100.0);
+    assert!((60.0..=100.0).contains(&result));
 }
 
 // =============================================================================
@@ -67,7 +68,7 @@ fn test_mi_compute_complex() {
 fn test_mi_rank_c_range() {
     // 0-9 -> 'C'
     for score in 0..10 {
-        assert_eq!(mi_rank(score as f64), 'C', "Score {} should be C", score);
+        assert_eq!(mi_rank(f64::from(score)), 'C', "Score {score} should be C");
     }
 }
 
@@ -75,7 +76,7 @@ fn test_mi_rank_c_range() {
 fn test_mi_rank_b_range() {
     // 10-19 -> 'B'
     for score in 10..20 {
-        assert_eq!(mi_rank(score as f64), 'B', "Score {} should be B", score);
+        assert_eq!(mi_rank(f64::from(score)), 'B', "Score {score} should be B");
     }
 }
 
@@ -83,7 +84,7 @@ fn test_mi_rank_b_range() {
 fn test_mi_rank_a_range() {
     // 20-100 -> 'A'
     for score in 20..=100 {
-        assert_eq!(mi_rank(score as f64), 'A', "Score {} should be A", score);
+        assert_eq!(mi_rank(f64::from(score)), 'A', "Score {score} should be A");
     }
 }
 
@@ -146,7 +147,7 @@ print(k ** 2 - 1)
     // Radon expects: 75.40162245189028
     // We should get a reasonable MI (50-90 range)
     let mi = compute_mi_for_code(code, true);
-    assert!(mi > 50.0 && mi <= 100.0, "MI was {}", mi);
+    assert!(mi > 50.0 && mi <= 100.0, "MI was {mi}");
 }
 
 #[test]
@@ -187,7 +188,7 @@ a.m(42)  # i don't know why, but it works
 
 #[test]
 fn test_mi_visit_nested_logic() {
-    let code = r#"
+    let code = r"
 def complex_func(a, b, c):
     if a > 0:
         if b > 0:
@@ -203,31 +204,29 @@ def complex_func(a, b, c):
             if b == 5:
                 break
     return 0
-"#;
+";
     let mi = compute_mi_for_code(code, false);
     // Complex function should have lower MI
-    assert!(mi > 30.0 && mi <= 100.0, "MI was {}", mi);
+    assert!(mi > 30.0 && mi <= 100.0, "MI was {mi}");
 }
 
 #[test]
 fn test_mi_visit_with_comments() {
-    let code = r#"
+    let code = r"
 # Module comment
 def foo():
     # Function comment
     x = 1  # Inline comment
     # Another comment
     return x
-"#;
+";
     let mi_with = compute_mi_for_code(code, true);
     let mi_without = compute_mi_for_code(code, false);
 
     // Comments should boost MI
     assert!(
         mi_with >= mi_without,
-        "MI with comments ({}) should be >= MI without ({})",
-        mi_with,
-        mi_without
+        "MI with comments ({mi_with}) should be >= MI without ({mi_without})"
     );
 }
 
@@ -239,7 +238,10 @@ def foo():
 fn test_mi_single_line() {
     let code = "x = 1";
     let mi = compute_mi_for_code(code, false);
-    assert!(mi >= 80.0 && mi <= 100.0, "Simple assignment MI was {}", mi);
+    assert!(
+        (80.0..=100.0).contains(&mi),
+        "Simple assignment MI was {mi}"
+    );
 }
 
 #[test]
@@ -249,14 +251,14 @@ fn test_mi_only_docstring() {
 "#;
     let mi = compute_mi_for_code(code, true);
     // Should be high MI since it's just a docstring
-    assert!((90.0..=100.0).contains(&mi), "Docstring-only MI was {}", mi);
+    assert!((90.0..=100.0).contains(&mi), "Docstring-only MI was {mi}");
 }
 
 #[test]
 fn test_mi_lambda() {
     let code = "f = lambda x: x * 2";
     let mi = compute_mi_for_code(code, false);
-    assert!(mi >= 70.0 && mi <= 100.0, "Lambda MI was {}", mi);
+    assert!((70.0..=100.0).contains(&mi), "Lambda MI was {mi}");
 }
 
 #[test]
@@ -264,8 +266,7 @@ fn test_mi_list_comprehension() {
     let code = "result = [x * 2 for x in range(10) if x % 2 == 0]";
     let mi = compute_mi_for_code(code, false);
     assert!(
-        mi >= 60.0 && mi <= 100.0,
-        "List comprehension MI was {}",
-        mi
+        (60.0..=100.0).contains(&mi),
+        "List comprehension MI was {mi}"
     );
 }

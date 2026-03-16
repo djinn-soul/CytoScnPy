@@ -21,10 +21,15 @@ export interface CytoScnPyAnalysisResult {
   parseErrors: ParseError[];
 }
 
-interface ParseError {
+export interface ParseError {
   file: string;
   line: number;
   message: string;
+}
+
+export interface WorkspaceAnalysisResult {
+  findingsByFile: Map<string, CytoScnPyFinding[]>;
+  parseErrorsByFile: Map<string, ParseError[]>;
 }
 
 export interface CytoScnPyConfig {
@@ -425,7 +430,7 @@ export function runCytoScnPyAnalysis(
 export function runWorkspaceAnalysis(
   workspacePath: string,
   config: CytoScnPyConfig,
-): Promise<Map<string, CytoScnPyFinding[]>> {
+): Promise<WorkspaceAnalysisResult> {
   return new Promise((resolve, reject) => {
     const args: string[] = ["--client", "vscode", workspacePath, "--json"];
 
@@ -521,7 +526,23 @@ export function runWorkspaceAnalysis(
             findingsByFile.get(filePath)!.push(finding);
           }
 
-          resolve(findingsByFile);
+          const parseErrorsByFile = new Map<string, ParseError[]>();
+          for (const parseError of result.parseErrors) {
+            let filePath = parseError.file;
+            if (!path.isAbsolute(filePath)) {
+              filePath = path.resolve(workspacePath, filePath);
+            }
+            if (process.platform === "win32") {
+              filePath = filePath.toLowerCase();
+            }
+
+            if (!parseErrorsByFile.has(filePath)) {
+              parseErrorsByFile.set(filePath, []);
+            }
+            parseErrorsByFile.get(filePath)!.push(parseError);
+          }
+
+          resolve({ findingsByFile, parseErrorsByFile });
         } catch (parseError: any) {
           reject(
             new Error(

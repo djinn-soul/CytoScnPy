@@ -59,7 +59,7 @@ Enable with `--quality`.
 - **Halstead Metrics**: Algorithmic complexity.
 
 For a full list of quality rules and their standard IDs (B006, E722, etc.), see the **[Code Quality Rules](quality.md)** reference.
-Note: Per-rule pages exist only for Best Practices and Performance; maintainability rules are summarized in the index.
+Per-rule pages are available across Best Practices, Maintainability, and Performance categories.
 
 ### Rule Index
 
@@ -92,6 +92,13 @@ Remove dead code automatically.
 
 1. **Preview**: `cytoscnpy . --fix`
 2. **Apply**: `cytoscnpy . --fix --apply`
+
+Generate and reuse a whitelist to suppress intended dead-code items:
+
+```bash
+cytoscnpy . --make-whitelist > whitelist.py
+cytoscnpy . --whitelist whitelist.py
+```
 
 ### HTML Reports
 
@@ -211,6 +218,9 @@ secrets = true
 danger = true
 quality = true
 include_ipynb = false
+project_type = "library" # "library" (default) or "application"
+ignore = ["CSP-P003"] # Global rule suppressions
+per-file-ignores = { "tests/*" = ["CSP-D701"] }
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code
@@ -229,6 +239,9 @@ include_tests = false
 secrets = true
 danger = true
 quality = true
+project_type = "library"
+ignore = ["CSP-P003"]
+per-file-ignores = { "tests/*" = ["CSP-D701"] }
 
 # CI/CD Gates
 fail_threshold = 5.0
@@ -263,6 +276,11 @@ custom_sources = ["mylib.get_input"]
 custom_sinks = ["mylib.exec"]
 ```
 
+`project_type` controls dead-code export assumptions:
+
+- `library` (default): public symbols are treated as potential API.
+- `application`: reduces public-API assumptions for app-style codebases.
+
 ---
 
 ## CLI Reference
@@ -278,12 +296,15 @@ cytoscnpy [PATHS]... [OPTIONS]
 | Flag               | Description                                        |
 | ------------------ | -------------------------------------------------- |
 | `--root <PATH>`    | Project root for analysis (CI/CD mode).            |
-| `--confidence <N>` | Minimum confidence threshold (0-100). Default: 60. |
+| `--confidence <N>` (`-c`) | Minimum confidence threshold (0-100). Default: 60. |
 | `--secrets` (`-s`) | Scan for API keys, tokens, credentials.            |
 | `--danger` (`-d`)  | Scan for dangerous code + taint analysis.          |
 | `--quality` (`-q`) | Scan for code quality issues.                      |
 | `--clones`         | Enable code clone detection.                       |
+| `--clone-similarity <N>` | Set clone similarity threshold (0.0-1.0, default `0.8`). |
 | `--no-dead` (`-n`) | Skip dead code detection.                          |
+| `--make-whitelist` | Generate whitelist entries from current findings.  |
+| `--whitelist <PATH>` | Load whitelist file(s) for dead-code suppression. |
 
 ### Output Formatting
 
@@ -299,8 +320,8 @@ cytoscnpy [PATHS]... [OPTIONS]
 
 | Flag                     | Description                     |
 | ------------------------ | ------------------------------- |
-| `--exclude-folder <DIR>` | Exclude specific folders.       |
-| `--include-folder <DIR>` | Force include folders.          |
+| `--exclude-folders <DIRS>` | Exclude specific folders.       |
+| `--include-folders <DIRS>` | Force include folders.          |
 | `--include-tests`        | Include test files in analysis. |
 | `--include-ipynb`        | Include Jupyter notebooks.      |
 
@@ -391,7 +412,7 @@ Runs full analysis (secrets, danger, quality) and prints summary statistics.
 - `--secrets` (`-s`): Enable secret scanning.
 - `--danger` (`-d`): Enable danger/taint analysis.
 - `--quality` (`-q`): Enable quality analysis.
-- `--exclude-folder <DIR>`: Exclude specific folders from stats analysis.
+- `--exclude-folders <DIRS>`: Exclude specific folders from stats analysis.
 - `--json`: Output as JSON.
 - `--output <FILE>` (`-o`): Save report to file.
 
@@ -441,14 +462,18 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
   ```toml
   [tool.cytoscnpy.per-file-ignores]
-  "tests/*" = ["S101"]       # Allow assert statements in tests
-  "__init__.py" = ["F401"]   # Allow unused imports in __init__.py
-  "migrations/*" = ["E501"]  # Allow long lines in migrations
+  "tests/*" = ["CSP-D701"]       # Allow assert statements in tests
+  "**/__init__.py" = ["CSP-L001"] # Example targeted suppression
+  "migrations/**" = ["CSP-P003"]  # Example recursive glob
   ```
+
+  Glob behavior matches Ruff-style semantics:
+  - `*` matches within a single directory level.
+  - `**` matches recursively across directories.
 
 **3. Performance is slow**
 
-- Check if large files or build artifacts are being scanned. Use `--exclude-folder`.
+- Check if large files or build artifacts are being scanned. Use `--exclude-folders`.
 - Clone detection is slower than standard analysis.
 
 **4. "Missing integrity" finding**

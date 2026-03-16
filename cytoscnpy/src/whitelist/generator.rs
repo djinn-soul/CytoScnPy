@@ -109,10 +109,10 @@ mod tests {
 
     fn create_test_definition(name: &str, file: &str, line: usize, def_type: &str) -> Definition {
         Definition {
-            name: name.to_string(),
-            full_name: name.to_string(),
-            simple_name: name.to_string(),
-            def_type: def_type.to_string(),
+            name: name.to_owned(),
+            full_name: name.to_owned(),
+            simple_name: name.to_owned(),
+            def_type: def_type.to_owned(),
             file: Arc::new(PathBuf::from(file)),
             line,
             end_line: line + 5,

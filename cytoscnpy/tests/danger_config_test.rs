@@ -71,3 +71,54 @@ eval(data)
     // By default injection + taint upgrades HIGH to CRITICAL
     assert_eq!(eval_finding.severity, "CRITICAL");
 }
+
+#[test]
+fn test_mitigated_dynamic_url_is_suppressed() {
+    let code = r#"
+from urllib.parse import urlparse
+import requests
+
+ALLOWED_DOMAINS = {"images.example.com"}
+
+def fetch_image(input_url):
+    parsed = urlparse(input_url)
+    if parsed.scheme not in ("http", "https"):
+        return None
+    if parsed.hostname not in ALLOWED_DOMAINS:
+        return None
+    validated_url = input_url
+    return requests.get(validated_url, timeout=5)
+"#;
+    let mut config = Config::default();
+    config.cytoscnpy.danger = Some(true);
+    config.cytoscnpy.danger_config.enable_taint = Some(false);
+
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
+    let result = analyzer.analyze_code(code, Path::new("test.py"));
+
+    assert!(
+        result.danger.iter().all(|f| f.rule_id != "CSP-D402"),
+        "validated URL flow should suppress CSP-D402"
+    );
+}
+
+#[test]
+fn test_unvalidated_dynamic_url_still_reports() {
+    let code = r"
+import requests
+
+def fetch_image(input_url):
+    return requests.get(input_url, timeout=5)
+";
+    let mut config = Config::default();
+    config.cytoscnpy.danger = Some(true);
+    config.cytoscnpy.danger_config.enable_taint = Some(false);
+
+    let analyzer = CytoScnPy::default().with_danger(true).with_config(config);
+    let result = analyzer.analyze_code(code, Path::new("test.py"));
+
+    assert!(
+        result.danger.iter().any(|f| f.rule_id == "CSP-D402"),
+        "unvalidated dynamic URL must still report CSP-D402"
+    );
+}

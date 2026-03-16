@@ -68,7 +68,7 @@ pub(super) fn apply_complexity_rules(ctx: &RuleEngineContext<'_>, output: &mut P
         std::mem::take(&mut output.danger),
     );
     output.danger = filtered;
-    apply_danger_config_filters(ctx.analyzer, &mut output.danger);
+    apply_danger_config_filters(ctx.analyzer, ctx.source, &mut output.danger);
 }
 
 pub(super) fn apply_raw_rules(ctx: &RuleEngineContext<'_>, output: &mut PipelineOutput<'_>) {

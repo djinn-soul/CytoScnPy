@@ -83,7 +83,13 @@ pub(super) fn apply_taint_filters(
     filtered
 }
 
-pub(super) fn apply_danger_config_filters(analyzer: &CytoScnPy, danger: &mut Vec<Finding>) {
+pub(super) fn apply_danger_config_filters(
+    analyzer: &CytoScnPy,
+    source: &str,
+    danger: &mut Vec<Finding>,
+) {
+    apply_mitigation_filters(source, danger);
+
     if let Some(excluded) = &analyzer.config.cytoscnpy.danger_config.excluded_rules {
         danger.retain(|finding| !excluded.contains(&finding.rule_id));
     }
@@ -92,6 +98,101 @@ pub(super) fn apply_danger_config_filters(analyzer: &CytoScnPy, danger: &mut Vec
         let threshold_value = severity_value(threshold);
         danger.retain(|finding| severity_value(&finding.severity) >= threshold_value);
     }
+}
+
+fn apply_mitigation_filters(source: &str, danger: &mut Vec<Finding>) {
+    let lines: Vec<&str> = source.lines().collect();
+    danger.retain(|finding| !is_mitigated_finding(&lines, finding));
+}
+
+fn is_mitigated_finding(lines: &[&str], finding: &Finding) -> bool {
+    const MITIGATION_AWARE_RULES: &[&str] = &[
+        "CSP-D003", "CSP-D101", "CSP-D102", "CSP-D402", "CSP-D410", "CSP-D501", "CSP-D801",
+    ];
+
+    if !MITIGATION_AWARE_RULES.contains(&finding.rule_id.as_str()) || finding.line == 0 {
+        return false;
+    }
+
+    let line_index = finding.line.saturating_sub(1);
+    let Some(line_text) = lines.get(line_index) else {
+        return false;
+    };
+    let line_lower = line_text.to_ascii_lowercase();
+    let surrounding = surrounding_window(lines, line_index, 6);
+
+    let has_trusted_marker = has_trusted_marker(&line_lower) || has_trusted_marker(&surrounding);
+    if !has_trusted_marker {
+        return false;
+    }
+
+    if matches!(
+        finding.rule_id.as_str(),
+        "CSP-D402" | "CSP-D410" | "CSP-D801"
+    ) {
+        return has_url_validation_evidence(&surrounding) || has_strong_url_name_hint(&line_lower);
+    }
+
+    true
+}
+
+fn surrounding_window(lines: &[&str], line_index: usize, window_size: usize) -> String {
+    let start = line_index.saturating_sub(window_size);
+    let end = (line_index + 1).min(lines.len());
+    lines[start..end].join("\n").to_ascii_lowercase()
+}
+
+fn has_trusted_marker(text: &str) -> bool {
+    [
+        "validated_",
+        "sanitized_",
+        "trusted_",
+        "safe_",
+        "clean_",
+        "allowlisted_",
+        "whitelisted_",
+        "validate(",
+        "sanitize(",
+        "allowlist",
+        "whitelist",
+        "trusted",
+        "checked_",
+        "verified_",
+    ]
+    .iter()
+    .any(|marker| text.contains(marker))
+}
+
+fn has_strong_url_name_hint(line_lower: &str) -> bool {
+    (line_lower.contains("requests.")
+        || line_lower.contains("httpx.")
+        || line_lower.contains("urlopen")
+        || line_lower.contains("redirect("))
+        && (line_lower.contains("validated_url")
+            || line_lower.contains("safe_url")
+            || line_lower.contains("trusted_url")
+            || line_lower.contains("allowlisted_url"))
+}
+
+fn has_url_validation_evidence(text: &str) -> bool {
+    let has_url_parse = text.contains("urlparse(") || text.contains("urlsplit(");
+    let has_scheme_check = text.contains(".scheme")
+        && text.contains("http")
+        && text.contains("https")
+        && (text.contains("not in") || text.contains("in ("));
+    let has_host_allowlist = text.contains("allowed_domains")
+        || text.contains("allowed_hosts")
+        || text.contains("trusted_domains")
+        || text.contains("trusted_hosts")
+        || text.contains("allowlist")
+        || text.contains("whitelist")
+        || text.contains("hostname");
+    let has_private_ip_block = text.contains("ipaddress.ip_address")
+        && (text.contains("is_private")
+            || text.contains("is_loopback")
+            || text.contains("is_link_local"));
+
+    has_url_parse && (has_scheme_check || has_host_allowlist || has_private_ip_block)
 }
 
 fn severity_value(label: &str) -> u8 {

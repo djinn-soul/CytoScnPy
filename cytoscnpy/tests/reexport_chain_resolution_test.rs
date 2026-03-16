@@ -25,11 +25,11 @@ fn test_nested_reexport_chain_marks_imports_used_when_chain_is_complete() {
     std::fs::create_dir_all(&app_pkg_core).unwrap();
 
     let mut app_init = File::create(dir.path().join("app").join("__init__.py")).unwrap();
-    write!(app_init, "from .pkg import exposed_api\n").unwrap();
+    writeln!(app_init, "from .pkg import exposed_api").unwrap();
 
     let mut pkg_init =
         File::create(dir.path().join("app").join("pkg").join("__init__.py")).unwrap();
-    write!(pkg_init, "from .core import exposed_api\n").unwrap();
+    writeln!(pkg_init, "from .core import exposed_api").unwrap();
 
     let mut core_init = File::create(
         dir.path()

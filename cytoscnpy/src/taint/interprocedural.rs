@@ -61,7 +61,7 @@ pub fn analyze_module(
                     findings.append(&mut intra_findings);
 
                     // Level 2: Interprocedural analysis using summaries
-                    let context_findings = analyze_with_context(
+                    let context_findings = analyze_function_with_context(
                         f, analyzer, file_path, line_index, &state, &summaries,
                     );
                     findings.extend(context_findings);
@@ -83,7 +83,7 @@ pub fn analyze_module(
                     );
                     findings.append(&mut intra_findings);
 
-                    let context_findings = analyze_async_with_context(
+                    let context_findings = analyze_function_with_context(
                         f, analyzer, file_path, line_index, &state, &summaries,
                     );
                     findings.extend(context_findings);
@@ -160,35 +160,7 @@ fn qualify_name(module_name: &str, class_name: Option<&str>, func_name: &str) ->
 }
 
 /// Analyzes a function with interprocedural context.
-fn analyze_with_context(
-    func: &ast::StmtFunctionDef,
-    analyzer: &TaintAnalyzer,
-    file_path: &Path,
-    line_index: &LineIndex,
-    initial_state: &TaintState,
-    summaries: &SummaryDatabase,
-) -> Vec<TaintFinding> {
-    let mut state = initial_state.clone();
-    let mut findings = Vec::new();
-
-    // Analyze statements with context
-    for stmt in &func.body {
-        analyze_stmt_with_context(
-            stmt,
-            &mut state,
-            &mut findings,
-            analyzer,
-            file_path,
-            line_index,
-            summaries,
-        );
-    }
-
-    findings
-}
-
-/// Analyzes an async function with context.
-fn analyze_async_with_context(
+fn analyze_function_with_context(
     func: &ast::StmtFunctionDef,
     analyzer: &TaintAnalyzer,
     file_path: &Path,

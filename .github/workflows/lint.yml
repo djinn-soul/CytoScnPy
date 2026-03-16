@@ -8,6 +8,8 @@ jobs:
   prek:
     name: Prek Checks
     runs-on: ubuntu-latest
+    env:
+      PYO3_PYTHON: python3
     steps:
       - uses: actions/checkout@v4
       - name: Install Mold Linker

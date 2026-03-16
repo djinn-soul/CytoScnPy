@@ -1,5 +1,6 @@
 //! Tests for HTML report generation logic.
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 
 use cytoscnpy::analyzer::types::FileMetrics;
 use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};

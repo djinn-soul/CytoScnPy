@@ -30,8 +30,7 @@ def login(token="sk_live_abcdefghijklmnopqrstuvwx"):
     // Should detect Stripe live key in default parameter
     assert!(
         !findings.is_empty(),
-        "Should detect secret in function default parameter. Got: {:?}",
-        findings
+        "Should detect secret in function default parameter. Got: {findings:?}"
     );
 
     // Specifically should find Stripe key pattern
@@ -42,8 +41,7 @@ def login(token="sk_live_abcdefghijklmnopqrstuvwx"):
 
     assert!(
         has_stripe,
-        "Should specifically detect Stripe key pattern. Findings: {:?}",
-        findings
+        "Should specifically detect Stripe key pattern. Findings: {findings:?}"
     );
 }
 
@@ -66,8 +64,7 @@ def authenticate(*, api_key="ghp_abcdefghijklmnopqrstuvwxyz123456"):
 
     assert!(
         !findings.is_empty(),
-        "Should detect secret in keyword-only default parameter. Got: {:?}",
-        findings
+        "Should detect secret in keyword-only default parameter. Got: {findings:?}"
     );
 
     // Should find a secret pattern (CSP-S103 generic API key or CSP-S104 GitHub token)
@@ -76,8 +73,7 @@ def authenticate(*, api_key="ghp_abcdefghijklmnopqrstuvwxyz123456"):
         .any(|f| f.rule_id == "CSP-S104" || f.rule_id == "CSP-S103");
     assert!(
         has_secret,
-        "Should detect API key or GitHub token pattern. Findings: {:?}",
-        findings
+        "Should detect API key or GitHub token pattern. Findings: {findings:?}"
     );
 }
 
@@ -124,7 +120,6 @@ def connect(host, password="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", /):
 
     assert!(
         !findings.is_empty(),
-        "Should detect secret in positional-only default parameter. Got: {:?}",
-        findings
+        "Should detect secret in positional-only default parameter. Got: {findings:?}"
     );
 }

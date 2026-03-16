@@ -35,12 +35,26 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         return Ok(());
     }
 
+    let unreachable_functions: Vec<_> = result
+        .unused_functions
+        .iter()
+        .filter(|def| def.is_unreachable)
+        .cloned()
+        .collect();
+    let unused_functions: Vec<_> = result
+        .unused_functions
+        .iter()
+        .filter(|def| !def.is_unreachable)
+        .cloned()
+        .collect();
+
     print_unused_items(
         writer,
         "Unreachable Functions",
-        &result.unused_functions,
+        &unreachable_functions,
         "Function",
     )?;
+    print_unused_items(writer, "Unused Functions", &unused_functions, "Function")?;
     print_unused_items(writer, "Unused Methods", &result.unused_methods, "Method")?;
     print_unused_items(writer, "Unused Imports", &result.unused_imports, "Import")?;
     print_unused_items(

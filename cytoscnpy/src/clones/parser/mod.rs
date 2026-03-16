@@ -5,6 +5,7 @@
 mod expressions;
 mod extract;
 mod statements;
+#[cfg(test)]
 mod tests;
 mod types;
 

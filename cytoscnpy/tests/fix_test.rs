@@ -247,7 +247,7 @@ fn test_add_multiple_edits() {
 }
 
 fn lcg_next(seed: &mut u64) -> u64 {
-    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+    *seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
     *seed
 }
 
@@ -256,14 +256,14 @@ fn property_non_overlapping_rewrites_remain_valid_python() {
     let source = "def f():\n    a = 1\n    b = 2\n    c = 3\n    return a + b + c\n";
 
     for case in 0..64_u64 {
-        let mut seed = 0xC0FFEE_u64 ^ case;
+        let mut seed = 0x00C0_FFEE_u64 ^ case;
         let mut edits = Vec::new();
 
         // Replace numeric literals with other numeric literals.
         let mut positions = vec![
-            source.find("1").unwrap(),
-            source.find("2").unwrap(),
-            source.find("3").unwrap(),
+            source.find('1').unwrap(),
+            source.find('2').unwrap(),
+            source.find('3').unwrap(),
         ];
         positions.sort_unstable();
 

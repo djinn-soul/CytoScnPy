@@ -301,52 +301,6 @@ fn stable_secret_item(finding: &crate::rules::secrets::SecretFinding) -> Value {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::stable_findings;
-
-    #[test]
-    fn secret_stable_ids_include_disambiguators() {
-        let mut result = crate::analyzer::AnalysisResult::default();
-        let file = std::path::PathBuf::from("test.py");
-        result.secrets.push(crate::rules::secrets::SecretFinding {
-            message: "Hardcoded password".to_owned(),
-            rule_id: "CSP-S001".to_owned(),
-            category: "Secrets".to_owned(),
-            file: file.clone(),
-            line: 20,
-            severity: "CRITICAL".to_owned(),
-            matched_value: Some("abcd...wxyz".to_owned()),
-            entropy: None,
-            confidence: 100,
-        });
-        result.secrets.push(crate::rules::secrets::SecretFinding {
-            message: "Hardcoded password variant".to_owned(),
-            rule_id: "CSP-S001".to_owned(),
-            category: "Secrets".to_owned(),
-            file,
-            line: 20,
-            severity: "CRITICAL".to_owned(),
-            matched_value: Some("1234...7890".to_owned()),
-            entropy: None,
-            confidence: 95,
-        });
-
-        let stable_ids: Vec<String> = stable_findings(&result)
-            .into_iter()
-            .filter(|item| item.get("kind").and_then(serde_json::Value::as_str) == Some("secret"))
-            .filter_map(|item| {
-                item.get("stable_id")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned)
-            })
-            .collect();
-
-        assert_eq!(stable_ids.len(), 2);
-        assert_ne!(stable_ids[0], stable_ids[1]);
-    }
-}
-
 fn print_summary<W: std::io::Write>(
     cli_var: &crate::cli::Cli,
     result: &crate::analyzer::AnalysisResult,
@@ -412,4 +366,50 @@ fn maybe_generate_html_report<W: std::io::Write>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stable_findings;
+
+    #[test]
+    fn secret_stable_ids_include_disambiguators() {
+        let mut result = crate::analyzer::AnalysisResult::default();
+        let file = std::path::PathBuf::from("test.py");
+        result.secrets.push(crate::rules::secrets::SecretFinding {
+            message: "Hardcoded password".to_owned(),
+            rule_id: "CSP-S001".to_owned(),
+            category: "Secrets".to_owned(),
+            file: file.clone(),
+            line: 20,
+            severity: "CRITICAL".to_owned(),
+            matched_value: Some("abcd...wxyz".to_owned()),
+            entropy: None,
+            confidence: 100,
+        });
+        result.secrets.push(crate::rules::secrets::SecretFinding {
+            message: "Hardcoded password variant".to_owned(),
+            rule_id: "CSP-S001".to_owned(),
+            category: "Secrets".to_owned(),
+            file,
+            line: 20,
+            severity: "CRITICAL".to_owned(),
+            matched_value: Some("1234...7890".to_owned()),
+            entropy: None,
+            confidence: 95,
+        });
+
+        let stable_ids: Vec<String> = stable_findings(&result)
+            .into_iter()
+            .filter(|item| item.get("kind").and_then(serde_json::Value::as_str) == Some("secret"))
+            .filter_map(|item| {
+                item.get("stable_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .collect();
+
+        assert_eq!(stable_ids.len(), 2);
+        assert_ne!(stable_ids[0], stable_ids[1]);
+    }
 }

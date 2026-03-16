@@ -45,10 +45,21 @@ pub fn print_summary_pills(
         }
     }
 
+    let unreachable_functions = result
+        .unused_functions
+        .iter()
+        .filter(|def| def.is_unreachable)
+        .count();
+    let unused_functions = result
+        .unused_functions
+        .len()
+        .saturating_sub(unreachable_functions);
+
     writeln!(
         writer,
-        "{}  {}  {}  {}  {}  {}",
-        pill("Unreachable", result.unused_functions.len()),
+        "{}  {}  {}  {}  {}  {}  {}",
+        pill("Unreachable", unreachable_functions),
+        pill("Functions", unused_functions),
         pill("Methods", result.unused_methods.len()),
         pill("Imports", result.unused_imports.len()),
         pill("Params", result.unused_parameters.len()),

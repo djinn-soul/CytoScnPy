@@ -66,6 +66,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.visit_expr(comparator);
                 }
             }
+            Expr::Named(node) => {
+                self.visit_definition_target(&node.target);
+                self.visit_expr(&node.value);
+            }
             Expr::Subscript(node) => {
                 self.visit_expr(&node.value);
                 self.visit_expr(&node.slice);

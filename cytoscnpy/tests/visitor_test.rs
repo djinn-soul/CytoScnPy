@@ -253,6 +253,17 @@ __all__ = __all__ + ["Class1"]
 }
 
 #[test]
+fn test_all_detection_reassignment_replaces_exports() {
+    let code = r#"
+__all__ = ["function1"]
+__all__ = ["Class1"]
+"#;
+    visit_code!(code, visitor);
+
+    assert_eq!(visitor.exports, vec!["Class1".to_owned()]);
+}
+
+#[test]
 fn test_decorators() {
     let code = r"
 @my_decorator

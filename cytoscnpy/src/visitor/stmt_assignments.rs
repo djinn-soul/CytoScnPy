@@ -2,15 +2,11 @@ use super::*;
 
 impl<'a> CytoScnPyVisitor<'a> {
     pub(super) fn handle_assign_stmt(&mut self, node: &ast::StmtAssign) {
-        if let Some(Expr::Name(target)) = node.targets.first() {
-            if target.id.as_str() == "__all__" {
-                if let Expr::List(list) = &*node.value {
-                    for elt in &list.elts {
-                        if let Expr::StringLiteral(string_lit) = elt {
-                            self.exports.push(string_lit.value.to_string());
-                        }
-                    }
-                }
+        if node.targets.iter().any(Self::is_all_name_expr) {
+            if Self::is_all_present_in_expr(&node.value) {
+                self.extend_exports_from_expr(&node.value);
+            } else {
+                self.replace_exports_from_expr(&node.value);
             }
         }
 
@@ -86,6 +82,61 @@ impl<'a> CytoScnPyVisitor<'a> {
                     }
                 }
             }
+        }
+    }
+
+    pub(super) fn handle_aug_assign_stmt(&mut self, node: &ast::StmtAugAssign) {
+        if Self::is_all_name_expr(&node.target) {
+            self.extend_exports_from_expr(&node.value);
+        }
+        self.visit_expr(&node.target);
+        self.visit_expr(&node.value);
+    }
+
+    fn is_all_name_expr(expr: &Expr) -> bool {
+        matches!(expr, Expr::Name(name) if name.id.as_str() == "__all__")
+    }
+
+    fn is_all_present_in_expr(expr: &Expr) -> bool {
+        match expr {
+            Expr::Name(name) => name.id.as_str() == "__all__",
+            Expr::List(list) => list.elts.iter().any(Self::is_all_present_in_expr),
+            Expr::Tuple(tuple) => tuple.elts.iter().any(Self::is_all_present_in_expr),
+            Expr::BinOp(bin_op) => {
+                Self::is_all_present_in_expr(&bin_op.left)
+                    || Self::is_all_present_in_expr(&bin_op.right)
+            }
+            _ => false,
+        }
+    }
+
+    fn replace_exports_from_expr(&mut self, expr: &Expr) {
+        self.exports.clear();
+        Self::collect_all_exports(expr, &mut self.exports);
+    }
+
+    fn extend_exports_from_expr(&mut self, expr: &Expr) {
+        Self::collect_all_exports(expr, &mut self.exports);
+    }
+
+    fn collect_all_exports(expr: &Expr, out: &mut Vec<String>) {
+        match expr {
+            Expr::List(list) => {
+                for elt in &list.elts {
+                    Self::collect_all_exports(elt, out);
+                }
+            }
+            Expr::Tuple(tuple) => {
+                for elt in &tuple.elts {
+                    Self::collect_all_exports(elt, out);
+                }
+            }
+            Expr::StringLiteral(string_lit) => out.push(string_lit.value.to_string()),
+            Expr::BinOp(bin_op) if bin_op.op == ast::Operator::Add => {
+                Self::collect_all_exports(&bin_op.left, out);
+                Self::collect_all_exports(&bin_op.right, out);
+            }
+            _ => {}
         }
     }
 

@@ -145,7 +145,11 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     pub(super) fn visit_attribute_expr(&mut self, node: &ast::ExprAttribute) {
-        self.add_ref(format!(".{}", node.attr));
+        let attr_name = node.attr.as_str();
+        let mut dotted_attr = String::with_capacity(attr_name.len() + 1);
+        dotted_attr.push('.');
+        dotted_attr.push_str(attr_name);
+        self.add_ref(dotted_attr);
 
         if let Expr::Name(base_node) = &*node.value {
             if base_node.id.as_str() == "self" || base_node.id.as_str() == "cls" {
@@ -171,22 +175,51 @@ impl<'a> CytoScnPyVisitor<'a> {
             let original_base_opt = self.alias_map.get(base_id).cloned();
             if let Some(original_base) = original_base_opt {
                 self.add_ref(original_base.clone());
-                let full_attr = format!("{}.{}", original_base, node.attr);
+                let mut full_attr =
+                    String::with_capacity(original_base.len() + 1 + attr_name.len());
+                full_attr.push_str(&original_base);
+                full_attr.push('.');
+                full_attr.push_str(attr_name);
                 self.add_ref(full_attr);
             }
 
             if (base_id == "self" || base_id == "cls") && !self.class_stack.is_empty() {
-                let method_name = &node.attr;
-                let mut parts = Vec::new();
+                let mut total_len = attr_name.len();
+                let mut segment_count = 1usize; // attribute name
                 if !self.module_name.is_empty() {
-                    parts.push(self.module_name.clone());
+                    total_len += self.module_name.len();
+                    segment_count += 1;
                 }
-                parts.extend(self.class_stack.clone());
-                parts.push(method_name.to_string());
-                self.add_ref(parts.join("."));
+                for class_name in &self.class_stack {
+                    total_len += class_name.len();
+                    segment_count += 1;
+                }
+                total_len += segment_count.saturating_sub(1); // separators
+
+                let mut qualified_member = String::with_capacity(total_len);
+                let mut needs_separator = false;
+                if !self.module_name.is_empty() {
+                    qualified_member.push_str(&self.module_name);
+                    needs_separator = true;
+                }
+                for class_name in &self.class_stack {
+                    if needs_separator {
+                        qualified_member.push('.');
+                    }
+                    qualified_member.push_str(class_name);
+                    needs_separator = true;
+                }
+                if needs_separator {
+                    qualified_member.push('.');
+                }
+                qualified_member.push_str(attr_name);
+                self.add_ref(qualified_member);
             } else {
                 self.add_ref(base_id.to_owned());
-                let full_attr = format!("{}.{}", base_id, node.attr);
+                let mut full_attr = String::with_capacity(base_id.len() + 1 + attr_name.len());
+                full_attr.push_str(base_id);
+                full_attr.push('.');
+                full_attr.push_str(attr_name);
                 self.add_ref(full_attr);
             }
         }

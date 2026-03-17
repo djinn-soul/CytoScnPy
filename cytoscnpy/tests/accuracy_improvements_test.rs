@@ -166,6 +166,61 @@ class NotExportedClass:
     );
 }
 
+#[test]
+fn test_all_exports_extended_forms_marked_as_used() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("exports_extended.py");
+    let mut file = File::create(&file_path).unwrap();
+
+    writeln!(
+        file,
+        r#"
+__all__ = ("tuple_export",)
+__all__ += ["aug_export"]
+__all__ = __all__ + ["concat_export"]
+
+def tuple_export():
+    pass
+
+def aug_export():
+    pass
+
+def concat_export():
+    pass
+
+def not_exported_func():
+    pass
+"#
+    )
+    .unwrap();
+
+    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let result = analyzer.analyze(dir.path());
+
+    let unused_func_names: Vec<String> = result
+        .unused_functions
+        .iter()
+        .map(|d| d.simple_name.clone())
+        .collect();
+
+    assert!(
+        !unused_func_names.contains(&"tuple_export".to_owned()),
+        "tuple_export is in __all__ tuple and should not be flagged"
+    );
+    assert!(
+        !unused_func_names.contains(&"aug_export".to_owned()),
+        "aug_export is added via __all__ += and should not be flagged"
+    );
+    assert!(
+        !unused_func_names.contains(&"concat_export".to_owned()),
+        "concat_export is added via __all__ concatenation and should not be flagged"
+    );
+    assert!(
+        unused_func_names.contains(&"not_exported_func".to_owned()),
+        "not_exported_func is not in __all__ and should be flagged"
+    );
+}
+
 /// Test that imports inside TYPE_CHECKING blocks are not flagged as unused
 /// ONLY IF they are actually used in type annotations.
 /// Genuinely unused TYPE_CHECKING imports should still be flagged.

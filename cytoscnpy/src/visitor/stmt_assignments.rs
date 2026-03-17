@@ -3,7 +3,11 @@ use super::*;
 impl<'a> CytoScnPyVisitor<'a> {
     pub(super) fn handle_assign_stmt(&mut self, node: &ast::StmtAssign) {
         if node.targets.iter().any(Self::is_all_name_expr) {
-            self.extend_exports_from_expr(&node.value);
+            if Self::is_all_present_in_expr(&node.value) {
+                self.extend_exports_from_expr(&node.value);
+            } else {
+                self.replace_exports_from_expr(&node.value);
+            }
         }
 
         if self.in_import_error_block {
@@ -93,10 +97,26 @@ impl<'a> CytoScnPyVisitor<'a> {
         matches!(expr, Expr::Name(name) if name.id.as_str() == "__all__")
     }
 
+    fn is_all_present_in_expr(expr: &Expr) -> bool {
+        match expr {
+            Expr::Name(name) => name.id.as_str() == "__all__",
+            Expr::List(list) => list.elts.iter().any(Self::is_all_present_in_expr),
+            Expr::Tuple(tuple) => tuple.elts.iter().any(Self::is_all_present_in_expr),
+            Expr::BinOp(bin_op) => {
+                Self::is_all_present_in_expr(&bin_op.left)
+                    || Self::is_all_present_in_expr(&bin_op.right)
+            }
+            _ => false,
+        }
+    }
+
+    fn replace_exports_from_expr(&mut self, expr: &Expr) {
+        self.exports.clear();
+        Self::collect_all_exports(expr, &mut self.exports);
+    }
+
     fn extend_exports_from_expr(&mut self, expr: &Expr) {
-        let mut extracted = Vec::new();
-        Self::collect_all_exports(expr, &mut extracted);
-        self.exports.extend(extracted);
+        Self::collect_all_exports(expr, &mut self.exports);
     }
 
     fn collect_all_exports(expr: &Expr, out: &mut Vec<String>) {

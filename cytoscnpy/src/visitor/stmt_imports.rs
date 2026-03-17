@@ -9,7 +9,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             self.add_definition(DefinitionInfo {
                 name: qualified_name.clone(),
-                def_type: "import".to_owned(),
+                def_type: DefinitionType::Import,
                 line,
                 end_line,
                 col,
@@ -55,7 +55,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
             self.add_definition(DefinitionInfo {
                 name: qualified_name.clone(),
-                def_type: "import".to_owned(),
+                def_type: DefinitionType::Import,
                 line,
                 end_line,
                 col,

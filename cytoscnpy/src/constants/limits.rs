@@ -14,3 +14,5 @@ pub const PYPROJECT_FILENAME: &str = "pyproject.toml";
 pub const RULE_ID_CONFIG_ERROR: &str = "CSP-CONFIG-ERROR";
 /// Default value for whether taint analysis is enabled when not explicitly configured.
 pub const TAINT_ENABLED_DEFAULT: bool = true;
+/// Internal default threshold for LCOM4 cohesion checks.
+pub const QUALITY_COHESION_LCOM4_THRESHOLD: usize = 6;

@@ -37,7 +37,7 @@ fn test_fix_suggestion_deletion() {
 #[test]
 fn test_definition_with_fix() {
     use cytoscnpy::analyzer::types::FixSuggestion;
-    use cytoscnpy::visitor::Definition;
+    use cytoscnpy::visitor::{Definition, DefinitionType};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -46,7 +46,7 @@ fn test_definition_with_fix() {
         name: "unused_func".to_owned(),
         full_name: "module.unused_func".to_owned(),
         simple_name: "unused_func".to_owned(),
-        def_type: "function".to_owned(),
+        def_type: DefinitionType::Function,
         file: Arc::new(PathBuf::from("test.py")),
         line: 10,
         end_line: 10,
@@ -81,7 +81,7 @@ fn test_definition_with_fix() {
 /// Test that Definition without fix serializes correctly (no fix field in JSON).
 #[test]
 fn test_definition_without_fix_serializes() {
-    use cytoscnpy::visitor::Definition;
+    use cytoscnpy::visitor::{Definition, DefinitionType};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -89,7 +89,7 @@ fn test_definition_without_fix_serializes() {
         name: "used_func".to_owned(),
         full_name: "module.used_func".to_owned(),
         simple_name: "used_func".to_owned(),
-        def_type: "function".to_owned(),
+        def_type: DefinitionType::Function,
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
         end_line: 5,
@@ -124,7 +124,7 @@ fn test_definition_without_fix_serializes() {
 #[test]
 fn test_definition_with_fix_serializes() {
     use cytoscnpy::analyzer::types::FixSuggestion;
-    use cytoscnpy::visitor::Definition;
+    use cytoscnpy::visitor::{Definition, DefinitionType};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -132,7 +132,7 @@ fn test_definition_with_fix_serializes() {
         name: "dead_code".to_owned(),
         full_name: "module.dead_code".to_owned(),
         simple_name: "dead_code".to_owned(),
-        def_type: "function".to_owned(),
+        def_type: DefinitionType::Function,
         file: Arc::new(PathBuf::from("test.py")),
         line: 20,
         end_line: 20,

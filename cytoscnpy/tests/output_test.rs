@@ -4,7 +4,7 @@
 
 use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::rules::Finding;
-use cytoscnpy::visitor::Definition;
+use cytoscnpy::visitor::{Definition, DefinitionType};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -17,7 +17,7 @@ fn test_print_report_formatting() {
             name: "unused_func".to_owned(),
             full_name: "module.unused_func".to_owned(),
             simple_name: "unused_func".to_owned(),
-            def_type: "function".to_owned(),
+            def_type: DefinitionType::Function,
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
             end_line: 10,

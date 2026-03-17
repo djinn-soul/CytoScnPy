@@ -3,6 +3,7 @@ use super::rule_engine::{apply_rule_engine, RuleEngineContext};
 use crate::analyzer::{apply_heuristics, apply_penalties, CytoScnPy};
 use crate::rules::secrets::scan_secrets;
 use crate::utils::{LineIndex, Suppression};
+use crate::visitor::DefinitionType;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::path::Path;
 
@@ -132,7 +133,7 @@ pub(super) fn analyze_parsed_module(
         );
         apply_heuristics(def);
 
-        if def.def_type == "method"
+        if def.def_type == DefinitionType::Method
             && output
                 .visitor
                 .self_referential_methods

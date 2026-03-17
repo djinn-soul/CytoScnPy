@@ -1,4 +1,5 @@
 use super::*;
+use std::fmt;
 
 /// Serialize Arc<PathBuf> as a plain `PathBuf` for JSON output
 pub(super) fn serialize_arc_path<S>(path: &Arc<PathBuf>, serializer: S) -> Result<S::Ok, S::Error>
@@ -85,8 +86,8 @@ impl Scope {
 pub struct DefinitionInfo {
     /// The name of the defined entity.
     pub name: String,
-    /// The type of definition ("function", "class", "variable", etc.).
-    pub def_type: String,
+    /// The type of definition.
+    pub def_type: DefinitionType,
     /// The starting line number (1-indexed).
     pub line: usize,
     /// The ending line number (1-indexed).
@@ -101,6 +102,66 @@ pub struct DefinitionInfo {
     pub full_start_byte: usize,
     /// Base classes (for class definitions), empty for others.
     pub base_classes: SmallVec<[String; 2]>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DefinitionType {
+    #[default]
+    Function,
+    Method,
+    Class,
+    Import,
+    Variable,
+    Parameter,
+}
+
+impl DefinitionType {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Function => "function",
+            Self::Method => "method",
+            Self::Class => "class",
+            Self::Import => "import",
+            Self::Variable => "variable",
+            Self::Parameter => "parameter",
+        }
+    }
+}
+
+impl fmt::Display for DefinitionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<&str> for DefinitionType {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<DefinitionType> for &str {
+    fn eq(&self, other: &DefinitionType) -> bool {
+        *self == other.as_str()
+    }
+}
+
+impl TryFrom<&str> for DefinitionType {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "function" => Ok(Self::Function),
+            "method" => Ok(Self::Method),
+            "class" => Ok(Self::Class),
+            "import" => Ok(Self::Import),
+            "variable" => Ok(Self::Variable),
+            "parameter" => Ok(Self::Parameter),
+            _ => Err(format!("unknown definition type: {value}")),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -130,8 +191,8 @@ pub struct Definition {
     pub full_name: String,
     /// The simple name (last part of the full name).
     pub simple_name: String,
-    /// The type of definition ("function", "class", "method", "import", "variable").
-    pub def_type: String,
+    /// The type of definition.
+    pub def_type: DefinitionType,
     /// The file path where this definition resides.
     /// Uses `Arc` to avoid cloning for every definition in the same file.
     #[serde(

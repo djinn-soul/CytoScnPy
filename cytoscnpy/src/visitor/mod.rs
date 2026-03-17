@@ -41,4 +41,4 @@ mod targets;
 mod types;
 
 pub use state::CytoScnPyVisitor;
-pub use types::{Definition, DefinitionInfo, Scope, ScopeType, UnusedCategory};
+pub use types::{Definition, DefinitionInfo, DefinitionType, Scope, ScopeType, UnusedCategory};

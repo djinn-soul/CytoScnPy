@@ -218,6 +218,52 @@ __all__ = ['function1', 'Class1']
 }
 
 #[test]
+fn test_all_detection_tuple_literal() {
+    let code = r#"
+__all__ = ("function1", "Class1")
+"#;
+    visit_code!(code, visitor);
+
+    assert!(visitor.exports.contains(&"function1".to_owned()));
+    assert!(visitor.exports.contains(&"Class1".to_owned()));
+}
+
+#[test]
+fn test_all_detection_aug_assign() {
+    let code = r#"
+__all__ = ["function1"]
+__all__ += ["Class1"]
+"#;
+    visit_code!(code, visitor);
+
+    assert!(visitor.exports.contains(&"function1".to_owned()));
+    assert!(visitor.exports.contains(&"Class1".to_owned()));
+}
+
+#[test]
+fn test_all_detection_concat_assign() {
+    let code = r#"
+__all__ = ["function1"]
+__all__ = __all__ + ["Class1"]
+"#;
+    visit_code!(code, visitor);
+
+    assert!(visitor.exports.contains(&"function1".to_owned()));
+    assert!(visitor.exports.contains(&"Class1".to_owned()));
+}
+
+#[test]
+fn test_all_detection_reassignment_replaces_exports() {
+    let code = r#"
+__all__ = ["function1"]
+__all__ = ["Class1"]
+"#;
+    visit_code!(code, visitor);
+
+    assert_eq!(visitor.exports, vec!["Class1".to_owned()]);
+}
+
+#[test]
 fn test_decorators() {
     let code = r"
 @my_decorator

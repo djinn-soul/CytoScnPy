@@ -273,7 +273,7 @@ another_function
     }
 
     #[test]
-    fn test_load_toml_whitelist() {
+    fn test_load_toml_whitelist() -> io::Result<()> {
         let content = r#"
 [cytoscnpy]
 whitelist = [
@@ -282,12 +282,14 @@ whitelist = [
     { name = "api_.*", pattern = "regex" },
 ]
 "#;
-        let whitelist = load_toml_whitelist_from_str(content, Path::new("test.toml")).unwrap();
+        let whitelist = load_toml_whitelist_from_str(content, Path::new("test.toml"))?;
 
         assert!(whitelist.is_whitelisted("my_function", None));
         assert!(whitelist.is_whitelisted("test_something", None));
         assert!(whitelist.is_whitelisted("api_handler", None));
         assert!(!whitelist.is_whitelisted("other_function", None));
+
+        Ok(())
     }
 
     #[test]

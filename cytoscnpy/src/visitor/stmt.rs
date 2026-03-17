@@ -16,10 +16,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             Stmt::Import(node) => self.handle_import_stmt(node),
             Stmt::ImportFrom(node) => self.handle_import_from_stmt(node),
             Stmt::Assign(node) => self.handle_assign_stmt(node),
-            Stmt::AugAssign(node) => {
-                self.visit_expr(&node.target);
-                self.visit_expr(&node.value);
-            }
+            Stmt::AugAssign(node) => self.handle_aug_assign_stmt(node),
             Stmt::AnnAssign(node) => self.handle_ann_assign_stmt(node),
             Stmt::TypeAlias(node) => self.handle_type_alias_stmt(node),
             Stmt::Expr(node) => self.visit_expr(&node.value),

@@ -232,15 +232,17 @@ mod tests {
     }
 
     #[test]
-    fn test_wildcard_to_regex() {
-        let re = wildcard_to_regex("test_*").unwrap();
+    fn test_wildcard_to_regex() -> Result<(), regex::Error> {
+        let re = wildcard_to_regex("test_*")?;
         assert!(re.is_match("test_function"));
         assert!(re.is_match("test_"));
         assert!(!re.is_match("my_test"));
 
-        let re = wildcard_to_regex("*_handler").unwrap();
+        let re = wildcard_to_regex("*_handler")?;
         assert!(re.is_match("api_handler"));
         assert!(re.is_match("request_handler"));
         assert!(!re.is_match("handler"));
+
+        Ok(())
     }
 }

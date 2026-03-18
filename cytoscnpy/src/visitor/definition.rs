@@ -34,7 +34,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             .unwrap_or(&info.name)
             .to_owned();
         let flags = self.compute_definition_flags(&info, &simple_name);
-        let message = Self::build_definition_message(&info.def_type, &simple_name);
+        let message = Self::build_definition_message(info.def_type, &simple_name);
         let fix = Self::build_fix_suggestion(&info);
 
         let definition = Definition {
@@ -95,7 +95,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             || simple_name.contains("TOKEN");
         let is_public_api = matches!(self.project_type, crate::config::ProjectType::Library)
             && !simple_name.starts_with('_')
-            && info.def_type != "method"
+            && info.def_type != DefinitionType::Method
             && !is_potential_secret;
 
         let is_enum_member = self.enum_class_stack.last().copied().unwrap_or(false);
@@ -104,12 +104,12 @@ impl<'a> CytoScnPyVisitor<'a> {
             .last()
             .is_some_and(|scope| matches!(scope.kind, ScopeType::Class(_)));
         let is_public_class_attr = is_class_scope
-            && info.def_type == "variable"
+            && info.def_type == DefinitionType::Variable
             && !simple_name.starts_with('_')
             && !is_enum_member;
 
         let is_constant = self.scope_stack.len() == 1
-            && info.def_type == "variable"
+            && info.def_type == DefinitionType::Variable
             && !simple_name.starts_with('_')
             && !is_potential_secret
             && simple_name.chars().all(|c| !c.is_lowercase())
@@ -140,14 +140,16 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
     }
 
-    fn build_definition_message(def_type: &str, simple_name: &str) -> String {
+    fn build_definition_message(def_type: DefinitionType, simple_name: &str) -> String {
         match def_type {
-            "method" => format!("Method '{simple_name}' is defined but never used"),
-            "class" => format!("Class '{simple_name}' is defined but never used"),
-            "import" => format!("'{simple_name}' is imported but never used"),
-            "variable" => format!("Variable '{simple_name}' is assigned but never used"),
-            "parameter" => format!("Parameter '{simple_name}' is never used"),
-            _ => format!("'{simple_name}' is defined but never used"),
+            DefinitionType::Method => format!("Method '{simple_name}' is defined but never used"),
+            DefinitionType::Class => format!("Class '{simple_name}' is defined but never used"),
+            DefinitionType::Import => format!("'{simple_name}' is imported but never used"),
+            DefinitionType::Variable => {
+                format!("Variable '{simple_name}' is assigned but never used")
+            }
+            DefinitionType::Parameter => format!("Parameter '{simple_name}' is never used"),
+            DefinitionType::Function => format!("'{simple_name}' is defined but never used"),
         }
     }
 

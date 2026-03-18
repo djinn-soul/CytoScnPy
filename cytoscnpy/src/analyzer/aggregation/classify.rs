@@ -1,6 +1,6 @@
 use super::reachability::ReachabilityContext;
 use crate::analyzer::apply_heuristics;
-use crate::visitor::Definition;
+use crate::visitor::{Definition, DefinitionType};
 use crate::whitelist::WhitelistMatcher;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -45,9 +45,9 @@ impl UsageEvidence {
     }
 }
 
-fn min_usage_score(def_type: &str) -> f64 {
+fn min_usage_score(def_type: DefinitionType) -> f64 {
     match def_type {
-        "function" | "method" | "class" => 0.35,
+        DefinitionType::Function | DefinitionType::Method | DefinitionType::Class => 0.35,
         _ => 0.0,
     }
 }
@@ -86,9 +86,9 @@ pub(super) fn classify_definitions(
     analysis_root: &std::path::Path,
 ) -> ClassificationResult {
     let mut result = ClassificationResult::new();
-    let definition_kinds: FxHashMap<String, String> = definitions
+    let definition_kinds: FxHashMap<String, DefinitionType> = definitions
         .iter()
-        .map(|def| (def.full_name.clone(), def.def_type.clone()))
+        .map(|def| (def.full_name.clone(), def.def_type))
         .collect();
 
     for mut def in definitions {
@@ -141,7 +141,7 @@ pub(super) fn classify_definitions(
             && def.references > 0
             && evidence.score() > 0.0
             && !evidence.has_strong_exact()
-            && evidence.score() < min_usage_score(&def.def_type)
+            && evidence.score() < min_usage_score(def.def_type)
         {
             // Weak fallback evidence did not clear the minimum score for this symbol type.
             def.references = 0;
@@ -156,31 +156,28 @@ pub(super) fn classify_definitions(
         }
 
         if def.is_unreachable {
-            let type_label = match def.def_type.as_str() {
-                "function" => "function",
-                "method" => "method",
-                "class" => "class",
-                _ => &def.def_type,
-            };
+            let type_label = def.def_type.as_str();
             def.message = Some(format!("Unreachable {}: `{}`", type_label, def.simple_name));
         }
 
-        match def.def_type.as_str() {
-            "function" => result.unused_functions.push(def),
-            "method" => result.unused_methods.push(def),
-            "class" => result.unused_classes.push(def),
-            "import" => result.unused_imports.push(def),
-            "variable" => result.unused_variables.push(def),
-            "parameter" => result.unused_parameters.push(def),
-            _ => {}
+        match def.def_type {
+            DefinitionType::Function => result.unused_functions.push(def),
+            DefinitionType::Method => result.unused_methods.push(def),
+            DefinitionType::Class => result.unused_classes.push(def),
+            DefinitionType::Import => result.unused_imports.push(def),
+            DefinitionType::Variable => result.unused_variables.push(def),
+            DefinitionType::Parameter => result.unused_parameters.push(def),
         }
     }
 
     result
 }
 
-fn has_parent_callable(def: &Definition, definition_kinds: &FxHashMap<String, String>) -> bool {
-    if def.def_type != "function" {
+fn has_parent_callable(
+    def: &Definition,
+    definition_kinds: &FxHashMap<String, DefinitionType>,
+) -> bool {
+    if def.def_type != DefinitionType::Function {
         return false;
     }
 
@@ -190,7 +187,7 @@ fn has_parent_callable(def: &Definition, definition_kinds: &FxHashMap<String, St
 
     definition_kinds
         .get(parent_name)
-        .is_some_and(|kind| kind == "function" || kind == "method")
+        .is_some_and(|kind| *kind == DefinitionType::Function || *kind == DefinitionType::Method)
 }
 
 fn should_report_definition(def: &Definition, confidence_threshold: u8) -> bool {
@@ -201,7 +198,12 @@ fn should_report_definition(def: &Definition, confidence_threshold: u8) -> bool 
     // Structural reachability evidence should not be hidden by intent penalties.
     // Keep this constrained to executable/type container symbols to avoid surfacing
     // low-confidence variables/imports solely due heuristic interactions.
-    if def.is_unreachable && matches!(def.def_type.as_str(), "function" | "method" | "class") {
+    if def.is_unreachable
+        && matches!(
+            def.def_type,
+            DefinitionType::Function | DefinitionType::Method | DefinitionType::Class
+        )
+    {
         return true;
     }
 
@@ -278,11 +280,11 @@ pub(super) fn promote_methods_from_unused_classes(
     confidence_threshold: u8,
     unused_classes: &[Definition],
 ) {
-    let unused_class_names: std::collections::HashSet<_> = unused_classes
+    let unused_class_names: FxHashSet<_> = unused_classes
         .iter()
         .map(|cls| cls.full_name.clone())
         .collect();
-    let unreachable_class_names: std::collections::HashSet<_> = unused_classes
+    let unreachable_class_names: FxHashSet<_> = unused_classes
         .iter()
         .filter(|cls| cls.is_unreachable)
         .map(|cls| cls.full_name.clone())

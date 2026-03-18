@@ -2,7 +2,7 @@ use super::*;
 use crate::analyzer::types::AnalysisResult;
 use crate::commands::fix::apply::apply_dead_code_fix_to_file;
 use crate::commands::fix::ranges::find_def_range;
-use crate::visitor::Definition;
+use crate::visitor::{Definition, DefinitionType};
 use smallvec::SmallVec;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -19,7 +19,7 @@ fn create_definition(name: &str, def_type: &str, file: PathBuf, line: usize) -> 
         name: name.to_owned(),
         full_name: name.to_owned(),
         simple_name: name.to_owned(),
-        def_type: def_type.to_owned(),
+        def_type: DefinitionType::try_from(def_type).expect("valid definition type"),
         file: Arc::new(file),
         line,
         end_line: line + 1,

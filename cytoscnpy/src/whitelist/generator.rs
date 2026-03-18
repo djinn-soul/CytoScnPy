@@ -103,6 +103,7 @@ pub fn generate_whitelist(definitions: &[Definition], output: &mut dyn Write) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::visitor::DefinitionType;
     use smallvec::smallvec;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -112,7 +113,7 @@ mod tests {
             name: name.to_owned(),
             full_name: name.to_owned(),
             simple_name: name.to_owned(),
-            def_type: def_type.to_owned(),
+            def_type: DefinitionType::try_from(def_type).expect("valid definition type"),
             file: Arc::new(PathBuf::from(file)),
             line,
             end_line: line + 5,
@@ -140,16 +141,16 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_whitelist() {
+    fn test_generate_whitelist() -> Result<(), Box<dyn std::error::Error>> {
         let definitions = vec![
             create_test_definition("unused_function", "src/api.py", 10, "function"),
             create_test_definition("UnusedClass", "src/models.py", 25, "class"),
             create_test_definition("helper_var", "src/api.py", 5, "variable"),
         ];
         let mut output = Vec::new();
-        generate_whitelist(&definitions, &mut output).unwrap();
+        generate_whitelist(&definitions, &mut output)?;
 
-        let output_str = String::from_utf8(output).unwrap();
+        let output_str = String::from_utf8(output)?;
 
         // Check header
         assert!(output_str.contains("# CytoScnPy Whitelist"));
@@ -163,15 +164,19 @@ mod tests {
         // Check file grouping
         assert!(output_str.contains("# File: src/api.py"));
         assert!(output_str.contains("# File: src/models.py"));
+
+        Ok(())
     }
 
     #[test]
-    fn test_empty_whitelist() {
+    fn test_empty_whitelist() -> Result<(), Box<dyn std::error::Error>> {
         let definitions: Vec<Definition> = vec![];
         let mut output = Vec::new();
-        generate_whitelist(&definitions, &mut output).unwrap();
+        generate_whitelist(&definitions, &mut output)?;
 
-        let output_str = String::from_utf8(output).unwrap();
+        let output_str = String::from_utf8(output)?;
         assert!(output_str.contains("# Total entries: 0"));
+
+        Ok(())
     }
 }

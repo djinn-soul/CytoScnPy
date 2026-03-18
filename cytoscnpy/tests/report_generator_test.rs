@@ -6,7 +6,7 @@ use cytoscnpy::analyzer::types::FileMetrics;
 use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::report::generator::generate_report;
 use cytoscnpy::rules::Finding;
-use cytoscnpy::visitor::Definition;
+use cytoscnpy::visitor::{Definition, DefinitionType};
 use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -64,7 +64,7 @@ fn test_generate_report_full() {
             name: "unused_func".to_owned(),
             full_name: "test.unused_func".to_owned(),
             simple_name: "unused_func".to_owned(),
-            def_type: "function".to_owned(),
+            def_type: DefinitionType::Function,
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
             end_line: 10,
@@ -211,7 +211,7 @@ fn test_calculate_score_logic() {
             name: format!("f{i}"),
             full_name: format!("f{i}"),
             simple_name: format!("f{i}"),
-            def_type: "function".to_owned(),
+            def_type: DefinitionType::Function,
 
             file: Arc::new(PathBuf::from("test.py")),
             line: i,

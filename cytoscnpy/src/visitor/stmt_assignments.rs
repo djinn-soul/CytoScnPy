@@ -206,8 +206,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 full_start_byte: start_byte,
                 base_classes: SmallVec::new(),
             });
-            self.add_local_def(name_node.id.to_string(), qualified_name.clone());
-            self.add_ref(qualified_name);
+            self.add_local_def(name_node.id.to_string(), qualified_name);
         } else {
             self.visit_expr(&node.name);
         }

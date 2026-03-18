@@ -103,3 +103,64 @@ fn test_nested_reexport_chain_reports_unused_imports_when_chain_is_broken() {
         "broken chain should report app.pkg.exposed_api as unused"
     );
 }
+
+#[test]
+fn test_all_reexport_chain_marks_imports_and_source_used_without_external_callsite() {
+    let dir = project_tempdir();
+
+    let app_pkg_core = dir.path().join("app").join("pkg").join("core");
+    std::fs::create_dir_all(&app_pkg_core).unwrap();
+
+    let mut app_init = File::create(dir.path().join("app").join("__init__.py")).unwrap();
+    writeln!(app_init, "from .pkg import exposed_api").unwrap();
+    writeln!(app_init, "__all__ = [\"exposed_api\"]").unwrap();
+
+    let mut pkg_init =
+        File::create(dir.path().join("app").join("pkg").join("__init__.py")).unwrap();
+    writeln!(pkg_init, "from .core import exposed_api").unwrap();
+    writeln!(pkg_init, "__all__ = [\"exposed_api\"]").unwrap();
+
+    let mut core_init = File::create(
+        dir.path()
+            .join("app")
+            .join("pkg")
+            .join("core")
+            .join("__init__.py"),
+    )
+    .unwrap();
+    writeln!(core_init, "from .service import exposed_api").unwrap();
+    writeln!(core_init, "__all__ = [\"exposed_api\"]").unwrap();
+
+    let mut service = File::create(app_pkg_core.join("service.py")).unwrap();
+    write!(service, "def exposed_api():\n    return 1\n").unwrap();
+
+    // Intentionally no call-site usage. The __all__ chain itself should preserve
+    // the re-exported symbol and its import chain as used API surface.
+    let mut main = File::create(dir.path().join("main.py")).unwrap();
+    writeln!(main, "import app").unwrap();
+
+    let mut cytoscnpy = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let result = cytoscnpy.analyze(dir.path());
+
+    let unused_import_names: Vec<&str> = result
+        .unused_imports
+        .iter()
+        .map(|def| def.full_name.as_str())
+        .collect();
+    let unused_function_names: Vec<&str> = result
+        .unused_functions
+        .iter()
+        .map(|def| def.full_name.as_str())
+        .collect();
+
+    assert!(
+        !unused_import_names.contains(&"app.exposed_api")
+            && !unused_import_names.contains(&"app.pkg.exposed_api")
+            && !unused_import_names.contains(&"app.pkg.core.exposed_api"),
+        "__all__ re-export chain should keep import bindings marked as used"
+    );
+    assert!(
+        !unused_function_names.contains(&"app.pkg.core.service.exposed_api"),
+        "__all__ re-export chain should keep source callable marked as used"
+    );
+}

@@ -1,6 +1,6 @@
 use super::{CloneConfig, CloneGroup, ClonePair, CloneSummary, CloneType};
 use indicatif::ProgressBar;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::Arc;
 
 mod cfg_validation;
@@ -167,8 +167,7 @@ impl CloneDetector {
                     .then_with(|| left.end_line.cmp(&right.end_line))
             });
 
-            let member_set: std::collections::HashSet<usize> =
-                member_indices.iter().copied().collect();
+            let member_set: FxHashSet<usize> = member_indices.iter().copied().collect();
 
             let mut similarity_total = 0.0;
             let mut similarity_count = 0usize;

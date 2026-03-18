@@ -4,7 +4,7 @@ use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::report::generator::generate_report;
 use cytoscnpy::rules::secrets::SecretFinding;
 use cytoscnpy::rules::Finding;
-use cytoscnpy::visitor::Definition;
+use cytoscnpy::visitor::{Definition, DefinitionType};
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -36,7 +36,7 @@ fn test_generate_report_full_coverage() -> Result<(), Box<dyn std::error::Error>
         line: 1,
         name: "unused_func".to_owned(),
         full_name: "test.unused_func".to_owned(),
-        def_type: "function".to_owned(),
+        def_type: DefinitionType::Function,
         confidence: 100,
         col: 0,
         ..Definition::default()

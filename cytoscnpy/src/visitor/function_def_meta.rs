@@ -9,9 +9,9 @@ impl<'a> CytoScnPyVisitor<'a> {
         let name = name_node.id.as_str();
         let qualified_name = self.get_qualified_name(name);
         let def_type = if self.class_stack.is_empty() {
-            "function"
+            DefinitionType::Function
         } else {
-            "method"
+            DefinitionType::Method
         };
 
         let def_range = name_node.range;
@@ -23,7 +23,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         self.add_definition(DefinitionInfo {
             name: qualified_name.clone(),
-            def_type: def_type.to_owned(),
+            def_type,
             line,
             end_line,
             col,

@@ -15,7 +15,7 @@ use cytoscnpy::report::{github, gitlab, junit, markdown, sarif};
 use cytoscnpy::rules::secrets::SecretFinding;
 use cytoscnpy::rules::Finding;
 use cytoscnpy::taint::types::{Severity as TaintSeverity, TaintFinding, VulnType};
-use cytoscnpy::visitor::Definition;
+use cytoscnpy::visitor::{Definition, DefinitionType};
 use smallvec::smallvec;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -94,7 +94,7 @@ fn create_mock_result() -> AnalysisResult {
         name: "".to_owned(),
         full_name: "".to_owned(),
         simple_name: "".to_owned(),
-        def_type: "".to_owned(),
+        def_type: DefinitionType::Function,
         file: arc_file.clone(),
         line: 30,
         end_line: 35,
@@ -124,7 +124,7 @@ fn create_mock_result() -> AnalysisResult {
         name: "f".into(),
         full_name: "f".into(),
         simple_name: "f".into(),
-        def_type: "function".into(),
+        def_type: DefinitionType::Function,
         message: Some("unused func".into()),
         ..def_base.clone()
     });
@@ -132,7 +132,7 @@ fn create_mock_result() -> AnalysisResult {
         name: "C".into(),
         full_name: "C".into(),
         simple_name: "C".into(),
-        def_type: "class".into(),
+        def_type: DefinitionType::Class,
         message: Some("unused class".into()),
         ..def_base.clone()
     });
@@ -140,7 +140,7 @@ fn create_mock_result() -> AnalysisResult {
         name: "m".into(),
         full_name: "m".into(),
         simple_name: "m".into(),
-        def_type: "method".into(),
+        def_type: DefinitionType::Method,
         message: Some("unused method".into()),
         ..def_base.clone()
     });
@@ -148,7 +148,7 @@ fn create_mock_result() -> AnalysisResult {
         name: "i".into(),
         full_name: "i".into(),
         simple_name: "i".into(),
-        def_type: "import".into(),
+        def_type: DefinitionType::Import,
         message: Some("unused import".into()),
         ..def_base.clone()
     });
@@ -156,7 +156,7 @@ fn create_mock_result() -> AnalysisResult {
         name: "v".into(),
         full_name: "v".into(),
         simple_name: "v".into(),
-        def_type: "variable".into(),
+        def_type: DefinitionType::Variable,
         message: Some("unused var".into()),
         ..def_base.clone()
     });
@@ -164,7 +164,7 @@ fn create_mock_result() -> AnalysisResult {
         name: "p".into(),
         full_name: "p".into(),
         simple_name: "p".into(),
-        def_type: "parameter".into(),
+        def_type: DefinitionType::Parameter,
         message: Some("unused param".into()),
         ..def_base
     });

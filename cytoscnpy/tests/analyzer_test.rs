@@ -257,6 +257,32 @@ my_func()
 }
 
 #[test]
+fn test_unused_pep695_type_alias_is_reported() {
+    let dir = project_tempdir();
+    let file_path = dir.path().join("type_aliases.py");
+    let mut file = File::create(&file_path).unwrap();
+
+    let content = r"
+type UserId = int
+";
+    write!(file, "{content}").unwrap();
+
+    let mut cytoscnpy = CytoScnPy::default().with_confidence(0).with_tests(false);
+    let result = cytoscnpy.analyze(dir.path());
+
+    let unused_vars: Vec<String> = result
+        .unused_variables
+        .iter()
+        .map(|v| v.simple_name.clone())
+        .collect();
+
+    assert!(
+        unused_vars.contains(&"UserId".to_owned()),
+        "Unused PEP 695 type aliases should be reported as unused variables"
+    );
+}
+
+#[test]
 fn test_file_scoped_whitelist_matches_relative_path_under_absolute_root() {
     let dir = project_tempdir();
     let src_dir = dir.path().join("src");

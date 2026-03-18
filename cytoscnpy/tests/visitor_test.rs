@@ -494,6 +494,29 @@ result = path_join('a', 'b')
 }
 
 #[test]
+fn test_pep695_type_alias_statement_tracking() {
+    let code = r"
+type UserId = int
+
+def use_alias(x: UserId) -> UserId:
+    return x
+";
+    visit_code!(code, visitor);
+
+    let alias_def = visitor
+        .definitions
+        .iter()
+        .find(|d| d.simple_name == "UserId" && d.def_type == "variable");
+    assert!(alias_def.is_some(), "PEP 695 type alias should be tracked");
+
+    let ref_names: HashSet<String> = visitor.references.iter().map(|(n, _)| n.clone()).collect();
+    assert!(
+        ref_names.contains("UserId") || ref_names.contains("test.UserId"),
+        "Alias use should be referenced"
+    );
+}
+
+#[test]
 fn test_halstead_keys_fn() {
     let code = r#"
 dictionary = {"a": 1, "b": 2, "c": 3}

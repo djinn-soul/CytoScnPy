@@ -144,3 +144,39 @@ class Bar:
 
     println!("Ranges and Fixes verified successfully!");
 }
+
+#[test]
+fn test_type_alias_fix_covers_full_statement_range() {
+    let code = r"
+type UserId = int
+";
+
+    let analyzer = CytoScnPy::default();
+    let result = analyzer.analyze_code(code, Path::new("test.py"));
+
+    let alias = result
+        .unused_variables
+        .iter()
+        .find(|d| d.simple_name == "UserId")
+        .expect("UserId type alias should be reported as unused");
+
+    let fix = alias
+        .fix
+        .as_ref()
+        .expect("Unused type alias should include a fix suggestion");
+
+    assert_eq!(
+        fix.start_byte,
+        code.find("type UserId = int")
+            .expect("type alias statement should exist in source")
+    );
+    assert_eq!(fix.end_byte, alias.end_byte);
+
+    let alias_value_start = code
+        .find("= int")
+        .expect("alias value should exist in source");
+    assert!(
+        fix.end_byte >= alias_value_start + "= int".len(),
+        "Fix must cover the full type alias statement, including the alias value"
+    );
+}

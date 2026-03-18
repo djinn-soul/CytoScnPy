@@ -14,16 +14,14 @@ use crate::visitor::Definition;
 /// - Framework decorations (lowers confidence for framework-managed code).
 /// - Private naming conventions (lowers confidence for internal helpers).
 /// - Dunder methods (ignores magic methods).
-pub fn apply_penalties(
+pub fn apply_penalties<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     def: &mut Definition,
     fv: &FrameworkAwareVisitor,
     tv: &TestAwareVisitor,
     // Map of ignored lines to their suppression type.
-    // Uses `FxHashMap` (Rustc's fast hash map) for performance optimization,
-    // as strict cryptographic security is not needed for integer line keys and small datasets.
-    ignored_lines: &std::collections::HashMap<usize, Suppression, impl std::hash::BuildHasher>,
+    ignored_lines: &std::collections::HashMap<usize, Suppression, S1>,
     include_tests: bool,
-    dynamic_scopes: &std::collections::HashSet<String, impl std::hash::BuildHasher>,
+    dynamic_scopes: &std::collections::HashSet<String, S2>,
     module_name: &str,
 ) {
     // Pragma: no cytoscnpy (highest priority - always skip)

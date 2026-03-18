@@ -98,7 +98,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         self.add_definition(DefinitionInfo {
             name: qualified_name.clone(),
-            def_type: "class".to_owned(),
+            def_type: DefinitionType::Class,
             line: name_line,
             end_line,
             col: name_col,

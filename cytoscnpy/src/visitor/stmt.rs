@@ -18,6 +18,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             Stmt::Assign(node) => self.handle_assign_stmt(node),
             Stmt::AugAssign(node) => self.handle_aug_assign_stmt(node),
             Stmt::AnnAssign(node) => self.handle_ann_assign_stmt(node),
+            Stmt::TypeAlias(node) => self.handle_type_alias_stmt(node),
             Stmt::Expr(node) => self.visit_expr(&node.value),
             Stmt::If(node) => self.handle_if_stmt(node),
             Stmt::For(node) => self.handle_for_stmt(node),

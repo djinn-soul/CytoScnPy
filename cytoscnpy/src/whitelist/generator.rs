@@ -103,6 +103,7 @@ pub fn generate_whitelist(definitions: &[Definition], output: &mut dyn Write) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::visitor::DefinitionType;
     use smallvec::smallvec;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -112,7 +113,7 @@ mod tests {
             name: name.to_owned(),
             full_name: name.to_owned(),
             simple_name: name.to_owned(),
-            def_type: def_type.to_owned(),
+            def_type: DefinitionType::try_from(def_type).expect("valid definition type"),
             file: Arc::new(PathBuf::from(file)),
             line,
             end_line: line + 5,

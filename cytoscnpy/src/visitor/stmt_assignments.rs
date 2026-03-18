@@ -47,7 +47,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                             self.get_range_info(name_node);
                         self.add_definition(DefinitionInfo {
                             name: qualified_name.clone(),
-                            def_type: "variable".to_owned(),
+                            def_type: DefinitionType::Variable,
                             line,
                             end_line,
                             col,
@@ -146,7 +146,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             let (line, end_line, col, start_byte, end_byte) = self.get_range_info(name_node);
             self.add_definition(DefinitionInfo {
                 name: qualified_name.clone(),
-                def_type: "variable".to_owned(),
+                def_type: DefinitionType::Variable,
                 line,
                 end_line,
                 col,
@@ -189,5 +189,28 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.add_ref(qualified_name);
             }
         }
+    }
+
+    pub(super) fn handle_type_alias_stmt(&mut self, node: &ast::StmtTypeAlias) {
+        if let Expr::Name(name_node) = &*node.name {
+            let qualified_name = self.get_qualified_name(&name_node.id);
+            let (line, end_line, col, start_byte, end_byte) = self.get_range_info(name_node);
+            self.add_definition(DefinitionInfo {
+                name: qualified_name.clone(),
+                def_type: DefinitionType::Variable,
+                line,
+                end_line,
+                col,
+                start_byte,
+                end_byte,
+                full_start_byte: start_byte,
+                base_classes: SmallVec::new(),
+            });
+            self.add_local_def(name_node.id.to_string(), qualified_name);
+        } else {
+            self.visit_expr(&node.name);
+        }
+
+        self.visit_expr(&node.value);
     }
 }

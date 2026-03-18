@@ -14,7 +14,7 @@ use self::sorting::{
 use self::state::AggregationState;
 
 use super::{AnalysisResult, AnalysisSummary, CytoScnPy, FileAnalysisResult};
-use crate::visitor::Definition;
+use crate::visitor::{Definition, DefinitionType};
 use rustc_hash::FxHashMap;
 
 impl CytoScnPy {
@@ -39,12 +39,17 @@ impl CytoScnPy {
         let functions_count = state
             .all_defs
             .iter()
-            .filter(|d| d.def_type == "function" || d.def_type == "method")
+            .filter(|d| {
+                matches!(
+                    d.def_type,
+                    DefinitionType::Function | DefinitionType::Method
+                )
+            })
             .count();
         let classes_count = state
             .all_defs
             .iter()
-            .filter(|d| d.def_type == "class")
+            .filter(|d| d.def_type == DefinitionType::Class)
             .count();
 
         let fixture_definition_names = state.fixture_definition_names();

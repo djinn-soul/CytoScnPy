@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::constants::QUALITY_COHESION_LCOM4_THRESHOLD;
 use crate::rules::Rule;
 
 mod best_practices;
@@ -13,7 +14,6 @@ pub const CAT_BEST_PRACTICES: &str = "Best Practices";
 pub const CAT_MAINTAINABILITY: &str = "Maintainability";
 /// Category constants for performance rules.
 pub const CAT_PERFORMANCE: &str = "Performance";
-
 /// Returns a list of all quality rules based on configuration.
 #[must_use]
 pub fn get_quality_rules(config: &Config) -> Vec<Box<dyn Rule>> {
@@ -31,7 +31,9 @@ pub fn get_quality_rules(config: &Config) -> Vec<Box<dyn Rule>> {
             config.cytoscnpy.max_complexity.unwrap_or(10),
         )),
         Box::new(complexity::CognitiveComplexityRule::new(15)),
-        Box::new(complexity::CohesionRule::new(1)),
+        Box::new(complexity::CohesionRule::new(
+            QUALITY_COHESION_LCOM4_THRESHOLD,
+        )),
         Box::new(maintainability::NestingRule::new(
             config.cytoscnpy.max_nesting.unwrap_or(3),
         )),

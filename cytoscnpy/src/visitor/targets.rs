@@ -10,7 +10,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                 self.add_definition(DefinitionInfo {
                     name: qualified_name.clone(),
-                    def_type: "variable".to_owned(),
+                    def_type: DefinitionType::Variable,
                     line,
                     end_line,
                     col,
@@ -84,7 +84,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     // Using node range because rest match captures the rest
                     self.add_definition(DefinitionInfo {
                         name: qualified_name.clone(),
-                        def_type: "variable".to_owned(),
+                        def_type: DefinitionType::Variable,
                         line,
                         end_line,
                         col,
@@ -112,7 +112,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
                     self.add_definition(DefinitionInfo {
                         name: qualified_name.clone(),
-                        def_type: "variable".to_owned(),
+                        def_type: DefinitionType::Variable,
                         line,
                         end_line,
                         col,
@@ -134,7 +134,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
                     self.add_definition(DefinitionInfo {
                         name: qualified_name.clone(),
-                        def_type: "variable".to_owned(),
+                        def_type: DefinitionType::Variable,
                         line,
                         end_line,
                         col,

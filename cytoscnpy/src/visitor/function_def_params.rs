@@ -80,7 +80,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         let (line, end_line, col, start_byte, end_byte) = self.get_range_info(node);
         self.add_definition(DefinitionInfo {
             name: param_qualified,
-            def_type: "parameter".to_owned(),
+            def_type: DefinitionType::Parameter,
             line,
             end_line,
             col,

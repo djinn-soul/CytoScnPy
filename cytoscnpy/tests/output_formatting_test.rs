@@ -9,7 +9,7 @@ use cytoscnpy::output::{
     print_summary_pills, print_unused_items,
 };
 use cytoscnpy::rules::Finding;
-use cytoscnpy::visitor::Definition;
+use cytoscnpy::visitor::{Definition, DefinitionType};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ fn create_mock_result() -> AnalysisResult {
             name: "unused_func".to_owned(),
             full_name: "test.unused_func".to_owned(),
             simple_name: "unused_func".to_owned(),
-            def_type: "function".to_owned(),
+            def_type: DefinitionType::Function,
             file: Arc::new(PathBuf::from("test.py")),
             line: 10,
             end_line: 10,
@@ -233,7 +233,7 @@ fn test_print_unused_items_with_items() {
         name: "test_func".to_owned(),
         full_name: "module.test_func".to_owned(),
         simple_name: "test_func".to_owned(),
-        def_type: "function".to_owned(),
+        def_type: DefinitionType::Function,
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
         end_line: 5,
@@ -271,7 +271,7 @@ fn test_print_unused_parameters() {
         name: "module.MyClass.method.param".to_owned(),
         full_name: "module.MyClass.method.param".to_owned(),
         simple_name: "param".to_owned(),
-        def_type: "parameter".to_owned(),
+        def_type: DefinitionType::Parameter,
         file: Arc::new(PathBuf::from("test.py")),
         line: 5,
         end_line: 5,

@@ -3,7 +3,7 @@ use crate::analyzer::CytoScnPy;
 use crate::cfg::flow::analyze_reaching_definitions;
 #[cfg(feature = "cfg")]
 use crate::cfg::Cfg;
-use crate::visitor::Definition;
+use crate::visitor::{Definition, DefinitionType};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 impl CytoScnPy {
@@ -27,11 +27,11 @@ impl CytoScnPy {
         definitions: &mut [Definition],
         ref_counts: &FxHashMap<String, usize>,
     ) {
-        let mut def_type_map: FxHashMap<String, String> = FxHashMap::default();
+        let mut def_type_map: FxHashMap<String, DefinitionType> = FxHashMap::default();
         let mut simple_name_counts: FxHashMap<String, usize> = FxHashMap::default();
 
         for def in definitions.iter() {
-            def_type_map.insert(def.full_name.clone(), def.def_type.clone());
+            def_type_map.insert(def.full_name.clone(), def.def_type);
             *simple_name_counts
                 .entry(def.simple_name.clone())
                 .or_insert(0) += 1;
@@ -58,11 +58,13 @@ impl CytoScnPy {
                     }
                 }
 
-                let is_attribute_like = match def.def_type.as_str() {
-                    "method" | "class" | "class_variable" => true,
-                    "variable" | "parameter" => {
+                let is_attribute_like = match def.def_type {
+                    DefinitionType::Method | DefinitionType::Class => true,
+                    DefinitionType::Variable | DefinitionType::Parameter => {
                         if let Some((parent, _)) = def.full_name.rsplit_once('.') {
-                            def_type_map.get(parent).is_some_and(|kind| kind == "class")
+                            def_type_map
+                                .get(parent)
+                                .is_some_and(|kind| *kind == DefinitionType::Class)
                         } else {
                             false
                         }

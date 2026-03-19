@@ -24,6 +24,10 @@ pub(super) struct AggregationState {
     pub(super) all_fixture_requests: Vec<FixtureRequestRecord>,
     pub(super) all_fixture_imports: Vec<FixtureImportBinding>,
     pub(super) all_pytest_plugins: Vec<PytestPluginDeclaration>,
+    /// Exports listed in each module's `__all__`: `module_name` → list of unqualified names.
+    pub(super) all_module_exports: Vec<(String, Vec<String>)>,
+    /// `(importer_module, source_module)` pairs from `from x import *` statements.
+    pub(super) all_star_imports: Vec<(String, String)>,
     pub(super) dynamic_imported_modules: FxHashSet<String>,
     pub(super) total_complexity: f64,
     pub(super) total_mi: f64,
@@ -64,6 +68,9 @@ impl AggregationState {
             fixture_requests,
             fixture_imports,
             pytest_plugins,
+            exports,
+            module_name,
+            star_imports,
         } = result;
 
         self.global_call_graph.merge(call_graph);
@@ -119,6 +126,16 @@ impl AggregationState {
         self.all_fixture_imports.extend(fixture_imports);
         self.all_pytest_plugins.extend(pytest_plugins);
 
+        if !exports.is_empty() && !module_name.is_empty() {
+            self.all_module_exports.push((module_name.clone(), exports));
+        }
+        for source_module in star_imports {
+            if !module_name.is_empty() {
+                self.all_star_imports
+                    .push((module_name.clone(), source_module));
+            }
+        }
+
         self.dynamic_imported_modules.extend(
             dynamic_imports
                 .into_iter()
@@ -171,6 +188,54 @@ impl AggregationState {
                 .entry(symbol)
                 .and_modify(|count| *count = (*count).max(1))
                 .or_insert(1);
+        }
+    }
+
+    /// Resolves `from x import *` cross-file.
+    ///
+    /// For each recorded star-import `(importer_module, source_module)`, looks up the
+    /// source module's `__all__` exports (collected by `apply_export_reference_increments`)
+    /// and synthesises explicit import bindings:
+    ///   `importer_module.Name  →  source_module.Name`
+    ///
+    /// This must run **after** `apply_export_reference_increments` (so exports are known)
+    /// and **before** `apply_import_binding_reference_increments` (so the new bindings feed
+    /// into the worklist).
+    pub(super) fn apply_star_import_bindings(&mut self) {
+        // Build a fast lookup: source_module → [exported_names]
+        let mut export_map: FxHashMap<&str, &[String]> = FxHashMap::default();
+        for (module, names) in &self.all_module_exports {
+            export_map.insert(module.as_str(), names.as_slice());
+        }
+
+        for (importer, source) in &self.all_star_imports {
+            let Some(names) = export_map.get(source.as_str()) else {
+                continue;
+            };
+            for name in *names {
+                let local_key = format!("{importer}.{name}");
+                let source_val = format!("{source}.{name}");
+                // Synthesise binding: importer.Name → source.Name
+                self.all_import_bindings
+                    .entry(local_key)
+                    .or_insert(source_val);
+            }
+        }
+    }
+
+    /// For every symbol listed in any module's `__all__`, ensures its qualified name
+    /// (`module.symbol`) is present in `ref_counts` with a count of at least 1.
+    /// This must run **before** `apply_import_binding_reference_increments` so the
+    /// export refs seed the worklist that propagates through import-binding chains.
+    pub(super) fn apply_export_reference_increments(&mut self) {
+        for (module_name, exports) in &self.all_module_exports {
+            for export_name in exports {
+                let qualified = format!("{module_name}.{export_name}");
+                self.ref_counts
+                    .entry(qualified)
+                    .and_modify(|c| *c = (*c).max(1))
+                    .or_insert(1);
+            }
         }
     }
 

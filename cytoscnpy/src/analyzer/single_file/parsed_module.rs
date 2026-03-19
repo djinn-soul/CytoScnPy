@@ -57,20 +57,18 @@ pub(super) fn analyze_parsed_module(
     }
 
     for call_name in &entry_point_calls {
-        output.visitor.add_ref(call_name.clone());
+        output.visitor.add_ref(call_name);
         if !ctx.module_name.is_empty() {
-            output
-                .visitor
-                .add_ref(format!("{}.{}", ctx.module_name, call_name));
+            let qualified = format!("{}.{}", ctx.module_name, call_name);
+            output.visitor.add_ref(&qualified);
         }
     }
 
     for framework_ref in &output.framework_visitor.framework_references {
-        output.visitor.add_ref(framework_ref.clone());
+        output.visitor.add_ref(framework_ref);
         if !ctx.module_name.is_empty() {
-            output
-                .visitor
-                .add_ref(format!("{}.{}", ctx.module_name, framework_ref));
+            let qualified = format!("{}.{}", ctx.module_name, framework_ref);
+            output.visitor.add_ref(&qualified);
         }
     }
 
@@ -90,14 +88,15 @@ pub(super) fn analyze_parsed_module(
         *output.visitor.references.entry(full_name).or_insert(0) += count;
     }
 
-    for export_name in output.visitor.exports.clone() {
-        output.visitor.add_ref(export_name.clone());
+    let exports = std::mem::take(&mut output.visitor.exports);
+    for export_name in &exports {
+        output.visitor.add_ref(export_name);
         if !ctx.module_name.is_empty() {
-            output
-                .visitor
-                .add_ref(format!("{}.{}", ctx.module_name, export_name));
+            let qualified = format!("{}.{}", ctx.module_name, export_name);
+            output.visitor.add_ref(&qualified);
         }
     }
+    output.visitor.exports = exports;
 
     CytoScnPy::mark_dynamic_import_references(
         &output.visitor.dynamic_scopes,

@@ -18,7 +18,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         self.enter_scope(ScopeType::Function(CompactString::from(name)));
 
         if self.mark_framework_function(decorator_list) {
-            self.add_ref(qualified_name.clone());
+            self.add_ref(&qualified_name);
         }
 
         let skip_parameters = self.should_skip_parameters(decorator_list);

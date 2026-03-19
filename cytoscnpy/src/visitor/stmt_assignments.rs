@@ -16,10 +16,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                     let id = name_node.id.as_str();
                     if id.starts_with("HAS_") || id.starts_with("HAVE_") {
                         self.optional_dependency_flags.insert(id.to_owned());
-                        self.add_ref(id.to_owned());
+                        self.add_ref(id);
                         if !self.module_name.is_empty() {
                             let qualified = format!("{}.{}", self.module_name, id);
-                            self.add_ref(qualified);
+                            self.add_ref(&qualified);
                         }
                     }
                 }
@@ -36,10 +36,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                         .is_some_and(|s| s.global_declarations.contains(name_node.id.as_str()));
 
                     if is_global {
-                        self.add_ref(name_node.id.to_string());
+                        self.add_ref(name_node.id.as_str());
                         if !self.module_name.is_empty() {
                             let qualified = format!("{}.{}", self.module_name, name_node.id);
-                            self.add_ref(qualified);
+                            self.add_ref(&qualified);
                         }
                     } else {
                         let qualified_name = self.get_qualified_name(&name_node.id);
@@ -60,7 +60,7 @@ impl<'a> CytoScnPyVisitor<'a> {
 
                         if !self.class_stack.is_empty() && self.function_stack.is_empty() {
                             if let Some(true) = self.model_class_stack.last() {
-                                self.add_ref(qualified_name);
+                                self.add_ref(&qualified_name);
                             }
                         }
                     }
@@ -77,7 +77,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     for target in &node.targets {
                         if let Expr::Name(name_node) = target {
                             let qualified_name = self.get_qualified_name(&name_node.id);
-                            self.add_ref(qualified_name);
+                            self.add_ref(&qualified_name);
                         }
                     }
                 }
@@ -161,7 +161,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 && self.function_stack.is_empty()
                 && self.model_class_stack.last().is_some_and(|v| *v)
             {
-                self.add_ref(qualified_name);
+                self.add_ref(&qualified_name);
             }
         } else {
             self.visit_expr(&node.target);
@@ -186,7 +186,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         if is_type_alias {
             if let Expr::Name(name_node) = &*node.target {
                 let qualified_name = self.get_qualified_name(&name_node.id);
-                self.add_ref(qualified_name);
+                self.add_ref(&qualified_name);
             }
         }
     }

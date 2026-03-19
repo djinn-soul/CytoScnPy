@@ -123,7 +123,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             || self.auto_called.contains(simple_name);
 
         if is_implicitly_used {
-            self.add_ref(info.name.clone());
+            self.add_ref(&info.name);
         }
 
         DefinitionFlags {

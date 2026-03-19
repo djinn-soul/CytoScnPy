@@ -17,7 +17,7 @@ impl CytoScnPy {
         }
 
         for def in definitions {
-            if def.def_type == "import" {
+            if def.def_type == DefinitionType::Import {
                 *ref_counts.entry(def.full_name.clone()).or_insert(0) += 1;
             }
         }
@@ -120,7 +120,10 @@ impl CytoScnPy {
     ) {
         let mut function_scopes: FxHashMap<String, (usize, usize)> = FxHashMap::default();
         for def in definitions.iter() {
-            if def.def_type == "function" || def.def_type == "method" {
+            if matches!(
+                def.def_type,
+                DefinitionType::Function | DefinitionType::Method
+            ) {
                 function_scopes.insert(def.full_name.clone(), (def.line, def.end_line));
             }
         }
@@ -141,8 +144,10 @@ impl CytoScnPy {
             if let Some(cfg) = Cfg::from_source(&func_source, simple_name) {
                 let flow_results = analyze_reaching_definitions(&cfg);
                 for def in definitions.iter_mut() {
-                    if (def.def_type == "variable" || def.def_type == "parameter")
-                        && def.full_name.starts_with(&func_name)
+                    if matches!(
+                        def.def_type,
+                        DefinitionType::Variable | DefinitionType::Parameter
+                    ) && def.full_name.starts_with(&func_name)
                     {
                         let relative_name = &def.full_name[func_name.len()..];
                         if let Some(var_key) = relative_name.strip_prefix('.') {

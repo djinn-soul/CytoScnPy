@@ -7,7 +7,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 if name_node.ctx.is_load() {
                     let name = name_node.id.to_string();
                     if let Some(qualified) = self.resolve_name(&name) {
-                        self.add_ref(qualified);
+                        self.add_ref(&qualified);
                     }
                 }
             }
@@ -42,10 +42,10 @@ impl<'a> CytoScnPyVisitor<'a> {
             if let Some(scope) = self.scope_stack.last_mut() {
                 scope.global_declarations.insert(name.id.to_string());
             }
-            self.add_ref(name.id.to_string());
+            self.add_ref(name.id.as_str());
             if !self.module_name.is_empty() {
                 let qualified = format!("{}.{}", self.module_name, name.id);
-                self.add_ref(qualified);
+                self.add_ref(&qualified);
             }
         }
     }

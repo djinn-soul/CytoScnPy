@@ -112,10 +112,10 @@ impl<'a> CytoScnPyVisitor<'a> {
         for base in node.bases() {
             self.visit_expr(base);
             if let Expr::Name(base_name) = base {
-                self.add_ref(base_name.id.to_string());
+                self.add_ref(base_name.id.as_str());
                 if !self.module_name.is_empty() {
                     let qualified_base = format!("{}.{}", self.module_name, base_name.id);
-                    self.add_ref(qualified_base);
+                    self.add_ref(&qualified_base);
                 }
             }
         }
@@ -132,10 +132,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                 has_metaclass = true;
             }
             if let Expr::Name(kw_name) = &keyword.value {
-                self.add_ref(kw_name.id.to_string());
+                self.add_ref(kw_name.id.as_str());
                 if !self.module_name.is_empty() {
                     let qualified_kw = format!("{}.{}", self.module_name, kw_name.id);
-                    self.add_ref(qualified_kw);
+                    self.add_ref(&qualified_kw);
                 }
             }
         }
@@ -147,8 +147,8 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         for base_class in &base_classes {
             if self.metaclass_classes.contains(base_class) {
-                self.add_ref(qualified_name);
-                self.add_ref(name.to_string());
+                self.add_ref(&qualified_name);
+                self.add_ref(name.as_str());
                 break;
             }
         }

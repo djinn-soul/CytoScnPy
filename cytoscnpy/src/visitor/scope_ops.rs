@@ -126,8 +126,8 @@ impl<'a> CytoScnPyVisitor<'a> {
     }
 
     /// Records a reference to a name by incrementing its count.
-    pub fn add_ref(&mut self, name: String) {
-        *self.references.entry(name).or_insert(0) += 1;
+    pub fn add_ref(&mut self, name: &str) {
+        *self.references.entry(name.to_owned()).or_insert(0) += 1;
     }
 
     /// Returns the fully qualified ID of the current scope.

@@ -156,13 +156,12 @@ impl AggregationState {
             .filter_map(|(name, count)| if *count > 0 { Some(name.clone()) } else { None })
             .collect();
 
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (import_symbol, source_symbol) in &self.all_import_bindings {
-                if used_symbols.contains(import_symbol) && !used_symbols.contains(source_symbol) {
-                    used_symbols.insert(source_symbol.clone());
-                    changed = true;
+        let mut worklist: Vec<String> = used_symbols.iter().cloned().collect();
+        while let Some(symbol) = worklist.pop() {
+            if let Some(source_symbol) = self.all_import_bindings.get(&symbol) {
+                let source_symbol = source_symbol.clone();
+                if used_symbols.insert(source_symbol.clone()) {
+                    worklist.push(source_symbol);
                 }
             }
         }

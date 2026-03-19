@@ -33,8 +33,8 @@ impl<'a> CytoScnPyVisitor<'a> {
                 } else {
                     format!("{}.{}", self.module_name, simple_name)
                 };
-                self.add_ref(qualified_name);
-                self.add_ref(simple_name.to_string());
+                self.add_ref(&qualified_name);
+                self.add_ref(simple_name.as_str());
             }
         }
     }
@@ -72,7 +72,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 self.import_bindings
                     .insert(self.get_qualified_name(asname.as_str()), full_name.clone());
                 // Importing a symbol is itself a static dependency on that source symbol.
-                self.add_ref(full_name);
+                self.add_ref(&full_name);
             } else {
                 self.alias_map
                     .insert(asname.to_string(), alias.name.to_string());
@@ -80,7 +80,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                     self.get_qualified_name(asname.as_str()),
                     alias.name.to_string(),
                 );
-                self.add_ref(alias.name.to_string());
+                self.add_ref(alias.name.as_str());
             }
 
             if self.in_import_error_block {
@@ -89,8 +89,8 @@ impl<'a> CytoScnPyVisitor<'a> {
                 } else {
                     format!("{}.{}", self.module_name, asname)
                 };
-                self.add_ref(qualified_name);
-                self.add_ref(asname.to_string());
+                self.add_ref(&qualified_name);
+                self.add_ref(asname.as_str());
             }
         }
     }

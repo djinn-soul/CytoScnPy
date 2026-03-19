@@ -79,7 +79,7 @@ impl CytoScnPy {
 
         let mut taint_findings = taint::run_taint_analysis(self, files);
 
-        let mut unused_counts: FxHashMap<std::path::PathBuf, usize> = FxHashMap::default();
+        let mut unused_counts: FxHashMap<&std::path::Path, usize> = FxHashMap::default();
         let all_unused_slices: [&[Definition]; 6] = [
             &classified.unused_functions,
             &classified.unused_methods,
@@ -90,11 +90,13 @@ impl CytoScnPy {
         ];
 
         for def in all_unused_slices.into_iter().flatten() {
-            *unused_counts.entry(def.file.as_ref().clone()).or_insert(0) += 1;
+            *unused_counts
+                .entry(def.file.as_ref().as_path())
+                .or_insert(0) += 1;
         }
 
         for metric in &mut state.file_metrics {
-            if let Some(count) = unused_counts.get(&metric.file) {
+            if let Some(count) = unused_counts.get(metric.file.as_path()) {
                 metric.total_issues += count;
             }
         }
@@ -113,6 +115,10 @@ impl CytoScnPy {
         sort_taint_findings(&mut taint_findings);
 
         let taint_count = taint_findings.len();
+        let secrets_count = state.all_secrets.len();
+        let danger_count = state.all_danger.len();
+        let quality_count = state.all_quality.len();
+        let parse_errors_count = state.all_parse_errors.len();
 
         AnalysisResult {
             unused_functions: classified.unused_functions,
@@ -121,19 +127,19 @@ impl CytoScnPy {
             unused_classes: classified.unused_classes,
             unused_variables: classified.unused_variables,
             unused_parameters: classified.unused_parameters,
-            secrets: state.all_secrets.clone(),
-            danger: state.all_danger.clone(),
-            quality: state.all_quality.clone(),
+            secrets: state.all_secrets,
+            danger: state.all_danger,
+            quality: state.all_quality,
             taint_findings,
-            parse_errors: state.all_parse_errors.clone(),
+            parse_errors: state.all_parse_errors,
             clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files,
-                secrets_count: state.all_secrets.len(),
-                danger_count: state.all_danger.len(),
-                quality_count: state.all_quality.len(),
+                secrets_count,
+                danger_count,
+                quality_count,
                 taint_count,
-                parse_errors_count: state.all_parse_errors.len(),
+                parse_errors_count,
                 total_lines_analyzed: self.total_lines_analyzed,
                 total_definitions,
                 average_complexity: if state.files_with_quality_metrics > 0 {

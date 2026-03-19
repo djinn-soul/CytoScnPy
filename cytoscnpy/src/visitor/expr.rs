@@ -11,20 +11,21 @@ impl<'a> CytoScnPyVisitor<'a> {
                 if scope_idx < self.scope_stack.len() - 1 {
                     self.captured_definitions.insert(qualified.clone());
                 }
-                self.add_ref(qualified);
+                self.add_ref(&qualified);
             } else if self.module_name.is_empty() {
-                self.add_ref(name.clone());
+                self.add_ref(&name);
             } else {
-                self.add_ref(format!("{}.{}", self.module_name, name));
+                let qualified = format!("{}.{}", self.module_name, name);
+                self.add_ref(&qualified);
             }
 
             if let Some(original) = self.alias_map.get(&name).cloned() {
                 if let Some(simple) = original.split('.').next_back() {
                     if simple != original {
-                        self.add_ref(simple.to_owned());
+                        self.add_ref(simple);
                     }
                 }
-                self.add_ref(original);
+                self.add_ref(&original);
             }
         }
     }
@@ -40,7 +41,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                         EVAL_IDENTIFIER_RE.get_or_init(|| Regex::new(r"\b[a-zA-Z_]\w*\b").ok())
                     {
                         for m in re.find_iter(&val) {
-                            self.add_ref(m.as_str().to_owned());
+                            self.add_ref(m.as_str());
                         }
                     }
                     handled_as_literal = true;
@@ -59,11 +60,11 @@ impl<'a> CytoScnPyVisitor<'a> {
                 {
                     let attr_value = attr_str.value.to_string();
                     let attr_ref = format!("{}.{}", obj_name.id, attr_value);
-                    self.add_ref(attr_ref);
+                    self.add_ref(&attr_ref);
                     if !self.module_name.is_empty() {
                         let full_attr_ref =
                             format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
-                        self.add_ref(full_attr_ref);
+                        self.add_ref(&full_attr_ref);
                     }
                 } else {
                     let scope_id = self.get_current_scope_id();
@@ -77,11 +78,11 @@ impl<'a> CytoScnPyVisitor<'a> {
                 {
                     let attr_value = attr_str.value.to_string();
                     let attr_ref = format!("{}.{}", obj_name.id, attr_value);
-                    self.add_ref(attr_ref);
+                    self.add_ref(&attr_ref);
                     if !self.module_name.is_empty() {
                         let full_attr_ref =
                             format!("{}.{}.{}", self.module_name, obj_name.id, attr_value);
-                        self.add_ref(full_attr_ref);
+                        self.add_ref(&full_attr_ref);
                     }
                 }
             }
@@ -146,10 +147,10 @@ impl<'a> CytoScnPyVisitor<'a> {
 
     pub(super) fn visit_attribute_expr(&mut self, node: &ast::ExprAttribute) {
         let attr_name = node.attr.as_str();
-        let mut dotted_attr = String::with_capacity(attr_name.len() + 1);
-        dotted_attr.push('.');
-        dotted_attr.push_str(attr_name);
-        self.add_ref(dotted_attr);
+        let mut attr_ref = String::with_capacity(attr_name.len() + 1);
+        attr_ref.push('.');
+        attr_ref.push_str(attr_name);
+        self.add_ref(&attr_ref);
 
         if let Expr::Name(base_node) = &*node.value {
             if base_node.id.as_str() == "self" || base_node.id.as_str() == "cls" {
@@ -174,53 +175,46 @@ impl<'a> CytoScnPyVisitor<'a> {
             let base_id = name_node.id.as_str();
             let original_base_opt = self.alias_map.get(base_id).cloned();
             if let Some(original_base) = original_base_opt {
-                self.add_ref(original_base.clone());
+                self.add_ref(&original_base);
                 let mut full_attr =
                     String::with_capacity(original_base.len() + 1 + attr_name.len());
                 full_attr.push_str(&original_base);
                 full_attr.push('.');
                 full_attr.push_str(attr_name);
-                self.add_ref(full_attr);
+                self.add_ref(&full_attr);
             }
 
             if (base_id == "self" || base_id == "cls") && !self.class_stack.is_empty() {
                 let mut total_len = attr_name.len();
-                let mut segment_count = 1usize; // attribute name
                 if !self.module_name.is_empty() {
-                    total_len += self.module_name.len();
-                    segment_count += 1;
+                    total_len += self.module_name.len() + 1;
                 }
                 for class_name in &self.class_stack {
-                    total_len += class_name.len();
-                    segment_count += 1;
+                    total_len += class_name.len() + 1;
                 }
-                total_len += segment_count.saturating_sub(1); // separators
 
-                let mut qualified_member = String::with_capacity(total_len);
-                let mut needs_separator = false;
+                let mut qualified = String::with_capacity(total_len);
                 if !self.module_name.is_empty() {
-                    qualified_member.push_str(&self.module_name);
-                    needs_separator = true;
+                    qualified.push_str(&self.module_name);
                 }
                 for class_name in &self.class_stack {
-                    if needs_separator {
-                        qualified_member.push('.');
+                    if !qualified.is_empty() {
+                        qualified.push('.');
                     }
-                    qualified_member.push_str(class_name);
-                    needs_separator = true;
+                    qualified.push_str(class_name);
                 }
-                if needs_separator {
-                    qualified_member.push('.');
+                if !qualified.is_empty() {
+                    qualified.push('.');
                 }
-                qualified_member.push_str(attr_name);
-                self.add_ref(qualified_member);
+                qualified.push_str(attr_name);
+                self.add_ref(&qualified);
             } else {
-                self.add_ref(base_id.to_owned());
+                self.add_ref(base_id);
                 let mut full_attr = String::with_capacity(base_id.len() + 1 + attr_name.len());
                 full_attr.push_str(base_id);
                 full_attr.push('.');
                 full_attr.push_str(attr_name);
-                self.add_ref(full_attr);
+                self.add_ref(&full_attr);
             }
         }
         self.visit_expr(&node.value);
@@ -229,31 +223,23 @@ impl<'a> CytoScnPyVisitor<'a> {
     pub(super) fn visit_string_literal(&mut self, node: &ast::ExprStringLiteral) {
         let s = node.value.to_string();
         if !s.contains(' ') && !s.is_empty() {
-            self.add_ref(s.clone());
+            self.add_ref(&s);
             if !self.module_name.is_empty() {
-                self.add_ref(format!("{}.{}", self.module_name, s));
+                let qualified = format!("{}.{}", self.module_name, s);
+                self.add_ref(&qualified);
             }
 
-            let mut current_word = String::new();
-            for ch in s.chars() {
-                if ch.is_alphanumeric() || ch == '_' {
-                    current_word.push(ch);
-                } else if !current_word.is_empty() {
-                    if current_word.chars().next().is_some_and(char::is_uppercase) {
-                        self.add_ref(current_word.clone());
-                        if !self.module_name.is_empty() {
-                            self.add_ref(format!("{}.{}", self.module_name, current_word));
-                        }
-                    }
-                    current_word.clear();
-                }
+            if !s.chars().any(char::is_uppercase) {
+                return;
             }
-            if !current_word.is_empty()
-                && current_word.chars().next().is_some_and(char::is_uppercase)
-            {
-                self.add_ref(current_word.clone());
-                if !self.module_name.is_empty() {
-                    self.add_ref(format!("{}.{}", self.module_name, current_word));
+
+            for token in s.split(|ch: char| !ch.is_alphanumeric() && ch != '_') {
+                if token.chars().next().is_some_and(char::is_uppercase) {
+                    self.add_ref(token);
+                    if !self.module_name.is_empty() {
+                        let qualified = format!("{}.{}", self.module_name, token);
+                        self.add_ref(&qualified);
+                    }
                 }
             }
         }

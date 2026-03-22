@@ -71,6 +71,9 @@ impl CytoScnPy {
             fixture_requests: output.fixture_metadata.fixture_requests,
             fixture_imports: output.fixture_metadata.fixture_imports,
             pytest_plugins: output.fixture_metadata.pytest_plugins,
+            exports: output.visitor.exports,
+            module_name: module_name.clone(),
+            star_imports: output.visitor.star_imports,
         }
     }
 }

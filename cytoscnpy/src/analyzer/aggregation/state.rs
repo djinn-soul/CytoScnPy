@@ -129,11 +129,12 @@ impl AggregationState {
         if !exports.is_empty() && !module_name.is_empty() {
             self.all_module_exports.push((module_name.clone(), exports));
         }
-        for source_module in star_imports {
-            if !module_name.is_empty() {
-                self.all_star_imports
-                    .push((module_name.clone(), source_module));
-            }
+        if !module_name.is_empty() {
+            self.all_star_imports.extend(
+                star_imports
+                    .into_iter()
+                    .map(|source_module| (module_name.clone(), source_module)),
+            );
         }
 
         self.dynamic_imported_modules.extend(

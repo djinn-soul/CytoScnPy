@@ -194,13 +194,13 @@ impl AggregationState {
     /// Resolves `from x import *` cross-file.
     ///
     /// For each recorded star-import `(importer_module, source_module)`, looks up the
-    /// source module's `__all__` exports (collected by `apply_export_reference_increments`)
+    /// source module's `__all__` exports (collected during file analysis)
     /// and synthesises explicit import bindings:
     ///   `importer_module.Name  →  source_module.Name`
     ///
-    /// This must run **after** `apply_export_reference_increments` (so exports are known)
-    /// and **before** `apply_import_binding_reference_increments` (so the new bindings feed
-    /// into the worklist).
+    /// This must run **before** `apply_import_binding_reference_increments` so the new bindings feed
+    /// into the worklist.
+    ///
     pub(super) fn apply_star_import_bindings(&mut self) {
         // Build a fast lookup: source_module → [exported_names]
         let mut export_map: FxHashMap<&str, &[String]> = FxHashMap::default();

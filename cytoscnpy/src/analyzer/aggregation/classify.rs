@@ -198,7 +198,10 @@ fn should_report_definition(def: &Definition, confidence_threshold: u8) -> bool 
     // Structural reachability evidence should not be hidden by intent penalties.
     // Keep this constrained to executable/type container symbols to avoid surfacing
     // low-confidence variables/imports solely due heuristic interactions.
+    // Exception: confidence == 0 means the item was explicitly suppressed (pragma, dunder, etc.)
+    // and must never be surfaced even if the call graph marks it unreachable.
     if def.is_unreachable
+        && def.confidence > 0
         && matches!(
             def.def_type,
             DefinitionType::Function | DefinitionType::Method | DefinitionType::Class
@@ -291,7 +294,17 @@ pub(super) fn promote_methods_from_unused_classes(
         .collect();
 
     for def in methods_with_refs {
-        if def.confidence < confidence_threshold {
+        // For methods whose parent class is itself unreachable, structural evidence overrides
+        // the confidence threshold (same principle as `should_report_definition`).
+        // Exception: confidence == 0 means explicitly suppressed — never surface those.
+        let parent_is_unreachable = def
+            .full_name
+            .rfind('.')
+            .is_some_and(|idx| unreachable_class_names.contains(&def.full_name[..idx]));
+        if !parent_is_unreachable && def.confidence < confidence_threshold {
+            continue;
+        }
+        if parent_is_unreachable && def.confidence == 0 {
             continue;
         }
 

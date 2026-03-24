@@ -78,4 +78,7 @@ pub struct CytoScnPyVisitor<'a> {
     pub protocol_methods: FxHashMap<String, FxHashSet<String>>,
     /// Detected optional dependency flags (HAS_*, HAVE_*) inside except ``ImportError`` blocks.
     pub optional_dependency_flags: FxHashSet<String>,
+    /// Resolved source module names for each `from x import *` in this file.
+    /// Populated during import handling; consumed by aggregation to synthesize bindings.
+    pub star_imports: Vec<String>,
 }

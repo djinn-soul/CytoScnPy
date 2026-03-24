@@ -53,6 +53,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             abc_abstract_methods: FxHashMap::default(),
             protocol_methods: FxHashMap::default(),
             optional_dependency_flags: FxHashSet::default(),
+            star_imports: Vec::new(),
         }
     }
 }

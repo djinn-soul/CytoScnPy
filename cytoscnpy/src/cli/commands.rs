@@ -134,4 +134,34 @@ pub enum Commands {
         #[command(flatten)]
         args: FilesArgs,
     },
+    /// Analyze unused and missing dependencies
+    Deps {
+        /// Common options for paths.
+        #[command(flatten)]
+        paths: PathArgs,
+
+        /// Output JSON.
+        #[arg(long)]
+        json: bool,
+
+        /// Path to requirements file.
+        #[arg(long)]
+        requirements: Option<String>,
+
+        /// Comma-separated list of packages to ignore if unused.
+        #[arg(long = "ignore-unused", value_delimiter = ',')]
+        ignore_unused: Vec<String>,
+
+        /// Comma-separated list of packages to ignore if missing.
+        #[arg(long = "ignore-missing", value_delimiter = ',')]
+        ignore_missing: Vec<String>,
+
+        /// Exclude folders.
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
+
+        /// Output file path.
+        #[arg(long, short = 'O')]
+        output_file: Option<String>,
+    },
 }

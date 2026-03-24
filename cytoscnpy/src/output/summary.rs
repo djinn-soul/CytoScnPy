@@ -57,7 +57,7 @@ pub fn print_summary_pills(
 
     writeln!(
         writer,
-        "{}  {}  {}  {}  {}  {}  {}",
+        "{}  {}  {}  {}  {}  {}  {}  {}  {}",
         pill("Unreachable", unreachable_functions),
         pill("Functions", unused_functions),
         pill("Methods", result.unused_methods.len()),
@@ -65,6 +65,8 @@ pub fn print_summary_pills(
         pill("Params", result.unused_parameters.len()),
         pill("Vars", result.unused_variables.len()),
         pill("Classes", result.unused_classes.len()),
+        pill("Unused Deps", result.unused_dependencies.len()),
+        pill("Missing Deps", result.missing_dependencies.len()),
     )?;
 
     writeln!(

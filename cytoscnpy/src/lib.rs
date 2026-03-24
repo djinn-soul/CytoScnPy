@@ -70,6 +70,8 @@ pub mod cli;
 pub mod commands;
 /// Module for calculating cyclomatic complexity.
 pub mod complexity;
+/// Module for detecting missing and unused dependencies.
+pub mod deps;
 /// Module for calculating Halstead metrics.
 pub mod halstead;
 /// Module for parsing and extracting code from Jupyter notebooks (.ipynb files).

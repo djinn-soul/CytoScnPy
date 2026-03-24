@@ -301,10 +301,11 @@ pub(super) fn promote_methods_from_unused_classes(
             .full_name
             .rfind('.')
             .is_some_and(|idx| unreachable_class_names.contains(&def.full_name[..idx]));
-        if !parent_is_unreachable && def.confidence < confidence_threshold {
-            continue;
-        }
-        if parent_is_unreachable && def.confidence == 0 {
+        if parent_is_unreachable {
+            if def.confidence == 0 {
+                continue;
+            }
+        } else if def.confidence < confidence_threshold {
             continue;
         }
 

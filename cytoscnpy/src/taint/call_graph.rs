@@ -192,6 +192,14 @@ impl CallGraph {
                     self.visit_expr_for_calls(&match_stmt.subject, caller, module_name);
                 }
                 for case in &match_stmt.cases {
+                    if let Some(caller) = current_func {
+                        // Guard expression: `case x if some_check(x):`
+                        if let Some(guard) = &case.guard {
+                            self.visit_expr_for_calls(guard, caller, module_name);
+                        }
+                        // Patterns can contain calls via MatchValue and MatchClass
+                        self.visit_pattern_for_calls(&case.pattern, caller, module_name);
+                    }
                     for s in &case.body {
                         self.visit_stmt(s, current_func, module_name);
                     }
@@ -428,6 +436,59 @@ impl CallGraph {
                 }
             }
 
+            _ => {}
+        }
+    }
+
+    /// Visits a match pattern for function calls.
+    ///
+    /// Patterns that can contain calls:
+    /// - `MatchValue` — the value expression (e.g. `case Status.ACTIVE:`)
+    /// - `MatchClass` — the class expression and keyword patterns (e.g. `case Point(x=get_x()):`)
+    /// - `MatchMapping` — key expressions (values are patterns, not expressions)
+    /// - `MatchSequence` / `MatchOr` / `MatchAs` — recursed into
+    fn visit_pattern_for_calls(&mut self, pattern: &ast::Pattern, caller: &str, module_name: &str) {
+        match pattern {
+            ast::Pattern::MatchValue(node) => {
+                self.visit_expr_for_calls(&node.value, caller, module_name);
+            }
+            ast::Pattern::MatchClass(node) => {
+                // The class expression itself (e.g. `MyModule.Point`)
+                self.visit_expr_for_calls(&node.cls, caller, module_name);
+                // Positional sub-patterns
+                for p in &node.arguments.patterns {
+                    self.visit_pattern_for_calls(p, caller, module_name);
+                }
+                // Keyword sub-patterns (e.g. `case Foo(x=expr_pattern)`)
+                for kw in &node.arguments.keywords {
+                    self.visit_pattern_for_calls(&kw.pattern, caller, module_name);
+                }
+            }
+            ast::Pattern::MatchMapping(node) => {
+                // Keys are expressions and can contain calls
+                for key in &node.keys {
+                    self.visit_expr_for_calls(key, caller, module_name);
+                }
+                for p in &node.patterns {
+                    self.visit_pattern_for_calls(p, caller, module_name);
+                }
+            }
+            ast::Pattern::MatchSequence(node) => {
+                for p in &node.patterns {
+                    self.visit_pattern_for_calls(p, caller, module_name);
+                }
+            }
+            ast::Pattern::MatchOr(node) => {
+                for p in &node.patterns {
+                    self.visit_pattern_for_calls(p, caller, module_name);
+                }
+            }
+            ast::Pattern::MatchAs(node) => {
+                if let Some(p) = &node.pattern {
+                    self.visit_pattern_for_calls(p, caller, module_name);
+                }
+            }
+            // MatchSingleton (None/True/False) and MatchStar contain no calls
             _ => {}
         }
     }

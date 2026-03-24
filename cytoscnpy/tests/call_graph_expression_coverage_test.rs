@@ -523,3 +523,58 @@ run()
     assert!(!ur.contains(&"_start".to_owned()), "got {ur:?}");
     assert!(!ur.contains(&"_end".to_owned()), "got {ur:?}");
 }
+
+// ── Match guard (`case x if f(x):`) ─────────────────────────────────────────
+#[test]
+fn fn_called_in_match_guard_not_unreachable() {
+    let dir = mk_dir("cg_match_guard_");
+    write_py(
+        &dir,
+        "app.py",
+        r"
+def _is_valid(x):
+    return x > 0
+
+def run(val):
+    match val:
+        case x if _is_valid(x):
+            return x
+        case _:
+            return 0
+
+run(5)
+",
+    );
+    let ur = unreachable_fns(&app_analyzer().analyze(dir.path()));
+    assert!(!ur.contains(&"_is_valid".to_owned()), "got {ur:?}");
+}
+
+// ── Match class pattern (`case MyClass(attr=expr):`) ─────────────────────────
+#[test]
+fn fn_called_in_match_class_pattern_not_unreachable() {
+    let dir = mk_dir("cg_match_cls_");
+    write_py(
+        &dir,
+        "app.py",
+        r"
+class Point:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+def _make_point():
+    return Point(1, 2)
+
+def run():
+    match _make_point():
+        case Point():
+            return 'point'
+        case _:
+            return 'other'
+
+run()
+",
+    );
+    let ur = unreachable_fns(&app_analyzer().analyze(dir.path()));
+    assert!(!ur.contains(&"_make_point".to_owned()), "got {ur:?}");
+}

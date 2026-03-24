@@ -110,6 +110,29 @@ impl CallGraph {
                 }
             }
 
+            Stmt::AugAssign(aug_assign) => {
+                if let Some(caller) = current_func {
+                    self.visit_expr_for_calls(&aug_assign.value, caller, module_name);
+                }
+            }
+
+            Stmt::AnnAssign(ann_assign) => {
+                if let Some(caller) = current_func {
+                    if let Some(value) = &ann_assign.value {
+                        self.visit_expr_for_calls(value, caller, module_name);
+                    }
+                }
+            }
+
+            Stmt::Assert(assert_stmt) => {
+                if let Some(caller) = current_func {
+                    self.visit_expr_for_calls(&assert_stmt.test, caller, module_name);
+                    if let Some(msg) = &assert_stmt.msg {
+                        self.visit_expr_for_calls(msg, caller, module_name);
+                    }
+                }
+            }
+
             Stmt::Return(ret) => {
                 if let Some(caller) = current_func {
                     if let Some(value) = &ret.value {
@@ -154,8 +177,32 @@ impl CallGraph {
             }
 
             Stmt::With(with_stmt) => {
+                if let Some(caller) = current_func {
+                    for item in &with_stmt.items {
+                        self.visit_expr_for_calls(&item.context_expr, caller, module_name);
+                    }
+                }
                 for s in &with_stmt.body {
                     self.visit_stmt(s, current_func, module_name);
+                }
+            }
+
+            Stmt::Match(match_stmt) => {
+                if let Some(caller) = current_func {
+                    self.visit_expr_for_calls(&match_stmt.subject, caller, module_name);
+                }
+                for case in &match_stmt.cases {
+                    for s in &case.body {
+                        self.visit_stmt(s, current_func, module_name);
+                    }
+                }
+            }
+
+            Stmt::Raise(raise_stmt) => {
+                if let Some(caller) = current_func {
+                    if let Some(exc) = &raise_stmt.exc {
+                        self.visit_expr_for_calls(exc, caller, module_name);
+                    }
                 }
             }
 
@@ -220,9 +267,12 @@ impl CallGraph {
                     }
                 }
 
-                // Visit arguments
+                // Visit arguments (positional and keyword)
                 for arg in &call.arguments.args {
                     self.visit_expr_for_calls(arg, caller, module_name);
+                }
+                for keyword in &call.arguments.keywords {
+                    self.visit_expr_for_calls(&keyword.value, caller, module_name);
                 }
             }
 
@@ -231,10 +281,50 @@ impl CallGraph {
                 self.visit_expr_for_calls(&binop.right, caller, module_name);
             }
 
+            Expr::BoolOp(boolop) => {
+                for value in &boolop.values {
+                    self.visit_expr_for_calls(value, caller, module_name);
+                }
+            }
+
+            Expr::UnaryOp(unary) => {
+                self.visit_expr_for_calls(&unary.operand, caller, module_name);
+            }
+
             Expr::If(ifexp) => {
                 self.visit_expr_for_calls(&ifexp.test, caller, module_name);
                 self.visit_expr_for_calls(&ifexp.body, caller, module_name);
                 self.visit_expr_for_calls(&ifexp.orelse, caller, module_name);
+            }
+
+            Expr::Compare(cmp) => {
+                self.visit_expr_for_calls(&cmp.left, caller, module_name);
+                for comparator in &cmp.comparators {
+                    self.visit_expr_for_calls(comparator, caller, module_name);
+                }
+            }
+
+            Expr::Named(named) => {
+                self.visit_expr_for_calls(&named.value, caller, module_name);
+            }
+
+            Expr::Await(await_expr) => {
+                self.visit_expr_for_calls(&await_expr.value, caller, module_name);
+            }
+
+            Expr::Yield(yield_expr) => {
+                if let Some(value) = &yield_expr.value {
+                    self.visit_expr_for_calls(value, caller, module_name);
+                }
+            }
+
+            Expr::YieldFrom(yield_from) => {
+                self.visit_expr_for_calls(&yield_from.value, caller, module_name);
+            }
+
+            // Lambda body calls are attributed to the enclosing function (safe approximation).
+            Expr::Lambda(lambda) => {
+                self.visit_expr_for_calls(&lambda.body, caller, module_name);
             }
 
             Expr::List(list) => {
@@ -243,9 +333,98 @@ impl CallGraph {
                 }
             }
 
+            Expr::Tuple(tuple) => {
+                for elt in &tuple.elts {
+                    self.visit_expr_for_calls(elt, caller, module_name);
+                }
+            }
+
+            Expr::Set(set) => {
+                for elt in &set.elts {
+                    self.visit_expr_for_calls(elt, caller, module_name);
+                }
+            }
+
             Expr::Dict(dict) => {
                 for item in &dict.items {
+                    if let Some(key) = &item.key {
+                        self.visit_expr_for_calls(key, caller, module_name);
+                    }
                     self.visit_expr_for_calls(&item.value, caller, module_name);
+                }
+            }
+
+            Expr::ListComp(comp) => {
+                self.visit_expr_for_calls(&comp.elt, caller, module_name);
+                for gen in &comp.generators {
+                    self.visit_expr_for_calls(&gen.iter, caller, module_name);
+                    for cond in &gen.ifs {
+                        self.visit_expr_for_calls(cond, caller, module_name);
+                    }
+                }
+            }
+
+            Expr::SetComp(comp) => {
+                self.visit_expr_for_calls(&comp.elt, caller, module_name);
+                for gen in &comp.generators {
+                    self.visit_expr_for_calls(&gen.iter, caller, module_name);
+                    for cond in &gen.ifs {
+                        self.visit_expr_for_calls(cond, caller, module_name);
+                    }
+                }
+            }
+
+            Expr::DictComp(comp) => {
+                self.visit_expr_for_calls(&comp.key, caller, module_name);
+                self.visit_expr_for_calls(&comp.value, caller, module_name);
+                for gen in &comp.generators {
+                    self.visit_expr_for_calls(&gen.iter, caller, module_name);
+                    for cond in &gen.ifs {
+                        self.visit_expr_for_calls(cond, caller, module_name);
+                    }
+                }
+            }
+
+            Expr::Generator(comp) => {
+                self.visit_expr_for_calls(&comp.elt, caller, module_name);
+                for gen in &comp.generators {
+                    self.visit_expr_for_calls(&gen.iter, caller, module_name);
+                    for cond in &gen.ifs {
+                        self.visit_expr_for_calls(cond, caller, module_name);
+                    }
+                }
+            }
+
+            Expr::Subscript(subscript) => {
+                self.visit_expr_for_calls(&subscript.value, caller, module_name);
+                self.visit_expr_for_calls(&subscript.slice, caller, module_name);
+            }
+
+            Expr::Starred(starred) => {
+                self.visit_expr_for_calls(&starred.value, caller, module_name);
+            }
+
+            Expr::Slice(slice) => {
+                if let Some(lower) = &slice.lower {
+                    self.visit_expr_for_calls(lower, caller, module_name);
+                }
+                if let Some(upper) = &slice.upper {
+                    self.visit_expr_for_calls(upper, caller, module_name);
+                }
+                if let Some(step) = &slice.step {
+                    self.visit_expr_for_calls(step, caller, module_name);
+                }
+            }
+
+            Expr::FString(fstring) => {
+                for part in &fstring.value {
+                    if let ast::FStringPart::FString(f) = part {
+                        for element in &f.elements {
+                            if let ast::InterpolatedStringElement::Interpolation(interp) = element {
+                                self.visit_expr_for_calls(&interp.expression, caller, module_name);
+                            }
+                        }
+                    }
                 }
             }
 

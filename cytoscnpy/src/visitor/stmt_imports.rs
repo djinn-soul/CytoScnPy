@@ -48,6 +48,16 @@ impl<'a> CytoScnPyVisitor<'a> {
 
         let resolved_base_module = self.resolve_import_from_base_module(node);
 
+        // `from x import *` — record source module for aggregation-layer resolution;
+        // skip normal definition/binding creation since names are not known until
+        // the source module's `__all__` is available cross-file.
+        if node.names.len() == 1 && node.names[0].name.as_str() == "*" {
+            if let Some(base) = &resolved_base_module {
+                self.star_imports.push(base.clone());
+            }
+            return;
+        }
+
         for alias in &node.names {
             let asname = alias.asname.as_ref().unwrap_or(&alias.name);
             let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);

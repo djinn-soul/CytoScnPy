@@ -261,6 +261,27 @@ fn run_subcommand<W: std::io::Write>(
             writer,
         ),
         Commands::Files { args } => handle_files(args, &context.exclude_folders, verbose, writer),
+        Commands::Deps {
+            paths: _,
+            json,
+            requirements,
+            ignore_unused,
+            ignore_missing,
+            exclude,
+            output_file,
+        } => crate::entry_point::handlers::handle_deps(
+            &context.effective_paths,
+            json,
+            requirements,
+            ignore_unused,
+            ignore_missing,
+            exclude,
+            output_file,
+            &context.config,
+            &context.exclude_folders,
+            verbose,
+            writer,
+        ),
         Commands::Init => {
             crate::commands::run_init_in(&context.analysis_root, writer)?;
             Ok(0)

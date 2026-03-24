@@ -78,6 +78,16 @@ pub struct CytoScnPyConfig {
     /// Supports exact names, wildcards (e.g., "test_*"), and regex patterns.
     #[serde(default)]
     pub whitelist: Vec<WhitelistEntry>,
+    /// Dependencies analysis configuration
+    #[serde(default)]
+    pub deps: DepsConfig,
+}
+
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct DepsConfig {
+    pub ignore_unused: Option<Vec<String>>,
+    pub ignore_missing: Option<Vec<String>>,
+    pub package_mapping: Option<rustc_hash::FxHashMap<String, Vec<String>>>,
 }
 
 impl CytoScnPyConfig {

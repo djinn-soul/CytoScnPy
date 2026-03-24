@@ -7,7 +7,8 @@ use std::path::Path;
 
 use super::summary::print_header;
 use super::tables::{
-    print_findings, print_parse_errors, print_secrets, print_taint_findings, print_unused_items,
+    print_findings, print_missing_dependencies, print_parse_errors, print_secrets,
+    print_taint_findings, print_unused_dependencies, print_unused_items,
 };
 
 /// Print the full report.
@@ -24,6 +25,8 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         + result.unused_parameters.len()
         + result.unused_classes.len()
         + result.unused_variables.len()
+        + result.unused_dependencies.len()
+        + result.missing_dependencies.len()
         + result.danger.len()
         + result.secrets.len()
         + result.quality.len()
@@ -70,6 +73,9 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         &result.unused_variables,
         "Variable",
     )?;
+
+    print_unused_dependencies(writer, &result.unused_dependencies)?;
+    print_missing_dependencies(writer, &result.missing_dependencies)?;
 
     print_findings(writer, "Security Issues", &result.danger)?;
     print_secrets(writer, "Secrets", &result.secrets)?;
@@ -225,7 +231,9 @@ pub fn print_report_quiet(writer: &mut impl Write, result: &AnalysisResult) -> s
         + result.unused_imports.len()
         + result.unused_parameters.len()
         + result.unused_classes.len()
-        + result.unused_variables.len();
+        + result.unused_variables.len()
+        + result.unused_dependencies.len()
+        + result.missing_dependencies.len();
     let security = result.danger.len()
         + result.secrets.len()
         + result.quality.len()

@@ -175,6 +175,10 @@ pub struct AnalysisResult {
     pub unused_variables: Vec<Definition>,
     /// List of parameters that were defined but never used.
     pub unused_parameters: Vec<Definition>,
+    /// List of dependencies that were declared but never used.
+    pub unused_dependencies: Vec<crate::deps::DeclaredDependency>,
+    /// List of imports that were used but never declared.
+    pub missing_dependencies: Vec<String>,
     /// List of discovered secrets (e.g., API keys).
     pub secrets: Vec<SecretFinding>,
     /// List of security vulnerabilities found.

@@ -127,6 +127,8 @@ impl CytoScnPy {
             unused_classes: classified.unused_classes,
             unused_variables: classified.unused_variables,
             unused_parameters: classified.unused_parameters,
+            unused_dependencies: Vec::new(),
+            missing_dependencies: Vec::new(),
             secrets: state.all_secrets,
             danger: state.all_danger,
             quality: state.all_quality,

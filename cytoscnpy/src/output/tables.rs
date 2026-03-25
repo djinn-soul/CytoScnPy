@@ -86,14 +86,15 @@ pub fn print_taint_findings(
         );
         let severity_str = finding.severity.to_string();
         let severity_color = get_severity_color(&severity_str);
+        let hint = hint_for_vuln(&finding.vuln_type);
+        let message = format!(
+            "{} (Source: {})\n  ↳ {}",
+            finding.vuln_type, finding.source, hint
+        );
 
         table.add_row(vec![
             Cell::new(&finding.rule_id).add_attribute(Attribute::Dim),
-            Cell::new(format!(
-                "{} (Source: {})",
-                finding.vuln_type, finding.source
-            ))
-            .add_attribute(Attribute::Bold),
+            Cell::new(message).add_attribute(Attribute::Bold),
             Cell::new(location),
             Cell::new(&severity_str).fg(severity_color),
         ]);
@@ -181,6 +182,20 @@ pub fn print_unused_items(
 
     writeln!(writer, "{table}")?;
     Ok(())
+}
+
+/// Returns a short 2-3 word fix hint for each vulnerability type.
+fn hint_for_vuln(vuln: &crate::taint::VulnType) -> &'static str {
+    match vuln {
+        crate::taint::VulnType::Ssrf => "Validate URL allowlist",
+        crate::taint::VulnType::CommandInjection => "Avoid shell=True",
+        crate::taint::VulnType::SqlInjection => "Use parameterized queries",
+        crate::taint::VulnType::Xss => "Escape user output",
+        crate::taint::VulnType::PathTraversal => "Sanitize file paths",
+        crate::taint::VulnType::CodeInjection => "Avoid eval/exec",
+        crate::taint::VulnType::OpenRedirect => "Validate redirect URL",
+        crate::taint::VulnType::Deserialization => "Validate before deserializing",
+    }
 }
 
 /// Print a list of parse errors.

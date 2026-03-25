@@ -312,3 +312,22 @@ impl TaintSinkPlugin for DynamicPatternPlugin {
         self.sinks.clone()
     }
 }
+
+/// Plugin for custom sanitizer patterns from configuration.
+pub struct DynamicSanitizerPlugin {
+    /// List of function name patterns that sanitize taint (e.g. `"validate_url"`, `"myapp.security.clean"`).
+    pub sanitizers: Vec<String>,
+}
+
+impl SanitizerPlugin for DynamicSanitizerPlugin {
+    fn name(&self) -> &'static str {
+        "DynamicSanitizer"
+    }
+
+    fn is_sanitizer(&self, call: &ExprCall) -> bool {
+        if let Some(call_name) = get_call_name(&call.func) {
+            return self.sanitizers.iter().any(|p| p == &call_name);
+        }
+        false
+    }
+}

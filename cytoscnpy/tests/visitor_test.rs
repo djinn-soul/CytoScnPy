@@ -346,13 +346,21 @@ from os import *
 ";
     visit_code!(code, visitor);
 
-    let imports: Vec<_> = visitor
+    // Star imports must NOT create a bogus `*` definition — they are recorded
+    // in `star_imports` for cross-file resolution during aggregation.
+    let star_defs: Vec<_> = visitor
         .definitions
         .iter()
-        .filter(|d| d.def_type == "import")
+        .filter(|d| d.simple_name == "*")
         .collect();
-    let import_names: HashSet<String> = imports.iter().map(|i| i.simple_name.clone()).collect();
-    assert!(import_names.contains("*"));
+    assert!(
+        star_defs.is_empty(),
+        "`from x import *` must not create a `*` definition"
+    );
+    assert!(
+        visitor.star_imports.contains(&"os".to_owned()),
+        "star_imports should record the source module"
+    );
 }
 
 #[test]

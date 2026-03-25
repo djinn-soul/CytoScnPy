@@ -115,7 +115,7 @@ fn output_results<W: std::io::Write>(
         eprintln!("[VERBOSE] Clone detection enabled");
         eprintln!(
             "   Similarity threshold: {:.0}%",
-            cli_var.clone_similarity * 100.0
+            cli_var.clone_similarity.unwrap_or(0.8) * 100.0
         );
         eprintln!();
     }

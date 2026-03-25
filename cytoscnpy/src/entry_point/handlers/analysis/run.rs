@@ -122,9 +122,15 @@ pub(crate) fn run_analysis<W: std::io::Write>(
 
     // 2. Run clone detection if enabled (using the same progress bar)
     let mut clone_pairs_found = 0usize;
-    if cli_var.clones || cli_var.output.html {
+    let clones_from_config = config.cytoscnpy.clones.unwrap_or(false);
+    // CLI flag takes priority, then config, then built-in default.
+    let clone_similarity = cli_var
+        .clone_similarity
+        .or(config.cytoscnpy.clone_similarity)
+        .unwrap_or(0.8);
+    if cli_var.clones || clones_from_config || cli_var.output.html {
         let clone_options = crate::commands::CloneOptions {
-            similarity: cli_var.clone_similarity,
+            similarity: clone_similarity,
             json: cli_var.output.json,
             fix: false, // Clones are report-only, never auto-fixed
             dry_run: !cli_var.apply,
@@ -147,7 +153,8 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         }
 
         // Run detection
-        let (count, findings) = if context.is_structured || !cli_var.clones {
+        let (count, findings) = if context.is_structured || (!cli_var.clones && !clones_from_config)
+        {
             // Suppress clone table unless explicitly requested (or for structured output)
             let mut sink = std::io::sink();
             crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?

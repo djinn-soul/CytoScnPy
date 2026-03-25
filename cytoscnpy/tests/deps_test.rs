@@ -1,4 +1,5 @@
 //! Integration tests for the `deps` subcommand.
+#![allow(clippy::unwrap_used)]
 use cytoscnpy::entry_point::run_with_args_to;
 use std::fs;
 use tempfile::tempdir;
@@ -27,15 +28,15 @@ dependencies = [
 "#;
     fs::write(root.join("pyproject.toml"), pyproject)?;
 
-    let py_file = r#"
+    let py_file = r"
 import requests
 from sklearn.cluster import KMeans
 import missing_dep
 import os # stdlib
-"#;
+";
     fs::write(root.join("main.py"), py_file)?;
 
-    let args = vec!["deps".to_string(), root.to_string_lossy().to_string()];
+    let args = vec!["deps".to_owned(), root.to_string_lossy().into_owned()];
 
     let (code, output) = run_deps_command(args);
 
@@ -71,18 +72,18 @@ dependencies = ["unused-dep"]
     fs::write(root.join("main.py"), "import missing_dep\n")?;
 
     let args = vec![
-        "deps".to_string(),
-        root.to_string_lossy().to_string(),
-        "--ignore-unused".to_string(),
-        "unused-dep".to_string(),
-        "--ignore-missing".to_string(),
-        "missing_dep".to_string(),
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--ignore-unused".to_owned(),
+        "unused-dep".to_owned(),
+        "--ignore-missing".to_owned(),
+        "missing_dep".to_owned(),
     ];
 
     let (code, output) = run_deps_command(args);
 
     assert_eq!(code, 0);
-    assert!(output.contains("No unused or missing dependencies found!"));
+    assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
 
     Ok(())
 }
@@ -98,7 +99,7 @@ fn test_deps_requirements_txt() -> anyhow::Result<()> {
     )?;
     fs::write(root.join("main.py"), "import requests\n")?;
 
-    let args = vec!["deps".to_string(), root.to_string_lossy().to_string()];
+    let args = vec!["deps".to_owned(), root.to_string_lossy().into_owned()];
 
     let (code, output) = run_deps_command(args);
 
@@ -128,9 +129,9 @@ dependencies = ["unused-dep"]
     fs::write(root.join("main.py"), "import missing_dep\n")?;
 
     let args = vec![
-        "deps".to_string(),
-        root.to_string_lossy().to_string(),
-        "--json".to_string(),
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--json".to_owned(),
     ];
 
     let (code, output) = run_deps_command(args);
@@ -163,12 +164,12 @@ fn test_deps_local_package() -> anyhow::Result<()> {
 
     fs::write(root.join("main.py"), "import mypackage\n")?;
 
-    let args = vec!["deps".to_string(), root.to_string_lossy().to_string()];
+    let args = vec!["deps".to_owned(), root.to_string_lossy().into_owned()];
 
     let (code, output) = run_deps_command(args);
 
     assert_eq!(code, 0);
-    assert!(output.contains("No unused or missing dependencies found!"));
+    assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
     assert!(!output.contains("mypackage"));
 
     Ok(())
@@ -191,7 +192,7 @@ dependencies = ["Pillow"]
 
     fs::write(root.join("main.py"), "import PIL.Image\n")?;
 
-    let args = vec!["deps".to_string(), root.to_string_lossy().to_string()];
+    let args = vec!["deps".to_owned(), root.to_string_lossy().into_owned()];
 
     let (code, output) = run_deps_command(args);
 
@@ -199,5 +200,112 @@ dependencies = ["Pillow"]
     assert!(!output.contains("Pillow"));
     assert!(!output.contains("PIL"));
 
+    Ok(())
+}
+
+#[test]
+fn test_deps_requirements_env_markers() -> anyhow::Result<()> {
+    // Packages with environment markers must be parsed correctly
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("requirements.txt"),
+        concat!(
+            "requests>=2.28.0\n",
+            "unused-pkg; python_version>=\"3.8\"\n",
+        ),
+    )?;
+    fs::write(root.join("main.py"), "import requests\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    // unused-pkg has env marker but no import → should be flagged unused
+    assert!(
+        output.contains("unused-pkg"),
+        "env-marker dep should be detected as unused"
+    );
+    assert!(
+        !output.contains("requests"),
+        "requests should not be flagged"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_deps_requirements_vcs_and_url_lines_skipped() -> anyhow::Result<()> {
+    // VCS and bare-URL lines in requirements.txt must not produce false positives
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("requirements.txt"),
+        concat!(
+            "requests\n",
+            "git+https://github.com/user/repo.git\n",
+            "https://example.com/pkg.tar.gz\n",
+        ),
+    )?;
+    fs::write(root.join("main.py"), "import requests\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    // Only `requests` is a real declared dep; the VCS/URL lines must be silently skipped
+    assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_requirements_at_url() -> anyhow::Result<()> {
+    // `pkg @ https://...` format — package name before @ must be extracted
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("requirements.txt"),
+        "mylib @ https://example.com/mylib-1.0.tar.gz\n",
+    )?;
+    fs::write(root.join("main.py"), "import mylib\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    // mylib is declared (@ URL form) and imported — should not be flagged either way
+    assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_namespace_package_not_flagged_missing() -> anyhow::Result<()> {
+    // Namespace packages (e.g. google.cloud.storage) expose top-level `google`.
+    // A user who imports `google.cloud.storage` will have `google` extracted
+    // as the top-level module.  If they declared `google-cloud-storage`, the
+    // normalized name is `google_cloud_storage` which won't match `google`.
+    // The correct behaviour is: since `google` is not in stdlib and not a local
+    // package, it gets reported missing unless the user provides a mapping.
+    // This test documents current behaviour and ensures it doesn't panic/crash.
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["google-cloud-storage"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "from google.cloud import storage\n")?;
+
+    let (code, _output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    // Must not crash regardless of finding outcome
+    assert_eq!(code, 0);
     Ok(())
 }

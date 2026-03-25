@@ -163,5 +163,25 @@ pub enum Commands {
         /// Output file path.
         #[arg(long, short = 'O')]
         output_file: Option<String>,
+
+        /// Show packages installed in the environment but not declared in the project.
+        #[arg(long)]
+        extra_installed: bool,
+
+        /// Show orphan packages (installed, not declared, not imported, not required).
+        #[arg(long)]
+        orphans: bool,
+
+        /// Show removal impact for a specific package (transitive deps that would also go).
+        #[arg(long)]
+        impact: Option<String>,
+
+        /// Override the path to the virtual environment (default: auto-detect .venv).
+        #[arg(long)]
+        venv: Option<String>,
+
+        /// Override the path to the lockfile (default: auto-detect uv.lock / poetry.lock).
+        #[arg(long)]
+        lockfile: Option<String>,
     },
 }

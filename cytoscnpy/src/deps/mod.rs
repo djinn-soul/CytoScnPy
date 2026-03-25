@@ -4,10 +4,18 @@ pub mod analysis;
 pub mod declared;
 /// AST extraction for Python import statements.
 pub mod imports;
+/// Installed environment package scanner.
+pub mod installed;
+/// Lockfile parser (uv.lock / poetry.lock) for dependency graph.
+pub mod lockfile;
 /// Package-to-import mapping definitions.
 pub mod mapping;
 /// Standard library reference list.
 pub mod stdlib;
+/// Import-to-distribution mapping and usage map builder.
+pub mod usage_map;
 
-pub use analysis::{analyze_dependencies, DepsOptions, DepsResult};
+pub use analysis::{analyze_dependencies, DepsOptions, DepsResult, RemovableBranch};
 pub use declared::{DeclaredDependency, DependencySource};
+pub use installed::InstalledPackage;
+pub use lockfile::LockfileGraph;

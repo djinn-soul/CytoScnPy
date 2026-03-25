@@ -34,7 +34,7 @@ Unused Variables
 └──────────┴────────────┴──────────────────────────────────────────┘
 
 [SUMMARY] 4 unused code issues, 0 security/quality issues
-Unreachable: 0  Functions: 1  Methods: 0  Imports: 2  Params: 0  Vars: 1  Classes: 0
+Unreachable: 0  Functions: 1  Methods: 0  Imports: 2  Params: 0  Vars: 1  Classes: 0  Unused Deps: 0  Missing Deps: 0
 Security: 0  Secrets: 0  Quality: 0  Taint: 0  Parse Errors: 0
 
 Analyzed 1 files (14 lines)

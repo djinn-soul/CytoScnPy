@@ -69,6 +69,12 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
                 .unwrap_or_default(),
             verbose: cli_var.output.verbose,
             json: cli_var.output.json,
+            package_mapping: config.cytoscnpy.deps.package_mapping.as_ref(),
+            venv_path: None,
+            lockfile_path: None,
+            show_extra: false,
+            show_orphans: false,
+            impact_package: None,
         };
         let deps_result = crate::deps::analyze_dependencies(&deps_options);
         run.result.unused_dependencies = deps_result.unused;

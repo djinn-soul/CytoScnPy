@@ -64,6 +64,8 @@ fn create_mock_result() -> AnalysisResult {
         parse_errors: vec![],
         clones: vec![],
         file_metrics: vec![],
+        missing_dependencies: vec![],
+        unused_dependencies: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 1,
             secrets_count: 0,
@@ -352,6 +354,8 @@ fn test_print_report_no_issues() {
         parse_errors: vec![],
         clones: vec![],
         file_metrics: vec![],
+        missing_dependencies: vec![],
+        unused_dependencies: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 0,
             total_lines_analyzed: 0,

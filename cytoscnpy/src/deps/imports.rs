@@ -48,3 +48,41 @@ pub fn extract_imports(roots: &[PathBuf], exclude: &[String], verbose: bool) -> 
             acc
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_extract_imports_simple() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.py");
+        fs::write(
+            &file_path,
+            "import os\nfrom sys import path\nimport requests.sessions\n",
+        )?;
+
+        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+        assert!(imports.contains("os"));
+        assert!(imports.contains("sys"));
+        assert!(imports.contains("requests"));
+        assert_eq!(imports.len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_imports_skips_relative() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.py");
+        fs::write(
+            &file_path,
+            "from . import local\nfrom ..parent import other\n",
+        )?;
+
+        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+        assert!(imports.is_empty());
+        Ok(())
+    }
+}

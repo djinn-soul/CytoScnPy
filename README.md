@@ -7,6 +7,7 @@
 [![Docs](https://github.com/djinn09/CytoScnPy/actions/workflows/docs.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/docs.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/badge/version-1.2.7-green.svg)](https://github.com/djinn09/CytoScnPy)
+![AI Assisted](https://img.shields.io/badge/AI--Assisted-Gemini-blue)
 
 A fast, lightweight static analyzer for Python codebase. It’s built in Rust with Python integration and detection of dead code, security issues, and code quality issue, along with useful quality metrics.
 
@@ -304,3 +305,7 @@ CytoScnPy's design and implementation are inspired by:
 
 - [**Skylos**](https://github.com/duriantaco/skylos)
 - [**Radon**](https://github.com/rubik/radon)
+
+⭐ Star this repo if you find it helpful!
+
+*Developed from scratch with assistance from Gemini AI.*

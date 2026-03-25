@@ -71,8 +71,8 @@ impl TaintAwareDangerAnalyzer {
 
     /// Creates a taint-aware analyzer with custom patterns.
     #[must_use]
-    pub fn with_custom(sources: Vec<String>, sinks: Vec<String>) -> Self {
-        let config = crate::taint::analyzer::TaintConfig::with_custom(sources, sinks);
+    pub fn with_custom(sources: Vec<String>, sinks: Vec<String>, sanitizers: Vec<String>) -> Self {
+        let config = crate::taint::analyzer::TaintConfig::with_custom(sources, sinks, sanitizers);
         Self {
             taint_analyzer: TaintAnalyzer::new(config),
         }

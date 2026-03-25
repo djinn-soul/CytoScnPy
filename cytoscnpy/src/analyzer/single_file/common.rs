@@ -75,7 +75,15 @@ pub(super) fn apply_taint_filters(
         .custom_sinks
         .clone()
         .unwrap_or_default();
-    let taint_analyzer = TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks);
+    let custom_sanitizers = analyzer
+        .config
+        .cytoscnpy
+        .danger_config
+        .custom_sanitizers
+        .clone()
+        .unwrap_or_default();
+    let taint_analyzer =
+        TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks, custom_sanitizers);
     let taint_context = taint_analyzer.build_taint_context(source, &file_path.to_path_buf());
 
     let mut filtered = TaintAwareDangerAnalyzer::filter_findings_with_taint(danger, &taint_context);

@@ -14,6 +14,7 @@ use super::plugins::{
     BuiltinSourcePlugin as AnalyzerBuiltinSourcePlugin,
     DjangoSourcePlugin as AnalyzerDjangoSourcePlugin,
     DynamicPatternPlugin as AnalyzerDynamicPatternPlugin,
+    DynamicSanitizerPlugin as AnalyzerDynamicSanitizerPlugin,
     FlaskSourcePlugin as AnalyzerFlaskSourcePlugin, PluginRegistry as AnalyzerPluginRegistry,
     TaintSinkPlugin as AnalyzerTaintSinkPlugin, TaintSourcePlugin as AnalyzerTaintSourcePlugin,
 };
@@ -25,8 +26,8 @@ use std::sync::Arc;
 
 pub use super::config::{CustomSinkConfig, CustomSourceConfig, TaintConfig};
 pub use super::plugins::{
-    BuiltinSinkPlugin, BuiltinSourcePlugin, DjangoSourcePlugin, FlaskSourcePlugin, PluginRegistry,
-    SanitizerPlugin, TaintSinkPlugin, TaintSourcePlugin,
+    BuiltinSinkPlugin, BuiltinSourcePlugin, DjangoSourcePlugin, DynamicSanitizerPlugin,
+    FlaskSourcePlugin, PluginRegistry, SanitizerPlugin, TaintSinkPlugin, TaintSourcePlugin,
 };
 
 /// Main taint analyzer.
@@ -73,6 +74,12 @@ impl TaintAnalyzer {
             plugins
                 .sinks
                 .push(dynamic as Arc<dyn AnalyzerTaintSinkPlugin>);
+        }
+
+        if !config.custom_sanitizers.is_empty() {
+            plugins.register_sanitizer(AnalyzerDynamicSanitizerPlugin {
+                sanitizers: config.custom_sanitizers.clone(),
+            });
         }
 
         let crossfile_analyzer = if config.crossfile {

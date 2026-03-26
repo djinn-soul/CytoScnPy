@@ -32,7 +32,7 @@ pub(super) fn handle_assign(
         }
     } else if let Some(taint_info) = is_expr_tainted(&assign.value, state) {
         if let Expr::Call(call) = &*assign.value {
-            if is_sanitizer_call(call) {
+            if is_sanitizer_call(call) || analyzer.plugins.is_sanitizer(call) {
                 for target in &assign.targets {
                     if let Expr::Name(name) = target {
                         state.sanitize(name.id.as_str());
@@ -63,7 +63,7 @@ pub(super) fn handle_ann_assign(
             }
         } else if let Some(taint_info) = is_expr_tainted(value, state) {
             if let Expr::Call(call) = &**value {
-                if is_sanitizer_call(call) {
+                if is_sanitizer_call(call) || analyzer.plugins.is_sanitizer(call) {
                     if let Expr::Name(name) = &*assign.target {
                         state.sanitize(name.id.as_str());
                     }

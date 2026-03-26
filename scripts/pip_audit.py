@@ -26,6 +26,8 @@ def main() -> int:
     cmd = ["uv", "run", "pip-audit"]
     for vuln_id in load_ignores(ignore_file):
         cmd += ["--ignore-vuln", vuln_id]
+    # Forward any additional arguments passed to this script
+    cmd.extend(sys.argv[1:])
 
     result = subprocess.run(cmd)
     return result.returncode

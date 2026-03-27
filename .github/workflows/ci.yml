@@ -25,6 +25,9 @@ env:
   CARGO_TERM_COLOR: always
   PYO3_PYTHON: python3
 
+permissions:
+  contents: read
+
 jobs:
   vscode-test:
     name: VS Code Test (${{ matrix.os }})

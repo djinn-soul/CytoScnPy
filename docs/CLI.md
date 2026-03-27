@@ -191,7 +191,7 @@ danger = true
 quality = true
 include_tests = false
 include_ipynb = false
-project_type = "library" # "library" (default) or "application"
+project_type = "library"   # "library" (default) or "application"
 # Note: ipynb_cells is currently a CLI-only option
 
 # Quality thresholds
@@ -204,12 +204,24 @@ min_mi = 40.0              # Min Maintainability Index
 # Path filters
 exclude_folders = ["build", "dist", ".venv"]
 include_folders = ["src"]
-ignore = ["CSP-P003"] # Globally ignore specific rule IDs
+
+# Rule suppression
+ignore = ["CSP-P003"]      # Globally ignore specific rule IDs
 per-file-ignores = { "tests/*" = ["CSP-D701"], "**/__init__.py" = ["CSP-L001"] }
 # Glob behavior: "*" matches a single path segment, "**" matches recursively.
 
+# Clone detection
+clones = false             # Enable duplicate code detection
+clone_similarity = 0.8     # Similarity threshold (0.0-1.0)
+
 # CI/CD
 fail_threshold = 5.0
+
+# Inline whitelist (suppress specific dead-code symbols)
+[[cytoscnpy.whitelist]]
+name = "my_handler"
+pattern = "exact"          # "exact" (default), "wildcard", or "regex"
+# file = "src/api/*.py"    # Optional: restrict to a specific file glob
 ```
 
 ### Advanced Configuration
@@ -238,10 +250,11 @@ rule_id = "CSP-SCUSTOM-001" # Optional
 ```toml
 [cytoscnpy.danger_config]
 enable_taint = true
-severity_threshold = "LOW" # LOW, MEDIUM, HIGH, CRITICAL
+severity_threshold = "LOW"         # LOW, MEDIUM, HIGH, CRITICAL
 excluded_rules = ["CSP-D101"]
 custom_sources = ["mylib.get_input"]
 custom_sinks = ["mylib.exec"]
+custom_sanitizers = ["mylib.clean"] # Functions that clear taint
 ```
 
 ## Exit Codes

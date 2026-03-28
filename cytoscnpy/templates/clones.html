@@ -82,6 +82,13 @@
 
   <div id="paginationControls" class="pagination-controls"></div>
 
+  <template id="file-icon-template">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+      <polyline points="13 2 13 9 20 9"></polyline>
+    </svg>
+  </template>
+
   <div
     id="emptyState"
     class="empty-state"
@@ -308,7 +315,9 @@
     location.appendChild(createFileIcon());
 
     const anchor = document.createElement("a");
-    anchor.href = link;
+    if (/^(https?:\/\/|\/|[^:]*#)/.test(link)) {
+      anchor.href = link;
+    }
     anchor.textContent = `${file}:${line}`;
 
     location.appendChild(anchor);
@@ -318,26 +327,8 @@
   }
 
   function createFileIcon() {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    svg.setAttribute("width", "14");
-    svg.setAttribute("height", "14");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", "2");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
-
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z");
-
-    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    polyline.setAttribute("points", "13 2 13 9 20 9");
-
-    svg.appendChild(path);
-    svg.appendChild(polyline);
-    return svg;
+    const template = document.getElementById("file-icon-template");
+    return template.content.cloneNode(true).firstElementChild;
   }
 
   function renderPagination(totalPages) {

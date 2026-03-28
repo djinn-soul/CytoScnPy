@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """pip-audit wrapper that reads ignore IDs from .pip-audit-ignore."""
 
 import subprocess

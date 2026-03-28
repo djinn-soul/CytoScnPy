@@ -22,7 +22,15 @@ def main() -> int:
     repo_root = Path(__file__).parent.parent
     ignore_file = repo_root / ".pip-audit-ignore"
 
-    cmd = ["uv", "run", "pip-audit"]
+    cmd = [
+        "uv",
+        "run",
+        "pip-audit",
+        "-r",
+        str(repo_root / "requirements.txt"),
+        "-r",
+        str(repo_root / "requirements-dev.txt"),
+    ]
     for vuln_id in load_ignores(ignore_file):
         cmd += ["--ignore-vuln", vuln_id]
     # Forward any additional arguments passed to this script

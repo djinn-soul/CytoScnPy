@@ -37,23 +37,12 @@ fn main() {
         .with_danger(false)
         .with_quality(false);
 
-    // Run analysis
-    let summary = analyzer.analyze(&path);
+    // Run analysis.
+    // WARNING: Do not log analysis summary details here; they may expose sensitive
+    // findings from the scanned project.
+    let _ = analyzer.analyze(&path);
 
     println!("✓ Analysis complete!");
-    println!("  Files: {}", summary.analysis_summary.total_files);
-    println!("  Lines: {}", summary.analysis_summary.total_lines_analyzed);
-    println!(
-        "  Definitions: {}",
-        summary.analysis_summary.total_definitions
-    );
-    let unused_count = summary.unused_functions.len()
-        + summary.unused_methods.len()
-        + summary.unused_imports.len()
-        + summary.unused_classes.len()
-        + summary.unused_variables.len()
-        + summary.unused_parameters.len();
-    println!("  Unused: {unused_count}");
 
     #[cfg(feature = "heap-profile")]
     {

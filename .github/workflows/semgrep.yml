@@ -9,6 +9,9 @@ on:
   schedule:
     - cron: "0 0 */15 * *" # Run on the 1st, 16th, and 31st of every month
 
+permissions:
+  contents: read
+
 jobs:
   semgrep:
     name: semgrep/ci

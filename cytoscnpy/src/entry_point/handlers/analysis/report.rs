@@ -18,7 +18,7 @@ pub(crate) fn report_results<W: std::io::Write>(
         print_verbose_stats(result, run);
     }
 
-    output_results(cli_var, analysis_root, result, writer)?;
+    output_results(cli_var, analysis_root, result, run, writer)?;
 
     if !context.is_structured {
         print_summary(cli_var, result, run, writer)?;
@@ -104,6 +104,7 @@ fn output_results<W: std::io::Write>(
     cli_var: &crate::cli::Cli,
     analysis_root: &std::path::Path,
     result: &crate::analyzer::AnalysisResult,
+    run: &AnalysisRun,
     writer: &mut W,
 ) -> Result<()> {
     if cli_var.output.json || cli_var.output.format == crate::cli::OutputFormat::Json {
@@ -115,7 +116,9 @@ fn output_results<W: std::io::Write>(
         eprintln!("[VERBOSE] Clone detection enabled");
         eprintln!(
             "   Similarity threshold: {:.0}%",
-            cli_var.clone_similarity * 100.0
+            run.clone_similarity
+                .unwrap_or(cli_var.clone_similarity.unwrap_or(0.8))
+                * 100.0
         );
         eprintln!();
     }

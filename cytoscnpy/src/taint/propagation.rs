@@ -160,7 +160,7 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
 /// Checks if a call is a sanitizer that removes taint.
 pub fn is_sanitizer_call(call: &ast::ExprCall) -> bool {
     if let Some(name) = get_call_name(&call.func) {
-        matches!(
+        if matches!(
             name.as_str(),
             "int"
                 | "float"
@@ -176,10 +176,36 @@ pub fn is_sanitizer_call(call: &ast::ExprCall) -> bool {
                 | "urllib.parse.quote"
                 | "quote"
                 | "bleach.clean"
-        )
+        ) {
+            return true;
+        }
+
+        // Conservative fallback heuristic for user-defined sanitizers.
+        // Keep this narrow to avoid suppressing real vulnerabilities.
+        let local = name.rsplit('.').next().unwrap_or(name.as_str());
+        is_conservative_sanitizer_name(local)
     } else {
         false
     }
+}
+
+/// Returns true for narrowly-scoped sanitizer naming conventions.
+///
+/// Intentionally excludes broad names like `check_*`, `verify_*`, `validate_*`, and `safe_*`
+/// because those often do not sanitize attacker-controlled data.
+fn is_conservative_sanitizer_name(name: &str) -> bool {
+    const SANITIZER_PREFIXES: &[&str] = &["sanitize_", "escape_", "encode_", "clean_"];
+    const SANITIZER_SUFFIXES: &[&str] = &[
+        "_sanitized",
+        "_escaped",
+        "_encoded",
+        "_cleaned",
+        "_escaped_html",
+    ];
+
+    let name = name.strip_prefix('_').unwrap_or(name);
+    SANITIZER_PREFIXES.iter().any(|p| name.starts_with(p))
+        || SANITIZER_SUFFIXES.iter().any(|s| name.ends_with(s))
 }
 
 /// Checks if a SQL call uses parameterized queries (sanitized).

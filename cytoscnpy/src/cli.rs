@@ -12,34 +12,77 @@ use std::path::PathBuf;
 
 /// Help text for configuration file options, shown at the bottom of --help.
 const CONFIG_HELP: &str = "\
-CONFIGURATION FILE (.cytoscnpy.toml):
-  Create this file in your project root to set defaults.
+CONFIGURATION FILE
+  Supported locations (highest priority first):
+    .cytoscnpy.toml          [cytoscnpy] table
+    pyproject.toml           [tool.cytoscnpy] table
+
+  Run `cytoscnpy init` to scaffold a fully-commented config file.
 
   [cytoscnpy]
-  # Core settings
-  confidence = 60            # Confidence threshold (0-100)
-  secrets = true             # Enable secrets scanning
-  danger = true              # Enable dangerous code scanning
-  quality = true             # Enable quality checks
-  include_tests = false      # Include test files in analysis
-  include_ipynb = false      # Include Jupyter notebooks
 
-  # Quality thresholds
-  max_complexity = 10        # Max cyclomatic complexity
-  max_nesting = 3            # Max nesting depth
-  max_args = 5               # Max function arguments
-  max_lines = 50             # Max function lines
-  min_mi = 40.0              # Min Maintainability Index
+  # Minimum confidence score (0-100) a finding must reach before it is reported.
+  # confidence = 60
 
-  # Path filters
-  exclude_folders = [\"build\", \"dist\", \".venv\"]
-  include_folders = [\"src\"]  # Force-include these
+  # Scan for hard-coded secrets and high-entropy strings (API keys, tokens, etc.).
+  # secrets = true
 
-  # Per-file rule ignores (glob -> rule IDs)
-  per-file-ignores = { \"tests/*\" = [\"S101\"], \"__init__.py\" = [\"F401\"], \"migrations/*\" = [\"E501\"] }
+  # Scan for dangerous code patterns: SQL injection, XSS, command injection, etc.
+  # danger = true
 
-  # CI/CD
-  fail_threshold = 5.0       # Exit 1 if >N% unused code
+  # Report code-quality issues: high complexity, deep nesting, long functions, etc.
+  # quality = true
+
+  # Include pytest/unittest test files in the analysis.
+  # include_tests = false
+
+  # Include Jupyter notebook (.ipynb) cells in the analysis.
+  # include_ipynb = false
+
+  # \"library\" - public symbols treated as exported API (fewer false positives).
+  # \"application\" - stricter dead-code detection for app-style projects.
+  # project_type = \"library\"
+
+  # McCabe complexity limit per function. Exceeding this is a quality finding.
+  # max_complexity = 10
+
+  # Maximum nesting depth (if/for/while/try) before a finding is emitted.
+  # max_nesting = 3
+
+  # Maximum number of parameters a function may have.
+  # max_args = 5
+
+  # Maximum number of lines a function body may span.
+  # max_lines = 50
+
+  # Minimum Maintainability Index (0-100). Below this score is flagged.
+  # min_mi = 40.0
+
+  # Directories to skip entirely during analysis.
+  # exclude_folders = [\"build\", \"dist\", \".venv\", \"__pycache__\"]
+
+  # Directories to force-include even when git-ignored.
+  # include_folders = [\"src\"]
+
+  # Rule IDs to silence globally across the entire project.
+  # ignore = [\"CSP-P003\"]
+
+  # Silence specific rules only for files matching a glob pattern.
+  # per-file-ignores = { \"tests/*\" = [\"CSP-D701\"] }
+
+  # Detect Type-1/2/3 duplicate code blocks across the project.
+  # clones = false
+
+  # How similar two blocks must be (0.0-1.0) to be reported as a clone pair.
+  # clone_similarity = 0.8
+
+  # Exit with code 1 when unused-definition percentage exceeds this value.
+  # fail_threshold = 5.0
+
+  Advanced subsections (run `cytoscnpy init` or see docs/CLI.md for full options):
+    [cytoscnpy.secrets_config]   entropy tuning, custom patterns
+    [cytoscnpy.danger_config]    taint sources/sinks/sanitizers
+    [[cytoscnpy.whitelist]]      inline dead-code suppressions
 ";
 
 /// Command line interface configuration using `clap`.
@@ -128,9 +171,9 @@ pub struct Cli {
     pub clones: bool,
 
     /// Minimum similarity threshold for clone detection (0.0-1.0).
-    /// Default is 0.8 (80% similarity).
-    #[arg(long, default_value = "0.8")]
-    pub clone_similarity: f64,
+    /// Default is 0.8 (80% similarity). Overrides the config file value.
+    #[arg(long)]
+    pub clone_similarity: Option<f64>,
 
     /// Auto-fix detected dead code (removes unused functions, classes, imports,
     /// and renames unused variables to `_`).

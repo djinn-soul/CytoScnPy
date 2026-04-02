@@ -78,6 +78,11 @@ pub struct CytoScnPyConfig {
     /// Supports exact names, wildcards (e.g., "test_*"), and regex patterns.
     #[serde(default)]
     pub whitelist: Vec<WhitelistEntry>,
+    /// Whether to enable clone detection (Type-1/2/3 duplicate code).
+    pub clones: Option<bool>,
+    /// Minimum similarity threshold for clone detection (0.0-1.0).
+    /// Overridden by `--clone-similarity` CLI flag.
+    pub clone_similarity: Option<f64>,
     /// Dependencies analysis configuration
     #[serde(default)]
     pub deps: DepsConfig,

@@ -86,6 +86,8 @@ pub struct DangerConfig {
     pub custom_sources: Option<Vec<String>>,
     /// Custom taint sinks.
     pub custom_sinks: Option<Vec<String>>,
+    /// Custom sanitizer functions that clear taint (e.g. URL validators, input cleaners).
+    pub custom_sanitizers: Option<Vec<String>>,
 }
 
 /// A custom secret pattern defined in TOML configuration.

@@ -74,6 +74,6 @@ repos:
 
       - id: pip-audit
         name: pip-audit dependency scan
-        entry: uv run pip-audit
+        entry: uv run python scripts/pip_audit.py
         language: system
         pass_filenames: false

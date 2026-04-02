@@ -7,6 +7,7 @@ use colored::Colorize;
 pub(crate) struct AnalysisRun {
     pub(crate) result: crate::analyzer::AnalysisResult,
     pub(crate) clone_pairs_found: usize,
+    pub(crate) clone_similarity: Option<f64>,
     pub(crate) start_time: std::time::Instant,
 }
 
@@ -122,9 +123,17 @@ pub(crate) fn run_analysis<W: std::io::Write>(
 
     // 2. Run clone detection if enabled (using the same progress bar)
     let mut clone_pairs_found = 0usize;
-    if cli_var.clones || cli_var.output.html {
+    let mut clone_similarity_used = None;
+    let clones_from_config = config.cytoscnpy.clones.unwrap_or(false);
+    // CLI flag takes priority, then config, then built-in default.
+    let clone_similarity = cli_var
+        .clone_similarity
+        .or(config.cytoscnpy.clone_similarity)
+        .unwrap_or(0.8);
+    if cli_var.clones || clones_from_config || cli_var.output.html {
+        clone_similarity_used = Some(clone_similarity);
         let clone_options = crate::commands::CloneOptions {
-            similarity: cli_var.clone_similarity,
+            similarity: clone_similarity,
             json: cli_var.output.json,
             fix: false, // Clones are report-only, never auto-fixed
             dry_run: !cli_var.apply,
@@ -147,7 +156,8 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         }
 
         // Run detection
-        let (count, findings) = if context.is_structured || !cli_var.clones {
+        let (count, findings) = if context.is_structured || (!cli_var.clones && !clones_from_config)
+        {
             // Suppress clone table unless explicitly requested (or for structured output)
             let mut sink = std::io::sink();
             crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?
@@ -169,6 +179,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
     Ok(AnalysisRun {
         result,
         clone_pairs_found,
+        clone_similarity: clone_similarity_used,
         start_time,
     })
 }

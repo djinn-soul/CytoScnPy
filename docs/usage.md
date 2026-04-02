@@ -218,14 +218,18 @@ secrets = true
 danger = true
 quality = true
 include_ipynb = false
-project_type = "library" # "library" (default) or "application"
-ignore = ["CSP-P003"] # Global rule suppressions
+project_type = "library"   # "library" (default) or "application"
+ignore = ["CSP-P003"]      # Global rule suppressions
 per-file-ignores = { "tests/*" = ["CSP-D701"] }
+
+# Clone detection
+clones = false             # Enable duplicate code detection
+clone_similarity = 0.8     # Similarity threshold (0.0-1.0)
 
 # CI/CD Gates (Fail if exceeded)
 fail_threshold = 5.0   # >5% unused code
 max_complexity = 15    # Function CC > 15
-min_mi = 40.0         # MI < 40
+min_mi = 40.0          # MI < 40
 ```
 
 ### Option 2: `pyproject.toml`
@@ -242,6 +246,10 @@ quality = true
 project_type = "library"
 ignore = ["CSP-P003"]
 per-file-ignores = { "tests/*" = ["CSP-D701"] }
+
+# Clone detection
+clones = false
+clone_similarity = 0.8
 
 # CI/CD Gates
 fail_threshold = 5.0
@@ -270,10 +278,11 @@ severity = "HIGH"
 
 [cytoscnpy.danger_config]
 enable_taint = true
-severity_threshold = "LOW" # LOW, MEDIUM, HIGH, CRITICAL
+severity_threshold = "LOW"          # LOW, MEDIUM, HIGH, CRITICAL
 excluded_rules = ["CSP-D101"]
 custom_sources = ["mylib.get_input"]
 custom_sinks = ["mylib.exec"]
+custom_sanitizers = ["mylib.clean"] # Functions that clear taint
 ```
 
 `project_type` controls dead-code export assumptions:

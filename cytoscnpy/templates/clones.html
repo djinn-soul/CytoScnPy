@@ -82,6 +82,13 @@
 
   <div id="paginationControls" class="pagination-controls"></div>
 
+  <template id="file-icon-template">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+      <polyline points="13 2 13 9 20 9"></polyline>
+    </svg>
+  </template>
+
   <div
     id="emptyState"
     class="empty-state"
@@ -220,12 +227,20 @@
         header.style.alignItems = "center";
         header.style.border = "1px solid #374151";
 
-        header.innerHTML = `
-                    <span>${file}</span>
-                    <span class="badge" style="background:var(--primary); color:white; padding:0.25rem 0.75rem; border-radius:999px; font-size:0.8rem;">
-                        ${groups[file].length} Clones
-                    </span>
-                `;
+        const fileLabel = document.createElement("span");
+        fileLabel.textContent = file;
+
+        const cloneCount = document.createElement("span");
+        cloneCount.className = "badge";
+        cloneCount.style.background = "var(--primary)";
+        cloneCount.style.color = "white";
+        cloneCount.style.padding = "0.25rem 0.75rem";
+        cloneCount.style.borderRadius = "999px";
+        cloneCount.style.fontSize = "0.8rem";
+        cloneCount.textContent = `${groups[file].length} Clones`;
+
+        header.appendChild(fileLabel);
+        header.appendChild(cloneCount);
         groupDiv.appendChild(header);
 
         groups[file].forEach((clone) => {
@@ -250,44 +265,70 @@
   function createCloneCard(clone) {
     const card = document.createElement("div");
     card.className = "report-item border-medium";
-    card.innerHTML = `
-            <div class="report-item-header">
-                <div>
-                    <span class="report-item-title">${clone.name}</span>
-                    <span style="font-size: 0.8rem; color: #6b7280; margin-left: 0.5rem;">${
-                      clone.type
-                    }</span>
-                </div>
-                <span class="similarity-badge">${(
-                  clone.similarity * 100
-                ).toFixed(0)}% Similarity</span>
-            </div>
-            <div class="clone-comparison">
-                <div class="comparison-side">
-                    <h4>Original / Source</h4>
-                    <div class="report-item-location">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                            <polyline points="13 2 13 9 20 9"></polyline>
-                        </svg>
-                        <a href="${clone.link}">${clone.file}:${clone.line}</a>
-                    </div>
-                </div>
-                <div class="comparison-side">
-                    <h4>Duplicate / Target</h4>
-                    <div class="report-item-location">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                            <polyline points="13 2 13 9 20 9"></polyline>
-                        </svg>
-                        <a href="${clone.relatedLink}">${clone.relatedFile}:${
-      clone.relatedLine
-    }</a>
-                    </div>
-                </div>
-            </div>
-        `;
+    const header = document.createElement("div");
+    header.className = "report-item-header";
+
+    const titleBlock = document.createElement("div");
+
+    const title = document.createElement("span");
+    title.className = "report-item-title";
+    title.textContent = clone.name;
+
+    const type = document.createElement("span");
+    type.style.fontSize = "0.8rem";
+    type.style.color = "#6b7280";
+    type.style.marginLeft = "0.5rem";
+    type.textContent = clone.type;
+
+    titleBlock.appendChild(title);
+    titleBlock.appendChild(type);
+
+    const similarity = document.createElement("span");
+    similarity.className = "similarity-badge";
+    similarity.textContent = `${(clone.similarity * 100).toFixed(0)}% Similarity`;
+
+    header.appendChild(titleBlock);
+    header.appendChild(similarity);
+
+    const comparison = document.createElement("div");
+    comparison.className = "clone-comparison";
+    comparison.appendChild(createComparisonSide("Original / Source", clone.file, clone.line, clone.link));
+    comparison.appendChild(
+      createComparisonSide("Duplicate / Target", clone.relatedFile, clone.relatedLine, clone.relatedLink)
+    );
+
+    card.appendChild(header);
+    card.appendChild(comparison);
     return card;
+  }
+
+  function createComparisonSide(label, file, line, link) {
+    const side = document.createElement("div");
+    side.className = "comparison-side";
+
+    const heading = document.createElement("h4");
+    heading.textContent = label;
+
+    const location = document.createElement("div");
+    location.className = "report-item-location";
+
+    location.appendChild(createFileIcon());
+
+    const anchor = document.createElement("a");
+    if (/^(https?:\/\/|\/|[^:]*#)/.test(link)) {
+      anchor.href = link;
+    }
+    anchor.textContent = `${file}:${line}`;
+
+    location.appendChild(anchor);
+    side.appendChild(heading);
+    side.appendChild(location);
+    return side;
+  }
+
+  function createFileIcon() {
+    const template = document.getElementById("file-icon-template");
+    return template.content.cloneNode(true).firstElementChild;
   }
 
   function renderPagination(totalPages) {

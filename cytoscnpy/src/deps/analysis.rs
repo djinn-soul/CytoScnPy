@@ -67,8 +67,22 @@ pub struct DepsOptions<'a> {
 fn is_local_package(roots: &[PathBuf], module_name: &str) -> bool {
     for root in roots {
         let dir = root.join(module_name);
-        if dir.is_dir() && (dir.join("__init__.py").exists() || dir.join("__init__.pyi").exists()) {
-            return true;
+        if dir.is_dir() {
+            // Regular package: explicit init file.
+            if dir.join("__init__.py").exists() || dir.join("__init__.pyi").exists() {
+                return true;
+            }
+            // Namespace package (Python 3.3+, PEP 420): a directory without an
+            // __init__.py is still a valid package as long as it contains at least
+            // one Python source file directly inside it.
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                let has_py = entries
+                    .filter_map(std::result::Result::ok)
+                    .any(|e| e.path().extension().is_some_and(|ext| ext == "py"));
+                if has_py {
+                    return true;
+                }
+            }
         }
         let file = root.join(format!("{module_name}.py"));
         if file.is_file() {
@@ -139,17 +153,21 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
             continue;
         }
 
+        let import_lower = import_name.to_lowercase();
+        // Try the original casing first (handles entries like "PIL"), then lowercase.
         let pkg_name_guess = reverse_mapping
             .get(import_name.as_str())
+            .or_else(|| reverse_mapping.get(import_lower.as_str()))
             .copied()
-            .unwrap_or(import_name.as_str());
-        let pkg_normalized = pkg_name_guess.replace('-', "_");
+            .unwrap_or(import_lower.as_str());
+        // Normalize separators and case so we can compare against dep.normalized_name.
+        let pkg_normalized = pkg_name_guess.to_lowercase().replace('-', "_");
 
         let is_declared = declared.iter().any(|dep| {
-            dep.package_name == pkg_name_guess
+            dep.package_name.to_lowercase() == pkg_name_guess
                 || dep.normalized_name == pkg_name_guess
                 || dep.normalized_name == pkg_normalized
-                || dep.normalized_name == *import_name
+                || dep.normalized_name == import_lower
         });
 
         if !is_declared {
@@ -181,10 +199,13 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
             let imported_norm: FxHashSet<String> = imported
                 .iter()
                 .map(|i| {
+                    let i_lower = i.to_lowercase();
+                    // Try original casing first (handles "PIL"), then lowercase.
                     reverse_mapping
                         .get(i.as_str())
-                        .map(|s| s.replace('-', "_"))
-                        .unwrap_or_else(|| i.replace('-', "_"))
+                        .or_else(|| reverse_mapping.get(i_lower.as_str()))
+                        .map(|s| s.to_lowercase().replace('-', "_"))
+                        .unwrap_or_else(|| i_lower.replace('-', "_"))
                 })
                 .collect();
 

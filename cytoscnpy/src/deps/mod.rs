@@ -12,8 +12,6 @@ pub mod lockfile;
 pub mod mapping;
 /// Standard library reference list.
 pub mod stdlib;
-/// Import-to-distribution mapping and usage map builder.
-pub mod usage_map;
 
 pub use analysis::{analyze_dependencies, DepsOptions, DepsResult, RemovableBranch};
 pub use declared::{DeclaredDependency, DependencySource};

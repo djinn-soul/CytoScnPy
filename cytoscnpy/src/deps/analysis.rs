@@ -98,8 +98,11 @@ fn is_local_package(roots: &[PathBuf], module_name: &str) -> bool {
                 }
             }
         }
-        let file = root.join(format!("{module_name}.py"));
-        if file.is_file() {
+        if root.join(format!("{module_name}.py")).is_file()
+            || root.join(format!("{module_name}.pyi")).is_file()
+            || root.join(format!("{module_name}.so")).is_file()
+            || root.join(format!("{module_name}.pyd")).is_file()
+        {
             return true;
         }
     }
@@ -156,6 +159,12 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     let reverse_mapping = get_reverse_mapping();
     let mut missing_set = FxHashSet::default();
 
+    // Pre-build a set of all declared names (original and normalized) for O(1) lookup.
+    let declared_names: FxHashSet<String> = declared
+        .iter()
+        .flat_map(|dep| [dep.package_name.to_lowercase(), dep.normalized_name.clone()])
+        .collect();
+
     for import_name in &imported {
         if options.ignore_missing.iter().any(|ig| ig == import_name) {
             continue;
@@ -177,12 +186,9 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         // Normalize separators and case so we can compare against dep.normalized_name.
         let pkg_normalized = pkg_name_guess.to_lowercase().replace('-', "_");
 
-        let is_declared = declared.iter().any(|dep| {
-            dep.package_name.to_lowercase() == pkg_name_guess
-                || dep.normalized_name == pkg_name_guess
-                || dep.normalized_name == pkg_normalized
-                || dep.normalized_name == import_lower
-        });
+        let is_declared = declared_names.contains(pkg_name_guess)
+            || declared_names.contains(&pkg_normalized)
+            || declared_names.contains(&import_lower);
 
         if !is_declared {
             missing_set.insert(import_name.clone());

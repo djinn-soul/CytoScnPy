@@ -90,6 +90,8 @@ pub struct CytoScnPyConfig {
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct DepsConfig {
+    /// Enable dependency analysis (equivalent to --deps flag).
+    pub enabled: Option<bool>,
     pub ignore_unused: Option<Vec<String>>,
     pub ignore_missing: Option<Vec<String>>,
     pub package_mapping: Option<rustc_hash::FxHashMap<String, Vec<String>>>,

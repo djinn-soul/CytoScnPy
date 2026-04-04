@@ -49,8 +49,9 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         writer,
     )?;
 
-    // Run dependency analysis
-    if !cli_var.scan.no_dead {
+    // Run dependency analysis (opt-in via --deps flag or config deps = true)
+    let run_deps = cli_var.scan.deps || config.cytoscnpy.deps.enabled.unwrap_or(false);
+    if run_deps {
         let deps_options = crate::deps::DepsOptions {
             roots: effective_paths,
             exclude: &context.exclude_folders,

@@ -52,7 +52,7 @@ pub fn extract_package_name_from_pep508(spec: &str) -> Option<String> {
     // Extract everything before version specifiers, extras, env markers, or URL separators.
     // Stop chars: `@` handles `pkg @ https://...`, `(` handles `pkg(>=1.0)`.
     let mut end_idx = spec.len();
-    for (i, c) in spec.char_indices() {
+        if matches!(c, '=' | '>' | '<' | '!' | '~' | ';' | '[' | '(' | '@' | ' ' | '#') {
         if matches!(c, '=' | '>' | '<' | '!' | '~' | ';' | '[' | '(' | '@' | ' ') {
             end_idx = i;
             break;

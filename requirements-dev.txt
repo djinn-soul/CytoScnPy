@@ -62,7 +62,7 @@ sortedcontainers==2.4.0
 tomli==2.4.0
 tomli-w==1.2.0
 trove-classifiers==2026.1.14.14
-ty==0.0.27
+ty==0.0.28
 typing-extensions==4.15.0 ; python_full_version < '3.13'
 urllib3==2.6.3
 watchdog==6.0.0

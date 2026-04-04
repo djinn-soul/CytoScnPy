@@ -309,3 +309,128 @@ dependencies = ["google-cloud-storage"]
     assert_eq!(code, 0);
     Ok(())
 }
+
+#[test]
+fn test_deps_local_namespace_package_not_flagged_missing() -> anyhow::Result<()> {
+    // Python 3.3+ namespace packages: a directory without __init__.py but with
+    // Python files inside is a valid local package and must not be reported as a
+    // missing dependency.
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = []
+"#,
+    )?;
+
+    // Create a namespace package: myns/ with a module but no __init__.py.
+    let ns_dir = root.join("myns");
+    fs::create_dir(&ns_dir)?;
+    fs::write(ns_dir.join("utils.py"), "def helper(): pass\n")?;
+
+    fs::write(root.join("main.py"), "from myns import utils\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(
+        !output.contains("myns"),
+        "local namespace package should not be flagged missing"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_deps_empty_dir_not_treated_as_local_package() -> anyhow::Result<()> {
+    // An empty directory (no Python files) should not be treated as a local
+    // namespace package — it is more likely an unrelated artifact.
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = []
+"#,
+    )?;
+
+    // Create an empty directory with the same name as a hypothetical import.
+    fs::create_dir(root.join("emptyns"))?;
+
+    fs::write(root.join("main.py"), "import emptyns\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    // emptyns has no Python files so it should be flagged as missing.
+    assert!(
+        output.contains("emptyns"),
+        "empty dir should still be flagged missing"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_deps_mixed_case_import_not_flagged_missing() -> anyhow::Result<()> {
+    // `import Requests` — AST preserves original casing. The declared dep is
+    // `requests` (lowercase). Without normalization this was a false-positive
+    // missing report.
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["requests"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import Requests\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(
+        !output.contains("Missing"),
+        "Requests should not be flagged missing"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_deps_uppercase_mapped_import_not_flagged_unused() -> anyhow::Result<()> {
+    // `import PIL` uses the reverse mapping entry (PIL -> pillow). Declaring
+    // `pillow` and importing `PIL` must not flag pillow as unused.
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["pillow"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import PIL\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(
+        !output.contains("pillow"),
+        "pillow should not be flagged unused"
+    );
+    Ok(())
+}

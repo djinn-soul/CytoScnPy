@@ -1,6 +1,3 @@
 # pip-audit ignore list
 # Format: one CVE/GHSA ID per line; lines starting with '#' and blank lines are ignored.
 # Remove an entry once a fixed version is available and you have upgraded.
-
-# pygments 2.19.2 - no fix released yet (2026-03-25)
-CVE-2026-4539

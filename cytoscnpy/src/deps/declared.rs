@@ -139,6 +139,22 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
             }
         }
 
+        // PDM dev dependencies [tool.pdm.dev-dependencies]
+        if let Some(tool) = parsed.get("tool").and_then(Value::as_table) {
+            if let Some(pdm) = tool.get("pdm").and_then(Value::as_table) {
+                if let Some(dev_deps) = pdm.get("dev-dependencies").and_then(Value::as_table) {
+                    for (pkg, _) in dev_deps {
+                        deps.push(DeclaredDependency {
+                            package_name: pkg.clone(),
+                            normalized_name: normalize_package_name(pkg),
+                            is_dev: true,
+                            source: DependencySource::Pyproject,
+                        });
+                    }
+                }
+            }
+        }
+
         // Poetry legacy format [tool.poetry.dependencies]
         if let Some(tool) = parsed.get("tool").and_then(Value::as_table) {
             if let Some(poetry) = tool.get("poetry").and_then(Value::as_table) {

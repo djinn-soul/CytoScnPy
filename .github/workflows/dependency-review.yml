@@ -30,20 +30,16 @@ jobs:
           comment-summary-in-pr: always
           # License check - allow common permissive licenses
           # Allow known unavailable vulnerabilities for Python 3.8 support
+          # Allow known unavailable vulnerabilities for Python 3.8 support:
+          # setuptools path traversal, urllib3 redirect/proxy/decompression/streaming DoS,
+          # filelock TOCTOU, pip path traversal (all require Py 3.9+ to fix)
           allow-ghsas: >-
-            # setuptools path traversal (fix requires Py 3.9+)
             GHSA-5rjg-fvgr-3xxf,
-            # urllib3: redirect body handling (fix requires Py 3.9+)
             GHSA-g4mx-q9vg-27p4,
-            # urllib3: Proxy-Authorization leakage (fix requires Py 3.9+)
             GHSA-34jh-p97f-mpxf,
-            # urllib3: decompression chain DoS (fix requires Py 3.9+)
             GHSA-gm62-xv2j-4w53,
-            # urllib3: streaming API highly compressed data DoS (fix requires Py 3.9+)
             GHSA-2xpw-w6gg-jr37,
-            # filelock: TOCTOU race condition (fix requires Py 3.9+)
             GHSA-pw2r-r8wx-5mcc,
-            # pip: path traversal in fallback tar extraction (fix requires Py 3.9+)
             GHSA-4xh5-x5gv-qwph
 
           # License check - allow common permissive licenses
@@ -60,7 +56,7 @@ jobs:
             Python-2.0,
             PSF-2.0
 
-          # Handle packages with unknown/complex licenses explicitly
+          # Handle packages with unknown/complex licenses explicitly (PURL format required)
           allow-dependencies-licenses: >-
             pkg:pypi/cyclonedx-python-lib@*: Apache-2.0 AND Python-2.0,
             pkg:pypi/pyparsing@*: MIT AND Python-2.0,

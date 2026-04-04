@@ -36,6 +36,9 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         if context.include_tests {
             config_summary.push("Tests");
         }
+        if cli_var.scan.deps || config.cytoscnpy.deps.enabled.unwrap_or(false) {
+            config_summary.push("Deps");
+        }
 
         if config_summary.is_empty() {
             config_summary.push("Dead Code Only");

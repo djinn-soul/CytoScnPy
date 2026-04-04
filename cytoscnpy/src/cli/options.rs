@@ -20,6 +20,10 @@ pub struct ScanOptions {
     /// Skip dead code detection (only run security/quality scans).
     #[arg(short = 'n', long = "no-dead")]
     pub no_dead: bool,
+
+    /// Analyze unused and missing dependencies (reads pyproject.toml / requirements.txt).
+    #[arg(long)]
+    pub deps: bool,
 }
 
 /// Supported output formats for scan results.

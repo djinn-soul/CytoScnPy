@@ -74,12 +74,26 @@ fn is_local_package(roots: &[PathBuf], module_name: &str) -> bool {
             }
             // Namespace package (Python 3.3+, PEP 420): a directory without an
             // __init__.py is still a valid package as long as it contains at least
-            // one Python source file directly inside it.
+            // one Python source file directly inside it, OR contains a subdirectory
+            // that is itself a package (handles `src/` layout where `src/myapp/` is
+            // the real package and `from src.myapp import ...` is used).
             if let Ok(entries) = std::fs::read_dir(&dir) {
-                let has_py = entries
-                    .filter_map(std::result::Result::ok)
-                    .any(|e| e.path().extension().is_some_and(|ext| ext == "py"));
-                if has_py {
+                let has_py_or_pkg_subdir = entries.filter_map(std::result::Result::ok).any(|e| {
+                    let p = e.path();
+                    if p.extension().is_some_and(|ext| ext == "py") {
+                        return true;
+                    }
+                    if p.is_dir() {
+                        return p.join("__init__.py").exists()
+                            || p.join("__init__.pyi").exists()
+                            || std::fs::read_dir(&p).is_ok_and(|rd| {
+                                rd.filter_map(std::result::Result::ok)
+                                    .any(|e2| e2.path().extension().is_some_and(|ext| ext == "py"))
+                            });
+                    }
+                    false
+                });
+                if has_py_or_pkg_subdir {
                     return true;
                 }
             }

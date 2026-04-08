@@ -1,6 +1,6 @@
-#![allow(missing_docs)]
-
 use super::*;
+
+const RUNTIME_PROTOCOL_REF_PREFIX: &str = "__csp_runtime_protocol__.";
 
 impl<'a> CytoScnPyVisitor<'a> {
     pub(super) fn visit_name_expr(&mut self, node: &ast::ExprName) {
@@ -87,6 +87,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
             }
 
+            if (name == "isinstance" || name == "issubclass") && node.arguments.args.len() >= 2 {
+                self.record_runtime_protocol_hints(&node.arguments.args[1]);
+            }
+
             if name == "__import__" {
                 if let Some(Expr::StringLiteral(module_str)) = node.arguments.args.first() {
                     self.dynamic_imports.push(module_str.value.to_string());
@@ -142,6 +146,36 @@ impl<'a> CytoScnPyVisitor<'a> {
                 _ => false,
             },
             _ => false,
+        }
+    }
+
+    fn runtime_protocol_name(expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Name(name) => Some(name.id.to_string()),
+            Expr::Attribute(attr) => {
+                if let Expr::Name(base_name) = &*attr.value {
+                    Some(format!("{}.{}", base_name.id, attr.attr))
+                } else {
+                    Some(attr.attr.to_string())
+                }
+            }
+            Expr::Subscript(subscript) => Self::runtime_protocol_name(&subscript.value),
+            _ => None,
+        }
+    }
+
+    fn record_runtime_protocol_hints(&mut self, type_expr: &Expr) {
+        match type_expr {
+            Expr::Tuple(tuple_expr) => {
+                for element in &tuple_expr.elts {
+                    self.record_runtime_protocol_hints(element);
+                }
+            }
+            _ => {
+                if let Some(protocol_name) = Self::runtime_protocol_name(type_expr) {
+                    self.add_ref(&format!("{RUNTIME_PROTOCOL_REF_PREFIX}{protocol_name}"));
+                }
+            }
         }
     }
 

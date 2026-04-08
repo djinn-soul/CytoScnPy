@@ -57,9 +57,11 @@ impl CytoScnPy {
         let fixture_definition_names = state.fixture_definition_names();
         let reachability = build_reachability(
             &state.all_defs,
+            &state.ref_counts,
             &state.all_protocols,
             &state.dynamic_imported_modules,
             &state.global_call_graph,
+            self.include_tests,
         );
 
         let mut classified = classify_definitions(

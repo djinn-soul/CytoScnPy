@@ -1,6 +1,6 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, Expr};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn handle_if_stmt(&mut self, node: &ast::StmtIf) {
         let mut is_type_checking_guard = false;
         if let Expr::Name(name) = &*node.test {

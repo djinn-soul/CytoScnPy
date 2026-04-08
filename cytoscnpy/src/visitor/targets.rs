@@ -1,6 +1,6 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, DefinitionInfo, DefinitionType, Expr, MAX_RECURSION_DEPTH};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn visit_definition_target(&mut self, target: &Expr) {
         match target {
             Expr::Name(node) => {

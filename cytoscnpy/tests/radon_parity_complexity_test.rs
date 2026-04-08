@@ -5,7 +5,6 @@
 //! not for module-level code. So we wrap test code in functions.
 
 #![allow(clippy::unwrap_used)] // Tests use unwrap for clarity
-#![allow(clippy::ignore_without_reason)] // Ignore reasons in comments
 
 use cytoscnpy::complexity::analyze_complexity;
 use std::path::PathBuf;

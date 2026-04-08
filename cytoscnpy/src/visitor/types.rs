@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Arc, CompactString, Deserialize, Deserializer, FxHashMap, FxHashSet, PathBuf, Serialize,
+    Serializer, SmallVec,
+};
 use std::fmt;
 
 /// Serialize Arc<PathBuf> as a plain `PathBuf` for JSON output
@@ -106,17 +109,25 @@ pub struct DefinitionInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
+/// Kinds of definitions tracked by the analyzer.
 pub enum DefinitionType {
+    /// Top-level or nested function definition.
     #[default]
     Function,
+    /// Method definition inside a class.
     Method,
+    /// Class definition.
     Class,
+    /// Import binding definition.
     Import,
+    /// Variable assignment definition.
     Variable,
+    /// Function parameter definition.
     Parameter,
 }
 
 impl DefinitionType {
+    /// Returns the stable lowercase label used in JSON and reports.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

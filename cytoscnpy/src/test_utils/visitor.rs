@@ -5,20 +5,25 @@ use std::path::Path;
 
 /// Fixture definition metadata extracted from a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub struct FixtureDefinitionHint {
+    /// Line where the fixture function is defined (name-token line).
     pub line: usize,
+    /// Python function name that defines the fixture.
     pub function_name: String,
+    /// Exposed fixture name (may differ from function name via `name=`).
     pub fixture_name: String,
 }
 
 /// Static import binding for fixture resolution.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub struct FixtureImportHint {
+    /// Local imported symbol name used in this file.
     pub local_name: String,
+    /// Source module from `from x import y`.
     pub source_module: String,
+    /// Original exported symbol name.
     pub source_symbol: String,
+    /// Relative import level.
     pub level: u32,
 }
 
@@ -26,22 +31,31 @@ pub struct FixtureImportHint {
 ///
 /// This is important because "unused" code in test files (like helper functions or fixtures)
 /// is often valid and shouldn't be reported as dead code.
-#[allow(missing_docs)]
 pub struct TestAwareVisitor<'a> {
+    /// Whether the scanned file path matches test-file heuristics.
     pub is_test_file: bool,
+    /// Function/class lines detected as tests.
     pub test_decorated_lines: Vec<usize>,
+    /// Function lines detected as fixtures.
     pub fixture_decorated_lines: Vec<usize>,
+    /// Fixture function names declared in this file.
     pub fixture_names: Vec<String>,
+    /// Fixture names requested via `pytest.mark.usefixtures(...)`.
     pub usefixtures_names: Vec<String>,
+    /// Fixture definitions with normalized metadata.
     pub fixture_definitions: Vec<FixtureDefinitionHint>,
+    /// Fixture names requested via function parameters or decorators.
     pub fixture_request_names: Vec<String>,
+    /// Static import hints used for fixture resolution.
     pub fixture_imports: Vec<FixtureImportHint>,
+    /// Plugins declared in `pytest_plugins`.
     pub pytest_plugins: Vec<String>,
+    /// Shared line index for byte-to-line conversion.
     pub line_index: &'a LineIndex,
 }
 
-#[allow(missing_docs)]
 impl<'a> TestAwareVisitor<'a> {
+    /// Creates a test-aware visitor for a single file.
     #[must_use]
     pub fn new(path: &Path, line_index: &'a LineIndex) -> Self {
         let path_str = path.to_string_lossy();
@@ -61,6 +75,7 @@ impl<'a> TestAwareVisitor<'a> {
         }
     }
 
+    /// Visits a statement and extracts test/fixture metadata.
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::FunctionDef(node) => {

@@ -1,6 +1,6 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, Expr};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn handle_return_stmt(&mut self, node: &ast::StmtReturn) {
         if let Some(value) = &node.value {
             if let Expr::Name(name_node) = &**value {

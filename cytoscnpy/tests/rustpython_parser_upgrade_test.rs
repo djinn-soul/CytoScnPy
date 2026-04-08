@@ -4,7 +4,6 @@
 //! works correctly, particularly around function argument handling.
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
-#![allow(clippy::doc_markdown)]
 
 use ruff_python_ast as ast;
 use ruff_python_parser::{parse, Mode};

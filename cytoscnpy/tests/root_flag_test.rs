@@ -12,19 +12,15 @@
 // Test-specific lint suppressions - these patterns are idiomatic in tests
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::redundant_closure_for_method_calls)]
-#![allow(clippy::inefficient_to_string)]
-#![allow(clippy::uninlined_format_args)]
 
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
 /// Helper to run CytoScnPy and capture output
-fn run_cytoscnpy(args: Vec<&str>) -> (i32, String) {
+fn run_cytoscnpy(args: &[&str]) -> (i32, String) {
     let mut output = Vec::new();
-    let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+    let args_owned: Vec<String> = args.iter().map(|s| (*s).to_owned()).collect();
     let exit_code = cytoscnpy::entry_point::run_with_args_to(args_owned, &mut output).unwrap_or(1);
     let output_str = String::from_utf8_lossy(&output).to_string();
     (exit_code, output_str)
@@ -55,7 +51,7 @@ print(used_function())
 #[test]
 fn test_root_flag_exists_in_help() {
     // The --root flag should appear in help output
-    let (exit_code, output) = run_cytoscnpy(vec!["--help"]);
+    let (exit_code, output) = run_cytoscnpy(&["--help"]);
 
     assert_eq!(exit_code, 0, "Help should exit with 0");
     assert!(
@@ -72,7 +68,7 @@ fn test_root_flag_alone_works() {
     create_test_project(&project_root);
 
     let project_path = project_root.to_string_lossy().to_string();
-    let (exit_code, output) = run_cytoscnpy(vec!["--root", &project_path, "--json"]);
+    let (exit_code, output) = run_cytoscnpy(&["--root", &project_path, "--json"]);
 
     // Should succeed and find the files
     assert_eq!(
@@ -95,7 +91,7 @@ fn test_root_and_path_conflict() {
     let project_path = project_root.to_string_lossy().to_string();
 
     // Try to use both positional path AND --root
-    let (exit_code, _output) = run_cytoscnpy(vec!["./src", "--root", &project_path]);
+    let (exit_code, _output) = run_cytoscnpy(&["./src", "--root", &project_path]);
 
     // Should fail with an error (clap sends this to stderr, not stdout)
     assert_eq!(
@@ -121,7 +117,7 @@ fn test_root_flag_allows_absolute_paths_from_different_cwd() {
 
     // Now run with --root pointing to the project
     let project_path = project_root.to_string_lossy().to_string();
-    let (exit_code, output) = run_cytoscnpy(vec!["--root", &project_path, "--json"]);
+    let (exit_code, output) = run_cytoscnpy(&["--root", &project_path, "--json"]);
 
     // Should succeed even though CWD is different
     assert_eq!(
@@ -139,7 +135,7 @@ fn test_root_flag_with_stats_subcommand() {
 
     let project_path = project_root.to_string_lossy().to_string();
 
-    let (exit_code, output) = run_cytoscnpy(vec!["stats", "--root", &project_path, "--json"]);
+    let (exit_code, output) = run_cytoscnpy(&["stats", "--root", &project_path, "--json"]);
 
     assert_eq!(exit_code, 0, "Stats with --root should succeed");
     assert!(
@@ -158,7 +154,7 @@ fn test_stats_root_and_path_conflict() {
     let project_path = project_root.to_string_lossy().to_string();
 
     // Try to use both positional path AND --root with stats
-    let (exit_code, _output) = run_cytoscnpy(vec!["stats", "./other", "--root", &project_path]);
+    let (exit_code, _output) = run_cytoscnpy(&["stats", "./other", "--root", &project_path]);
 
     assert_eq!(
         exit_code, 1,
@@ -177,9 +173,9 @@ fn test_cc_with_root() {
 
     // Run cc with --root instead of positional path
     // We expect this to pass (exit code 0)
-    let (exit_code, output) = run_cytoscnpy(vec!["cc", "--root", &project_path]);
+    let (exit_code, output) = run_cytoscnpy(&["cc", "--root", &project_path]);
 
-    assert_eq!(exit_code, 0, "cc --root should succeed. Output: {}", output);
+    assert_eq!(exit_code, 0, "cc --root should succeed. Output: {output}");
     assert!(
         output.contains("main.py"),
         "Output should contain main.py findings"
@@ -193,7 +189,7 @@ fn test_cc_root_and_path_conflict() {
     let project_root = temp_dir.path().join("myproject");
     create_test_project(&project_root);
     let project_path = project_root.to_string_lossy().to_string();
-    let (exit_code, _) = run_cytoscnpy(vec!["cc", "./src", "--root", &project_path]);
+    let (exit_code, _) = run_cytoscnpy(&["cc", "./src", "--root", &project_path]);
     assert_eq!(exit_code, 1);
 }
 
@@ -204,7 +200,7 @@ fn test_raw_root_and_path_conflict() {
     let project_root = temp_dir.path().join("myproject");
     create_test_project(&project_root);
     let project_path = project_root.to_string_lossy().to_string();
-    let (exit_code, _) = run_cytoscnpy(vec!["raw", "./src", "--root", &project_path]);
+    let (exit_code, _) = run_cytoscnpy(&["raw", "./src", "--root", &project_path]);
     assert_eq!(exit_code, 1);
 }
 
@@ -215,7 +211,7 @@ fn test_files_root_and_path_conflict() {
     let project_root = temp_dir.path().join("myproject");
     create_test_project(&project_root);
     let project_path = project_root.to_string_lossy().to_string();
-    let (exit_code, _) = run_cytoscnpy(vec!["files", "./src", "--root", &project_path]);
+    let (exit_code, _) = run_cytoscnpy(&["files", "./src", "--root", &project_path]);
     assert_eq!(exit_code, 1);
 }
 
@@ -226,7 +222,7 @@ fn test_default_path_behavior_unchanged() {
     create_test_project(temp_dir.path());
 
     let project_path = temp_dir.path().to_string_lossy().to_string();
-    let (exit_code, output) = run_cytoscnpy(vec![&project_path, "--json"]);
+    let (exit_code, output) = run_cytoscnpy(&[&project_path, "--json"]);
 
     assert_eq!(exit_code, 0, "Default path behavior should still work");
     assert!(
@@ -238,7 +234,7 @@ fn test_default_path_behavior_unchanged() {
 #[test]
 fn test_root_flag_help_text() {
     // The help text should explain what --root does
-    let (exit_code, output) = run_cytoscnpy(vec!["--help"]);
+    let (exit_code, output) = run_cytoscnpy(&["--help"]);
 
     assert_eq!(exit_code, 0);
     // Check for meaningful help text about --root

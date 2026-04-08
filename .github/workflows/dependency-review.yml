@@ -22,6 +22,8 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@v4 # Keep version tag for easier updates
         with:
+          # Retry if dependency graph snapshots aren't ready yet
+          retry-on-snapshot-warnings: true
           # Fail on high and critical severity vulnerabilities
           fail-on-severity: high
           # Only check runtime dependencies

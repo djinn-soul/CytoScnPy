@@ -1,11 +1,3 @@
-#![allow(missing_docs)]
-#![allow(
-    clippy::wildcard_imports,
-    clippy::elidable_lifetime_names,
-    clippy::semicolon_if_nothing_returned,
-    clippy::needless_pass_by_value
-)]
-
 use crate::constants::MAX_RECURSION_DEPTH;
 use crate::constants::PYTEST_HOOKS;
 use crate::utils::LineIndex;

@@ -1,6 +1,6 @@
-use super::*;
+use super::{CytoScnPyVisitor, DefinitionInfo, DefinitionType, SmallVec};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn register_function_definition(
         &mut self,
         name_node: &ruff_python_ast::Identifier,

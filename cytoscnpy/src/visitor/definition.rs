@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Arc, CytoScnPyVisitor, Definition, DefinitionInfo, DefinitionType, Ranged, ScopeType,
+    UnusedCategory,
+};
 
 struct DefinitionFlags {
     references: usize,
@@ -10,7 +13,7 @@ struct DefinitionFlags {
     is_potential_secret: bool,
 }
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn get_range_info<T: Ranged>(
         &self,
         node: &T,

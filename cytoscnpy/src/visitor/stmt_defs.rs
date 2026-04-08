@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ast, CompactString, CytoScnPyVisitor, DefinitionInfo, DefinitionType, Expr, Ranged, ScopeType,
+    SmallVec,
+};
 
 fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
     value
@@ -16,7 +19,7 @@ fn normalize_base_class_name(base: &Expr) -> Option<String> {
     }
 }
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn handle_function_stmt(&mut self, node: &ast::StmtFunctionDef) {
         for decorator in &node.decorator_list {
             self.visit_expr(&decorator.expression);

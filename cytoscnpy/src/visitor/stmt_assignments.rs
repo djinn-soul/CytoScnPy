@@ -1,6 +1,6 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, DefinitionInfo, DefinitionType, Expr, SmallVec};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn handle_assign_stmt(&mut self, node: &ast::StmtAssign) {
         if node.targets.iter().any(Self::is_all_name_expr) {
             if Self::is_all_present_in_expr(&node.value) {

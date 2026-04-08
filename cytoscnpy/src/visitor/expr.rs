@@ -1,8 +1,8 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, Expr, Regex, EVAL_IDENTIFIER_RE, MAX_RECURSION_DEPTH};
 
 const RUNTIME_PROTOCOL_REF_PREFIX: &str = "__csp_runtime_protocol__.";
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn visit_name_expr(&mut self, node: &ast::ExprName) {
         if node.ctx.is_load() {
             let name = node.id.to_string();
@@ -279,6 +279,7 @@ impl<'a> CytoScnPyVisitor<'a> {
         }
     }
 
+    /// Visits an expression node and recursively traverses its children.
     pub fn visit_expr(&mut self, expr: &Expr) {
         if self.depth >= MAX_RECURSION_DEPTH {
             self.recursion_limit_hit = true;

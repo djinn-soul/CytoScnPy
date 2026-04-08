@@ -43,6 +43,7 @@ fn collect_imports(stmts: &[Stmt], imports: &mut FxHashSet<String>) {
             }
             Stmt::With(w) => collect_imports(&w.body, imports),
             Stmt::Try(t) => {
+                // Ruff's StmtTry covers both `try` and `try*` (StmtTry { is_star, .. }).
                 collect_imports(&t.body, imports);
                 for handler in &t.handlers {
                     let ast::ExceptHandler::ExceptHandler(h) = handler;
@@ -179,6 +180,39 @@ mod tests {
         let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
         assert!(imports.contains("dataclasses"));
         assert!(imports.contains("typing"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_imports_nested_in_async_blocks() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.py");
+        fs::write(
+            &file_path,
+            "async def worker(items):\n    import aiohttp\n    async for item in items:\n        import yarl\n    async with aiohttp.ClientSession() as s:\n        import async_timeout\n",
+        )?;
+
+        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+        assert!(imports.contains("aiohttp"));
+        assert!(imports.contains("yarl"));
+        assert!(imports.contains("async_timeout"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_imports_nested_in_try_star() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.py");
+        fs::write(
+            &file_path,
+            "try:\n    import grp_a\nexcept* Exception:\n    import grp_b\nelse:\n    import grp_c\nfinally:\n    import grp_d\n",
+        )?;
+
+        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+        assert!(imports.contains("grp_a"));
+        assert!(imports.contains("grp_b"));
+        assert!(imports.contains("grp_c"));
+        assert!(imports.contains("grp_d"));
         Ok(())
     }
 }

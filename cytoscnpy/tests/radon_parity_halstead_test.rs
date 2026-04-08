@@ -2,9 +2,7 @@
 //! Ported from: `radon/tests/test_halstead.py`
 
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::ignore_without_reason)]
 #![allow(clippy::cast_precision_loss)] // usize to f64 is intentional
-#![allow(unused_variables)] // Allow unused tuple bindings
 
 use cytoscnpy::halstead::analyze_halstead;
 use ruff_python_parser::{parse, Mode};
@@ -30,7 +28,7 @@ fn test_halstead_if_and() {
     // if a and b: pass
     // Expected: (1, 2, 1, 2) - (ops, opnds, distinct_ops, distinct_opnds)
     let code = "if a and b: pass";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     // Verify we get reasonable counts
     assert!(ops >= 1, "Should have at least 1 operator (and)");
@@ -38,7 +36,7 @@ fn test_halstead_if_and() {
 }
 
 #[test]
-#[ignore] // TODO: Fix distinct operand counting
+#[ignore = "TODO: Fix distinct operand counting"]
 fn test_halstead_if_elif_and_or() {
     // if a and b: pass
     // elif b or c: pass
@@ -47,7 +45,7 @@ fn test_halstead_if_elif_and_or() {
 if a and b: pass
 elif b or c: pass
 ";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (_ops, _opnds, d_ops, d_opnds) = get_halstead_counts(code);
 
     assert!(
         d_ops >= 2,
@@ -64,7 +62,7 @@ fn test_halstead_multiply() {
     // a = b * c
     // Expected: (1, 2, 1, 2)
     let code = "a = b * c";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, _opnds, _d_ops, d_opnds) = get_halstead_counts(code);
 
     assert!(ops >= 1, "Should have operator (*)");
     assert!(d_opnds >= 2, "Should have at least 2 distinct operands");
@@ -75,7 +73,7 @@ fn test_halstead_unary_minus() {
     // b = -x
     // Expected: (1, 1, 1, 1)
     let code = "b = -x";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(ops >= 1, "Should have unary operator (-)");
     assert!(opnds >= 1, "Should have operand (x)");
@@ -90,7 +88,7 @@ fn test_halstead_two_unary() {
 a = -x
 c = -x
 ";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, _opnds, d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(ops >= 2, "Should have 2 total operators");
     assert!(d_ops >= 1, "Should have at least 1 distinct operator");
@@ -105,7 +103,7 @@ fn test_halstead_unary_plus_minus() {
 a = -x
 b = +x
 ";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (_ops, _opnds, d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(d_ops >= 2, "Should have 2 distinct operators (- and +)");
 }
@@ -121,7 +119,7 @@ a += 3
 b += 4
 c *= 3
 ";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, _opnds, d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(ops >= 3, "Should have 3 augmented assignment operators");
     assert!(d_ops >= 2, "Should have at least 2 distinct (+=, *=)");
@@ -142,7 +140,7 @@ def f():
     b = 2
     b += 4
 ";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     // Our implementation may include function body - verify it doesn't crash
     assert!(ops >= 2, "Should have operators");
@@ -160,7 +158,7 @@ async def f():
     b = 2
     b += 4
 ";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(ops >= 2, "Should have operators");
     assert!(opnds >= 4, "Should have operands");
@@ -177,7 +175,7 @@ a = b < 4
 c = i <= 45 >= d
 k = 4 < 2
 ";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, _opnds, d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(ops >= 3, "Should have comparison operators");
     assert!(d_ops >= 3, "Should have 3 distinct ops (<, <=, >=)");
@@ -297,7 +295,7 @@ fn test_halstead_bugs_formula() {
 #[test]
 fn test_halstead_empty_code() {
     let code = "";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert_eq!(ops, 0);
     assert_eq!(opnds, 0);
@@ -306,7 +304,7 @@ fn test_halstead_empty_code() {
 #[test]
 fn test_halstead_only_comments() {
     let code = "# just a comment";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert_eq!(ops, 0);
     assert_eq!(opnds, 0);
@@ -315,7 +313,7 @@ fn test_halstead_only_comments() {
 #[test]
 fn test_halstead_complex_expression() {
     let code = "result = (a + b) * (c - d) / e ** 2";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (_ops, _opnds, d_ops, d_opnds) = get_halstead_counts(code);
 
     // Should have +, -, *, /, ** = at least 5 distinct operators
     assert!(d_ops >= 4, "Should have multiple distinct operators");
@@ -326,7 +324,7 @@ fn test_halstead_complex_expression() {
 #[test]
 fn test_halstead_function_call() {
     let code = "x = func(a, b, c)";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     // func is an operator (call), a, b, c, x are operands
     assert!(ops >= 1, "Should count function call");
@@ -336,7 +334,7 @@ fn test_halstead_function_call() {
 #[test]
 fn test_halstead_list_operations() {
     let code = "x = [1, 2, 3] + [4, 5]";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(ops >= 1, "Should count + operator");
     assert!(opnds >= 5, "Should count list elements");
@@ -345,7 +343,7 @@ fn test_halstead_list_operations() {
 #[test]
 fn test_halstead_dict_operations() {
     let code = "d = {'a': 1, 'b': 2}";
-    let (ops, opnds, d_ops, d_opnds) = get_halstead_counts(code);
+    let (_ops, opnds, _d_ops, _d_opnds) = get_halstead_counts(code);
 
     assert!(opnds >= 4, "Should count keys and values");
 }

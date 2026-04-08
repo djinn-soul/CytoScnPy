@@ -1,6 +1,6 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, DefinitionInfo, DefinitionType, SmallVec};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn handle_import_stmt(&mut self, node: &ast::StmtImport) {
         for alias in &node.names {
             let simple_name = alias.asname.as_ref().unwrap_or(&alias.name);

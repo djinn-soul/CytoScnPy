@@ -1,8 +1,10 @@
-#![allow(missing_docs)]
-
-use super::*;
+use super::{
+    Arc, CytoScnPyVisitor, FxHashMap, FxHashSet, LineIndex, PathBuf, Scope, ScopeType, SmallVec,
+    PYTEST_HOOKS,
+};
 
 impl<'a> CytoScnPyVisitor<'a> {
+    /// Creates a visitor with default project-type heuristics.
     pub fn new(file_path: PathBuf, module_name: String, line_index: &'a LineIndex) -> Self {
         Self::with_project_type(
             file_path,

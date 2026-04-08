@@ -1,6 +1,5 @@
 //! Comprehensive Radon raw metrics parity tests.
 //! Ported from: `radon/tests/test_raw.py`
-#![allow(clippy::ignore_without_reason)]
 #![allow(clippy::needless_raw_string_hashes)]
 
 use cytoscnpy::raw_metrics::analyze_raw;

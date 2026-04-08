@@ -1,6 +1,6 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, Expr};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn visit_expr_children(&mut self, expr: &Expr) {
         match expr {
             Expr::Name(node) => self.visit_name_expr(node),
@@ -37,10 +37,10 @@ impl<'a> CytoScnPyVisitor<'a> {
                 }
             }
             Expr::ListComp(node) => {
-                self.visit_comprehension_generators(&node.generators, Some(&node.elt), None, None)
+                self.visit_comprehension_generators(&node.generators, Some(&node.elt), None, None);
             }
             Expr::SetComp(node) => {
-                self.visit_comprehension_generators(&node.generators, Some(&node.elt), None, None)
+                self.visit_comprehension_generators(&node.generators, Some(&node.elt), None, None);
             }
             Expr::DictComp(node) => {
                 self.visit_comprehension_generators(
@@ -51,7 +51,7 @@ impl<'a> CytoScnPyVisitor<'a> {
                 );
             }
             Expr::Generator(node) => {
-                self.visit_comprehension_generators(&node.generators, Some(&node.elt), None, None)
+                self.visit_comprehension_generators(&node.generators, Some(&node.elt), None, None);
             }
             Expr::Await(node) => self.visit_expr(&node.value),
             Expr::Yield(node) => {

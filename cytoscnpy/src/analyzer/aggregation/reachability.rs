@@ -2,6 +2,8 @@ use crate::taint::call_graph::CallGraph;
 use crate::visitor::Definition;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+pub(super) const RUNTIME_PROTOCOL_REF_PREFIX: &str = "__csp_runtime_protocol__.";
+
 pub(super) struct ReachabilityContext {
     pub(super) implicitly_used_methods: FxHashSet<String>,
     pub(super) reachable_nodes: FxHashSet<String>,
@@ -10,18 +12,23 @@ pub(super) struct ReachabilityContext {
 
 pub(super) fn build_reachability(
     definitions: &[Definition],
+    ref_counts: &FxHashMap<String, usize>,
     protocol_methods: &FxHashMap<String, FxHashSet<String>>,
     dynamic_imported_modules: &FxHashSet<String>,
     call_graph: &CallGraph,
+    include_tests: bool,
 ) -> ReachabilityContext {
     let class_methods = collect_class_methods(definitions);
-    let implicitly_used_methods = collect_implicitly_used_methods(&class_methods, protocol_methods);
+    let runtime_protocol_hints = collect_runtime_protocol_hints(ref_counts);
+    let implicitly_used_methods =
+        collect_implicitly_used_methods(&class_methods, protocol_methods, &runtime_protocol_hints);
     let reachable_nodes = collect_reachable_nodes(
         definitions,
         &class_methods,
         &implicitly_used_methods,
         dynamic_imported_modules,
         call_graph,
+        include_tests,
     );
     let explicitly_called_nodes = collect_explicitly_called_nodes(call_graph);
 
@@ -67,6 +74,7 @@ fn collect_class_methods(definitions: &[Definition]) -> FxHashMap<String, FxHash
 fn collect_implicitly_used_methods(
     class_methods: &FxHashMap<String, FxHashSet<String>>,
     protocol_methods: &FxHashMap<String, FxHashSet<String>>,
+    runtime_protocol_hints: &FxHashSet<String>,
 ) -> FxHashSet<String> {
     let mut method_to_protocols: FxHashMap<String, Vec<&String>> = FxHashMap::default();
 
@@ -95,12 +103,14 @@ fn collect_implicitly_used_methods(
             if let Some(proto_methods) = protocol_methods.get(proto_name) {
                 let intersection_count = methods.intersection(proto_methods).count();
                 let proto_len = proto_methods.len();
-                if proto_len > 0 && intersection_count >= 3 {
-                    let ratio = intersection_count as f64 / proto_len as f64;
-                    if ratio >= 0.7 {
-                        for method in methods.intersection(proto_methods) {
-                            implicitly_used_methods.insert(format!("{class_name}.{method}"));
-                        }
+                let runtime_checked = protocol_hint_matches(proto_name, runtime_protocol_hints);
+                let passes_similarity_threshold =
+                    similarity_threshold_met(intersection_count, proto_len);
+                let passes_runtime_threshold = runtime_checked && intersection_count > 0;
+
+                if passes_similarity_threshold || passes_runtime_threshold {
+                    for method in methods.intersection(proto_methods) {
+                        implicitly_used_methods.insert(format!("{class_name}.{method}"));
                     }
                 }
             }
@@ -110,19 +120,54 @@ fn collect_implicitly_used_methods(
     implicitly_used_methods
 }
 
+fn collect_runtime_protocol_hints(ref_counts: &FxHashMap<String, usize>) -> FxHashSet<String> {
+    ref_counts
+        .keys()
+        .filter_map(|key| key.strip_prefix(RUNTIME_PROTOCOL_REF_PREFIX))
+        .map(std::borrow::ToOwned::to_owned)
+        .collect()
+}
+
+/// Returns `true` when a class's method overlap with a protocol is large enough
+/// to treat the class as an implicit implementor of that protocol.
+///
+/// Thresholds: at least 3 shared methods **and** ≥ 70 % of the protocol surface.
+fn similarity_threshold_met(intersection_count: usize, proto_len: usize) -> bool {
+    const MIN_SHARED_METHODS: usize = 3;
+    const MIN_COVERAGE_RATIO: f64 = 0.7;
+
+    proto_len > 0
+        && intersection_count >= MIN_SHARED_METHODS
+        && (intersection_count as f64 / proto_len as f64) >= MIN_COVERAGE_RATIO
+}
+
+fn protocol_hint_matches(proto_name: &str, runtime_protocol_hints: &FxHashSet<String>) -> bool {
+    runtime_protocol_hints.contains(proto_name)
+        || runtime_protocol_hints
+            .iter()
+            .any(|hint| hint.ends_with(&format!(".{proto_name}")))
+}
+
 fn collect_reachable_nodes(
     definitions: &[Definition],
     class_methods: &FxHashMap<String, FxHashSet<String>>,
     implicitly_used_methods: &FxHashSet<String>,
     dynamic_imported_modules: &FxHashSet<String>,
     call_graph: &CallGraph,
+    include_tests: bool,
 ) -> FxHashSet<String> {
     let mut roots = FxHashSet::default();
     let mut method_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
+    let mut callable_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
 
     for def in definitions {
         if def.def_type == "method" {
             method_simple_to_full
+                .entry(def.simple_name.clone())
+                .or_default()
+                .push(def.full_name.clone());
+        } else if def.def_type == "function" || def.def_type == "class" {
+            callable_simple_to_full
                 .entry(def.simple_name.clone())
                 .or_default()
                 .push(def.full_name.clone());
@@ -132,6 +177,7 @@ fn collect_reachable_nodes(
             || def.is_framework_managed
             || def.confidence == 0
             || implicitly_used_methods.contains(&def.full_name)
+            || (include_tests && crate::utils::is_test_path(&def.file.to_string_lossy()))
             || dynamic_imported_modules.iter().any(|module| {
                 !module.is_empty()
                     && (def.full_name == *module
@@ -176,8 +222,18 @@ fn collect_reachable_nodes(
                             }
                         }
                     }
-                } else if call_graph.nodes.contains_key(call) && !reachable_nodes.contains(call) {
-                    stack.push(call.clone());
+                } else if call_graph.nodes.contains_key(call) {
+                    if !reachable_nodes.contains(call) {
+                        stack.push(call.clone());
+                    }
+                } else if !call.contains('.') {
+                    if let Some(candidates) = callable_simple_to_full.get(call) {
+                        for candidate in candidates {
+                            if !reachable_nodes.contains(candidate) {
+                                stack.push(candidate.clone());
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -28,6 +28,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--danger`, `-d`: Enables security scanning for dangerous patterns like `eval()`, `exec()`, and insecure temporary file creation. It also activates **taint analysis** to track user-controlled data flowing into dangerous sinks (e.g., SQL injection or command injection points). See [Dangerous Code](dangerous-code.md) for a full rule list.
 - `--quality`, `-q`: Runs code quality checks including Cyclomatic Complexity, Maintainability Index, block nesting depth, and function length/argument counts.
 - `--no-dead`, `-n`: Skips the default dead code detection. Use this if you only care about security vulnerabilities or quality metrics and want to speed up the analysis.
+- `--deps`: Analyze unused and missing dependencies by cross-referencing `pyproject.toml` / `requirements.txt` against imports found in the code. Opt-in — not run by default.
 
 ### Analysis Configuration
 
@@ -158,6 +159,28 @@ cytoscnpy files [OPTIONS] <PATH>
 - `-j`, `--json`: Output only JSON.
 - `--exclude-folders <DIRS>`: Exclude specific folders from analysis.
 
+### `deps`
+
+Analyze unused and missing dependencies.
+
+```bash
+cytoscnpy deps [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output JSON.
+- `--requirements <FILE>`: Path to a specific requirements file (default: auto-discover `requirements.txt` / `requirements-dev.txt`).
+- `--ignore-unused <PKGS>`: Comma-separated package names to suppress from the unused report.
+- `--ignore-missing <PKGS>`: Comma-separated import names to suppress from the missing report.
+- `--exclude <DIRS>`: Folders to exclude from import scanning.
+- `--extra-installed`: Also report packages installed in the venv but not declared.
+- `--orphans`: Report orphan packages — installed, undeclared, not imported, and not required by any other installed package.
+- `--impact <PKG>`: Show which transitive packages would be removable if `<PKG>` were dropped (requires a lockfile).
+- `--venv <PATH>`: Override the venv path (default: auto-detect `.venv`).
+- `--lockfile <PATH>`: Override the lockfile path (default: auto-detect `uv.lock` / `poetry.lock`).
+- `-O`, `--output-file <FILE>`: Save output to file.
+
+> **Note:** Use the `deps` subcommand when you want dependency analysis in isolation or need the extra flags (`--extra-installed`, `--orphans`, `--impact`). To include dependency findings alongside the main scan, pass `--deps` to the default analysis command.
+
 ### `mcp-server`
 
 Start MCP server for LLM integration.
@@ -243,6 +266,20 @@ name = "Slack Token"
 regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
 rule_id = "CSP-SCUSTOM-001" # Optional
+```
+
+#### Dependency Analysis
+
+```toml
+[cytoscnpy.deps]
+enabled = true                        # Run dep analysis by default (same as --deps)
+ignore_unused = ["celery", "redis"]   # Suppress specific unused-dep findings
+ignore_missing = ["numpy"]            # Suppress specific missing-dep findings
+
+# Custom package → import name mappings (for packages where the import name
+# differs from the package name and is not in the built-in mapping)
+[cytoscnpy.deps.package_mapping]
+"my-internal-lib" = ["mylib", "mylib_ext"]
 ```
 
 #### Dangerous Code + Taint Analysis

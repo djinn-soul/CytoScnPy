@@ -62,6 +62,8 @@ fn test_print_report_formatting() {
         parse_errors: vec![],
         clones: vec![],
         file_metrics: vec![],
+        missing_dependencies: vec![],
+        unused_dependencies: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 5,
             secrets_count: 0,

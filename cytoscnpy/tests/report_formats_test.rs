@@ -39,6 +39,8 @@ fn create_mock_result() -> AnalysisResult {
         parse_errors: vec![],
         clones: vec![],
         file_metrics: vec![],
+        missing_dependencies: vec![],
+        unused_dependencies: vec![],
         analysis_summary: AnalysisSummary::default(),
     };
 

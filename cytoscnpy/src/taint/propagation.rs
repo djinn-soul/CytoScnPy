@@ -160,7 +160,6 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
 /// Checks if a call is a sanitizer that removes taint.
 pub fn is_sanitizer_call(call: &ast::ExprCall) -> bool {
     if let Some(name) = get_call_name(&call.func) {
-        // Known built-in / library sanitizers
         if matches!(
             name.as_str(),
             "int"
@@ -181,44 +180,30 @@ pub fn is_sanitizer_call(call: &ast::ExprCall) -> bool {
             return true;
         }
 
-        // Heuristic: treat any function whose local name matches common
-        // validation/sanitization naming conventions as a sanitizer.
-        // Matches e.g. validate_url, sanitize_input, clean_query,
-        // check_host, verify_token, _validate_url, myapp.sanitize_html …
+        // Conservative fallback heuristic for user-defined sanitizers.
+        // Keep this narrow to avoid suppressing real vulnerabilities.
         let local = name.rsplit('.').next().unwrap_or(name.as_str());
-        is_sanitizer_name(local)
+        is_conservative_sanitizer_name(local)
     } else {
         false
     }
 }
 
-/// Returns true if a bare function name looks like a sanitizer by convention.
-fn is_sanitizer_name(name: &str) -> bool {
-    const SANITIZER_PREFIXES: &[&str] = &[
-        "validate_",
-        "sanitize_",
-        "clean_",
-        "verify_",
-        "check_",
-        "escape_",
-        "encode_",
-        "safe_",
-        "assert_valid",
-    ];
+/// Returns true for narrowly-scoped sanitizer naming conventions.
+///
+/// Intentionally excludes broad names like `check_*`, `verify_*`, `validate_*`, and `safe_*`
+/// because those often do not sanitize attacker-controlled data.
+fn is_conservative_sanitizer_name(name: &str) -> bool {
+    const SANITIZER_PREFIXES: &[&str] = &["sanitize_", "escape_", "encode_", "clean_"];
     const SANITIZER_SUFFIXES: &[&str] = &[
-        "_validated",
         "_sanitized",
-        "_cleaned",
-        "_verified",
-        "_checked",
         "_escaped",
         "_encoded",
-        "_safe",
+        "_cleaned",
+        "_escaped_html",
     ];
 
-    // Strip a single leading underscore (private helpers like `_validate_url`)
     let name = name.strip_prefix('_').unwrap_or(name);
-
     SANITIZER_PREFIXES.iter().any(|p| name.starts_with(p))
         || SANITIZER_SUFFIXES.iter().any(|s| name.ends_with(s))
 }

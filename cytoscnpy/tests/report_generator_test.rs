@@ -116,6 +116,8 @@ fn test_generate_report_full() {
             mi: 70.0,
             total_issues: 2,
         }],
+        missing_dependencies: vec![],
+        unused_dependencies: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 1,
             secrets_count: 0,
@@ -179,6 +181,8 @@ fn test_calculate_score_logic() {
         parse_errors: vec![],
         clones: vec![],
         file_metrics: vec![],
+        missing_dependencies: vec![],
+        unused_dependencies: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 0,
             secrets_count: 0,

@@ -184,7 +184,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
             .copied()
             .unwrap_or(import_lower.as_str());
         // Normalize separators and case so we can compare against dep.normalized_name.
-        let pkg_normalized = pkg_name_guess.to_lowercase().replace('-', "_");
+        let pkg_normalized = super::declared::normalize_package_name(pkg_name_guess);
 
         let is_declared = declared_names.contains(pkg_name_guess)
             || declared_names.contains(&pkg_normalized)
@@ -224,8 +224,8 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
                     reverse_mapping
                         .get(i.as_str())
                         .or_else(|| reverse_mapping.get(i_lower.as_str()))
-                        .map(|s| s.to_lowercase().replace('-', "_"))
-                        .unwrap_or_else(|| i_lower.replace('-', "_"))
+                        .map(|s| super::declared::normalize_package_name(s))
+                        .unwrap_or_else(|| super::declared::normalize_package_name(&i_lower))
                 })
                 .collect();
 
@@ -277,7 +277,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
 
         let target_unused: Vec<&DeclaredDependency> = if let Some(ref pkg) = options.impact_package
         {
-            let norm = pkg.to_lowercase().replace('-', "_");
+            let norm = super::declared::normalize_package_name(pkg);
             declared
                 .iter()
                 .filter(|d| d.normalized_name == norm)

@@ -123,7 +123,7 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
                 if let Some(req_arr) = reqs.as_array() {
                     for dep in req_arr.iter().filter_map(|v| match v {
                         Value::String(s) => Some(s.as_str()),
-                        Value::Table(t) => t.get("include").and_then(Value::as_str),
+                        Value::Table(t) => t.get("name").and_then(Value::as_str),
                         _ => None,
                     }) {
                         if let Some(pkg) = extract_package_name_from_pep508(dep) {
@@ -372,6 +372,33 @@ test = ["pytest"]
         assert!(names.contains(&"requests".to_owned()));
         assert!(names.contains(&"flask".to_owned()));
         assert!(names.contains(&"pytest".to_owned()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_pyproject_dependency_groups_tables() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let pyproject_path = dir.path().join("pyproject.toml");
+        fs::write(
+            &pyproject_path,
+            r#"
+[project]
+dependencies = []
+
+[dependency-groups]
+dev = [
+  { name = "uvicorn" },
+  { include-group = "lint" },
+  "pytest>=8.0"
+]
+"#,
+        )?;
+
+        let deps = parse_pyproject(&pyproject_path);
+        let names: Vec<String> = deps.iter().map(|d| d.package_name.clone()).collect();
+        assert!(names.contains(&"uvicorn".to_owned()));
+        assert!(names.contains(&"pytest".to_owned()));
+        assert!(!names.contains(&"lint".to_owned()));
         Ok(())
     }
 

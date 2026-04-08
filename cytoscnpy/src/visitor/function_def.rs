@@ -1,6 +1,6 @@
-use super::*;
+use super::{CompactString, CytoScnPyVisitor, ScopeType};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn visit_function_def(
         &mut self,
         name_node: &ruff_python_ast::Identifier,

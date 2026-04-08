@@ -1,6 +1,6 @@
-use super::*;
+use super::{ast, CytoScnPyVisitor, Scope, ScopeType};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn enter_scope(&mut self, scope_type: ScopeType) {
         // Update cached prefix based on scope type
         match &scope_type {

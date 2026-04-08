@@ -104,10 +104,8 @@ fn collect_implicitly_used_methods(
                 let intersection_count = methods.intersection(proto_methods).count();
                 let proto_len = proto_methods.len();
                 let runtime_checked = protocol_hint_matches(proto_name, runtime_protocol_hints);
-                let passes_similarity_threshold = proto_len > 0 && intersection_count >= 3 && {
-                    let ratio = intersection_count as f64 / proto_len as f64;
-                    ratio >= 0.7
-                };
+                let passes_similarity_threshold =
+                    similarity_threshold_met(intersection_count, proto_len);
                 let passes_runtime_threshold = runtime_checked && intersection_count > 0;
 
                 if passes_similarity_threshold || passes_runtime_threshold {
@@ -128,6 +126,19 @@ fn collect_runtime_protocol_hints(ref_counts: &FxHashMap<String, usize>) -> FxHa
         .filter_map(|key| key.strip_prefix(RUNTIME_PROTOCOL_REF_PREFIX))
         .map(std::borrow::ToOwned::to_owned)
         .collect()
+}
+
+/// Returns `true` when a class's method overlap with a protocol is large enough
+/// to treat the class as an implicit implementor of that protocol.
+///
+/// Thresholds: at least 3 shared methods **and** ≥ 70 % of the protocol surface.
+fn similarity_threshold_met(intersection_count: usize, proto_len: usize) -> bool {
+    const MIN_SHARED_METHODS: usize = 3;
+    const MIN_COVERAGE_RATIO: f64 = 0.7;
+
+    proto_len > 0
+        && intersection_count >= MIN_SHARED_METHODS
+        && (intersection_count as f64 / proto_len as f64) >= MIN_COVERAGE_RATIO
 }
 
 fn protocol_hint_matches(proto_name: &str, runtime_protocol_hints: &FxHashSet<String>) -> bool {

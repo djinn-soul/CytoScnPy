@@ -27,7 +27,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, nightly]
-        python: ["3.9", "3.11", "3.13"]
+        python: ["3.10", "3.11", "3.13"]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +58,10 @@ jobs:
           PYO3_PYTHON: python3
 
       - name: Install Python dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -r requirements-dev.txt
+
+      - name: Build Python extension
+        run: maturin develop --manifest-path cytoscnpy/Cargo.toml --features python-bindings
 
       - name: Run Python tests
         run: pytest python/tests/ -v --tb=long

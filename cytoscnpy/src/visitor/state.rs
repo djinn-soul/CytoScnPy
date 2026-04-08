@@ -1,8 +1,8 @@
-#![allow(missing_docs)]
+use super::{Arc, Definition, FxHashMap, FxHashSet, LineIndex, PathBuf, Scope, SmallVec};
 
-use super::*;
-
+/// Stateful AST visitor used to collect definitions, references, and analysis hints.
 pub struct CytoScnPyVisitor<'a> {
+    /// Definitions discovered while traversing the current module.
     pub definitions: Vec<Definition>,
     /// Collected reference counts (name -> count). `PathBuf` removed as it was never used.
     pub references: FxHashMap<String, usize>,

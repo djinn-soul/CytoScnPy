@@ -1,6 +1,6 @@
-use super::*;
+use super::{CytoScnPyVisitor, DefinitionInfo, DefinitionType, FxHashSet, Ranged, SmallVec};
 
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
     pub(super) fn collect_function_parameters(
         &mut self,
         parameters: &ruff_python_ast::Parameters,
@@ -12,13 +12,13 @@ impl<'a> CytoScnPyVisitor<'a> {
         for arg in &parameters.posonlyargs {
             let param_name = arg.parameter.name.to_string();
             param_names.insert(param_name.clone());
-            self.register_regular_param(qualified_name, param_name, arg, skip_parameters);
+            self.register_regular_param(qualified_name, &param_name, arg, skip_parameters);
         }
 
         for arg in &parameters.args {
             let param_name = arg.parameter.name.to_string();
             param_names.insert(param_name.clone());
-            self.register_regular_param(qualified_name, param_name, arg, skip_parameters);
+            self.register_regular_param(qualified_name, &param_name, arg, skip_parameters);
         }
 
         for arg in &parameters.kwonlyargs {
@@ -57,16 +57,16 @@ impl<'a> CytoScnPyVisitor<'a> {
     pub(super) fn register_regular_param<T: Ranged>(
         &mut self,
         qualified_name: &str,
-        param_name: String,
+        param_name: &str,
         node: &T,
         skip_parameters: bool,
     ) {
         let param_qualified = if param_name != "self" && param_name != "cls" {
             format!("{qualified_name}.{param_name}")
         } else {
-            param_name.clone()
+            param_name.to_owned()
         };
-        self.add_local_def(param_name.clone(), param_qualified.clone());
+        self.add_local_def(param_name.to_owned(), param_qualified.clone());
         if !skip_parameters && param_name != "self" && param_name != "cls" {
             self.add_parameter_definition(param_qualified, node);
         }

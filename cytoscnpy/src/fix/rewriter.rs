@@ -232,7 +232,6 @@ impl ByteRangeRewriter {
     ///
     /// # Errors
     /// Returns error if edits are invalid or result doesn't parse
-    #[allow(clippy::missing_panics_doc)]
     pub fn apply_verified(self) -> Result<String, RewriteError> {
         let result = self.apply()?;
 

@@ -4,7 +4,6 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::float_cmp)]
-#![allow(clippy::needless_raw_string_hashes)]
 
 use cytoscnpy::complexity::calculate_module_complexity;
 use cytoscnpy::halstead::analyze_halstead;

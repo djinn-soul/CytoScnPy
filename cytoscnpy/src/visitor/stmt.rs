@@ -1,8 +1,7 @@
-#![allow(missing_docs)]
+use super::{CytoScnPyVisitor, Stmt, MAX_RECURSION_DEPTH};
 
-use super::*;
-
-impl<'a> CytoScnPyVisitor<'a> {
+impl CytoScnPyVisitor<'_> {
+    /// Visits a statement node and dispatches to the statement-specific handler.
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
         if self.depth >= MAX_RECURSION_DEPTH {
             self.recursion_limit_hit = true;

@@ -83,6 +83,18 @@ pub struct CytoScnPyConfig {
     /// Minimum similarity threshold for clone detection (0.0-1.0).
     /// Overridden by `--clone-similarity` CLI flag.
     pub clone_similarity: Option<f64>,
+    /// Dependencies analysis configuration
+    #[serde(default)]
+    pub deps: DepsConfig,
+}
+
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct DepsConfig {
+    /// Enable dependency analysis (equivalent to --deps flag).
+    pub enabled: Option<bool>,
+    pub ignore_unused: Option<Vec<String>>,
+    pub ignore_missing: Option<Vec<String>>,
+    pub package_mapping: Option<rustc_hash::FxHashMap<String, Vec<String>>>,
 }
 
 impl CytoScnPyConfig {

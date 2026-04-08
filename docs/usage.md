@@ -68,6 +68,44 @@ Per-rule pages are available across Best Practices, Maintainability, and Perform
 | Security rules (dangerous code) | [Dangerous Code Rules](dangerous-code.md) |
 | Quality rules             | [Code Quality Rules](quality.md)  |
 
+### Dependency Analysis
+
+CytoScnPy detects unused and missing dependencies by cross-referencing your declared dependencies (`pyproject.toml` / `requirements.txt`) against the imports actually used in your code.
+
+**Opt-in flag** — add `--deps` to the default scan to include dependency findings alongside dead code and security:
+
+```bash
+cytoscnpy . --deps
+cytoscnpy . --deps --secrets --danger
+```
+
+**Dedicated subcommand** — for dependency analysis in isolation, or to use extra flags (`--extra-installed`, `--orphans`, `--impact`):
+
+```bash
+cytoscnpy deps .
+cytoscnpy deps . --extra-installed --orphans
+cytoscnpy deps . --ignore-unused celery,redis
+cytoscnpy deps . --impact httpx   # show what transitive deps would go with httpx
+```
+
+**What it reports:**
+
+| Finding | Meaning |
+|---|---|
+| Unused dependency | Declared in `pyproject.toml`/`requirements.txt` but never imported |
+| Missing dependency | Imported in code but not declared |
+| Extra installed | In the venv but not declared (transitive deps) |
+| Orphan | Installed, undeclared, not imported, not needed by any other package |
+
+**Package name aliasing** is handled automatically for common packages (e.g. `Pillow` → `PIL`, `scikit-learn` → `sklearn`, `python-dateutil` → `dateutil`). For custom internal packages, add a mapping in `.cytoscnpy.toml`:
+
+```toml
+[cytoscnpy.deps.package_mapping]
+"my-internal-lib" = ["mylib", "mylib_ext"]
+```
+
+**`src/` layout** is fully supported — `from src.myapp.models import Foo` will not trigger a false-positive missing report for `src`.
+
 ### Clone Detection
 
 Finds duplicate or near-duplicate code blocks (Type-1, Type-2, and Type-3 clones).
@@ -312,6 +350,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 | `--clones`         | Enable code clone detection.                       |
 | `--clone-similarity <N>` | Set clone similarity threshold (0.0-1.0, default `0.8`). |
 | `--no-dead` (`-n`) | Skip dead code detection.                          |
+| `--deps`           | Analyze unused/missing dependencies (opt-in).      |
 | `--make-whitelist` | Generate whitelist entries from current findings.  |
 | `--whitelist <PATH>` | Load whitelist file(s) for dead-code suppression. |
 
@@ -424,6 +463,21 @@ Runs full analysis (secrets, danger, quality) and prints summary statistics.
 - `--exclude-folders <DIRS>`: Exclude specific folders from stats analysis.
 - `--json`: Output as JSON.
 - `--output <FILE>` (`-o`): Save report to file.
+
+#### `deps` - Dependency Analysis
+
+```bash
+cytoscnpy deps . --extra-installed --orphans
+```
+
+Analyzes unused and missing dependencies in isolation.
+
+- `--extra-installed`: Show packages installed but not declared.
+- `--orphans`: Show zombie packages (installed, undeclared, not imported).
+- `--impact <PKG>`: Show transitive packages removable with `<PKG>`.
+- `--ignore-unused <PKGS>`: Suppress specific unused-dep findings.
+- `--ignore-missing <PKGS>`: Suppress specific missing-dep findings.
+- `--venv <PATH>`: Override venv path (default: auto-detect `.venv`).
 
 #### `mcp-server` - MCP Integration
 

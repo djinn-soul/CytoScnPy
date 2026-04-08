@@ -6,7 +6,7 @@ use colored::Colorize;
 use crate::entry_point::config::{is_vscode_client, resolve_scan_flag, setup_configuration};
 use crate::entry_point::handlers::{
     handle_analysis, handle_cc, handle_files, handle_hal, handle_mi, handle_raw, handle_stats,
-    CcFlags, MiFlags,
+    CcFlags, DepsFlags, MiFlags,
 };
 use crate::entry_point::paths::{
     collect_all_target_paths, resolve_analysis_context, validate_path_args,
@@ -261,6 +261,39 @@ fn run_subcommand<W: std::io::Write>(
             writer,
         ),
         Commands::Files { args } => handle_files(args, &context.exclude_folders, verbose, writer),
+        Commands::Deps {
+            paths: _,
+            json,
+            requirements,
+            ignore_unused,
+            ignore_missing,
+            exclude,
+            output_file,
+            extra_installed,
+            orphans,
+            impact,
+            venv,
+            lockfile,
+        } => crate::entry_point::handlers::handle_deps(
+            &context.effective_paths,
+            DepsFlags {
+                json,
+                verbose,
+                show_extra: extra_installed,
+                show_orphans: orphans,
+            },
+            requirements,
+            ignore_unused,
+            ignore_missing,
+            exclude,
+            output_file,
+            &context.config,
+            &context.exclude_folders,
+            impact,
+            venv,
+            lockfile,
+            writer,
+        ),
         Commands::Init => {
             crate::commands::run_init_in(&context.analysis_root, writer)?;
             Ok(0)

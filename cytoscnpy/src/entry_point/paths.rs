@@ -86,7 +86,7 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
                     all_target_paths.extend(args.paths.paths.iter().cloned());
                 }
             }
-            Commands::Stats { paths, .. } => {
+            Commands::Stats { paths, .. } | Commands::Deps { paths, .. } => {
                 if let Some(r) = &paths.root {
                     all_target_paths.push(r.clone());
                 } else {

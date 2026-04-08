@@ -198,6 +198,73 @@ fn hint_for_vuln(vuln: &crate::taint::VulnType) -> &'static str {
     }
 }
 
+/// Print a list of unused dependencies.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
+pub fn print_unused_dependencies(
+    writer: &mut impl Write,
+    dependencies: &[crate::deps::DeclaredDependency],
+) -> std::io::Result<()> {
+    if dependencies.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(writer, "\n{}", "Unused Dependencies".bold().underline())?;
+    let mut table = create_table(vec!["Package Name", "Declared In", "Type"]);
+
+    for dep in dependencies {
+        let source_str = match &dep.source {
+            crate::deps::DependencySource::Pyproject => "pyproject.toml".to_owned(),
+            crate::deps::DependencySource::Requirements(f) => f.clone(),
+        };
+        let dev_str = if dep.is_dev { "dev" } else { "prod" };
+        table.add_row(vec![
+            Cell::new(&dep.package_name)
+                .fg(Color::Yellow)
+                .add_attribute(Attribute::Bold),
+            Cell::new(source_str),
+            Cell::new(dev_str),
+        ]);
+    }
+
+    writeln!(writer, "{table}")?;
+    Ok(())
+}
+
+/// Print a list of missing dependencies.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
+pub fn print_missing_dependencies(
+    writer: &mut impl Write,
+    missing: &[String],
+) -> std::io::Result<()> {
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(
+        writer,
+        "\n{}",
+        "Missing Dependencies (Imported but not declared)"
+            .bold()
+            .underline()
+    )?;
+    let mut table = create_table(vec!["Import Name"]);
+
+    for name in missing {
+        table.add_row(vec![Cell::new(name)
+            .fg(Color::Red)
+            .add_attribute(Attribute::Bold)]);
+    }
+
+    writeln!(writer, "{table}")?;
+    Ok(())
+}
+
 /// Print a list of parse errors.
 ///
 /// # Errors

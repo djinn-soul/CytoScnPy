@@ -49,6 +49,39 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         writer,
     )?;
 
+    // Run dependency analysis (opt-in via --deps flag or config deps = true)
+    let run_deps = cli_var.scan.deps || config.cytoscnpy.deps.enabled.unwrap_or(false);
+    if run_deps {
+        let deps_options = crate::deps::DepsOptions {
+            roots: effective_paths,
+            exclude: &context.exclude_folders,
+            requirements: None, // Use auto-discovery
+            ignore_unused: config
+                .cytoscnpy
+                .deps
+                .ignore_unused
+                .as_deref()
+                .unwrap_or_default(),
+            ignore_missing: config
+                .cytoscnpy
+                .deps
+                .ignore_missing
+                .as_deref()
+                .unwrap_or_default(),
+            verbose: cli_var.output.verbose,
+            json: cli_var.output.json,
+            package_mapping: config.cytoscnpy.deps.package_mapping.as_ref(),
+            venv_path: None,
+            lockfile_path: None,
+            show_extra: false,
+            show_orphans: false,
+            impact_package: None,
+        };
+        let deps_result = crate::deps::analyze_dependencies(&deps_options);
+        run.result.unused_dependencies = deps_result.unused;
+        run.result.missing_dependencies = deps_result.missing;
+    }
+
     // If --no-dead flag is set, clear dead code detection results
     // (only show security/quality scans)
     if cli_var.scan.no_dead {

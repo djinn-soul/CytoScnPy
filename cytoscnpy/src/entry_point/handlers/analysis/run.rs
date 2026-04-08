@@ -7,6 +7,7 @@ use colored::Colorize;
 pub(crate) struct AnalysisRun {
     pub(crate) result: crate::analyzer::AnalysisResult,
     pub(crate) clone_pairs_found: usize,
+    pub(crate) clone_similarity: Option<f64>,
     pub(crate) start_time: std::time::Instant,
 }
 
@@ -34,6 +35,9 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         }
         if context.include_tests {
             config_summary.push("Tests");
+        }
+        if cli_var.scan.deps || config.cytoscnpy.deps.enabled.unwrap_or(false) {
+            config_summary.push("Deps");
         }
 
         if config_summary.is_empty() {
@@ -122,6 +126,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
 
     // 2. Run clone detection if enabled (using the same progress bar)
     let mut clone_pairs_found = 0usize;
+    let mut clone_similarity_used = None;
     let clones_from_config = config.cytoscnpy.clones.unwrap_or(false);
     // CLI flag takes priority, then config, then built-in default.
     let clone_similarity = cli_var
@@ -129,6 +134,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         .or(config.cytoscnpy.clone_similarity)
         .unwrap_or(0.8);
     if cli_var.clones || clones_from_config || cli_var.output.html {
+        clone_similarity_used = Some(clone_similarity);
         let clone_options = crate::commands::CloneOptions {
             similarity: clone_similarity,
             json: cli_var.output.json,
@@ -176,6 +182,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
     Ok(AnalysisRun {
         result,
         clone_pairs_found,
+        clone_similarity: clone_similarity_used,
         start_time,
     })
 }

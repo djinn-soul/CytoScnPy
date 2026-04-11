@@ -6,7 +6,7 @@ use colored::Colorize;
 use crate::entry_point::config::{is_vscode_client, resolve_scan_flag, setup_configuration};
 use crate::entry_point::handlers::{
     handle_analysis, handle_cc, handle_files, handle_hal, handle_mi, handle_raw, handle_stats,
-    CcFlags, DepsFlags, MiFlags,
+    CcFlags, DepsCliArgs, DepsFlags, MiFlags,
 };
 use crate::entry_point::paths::{
     collect_all_target_paths, resolve_analysis_context, validate_path_args,
@@ -275,23 +275,25 @@ fn run_subcommand<W: std::io::Write>(
             venv,
             lockfile,
         } => crate::entry_point::handlers::handle_deps(
-            &context.effective_paths,
-            DepsFlags {
-                json,
-                verbose,
-                show_extra: extra_installed,
-                show_orphans: orphans,
+            DepsCliArgs {
+                effective_paths: context.effective_paths.clone(),
+                flags: DepsFlags {
+                    json,
+                    verbose,
+                    show_extra: extra_installed,
+                    show_orphans: orphans,
+                },
+                requirements,
+                ignore_unused,
+                ignore_missing,
+                exclude,
+                output_file,
+                cli_exclude_folders: context.exclude_folders.clone(),
+                impact_package: impact,
+                venv,
+                lockfile,
             },
-            requirements,
-            ignore_unused,
-            ignore_missing,
-            exclude,
-            output_file,
             &context.config,
-            &context.exclude_folders,
-            impact,
-            venv,
-            lockfile,
             writer,
         ),
         Commands::Init => {

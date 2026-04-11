@@ -1,3 +1,4 @@
+use crate::deps::declared::normalize_package_name;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -13,11 +14,6 @@ pub struct InstalledPackage {
     pub version: String,
     /// Direct runtime dependencies as normalized names.
     pub requires: Vec<String>,
-}
-
-/// Normalizes a package name for comparison (PEP 503 rules).
-fn normalize(name: &str) -> String {
-    name.to_lowercase().replace(['-', '.'], "_")
 }
 
 /// Parses a single `METADATA` file and extracts the package name, version,
@@ -38,14 +34,14 @@ fn parse_metadata(content: &str) -> Option<InstalledPackage> {
             let req = rest.trim();
             let clean = req.split([' ', ';', '(', '>']).next().unwrap_or(req).trim();
             if !clean.is_empty() {
-                requires.push(normalize(clean));
+                requires.push(normalize_package_name(clean));
             }
         }
     }
 
     let name = name?;
     let version = version.unwrap_or_default();
-    let normalized_name = normalize(&name);
+    let normalized_name = normalize_package_name(&name);
 
     Some(InstalledPackage {
         name,
@@ -180,8 +176,8 @@ mod tests {
 
     #[test]
     fn test_normalize_hyphens_and_dots() {
-        assert_eq!(normalize("scikit-learn"), "scikit_learn");
-        assert_eq!(normalize("zope.interface"), "zope_interface");
+        assert_eq!(normalize_package_name("scikit-learn"), "scikit_learn");
+        assert_eq!(normalize_package_name("zope.interface"), "zope_interface");
     }
 
     #[test]

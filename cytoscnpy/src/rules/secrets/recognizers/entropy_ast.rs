@@ -66,7 +66,7 @@ impl EntropyRecognizer {
             Expr::StringLiteral(s) => {
                 if !ctx.in_logging && !ctx.safe_assignment {
                     self.check_string(
-                        &s.value.to_string(),
+                        s.value.to_str(),
                         line_index.line_index(expr.start()),
                         findings,
                     );

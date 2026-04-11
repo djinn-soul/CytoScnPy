@@ -30,8 +30,6 @@ jobs:
           fail-on-scopes: runtime
           # Comment on PR with vulnerability summary
           comment-summary-in-pr: always
-          # License check - allow common permissive licenses
-          # Allow known unavailable vulnerabilities for Python 3.8 support
           # Allow known unavailable vulnerabilities for Python 3.8 support:
           # setuptools path traversal, urllib3 redirect/proxy/decompression/streaming DoS,
           # filelock TOCTOU, pip path traversal (all require Py 3.9+ to fix)

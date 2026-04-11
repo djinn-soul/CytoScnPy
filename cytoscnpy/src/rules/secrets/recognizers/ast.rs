@@ -3,6 +3,7 @@ use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 use std::path::PathBuf;
+use zeroize::Zeroizing;
 
 /// Suspicious variable name patterns.
 const SUSPICIOUS_NAMES: &[&str] = &[
@@ -141,9 +142,12 @@ impl AstRecognizer {
     }
 
     /// Extract string value from an expression if it's a literal string.
-    fn extract_string_value(expr: &Expr) -> Option<String> {
+    ///
+    /// Returns a borrowed `&str` from the AST node — no heap allocation,
+    /// so no owned copy of the secret value is created.
+    fn extract_string_value(expr: &Expr) -> Option<&str> {
         match expr {
-            Expr::StringLiteral(s) => Some(s.value.to_string()),
+            Expr::StringLiteral(s) => Some(s.value.to_str()),
             _ => None,
         }
     }
@@ -207,7 +211,7 @@ impl AstRecognizer {
 
     /// Check if value looks like a placeholder.
     fn is_placeholder(value: &str) -> bool {
-        let lower = value.to_lowercase();
+        let lower = Zeroizing::new(value.to_lowercase());
         lower.starts_with("xxx")
             || lower.starts_with("your_")
             || lower.starts_with("changeme")
@@ -216,8 +220,8 @@ impl AstRecognizer {
             || lower.starts_with('<')
             || lower.contains("${")
             || lower.contains("{{")
-            || lower == "none"
-            || lower == "null"
+            || lower.as_str() == "none"
+            || lower.as_str() == "null"
             || lower.is_empty()
     }
 
@@ -236,7 +240,7 @@ impl AstRecognizer {
             return;
         };
 
-        if Self::is_placeholder(&string_value) {
+        if Self::is_placeholder(string_value) {
             return;
         }
 
@@ -260,7 +264,7 @@ impl AstRecognizer {
                     rule_id: "CSP-S300".to_owned(),
                     line,
                     base_score: 70,
-                    matched_value: Some(Self::redact_value(&string_value)),
+                    matched_value: Some(Self::redact_value(string_value)),
                     entropy: None,
                     severity: "MEDIUM".to_owned(),
                 });

@@ -238,19 +238,21 @@ mod tests {
         s
     }
 
-    // Real project uv.lock — used to verify the parser works on actual data
+    // Real project uv.lock — run with `cargo test -- --include-ignored` to execute.
+    // Uses `#[ignore]` because: on a clean CI checkout without a lockfile, the
+    // `if path.exists()` guard would make this a silent no-op that always "passes".
     #[test]
+    #[ignore = "reads real project uv.lock; run with --include-ignored"]
     fn test_parse_uv_lock_real() {
         // Parse the real project lockfile; it must have many packages
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
             .join("uv.lock");
-        if path.exists() {
-            let content = fs::read_to_string(&path).unwrap();
-            let nodes = parse_uv_lock(&content);
-            assert!(!nodes.is_empty(), "real uv.lock should parse >0 packages");
-        }
+        let content = fs::read_to_string(&path)
+            .expect("uv.lock not found — run from the project root with an existing lockfile");
+        let nodes = parse_uv_lock(&content);
+        assert!(!nodes.is_empty(), "real uv.lock should parse >0 packages");
     }
 
     #[test]

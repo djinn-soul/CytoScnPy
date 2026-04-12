@@ -8,6 +8,7 @@ pub static STDLIB_MODULES: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
 pub fn get_stdlib_modules() -> &'static FxHashSet<&'static str> {
     STDLIB_MODULES.get_or_init(|| {
         let mut set = FxHashSet::default();
+        set.insert("_thread");
         set.insert("abc");
         set.insert("aifc");
         set.insert("antigravity");

@@ -21,6 +21,7 @@ tempfile = "3.10"
 insta = { version = "1.34", features = ["yaml"] }
 
 [dependencies]
+zeroize = { version = "1", default-features = false, features = ["alloc"] }
 clap = { version = "4.5", default-features = false, features = [
     "derive",
     "std",

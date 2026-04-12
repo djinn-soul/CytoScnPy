@@ -34,12 +34,9 @@ pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) ->
     if !result.unused.is_empty() {
         writeln!(writer, "\n{}", "Unused Dependencies".red().bold())?;
         let mut table = Table::new();
-        table.load_preset(UTF8_FULL).set_header(vec![
-            "Package Name",
-            "Declared In",
-            "Type",
-            "Confidence",
-        ]);
+        table
+            .load_preset(UTF8_FULL)
+            .set_header(vec!["Package Name", "Declared In", "Type"]);
 
         for dep in &result.unused {
             let source_str = match &dep.source {
@@ -51,7 +48,6 @@ pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) ->
                 Cell::new(&dep.package_name).fg(Color::Yellow),
                 Cell::new(source_str),
                 Cell::new(dev_str),
-                Cell::new("High"),
             ]);
         }
         writeln!(writer, "{table}")?;
@@ -67,15 +63,10 @@ pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) ->
                 .bold()
         )?;
         let mut table = Table::new();
-        table
-            .load_preset(UTF8_FULL)
-            .set_header(vec!["Import Name", "Confidence"]);
+        table.load_preset(UTF8_FULL).set_header(vec!["Import Name"]);
 
         for missing in &result.missing {
-            table.add_row(vec![
-                Cell::new(missing).fg(Color::Yellow),
-                Cell::new("High"),
-            ]);
+            table.add_row(vec![Cell::new(missing).fg(Color::Yellow)]);
         }
         writeln!(writer, "{table}")?;
     }
@@ -92,13 +83,12 @@ pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) ->
         let mut table = Table::new();
         table
             .load_preset(UTF8_FULL)
-            .set_header(vec!["Package", "Version", "Confidence"]);
+            .set_header(vec!["Package", "Version"]);
 
         for pkg in &result.extra_installed {
             table.add_row(vec![
                 Cell::new(&pkg.name).fg(Color::Yellow),
                 Cell::new(&pkg.version),
-                Cell::new("High"),
             ]);
         }
         writeln!(writer, "{table}")?;
@@ -110,13 +100,12 @@ pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) ->
         let mut table = Table::new();
         table
             .load_preset(UTF8_FULL)
-            .set_header(vec!["Package", "Version", "Confidence"]);
+            .set_header(vec!["Package", "Version"]);
 
         for pkg in &result.orphan_installed {
             table.add_row(vec![
                 Cell::new(&pkg.name).fg(Color::Red),
                 Cell::new(&pkg.version),
-                Cell::new("High"),
             ]);
         }
         writeln!(writer, "{table}")?;

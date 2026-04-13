@@ -19,9 +19,9 @@ inputs:
     required: false
     default: "latest"
   python-version:
-    description: "Version of Python to set up"
+    description: "Version of Python to set up (default: 3.13)"
     required: false
-    default: "3.x"
+    default: "3.13"
 
 runs:
   using: "composite"

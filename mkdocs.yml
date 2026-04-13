@@ -1,8 +1,8 @@
 site_name: CytoScnPy
 site_description: High-performance Python static analysis tool powered by Rust
 site_url: https://djinn09.github.io/CytoScnPy/
-repo_url: https://github.com/djinn09/CytoScnPy
-repo_name: djinn09/CytoScnPy
+repo_url: https://github.com/djinn-soul/CytoScnPy
+repo_name: djinn-soul/CytoScnPy
 edit_uri: edit/main/docs/
 
 theme:
@@ -102,7 +102,7 @@ nav:
               - "CSP-P013: Comprehension Suggestion": rule/CSP-P013.md
               - "CSP-P015: Pandas chunksize": rule/CSP-P015.md
       - Migration Guide: migration.md
-  - Changelog: https://github.com/djinn09/CytoScnPy/releases
+  - Changelog: https://github.com/djinn-soul/CytoScnPy/releases
   - Roadmap: roadmap.md
   - Security:
       - Overview: security.md

@@ -1,5 +1,5 @@
 # Configuration
-$Repo = "djinn09/CytoScnPy"
+$Repo = "djinn-soul/CytoScnPy"
 $BinaryName = "cytoscnpy.exe"
 $AssetName = "cytoscnpy-windows-x64.exe"
 $InstallDir = "$env:LOCALAPPDATA\Programs\CytoScnPy"
@@ -48,4 +48,4 @@ Write-Host "  cytoscnpy .                    # Analyze current directory"
 Write-Host "  cytoscnpy mcp-server           # Start MCP server for AI assistants"
 Write-Host ""
 Write-Host "For MCP configuration (Claude, Cursor, Copilot), see:"
-Write-Host "  https://github.com/djinn09/CytoScnPy/blob/main/cytoscnpy-mcp/README.md"
+Write-Host "  https://github.com/djinn-soul/CytoScnPy/blob/main/cytoscnpy-mcp/README.md"

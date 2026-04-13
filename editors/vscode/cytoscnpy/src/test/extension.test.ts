@@ -24,7 +24,7 @@ suite("CytoScnPy Extension Test Suite", function () {
   });
 
   test("Extension should be active", async () => {
-    const extension = vscode.extensions.getExtension("djinn09.cytoscnpy");
+    const extension = vscode.extensions.getExtension("djinn-soul.cytoscnpy");
     assert.ok(extension, "Extension should be found");
     assert.strictEqual(extension.isActive, true, "Extension should be active");
   });

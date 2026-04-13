@@ -100,10 +100,10 @@ Simply ask Copilot to use CytoScnPy:
 
 ## Links
 
-- **Documentation**: [djinn09.github.io/CytoScnPy](https://djinn09.github.io/CytoScnPy/)
+- **Documentation**: [djinn-soul.github.io/CytoScnPy](https://djinn-soul.github.io/CytoScnPy/)
 - **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
 - **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
-- **GitHub Repository**: [github.com/djinn09/CytoScnPy](https://github.com/djinn09/CytoScnPy/)
+- **GitHub Repository**: [github.com/djinn-soul/CytoScnPy](https://github.com/djinn-soul/CytoScnPy/)
 
 ## Release Notes
 

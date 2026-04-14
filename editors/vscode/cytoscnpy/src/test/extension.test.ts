@@ -3,6 +3,8 @@ import * as vscode from "vscode";
 import * as myExtension from "../../src/extension"; // Import the extension's main module
 import { before } from "mocha";
 
+const EXTENSION_ID = "djinn09.cytoscnpy";
+
 suite("CytoScnPy Extension Test Suite", function () {
   this.timeout(20000);
   vscode.window.showInformationMessage("Start all CytoScnPy tests.");
@@ -16,7 +18,7 @@ suite("CytoScnPy Extension Test Suite", function () {
     });
     await vscode.window.showTextDocument(doc);
     // Wait for extension to activate
-    const extension = vscode.extensions.getExtension("djinn09.cytoscnpy");
+    const extension = vscode.extensions.getExtension(EXTENSION_ID);
     if (extension && !extension.isActive) {
       await extension.activate();
     }
@@ -24,7 +26,7 @@ suite("CytoScnPy Extension Test Suite", function () {
   });
 
   test("Extension should be active", async () => {
-    const extension = vscode.extensions.getExtension("djinn-soul.cytoscnpy");
+    const extension = vscode.extensions.getExtension(EXTENSION_ID);
     assert.ok(extension, "Extension should be found");
     assert.strictEqual(extension.isActive, true, "Extension should be active");
   });

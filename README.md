@@ -1,12 +1,12 @@
 # CytoScnPy - High-Performance Python Static Analysis
 
-[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml)
-[![Coverage](https://github.com/djinn09/CytoScnPy/actions/workflows/coverage.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/coverage.yml)
-[![codecov](https://codecov.io/gh/djinn09/CytoScnPy/branch/main/graph/badge.svg)](https://codecov.io/gh/djinn09/CytoScnPy)
-[![Security Audit](https://github.com/djinn09/CytoScnPy/actions/workflows/security.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/security.yml)
-[![Docs](https://github.com/djinn09/CytoScnPy/actions/workflows/docs.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/docs.yml)
+[![CI](https://github.com/djinn-soul/CytoScnPy/actions/workflows/ci.yml/badge.svg)](https://github.com/djinn-soul/CytoScnPy/actions/workflows/ci.yml)
+[![Coverage](https://github.com/djinn-soul/CytoScnPy/actions/workflows/coverage.yml/badge.svg)](https://github.com/djinn-soul/CytoScnPy/actions/workflows/coverage.yml)
+[![codecov](https://codecov.io/gh/djinn-soul/CytoScnPy/branch/main/graph/badge.svg)](https://codecov.io/gh/djinn-soul/CytoScnPy)
+[![Security Audit](https://github.com/djinn-soul/CytoScnPy/actions/workflows/security.yml/badge.svg)](https://github.com/djinn-soul/CytoScnPy/actions/workflows/security.yml)
+[![Docs](https://github.com/djinn-soul/CytoScnPy/actions/workflows/docs.yml/badge.svg)](https://github.com/djinn-soul/CytoScnPy/actions/workflows/docs.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.2.7-green.svg)](https://github.com/djinn09/CytoScnPy)
+[![Version](https://img.shields.io/badge/version-1.2.7-green.svg)](https://github.com/djinn-soul/CytoScnPy)
 ![AI Assisted](https://img.shields.io/badge/AI--Assisted-Gemini-blue)
 
 A fast, lightweight static analyzer for Python codebase. It’s built in Rust with Python integration and detection of dead code, security issues, and code quality issue, along with useful quality metrics.
@@ -25,14 +25,14 @@ A fast, lightweight static analyzer for Python codebase. It’s built in Rust wi
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
 ```
 
 **Via Pip:**
@@ -44,7 +44,7 @@ pip install cytoscnpy
 **From Source:**
 
 ```bash
-git clone https://github.com/djinn09/CytoScnPy.git
+git clone https://github.com/djinn-soul/CytoScnPy.git
 cd CytoScnPy
 pip install maturin
 maturin develop -m cytoscnpy/Cargo.toml
@@ -67,7 +67,7 @@ Integrate CytoScnPy directly into your GitHub Actions workflow:
 
 ```yaml
 - name: Run CytoScnPy Analysis
-  uses: djinn09/CytoScnPy@main
+  uses: djinn-soul/CytoScnPy@main
   with:
     args: "--secrets --danger --quality"
 ```
@@ -137,7 +137,7 @@ cytoscnpy . --fix -a                 # Apply changes (short flag)
 cytoscnpy . --html --secrets --danger
 
 # Pre-commit integration
-# See https://djinn09.github.io/CytoScnPy/pre-commit/ for setup
+# See https://djinn-soul.github.io/CytoScnPy/pre-commit/ for setup
 ```
 
 **Common Options:**

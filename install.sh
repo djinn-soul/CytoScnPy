@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-REPO="djinn09/CytoScnPy"
+REPO="djinn-soul/CytoScnPy"
 BINARY_NAME="cytoscnpy"
 INSTALL_DIR="/usr/local/bin"
 
@@ -53,4 +53,4 @@ echo "  cytoscnpy .                    # Analyze current directory"
 echo "  cytoscnpy mcp-server           # Start MCP server for AI assistants"
 echo ""
 echo "For MCP configuration (Claude, Cursor, Copilot), see:"
-echo "  https://github.com/djinn09/CytoScnPy/blob/main/cytoscnpy-mcp/README.md"
+echo "  https://github.com/djinn-soul/CytoScnPy/blob/main/cytoscnpy-mcp/README.md"

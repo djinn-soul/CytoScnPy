@@ -7,13 +7,13 @@
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/djinn09/CytoScnPy"
+    "url": "https://github.com/djinn-soul/CytoScnPy"
   },
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/djinn09/CytoScnPy/issues"
+    "url": "https://github.com/djinn-soul/CytoScnPy/issues"
   },
-  "homepage": "https://github.com/djinn09/CytoScnPy#readme",
+  "homepage": "https://github.com/djinn-soul/CytoScnPy#readme",
   "engines": {
     "vscode": "^1.96.0"
   },

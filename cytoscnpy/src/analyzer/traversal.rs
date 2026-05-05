@@ -82,6 +82,10 @@ impl CytoScnPy {
         let total_files = files.len();
         self.total_files_analyzed = total_files;
 
+        // Sync analysis_root so aggregation can compute root-relative paths
+        if let Some(hint) = root_hint {
+            self.analysis_root = hint.to_path_buf();
+        }
         // Determine root path for relative path calculation
         let root_path = root_hint.unwrap_or(&self.analysis_root);
 

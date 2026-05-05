@@ -154,3 +154,33 @@ pub const RULE_ID_COMPREHENSION: &str = "CSP-P013";
 
 /// Performance: Pandas `read_csv` used without `chunksize`
 pub const RULE_ID_PANDAS_CHUNK_RISK: &str = "CSP-P015";
+
+/// MCP: `StdioServerParameters(command=<non-literal>)` enables arbitrary OS command execution
+pub const RULE_ID_MCP_STDIO: &str = "CSP-D412";
+
+/// Django: `@csrf_exempt` disables CSRF protection on a view
+pub const RULE_ID_CSRF_EXEMPT: &str = "CSP-D903";
+
+/// Injection: LDAP injection via non-literal filter string
+pub const RULE_ID_LDAP_INJECTION: &str = "CSP-D106";
+
+/// Injection: `XPath` injection via non-literal `XPath` expression
+pub const RULE_ID_XPATH_INJECTION: &str = "CSP-D107";
+
+/// Code Execution: Privilege escalation via os.setuid/setgid/setreuid/setregid
+pub const RULE_ID_PRIV_ESCALATION: &str = "CSP-D006";
+
+/// Privacy: Log injection via unsanitized user input in log statement
+pub const RULE_ID_LOG_INJECTION: &str = "CSP-D904";
+
+/// Best Practices: Hardcoded admin/default credentials in comparisons
+pub const RULE_ID_HARDCODED_CREDS: &str = "CSP-D705";
+
+/// Filesystem: TOCTOU race condition (os.path.exists/access before open)
+pub const RULE_ID_RACE_CONDITION: &str = "CSP-D507";
+
+/// Cryptography: `PyNaCl` low-level primitive usage (nacl.bindings)
+pub const RULE_ID_PYNACL_LOWLEVEL: &str = "CSP-D306";
+
+/// Cryptography: Hardcoded cryptographic key/IV/nonce in source
+pub const RULE_ID_HARDCODED_KEY: &str = "CSP-D307";

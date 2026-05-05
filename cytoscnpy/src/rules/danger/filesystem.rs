@@ -1,7 +1,7 @@
 use super::utils::{create_finding, get_call_name, is_arg_literal, is_literal, is_literal_expr};
 use crate::rules::ids;
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
-use ruff_python_ast::{self as ast, Expr};
+use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
 
 /// Rule for detecting potential path traversal vulnerabilities.
@@ -32,6 +32,11 @@ pub const META_PERMISSIONS: RuleMetadata = RuleMetadata {
 /// Rule for detecting insecure usage of `tempnam` or `tmpnam`.
 pub const META_TEMPNAM: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_TEMPNAM,
+    category: super::CAT_FILESYSTEM,
+};
+/// Rule for detecting TOCTOU race conditions in filesystem operations.
+pub const META_RACE_CONDITION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_RACE_CONDITION,
     category: super::CAT_FILESYSTEM,
 };
 
@@ -350,6 +355,142 @@ impl Rule for BadFilePermissionsRule {
                 }
             }
         }
+        None
+    }
+}
+
+/// Returns true if an expression contains a TOCTOU existence-check call.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
+fn is_existence_check(expr: &Expr) -> bool {
+    if let Expr::Call(call) = expr {
+        if let Some(name) = get_call_name(&call.func) {
+            return name == "os.path.exists"
+                || name == "os.path.isfile"
+                || name == "os.path.isdir"
+                || name == "os.access"
+                || name.ends_with(".exists")
+                || name.ends_with(".isfile")
+                || name.ends_with(".isdir")
+                || name.ends_with(".access");
+        }
+    }
+    // Recurse into UnaryOp (e.g. `not os.path.exists(...)`)
+    if let Expr::UnaryOp(u) = expr {
+        return is_existence_check(&u.operand);
+    }
+    false
+}
+
+/// Returns true if a statement (or its body) contains an `open()` call.
+fn body_contains_open(stmts: &[Stmt]) -> bool {
+    stmts.iter().any(stmt_contains_open)
+}
+
+fn stmt_contains_open(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Assign(a) => expr_contains_open(&a.value),
+        Stmt::AugAssign(a) => expr_contains_open(&a.value),
+        Stmt::AnnAssign(a) => a.value.as_ref().is_some_and(|v| expr_contains_open(v)),
+        Stmt::Expr(e) => expr_contains_open(&e.value),
+        Stmt::With(w) => {
+            w.items
+                .iter()
+                .any(|item| expr_contains_open(&item.context_expr))
+                || body_contains_open(&w.body)
+        }
+        Stmt::If(i) => {
+            body_contains_open(&i.body)
+                || i.elif_else_clauses
+                    .iter()
+                    .any(|c| body_contains_open(&c.body))
+        }
+        _ => false,
+    }
+}
+
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
+fn expr_contains_open(expr: &Expr) -> bool {
+    if let Expr::Call(call) = expr {
+        if let Some(name) = get_call_name(&call.func) {
+            if name == "open"
+                || name == "io.open"
+                || name == "builtins.open"
+                || name.ends_with(".open")
+            {
+                return true;
+            }
+        }
+        // Recurse into chained callee receiver: `open(path).read()` → check attr.value
+        if let Expr::Attribute(attr) = &*call.func {
+            if expr_contains_open(&attr.value) {
+                return true;
+            }
+        }
+        // Check args/kwargs recursively
+        return call.arguments.args.iter().any(expr_contains_open)
+            || call
+                .arguments
+                .keywords
+                .iter()
+                .any(|kw| expr_contains_open(&kw.value));
+    }
+    false
+}
+
+/// Rule for detecting TOCTOU (time-of-check/time-of-use) race conditions.
+///
+/// Flags `if os.path.exists(path): open(path, ...)` — the file may be replaced
+/// between the check and the open. Use `try/except` instead.
+/// RACE729 / CWE-362.
+pub struct RaceConditionRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+
+impl RaceConditionRule {
+    /// Creates a new instance with the specified metadata.
+    #[must_use]
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
+
+impl Rule for RaceConditionRule {
+    fn name(&self) -> &'static str {
+        "RaceConditionRule"
+    }
+
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
+    }
+
+    fn enter_stmt(&mut self, stmt: &ast::Stmt, context: &Context) -> Option<Vec<Finding>> {
+        if context.is_test_file {
+            return None;
+        }
+        let ast::Stmt::If(if_stmt) = stmt else {
+            return None;
+        };
+
+        if !is_existence_check(&if_stmt.test) {
+            return None;
+        }
+
+        let else_has_open = if_stmt
+            .elif_else_clauses
+            .iter()
+            .any(|c| body_contains_open(&c.body));
+
+        if body_contains_open(&if_stmt.body) || else_has_open {
+            return Some(vec![create_finding(
+                "TOCTOU race condition: file existence check followed by open(). The file may be modified between check and use. Use try/except instead.",
+                self.metadata,
+                context,
+                stmt.range().start(),
+                "MEDIUM",
+            )]);
+        }
+
         None
     }
 }

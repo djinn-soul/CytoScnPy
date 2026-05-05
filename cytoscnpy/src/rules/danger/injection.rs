@@ -29,6 +29,16 @@ pub const META_MARK_SAFE: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_MARK_SAFE,
     category: super::CAT_INJECTION,
 };
+/// Rule for detecting `XPath` injection via non-literal `XPath` expressions.
+pub const META_XPATH_INJECTION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_XPATH_INJECTION,
+    category: super::CAT_INJECTION,
+};
+/// Rule for detecting LDAP injection via non-literal filter strings.
+pub const META_LDAP_INJECTION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_LDAP_INJECTION,
+    category: super::CAT_INJECTION,
+};
 
 /// Rule for detecting potential SQL injection vulnerabilities in common ORMs and drivers.
 pub struct SqlInjectionRule {
@@ -376,6 +386,195 @@ impl Rule for XmlRule {
                 )]);
             }
         }
+        None
+    }
+}
+
+/// Rule for detecting LDAP injection via non-literal filter strings.
+///
+/// Detects calls to python-ldap (`ldap.search*`) and ldap3 (`Connection.search`)
+/// where the filter argument is not a string literal, enabling LDAP injection.
+/// PY104 / OWASP A03:2021.
+pub struct LdapInjectionRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+
+impl LdapInjectionRule {
+    /// Creates a new instance with the specified metadata.
+    #[must_use]
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
+
+impl Rule for LdapInjectionRule {
+    fn name(&self) -> &'static str {
+        "LdapInjectionRule"
+    }
+
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
+    }
+
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        let Expr::Call(call) = expr else {
+            return None;
+        };
+
+        let name_opt = get_call_name(&call.func);
+        let attr_name = if let Expr::Attribute(attr) = &*call.func {
+            Some(attr.attr.as_str())
+        } else {
+            None
+        };
+
+        // Match ldap-specific search methods by full name OR attribute.
+        // Check both independently: get_call_name returns "conn.search_s" (Some), so we can't
+        // rely on the else-if branch for attribute-based matching when a qualifier is present.
+        let name_is_ldap = name_opt.as_deref().is_some_and(|n| {
+            n.contains("ldap.search")
+                || n.contains("ldap.search_s")
+                || n.contains("ldap.search_st")
+                || n.contains("ldap.search_ext")
+                || n.contains("ldap.search_ext_s")
+        });
+        let attr_is_ldap = attr_name
+            .is_some_and(|a| matches!(a, "search_s" | "search_st" | "search_ext" | "search_ext_s"));
+        let is_ldap_search = name_is_ldap || attr_is_ldap;
+
+        // Also detect by ldap-specific keyword arguments regardless of call name
+        let has_ldap_kwarg = call.arguments.keywords.iter().any(|kw| {
+            kw.arg
+                .as_ref()
+                .is_some_and(|a| matches!(a.as_str(), "filterstr" | "search_filter"))
+        });
+
+        if !is_ldap_search && !has_ldap_kwarg {
+            return None;
+        }
+
+        // Check kwarg filterstr / search_filter for non-literal value
+        for kw in &call.arguments.keywords {
+            if let Some(arg) = &kw.arg {
+                if matches!(arg.as_str(), "filterstr" | "search_filter")
+                    && !is_literal_expr(&kw.value)
+                {
+                    return Some(vec![create_finding(
+                        "Potential LDAP injection: non-literal filter string passed to LDAP search. Use ldap.filter.escape_filter_chars() to sanitize.",
+                        self.metadata,
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+
+        // For python-ldap: filterstr is 3rd positional arg (index 2)
+        if is_ldap_search {
+            if let Some(filter_arg) = call.arguments.args.get(2) {
+                if !is_literal_expr(filter_arg) {
+                    return Some(vec![create_finding(
+                        "Potential LDAP injection: non-literal filter string passed to LDAP search. Use ldap.filter.escape_filter_chars() to sanitize.",
+                        self.metadata,
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+
+        None
+    }
+}
+
+/// Rule for detecting `XPath` injection via non-literal `XPath` expressions.
+///
+/// Detects calls to `lxml.etree.XPath(expr)`, `tree.xpath(expr)`, and
+/// `ElementPath.xpath(expr)` where the expression argument is non-literal.
+/// XPATH720 / OWASP A03:2021.
+pub struct XPathInjectionRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+
+impl XPathInjectionRule {
+    /// Creates a new instance with the specified metadata.
+    #[must_use]
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
+
+impl Rule for XPathInjectionRule {
+    fn name(&self) -> &'static str {
+        "XPathInjectionRule"
+    }
+
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
+    }
+
+    #[allow(clippy::case_sensitive_file_extension_comparisons)]
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        let Expr::Call(call) = expr else {
+            return None;
+        };
+
+        let name_opt = get_call_name(&call.func);
+        let attr_name = if let Expr::Attribute(attr) = &*call.func {
+            Some(attr.attr.as_str())
+        } else {
+            None
+        };
+
+        let is_xpath_call = match (&name_opt, attr_name) {
+            (Some(name), _) => {
+                name == "XPath"
+                    || name == "etree.XPath"
+                    || name == "lxml.etree.XPath"
+                    || name.ends_with(".XPath")
+                    || name.ends_with(".xpath")
+            }
+            (None, Some(attr)) => attr == "XPath" || attr == "xpath",
+            _ => false,
+        };
+
+        if !is_xpath_call {
+            return None;
+        }
+
+        if let Some(arg) = call.arguments.args.first() {
+            if !is_literal_expr(arg) {
+                return Some(vec![create_finding(
+                    "Potential XPath injection: non-literal XPath expression. Sanitize user input before constructing XPath queries.",
+                    self.metadata,
+                    context,
+                    call.range().start(),
+                    "HIGH",
+                )]);
+            }
+        }
+
+        for kw in &call.arguments.keywords {
+            if kw
+                .arg
+                .as_ref()
+                .is_some_and(|a| matches!(a.as_str(), "path" | "xpath"))
+                && !is_literal_expr(&kw.value)
+            {
+                return Some(vec![create_finding(
+                    "Potential XPath injection: non-literal XPath expression. Sanitize user input before constructing XPath queries.",
+                    self.metadata,
+                    context,
+                    call.range().start(),
+                    "HIGH",
+                )]);
+            }
+        }
+
         None
     }
 }

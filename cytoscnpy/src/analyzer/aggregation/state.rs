@@ -15,6 +15,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub(super) struct AggregationState {
     pub(super) all_defs: Vec<Definition>,
     pub(super) ref_counts: FxHashMap<String, usize>,
+    /// References from non-test files only. Used by dead-code classification so that
+    /// production symbols called exclusively from tests are still flagged as unused.
+    pub(super) prod_ref_counts: FxHashMap<String, usize>,
     pub(super) all_import_bindings: FxHashMap<String, String>,
     pub(super) all_secrets: Vec<SecretFinding>,
     pub(super) all_danger: Vec<Finding>,
@@ -108,8 +111,15 @@ impl AggregationState {
 
         self.all_defs.extend(definitions);
 
+        let relative_path = file_path
+            .strip_prefix(&analyzer.analysis_root)
+            .unwrap_or(file_path);
+        let is_test = crate::utils::is_test_path(&relative_path.to_string_lossy());
         for (name, count) in references {
-            *self.ref_counts.entry(name).or_insert(0) += count;
+            *self.ref_counts.entry(name.clone()).or_insert(0) += count;
+            if !is_test {
+                *self.prod_ref_counts.entry(name).or_insert(0) += count;
+            }
         }
         self.all_import_bindings.extend(import_bindings);
 
@@ -192,6 +202,33 @@ impl AggregationState {
         }
     }
 
+    /// Same as `apply_import_binding_reference_increments` but operates on `prod_ref_counts`.
+    /// Must run after `apply_star_import_bindings` and `apply_export_reference_increments`.
+    pub(super) fn apply_prod_import_binding_reference_increments(&mut self) {
+        let mut used_symbols: FxHashSet<String> = self
+            .prod_ref_counts
+            .iter()
+            .filter_map(|(name, count)| if *count > 0 { Some(name.clone()) } else { None })
+            .collect();
+
+        let mut worklist: Vec<String> = used_symbols.iter().cloned().collect();
+        while let Some(symbol) = worklist.pop() {
+            if let Some(source_symbol) = self.all_import_bindings.get(&symbol) {
+                let source_symbol = source_symbol.clone();
+                if used_symbols.insert(source_symbol.clone()) {
+                    worklist.push(source_symbol);
+                }
+            }
+        }
+
+        for symbol in used_symbols {
+            self.prod_ref_counts
+                .entry(symbol)
+                .and_modify(|count| *count = (*count).max(1))
+                .or_insert(1);
+        }
+    }
+
     /// Resolves `from x import *` cross-file.
     ///
     /// For each recorded star-import `(importer_module, source_module)`, looks up the
@@ -233,6 +270,10 @@ impl AggregationState {
             for export_name in exports {
                 let qualified = format!("{module_name}.{export_name}");
                 self.ref_counts
+                    .entry(qualified.clone())
+                    .and_modify(|c| *c = (*c).max(1))
+                    .or_insert(1);
+                self.prod_ref_counts
                     .entry(qualified)
                     .and_modify(|c| *c = (*c).max(1))
                     .or_insert(1);

@@ -31,3 +31,23 @@ pub const META_INPUT: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_INPUT,
     category: super::super::CAT_CODE_EXEC,
 };
+/// Rule metadata for MCP `StdioServerParameters(command=<non-literal>)`.
+pub const META_MCP_STDIO: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_MCP_STDIO,
+    category: super::super::CAT_CODE_EXEC,
+};
+/// Rule metadata for privilege escalation via `os.setuid`/`os.setgid`.
+pub const META_PRIV_ESCALATION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_PRIV_ESCALATION,
+    category: super::super::CAT_CODE_EXEC,
+};
+/// Rule metadata for log injection via unsanitized input in log calls.
+pub const META_LOG_INJECTION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_LOG_INJECTION,
+    category: super::super::CAT_PRIVACY,
+};
+/// Rule metadata for hardcoded default/admin credentials in comparisons.
+pub const META_HARDCODED_CREDS: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_HARDCODED_CREDS,
+    category: super::super::CAT_BEST_PRACTICES,
+};

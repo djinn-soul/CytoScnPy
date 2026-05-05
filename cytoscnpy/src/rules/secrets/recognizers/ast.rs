@@ -76,10 +76,6 @@ impl AstRecognizer {
             return false;
         }
 
-        if lower.contains("jwt") && lower.contains("token") {
-            return false;
-        }
-
         // 2. Check built-in patterns with word boundary awareness
         for &pattern in SUSPICIOUS_NAMES {
             // Use match_indices for more idiomatic and efficient matching

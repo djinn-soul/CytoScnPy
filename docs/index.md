@@ -2,7 +2,7 @@
 
 **High-Performance Python Static Analysis Tool Powered by Rust**
 
-[![CI](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml/badge.svg)](https://github.com/djinn09/CytoScnPy/actions/workflows/ci.yml)
+[![CI](https://github.com/djinn-soul/CytoScnPy/actions/workflows/ci.yml/badge.svg)](https://github.com/djinn-soul/CytoScnPy/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/cytoscnpy)](https://pypi.org/project/cytoscnpy/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -31,14 +31,14 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
 ```
 
 **Via Pip:**
@@ -50,10 +50,12 @@ pip install cytoscnpy
 **From Source:**
 
 ```bash
-git clone https://github.com/djinn09/CytoScnPy.git
+git clone https://github.com/djinn-soul/CytoScnPy.git
 cd CytoScnPy
 maturin develop -m cytoscnpy/Cargo.toml
 ```
+
+> Note: The Python package installs the analysis CLI, but `cytoscnpy mcp-server` is available through the standalone CLI binary (`cytoscnpy-cli` / install script flow), not the Python package entry point.
 
 ---
 
@@ -85,4 +87,4 @@ cytoscnpy . --fix --apply # Apply changes
 - **Documentation**: [djinn09.github.io/CytoScnPy](https://djinn09.github.io/CytoScnPy/)
 - **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
 - **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
-- **GitHub Repository**: [github.com/djinn09/CytoScnPy](https://github.com/djinn09/CytoScnPy/)
+- **GitHub Repository**: [github.com/djinn-soul/CytoScnPy](https://github.com/djinn-soul/CytoScnPy/)

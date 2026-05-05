@@ -6,7 +6,7 @@
 [![Security Audit](https://github.com/djinn-soul/CytoScnPy/actions/workflows/security.yml/badge.svg)](https://github.com/djinn-soul/CytoScnPy/actions/workflows/security.yml)
 [![Docs](https://github.com/djinn-soul/CytoScnPy/actions/workflows/docs.yml/badge.svg)](https://github.com/djinn-soul/CytoScnPy/actions/workflows/docs.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.2.7-green.svg)](https://github.com/djinn-soul/CytoScnPy)
+[![PyPI](https://img.shields.io/pypi/v/cytoscnpy)](https://pypi.org/project/cytoscnpy/)
 ![AI Assisted](https://img.shields.io/badge/AI--Assisted-Gemini-blue)
 
 A fast, lightweight static analyzer for Python codebase. It’s built in Rust with Python integration and detection of dead code, security issues, and code quality issue, along with useful quality metrics.
@@ -95,8 +95,6 @@ Integrate CytoScnPy directly into your GitHub Actions workflow:
 
 ## Usage
 
-> [!IMPORTANT] **Behavioral Change**: Starting from version 1.2.2, tests are **excluded by default** across both the CLI and the library API to reduce noise in production analysis. Use the `--include-tests` flag or set `include_tests = true` in your configuration to scan test files.
-
 ### Command Line
 
 ```bash
@@ -137,7 +135,7 @@ cytoscnpy . --fix -a                 # Apply changes (short flag)
 cytoscnpy . --html --secrets --danger
 
 # Pre-commit integration
-# See https://djinn-soul.github.io/CytoScnPy/pre-commit/ for setup
+# See https://djinn09.github.io/CytoScnPy/pre-commit/ for setup
 ```
 
 **Common Options:**
@@ -152,7 +150,8 @@ cytoscnpy . --html --secrets --danger
 | `-a, --apply`   | Apply fixes to files (use with `--fix`)         |
 | `--json`        | Output results in machine-readable JSON         |
 
-> [!TIP] > **[View the Full CLI Reference](docs/CLI.md)** for detailed usage, advanced configuration, and quality gate options.
+> [!TIP]
+> **[View the Full CLI Reference](docs/CLI.md)** for detailed usage, advanced configuration, and quality gate options.
 
 **CI/CD Gate Options:**
 
@@ -166,8 +165,6 @@ cytoscnpy . --html --secrets --danger
 | `--max-args <N>`       | Exit code 1 if any function has > N args   |
 | `--max-lines <N>`      | Exit code 1 if any function has > N lines  |
 
-> **Full CLI Reference:** See [docs/CLI.md](docs/CLI.md) for complete command documentation.
-
 ### Metric Subcommands
 
 ```bash
@@ -178,6 +175,8 @@ cytoscnpy mi .                     # Maintainability Index
 cytoscnpy stats . --all            # Full project report (secrets, danger, quality)
 cytoscnpy stats . --all -o report.md  # Save report to file
 cytoscnpy files .                  # Per-file metrics table
+cytoscnpy deps .                   # Dependency analysis
+cytoscnpy init                     # Scaffold config in the current project
 ```
 
 > **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories globally, or `--ignore <PATTERN>` for subcommand-specific glob filtering.
@@ -212,7 +211,7 @@ max_args = 5          # Max arguments per function
 max_complexity = 10   # Max cyclomatic complexity
 max_nesting = 4       # Max indentation depth
 min_mi = 65.0         # Minimum Maintainability Index
-ignore = ["R001"]     # Ignore specific rule IDs
+ignore = ["CSP-P003"] # Ignore specific rule IDs
 
 # Advanced Secret Scanning
 [cytoscnpy.secrets_config]
@@ -280,13 +279,9 @@ cytoscnpy . --fail-threshold 5 --quiet
 
 > See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
-## Testing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md#testing) for testing instructions.
-
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing instructions, and guidelines.
 
 ## License
 
@@ -294,7 +289,7 @@ Apache-2.0 License - see [License](License) file for details.
 
 ## Links
 
-- **Documentation**: [CytoScnPy](https://djinn-soul.github.io/CytoScnPy/)
+- **Documentation**: [CytoScnPy](https://djinn09.github.io/CytoScnPy/)
 - **PyPI**: [PyPi](https://pypi.org/project/cytoscnpy/)
 - **VS Code Extension**: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
 - **Roadmap**: [docs/roadmap.md](docs/roadmap.md)

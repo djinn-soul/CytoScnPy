@@ -79,6 +79,7 @@ impl ClassificationResult {
 pub(super) fn classify_definitions(
     definitions: Vec<Definition>,
     ref_counts: &FxHashMap<String, usize>,
+    prod_ref_counts: &FxHashMap<String, usize>,
     reachability: &ReachabilityContext,
     fixture_definition_names: &FxHashSet<String>,
     confidence_threshold: u8,
@@ -104,8 +105,21 @@ pub(super) fn classify_definitions(
             }
         }
 
+        // For production-file definitions use only prod refs so that test-only callers
+        // don't mask unused prod code. For test-file definitions keep the full ref_counts
+        // so that fixtures used exclusively by tests are not falsely flagged.
+        let def_relative = def
+            .file
+            .strip_prefix(analysis_root)
+            .unwrap_or(def.file.as_path());
+        let effective_refs = if crate::utils::is_test_path(&def_relative.to_string_lossy()) {
+            ref_counts
+        } else {
+            prod_ref_counts
+        };
+
         let mut evidence =
-            sync_definition_reference(&mut def, ref_counts, fixture_definition_names);
+            sync_definition_reference(&mut def, effective_refs, fixture_definition_names);
 
         apply_heuristics(&mut def);
 
@@ -121,7 +135,7 @@ pub(super) fn classify_definitions(
             && !reachability.reachable_nodes.contains(&def.full_name)
         {
             let loose_ref_exists = if def.def_type == "method" || def.def_type == "function" {
-                ref_counts.contains_key(&format!(".{}", def.simple_name))
+                effective_refs.contains_key(&format!(".{}", def.simple_name))
             } else {
                 false
             };

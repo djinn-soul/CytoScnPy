@@ -1000,3 +1000,525 @@ s.bind(("127.0.0.1", 80)) # safe
     assert_eq!(linter.findings.len(), 1);
     assert_eq!(linter.findings[0].rule_id, "CSP-D404");
 }
+
+// -------------------------------------------------------------------------
+// CSP-D412: MCP StdioServerParameters non-literal command
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_mcp_stdio_non_literal_command_kwarg() {
+    let source = r#"
+from mcp import StdioServerParameters
+cmd = get_user_command()
+params = StdioServerParameters(command=cmd, args=[])
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D412"),
+        "Non-literal command kwarg should trigger CSP-D412"
+    );
+}
+
+#[test]
+fn test_mcp_stdio_literal_command_safe() {
+    let source = r#"
+from mcp import StdioServerParameters
+params = StdioServerParameters(command="uvx", args=["my-server"])
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D412"),
+        "Literal string command should not trigger CSP-D412"
+    );
+}
+
+#[test]
+fn test_mcp_stdio_fstring_command_flagged() {
+    let source = r#"
+from mcp import StdioServerParameters
+server = user_input
+params = StdioServerParameters(command=f"run-{server}", args=[])
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D412"),
+        "F-string command should trigger CSP-D412"
+    );
+}
+
+#[test]
+fn test_mcp_stdio_non_literal_positional_flagged() {
+    let source = r#"
+from mcp import StdioServerParameters
+cmd = get_cmd()
+params = StdioServerParameters(cmd, args=[])
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D412"),
+        "Non-literal positional command should trigger CSP-D412"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D903: Django @csrf_exempt decorator
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_csrf_exempt_on_function() {
+    let source = r#"
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def my_view(request):
+    return HttpResponse("ok")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D903"),
+        "@csrf_exempt on function should trigger CSP-D903"
+    );
+}
+
+#[test]
+fn test_csrf_exempt_qualified_name() {
+    let source = r#"
+import django.views.decorators.csrf
+
+@django.views.decorators.csrf.csrf_exempt
+def my_view(request):
+    return HttpResponse("ok")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D903"),
+        "Qualified @csrf_exempt should trigger CSP-D903"
+    );
+}
+
+#[test]
+fn test_no_csrf_exempt_no_finding() {
+    let source = r#"
+from django.views.decorators.csrf import csrf_protect
+
+@csrf_protect
+def my_view(request):
+    return HttpResponse("ok")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D903"),
+        "@csrf_protect should not trigger CSP-D903"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D106: LDAP Injection
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_ldap_injection_search_s_positional() {
+    let source = r#"
+import ldap
+user_input = request.args.get("user")
+ldap_filter = f"(uid={user_input})"
+conn.search_s("dc=example,dc=com", ldap.SCOPE_SUBTREE, ldap_filter)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "Non-literal LDAP filter positional arg should trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_ldap_injection_filterstr_kwarg() {
+    let source = r#"
+import ldap
+user = get_user()
+ldap_filter = "(uid=" + user + ")"
+ldap.search_s("dc=example,dc=com", ldap.SCOPE_SUBTREE, filterstr=ldap_filter)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "Non-literal filterstr kwarg should trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_ldap_injection_literal_filter_safe() {
+    let source = r#"
+import ldap
+conn.search_s("dc=example,dc=com", ldap.SCOPE_SUBTREE, "(objectClass=person)")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "Literal LDAP filter should not trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_ldap3_search_filter_kwarg() {
+    let source = r#"
+from ldap3 import Connection
+user = request.form["username"]
+conn = Connection(server)
+conn.search("dc=example,dc=com", search_filter=f"(uid={user})")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "Non-literal ldap3 search_filter kwarg should trigger CSP-D106"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D107: XPath Injection
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_xpath_injection_dynamic_expr() {
+    let source = r#"
+from lxml import etree
+user_input = request.args.get("xpath")
+tree = etree.parse("data.xml")
+result = tree.xpath(user_input)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D107"),
+        "Dynamic xpath() arg should trigger CSP-D107"
+    );
+}
+
+#[test]
+fn test_xpath_injection_lxml_xpath_constructor() {
+    let source = r#"
+from lxml import etree
+user_filter = request.args.get("filter")
+expr = etree.XPath(user_filter)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D107"),
+        "Dynamic lxml.etree.XPath() arg should trigger CSP-D107"
+    );
+}
+
+#[test]
+fn test_xpath_injection_literal_safe() {
+    let source = r#"
+from lxml import etree
+tree = etree.parse("data.xml")
+result = tree.xpath("//user[@name='admin']")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D107"),
+        "Literal xpath expression should not trigger CSP-D107"
+    );
+}
+
+#[test]
+fn test_xpath_injection_fstring_expr() {
+    let source = r#"
+from lxml import etree
+username = get_user()
+tree = etree.parse("data.xml")
+result = tree.xpath(f"//user[@name='{username}']")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D107"),
+        "F-string xpath expression should trigger CSP-D107"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D006: Privilege Escalation
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_priv_escalation_setuid() {
+    let source = r#"
+import os
+os.setuid(0)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D006"),
+        "os.setuid(0) should trigger CSP-D006"
+    );
+}
+
+#[test]
+fn test_priv_escalation_setgid() {
+    let source = r#"
+import os
+os.setgid(0)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D006"),
+        "os.setgid(0) should trigger CSP-D006"
+    );
+}
+
+#[test]
+fn test_priv_escalation_setreuid() {
+    let source = r#"
+import os
+os.setreuid(0, 0)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D006"),
+        "os.setreuid(0, 0) should trigger CSP-D006"
+    );
+}
+
+#[test]
+fn test_priv_escalation_bare_attr() {
+    let source = r#"
+uid = get_uid()
+proc.setuid(uid)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D006"),
+        "bare .setuid() attr should trigger CSP-D006"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D904: Log Injection
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_log_injection_fstring() {
+    let source = r#"
+import logging
+user_input = request.args.get("name")
+logging.info(f"User logged in: {user_input}")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D904"),
+        "F-string log arg should trigger CSP-D904"
+    );
+}
+
+#[test]
+fn test_log_injection_string_concat() {
+    let source = r#"
+import logging
+username = get_username()
+logging.warning("Login attempt: " + username)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D904"),
+        "String concat log arg should trigger CSP-D904"
+    );
+}
+
+#[test]
+fn test_log_injection_percent_format() {
+    let source = r#"
+import logging
+user = get_user()
+logging.error("Access denied for %s" % user)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D904"),
+        "Percent-format log arg should trigger CSP-D904"
+    );
+}
+
+#[test]
+fn test_log_injection_literal_safe() {
+    let source = r#"
+import logging
+logging.info("Application started")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D904"),
+        "Literal string log arg should not trigger CSP-D904"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D705: Hardcoded Default Credentials
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_hardcoded_creds_user_admin() {
+    let source = r#"
+if username == "admin":
+    grant_access()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D705"),
+        "username == 'admin' should trigger CSP-D705"
+    );
+}
+
+#[test]
+fn test_hardcoded_creds_password_eq() {
+    let source = r#"
+if password == "password":
+    login()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D705"),
+        "password == 'password' should trigger CSP-D705"
+    );
+}
+
+#[test]
+fn test_hardcoded_creds_reversed() {
+    let source = r#"
+if "admin" == user:
+    allow()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D705"),
+        "'admin' == user (reversed) should trigger CSP-D705"
+    );
+}
+
+#[test]
+fn test_hardcoded_creds_non_default_no_trigger() {
+    let source = r#"
+if username == stored_username:
+    login()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D705"),
+        "variable comparison should not trigger CSP-D705"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D507: TOCTOU Race Condition
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_race_condition_exists_then_open() {
+    let source = r#"
+import os
+path = get_user_path()
+if os.path.exists(path):
+    with open(path) as f:
+        data = f.read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "os.path.exists() + open() should trigger CSP-D507"
+    );
+}
+
+#[test]
+fn test_race_condition_isfile_then_open() {
+    let source = r#"
+import os
+if os.path.isfile(filename):
+    f = open(filename)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "os.path.isfile() + open() should trigger CSP-D507"
+    );
+}
+
+#[test]
+fn test_race_condition_not_exists_no_open_safe() {
+    let source = r#"
+import os
+if not os.path.exists(path):
+    raise FileNotFoundError("not found")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "exists() without open() in body should not trigger CSP-D507"
+    );
+}
+
+#[test]
+fn test_race_condition_access_then_open() {
+    let source = r#"
+import os
+if os.access(path, os.R_OK):
+    content = open(path).read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "os.access() + open() should trigger CSP-D507"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D306: PyNaCl Low-level Bindings
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_pynacl_lowlevel_import() {
+    let source = r#"
+import nacl.bindings
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D306"),
+        "import nacl.bindings should trigger CSP-D306"
+    );
+}
+
+#[test]
+fn test_pynacl_lowlevel_from_import() {
+    let source = r#"
+from nacl.bindings import crypto_secretbox
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D306"),
+        "from nacl.bindings import should trigger CSP-D306"
+    );
+}
+
+#[test]
+fn test_pynacl_lowlevel_call() {
+    let source = r#"
+from nacl.bindings import crypto_secretbox
+ct = nacl.bindings.crypto_secretbox(msg, nonce, key)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D306"),
+        "nacl.bindings.* call should trigger CSP-D306"
+    );
+}
+
+#[test]
+fn test_pynacl_highlevel_safe() {
+    let source = r#"
+from nacl.secret import SecretBox
+box = SecretBox(key)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D306"),
+        "nacl.secret.SecretBox should not trigger CSP-D306"
+    );
+}

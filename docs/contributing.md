@@ -6,8 +6,9 @@ Thank you for your interest in contributing to CytoScnPy!
 
 - **Rust**: Version 1.70 or higher.
 - **Cargo**: Comes with Rust.
-- **Python**: Version 3.8 or higher.
-- **Maturin**: `pip install maturin`
+- **Python**: Version 3.10 or higher.
+- **UV or pip**: For Python dependency management.
+- **Maturin**: Included in the dev environment, or install manually with `pip install maturin`.
 
 ## Setup Development Environment
 
@@ -29,8 +30,8 @@ Thank you for your interest in contributing to CytoScnPy!
 3. **Install Dependencies & Build:**
 
    ```bash
-   pip install maturin
-   maturin develop -m cytoscnpy/Cargo.toml
+   uv sync --group dev --group docs
+   uv run maturin develop -m cytoscnpy/Cargo.toml
    ```
 
 4. **Install the docs generator:**
@@ -45,7 +46,7 @@ Thank you for your interest in contributing to CytoScnPy!
 
    ```bash
    cargo test
-   pytest python/tests
+   uv run pytest python/tests
    ```
 
 ## Development Workflow
@@ -59,7 +60,7 @@ Thank you for your interest in contributing to CytoScnPy!
 
 3. **Test:**
    - `cargo test` (Rust unit tests)
-   - `pytest` (Python integration tests)
+   - `uv run pytest python/tests` (Python integration tests)
 
 4. **Submit PR:**
    - Push to your fork.
@@ -70,7 +71,7 @@ Thank you for your interest in contributing to CytoScnPy!
 - `cytoscnpy/` - Rust core library & analysis engine.
 - `python/` - Python wrapper & CLI entry point.
 - `editors/vscode/` - VS Code extension.
-- `cytoscnpy-mcp/` - MCP server documentation.
+- `cytoscnpy-mcp/` - MCP server implementation.
 
 ## Testing
 
@@ -84,4 +85,4 @@ cargo test
 cargo test test_name
 ```
 
-See [tests/README.md](https://github.com/djinn09/CytoScnPy/tree/main/cytoscnpy/tests) for detailed testing guide.
+See [tests/README.md](https://github.com/djinn-soul/CytoScnPy/tree/main/cytoscnpy/tests) for detailed testing guide.

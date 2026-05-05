@@ -21,8 +21,8 @@ This extension requires the `cytoscnpy` CLI tool to be available.
 The extension comes with pre-compiled binaries for:
 
 - **Windows**: `cytoscnpy-cli-win32.exe`
-- **Linux**: `cytoscnpy-cli-linux-x64`
-- **macOS**: `cytoscnpy-cli-darwin` (x64) and `cytoscnpy-cli-darwin-arm64` (Apple Silicon)
+- **Linux**: `cytoscnpy-cli-linux`
+- **macOS**: `cytoscnpy-cli-darwin`
 
 The appropriate binary is automatically selected based on your platform.
 
@@ -100,7 +100,7 @@ Simply ask Copilot to use CytoScnPy:
 
 ## Links
 
-- **Documentation**: [djinn-soul.github.io/CytoScnPy](https://djinn-soul.github.io/CytoScnPy/)
+- **Documentation**: [djinn09.github.io/CytoScnPy](https://djinn09.github.io/CytoScnPy/)
 - **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
 - **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
 - **GitHub Repository**: [github.com/djinn-soul/CytoScnPy](https://github.com/djinn-soul/CytoScnPy/)

@@ -1,16 +1,21 @@
 use super::super::utils::{create_finding, get_call_name};
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
-use ruff_python_ast::{Expr, ExprBinOp, Operator};
+use ruff_python_ast::{Expr, ExprBinOp, FStringPart, InterpolatedStringElement, Operator};
 use ruff_text_size::Ranged;
 
 /// Returns true if the expression is a potential log-injection vector:
 /// an f-string with dynamic parts, string concatenation, or `%`-formatting.
 fn is_injectable_log_arg(expr: &Expr) -> bool {
     match expr {
-        // f-string with at least one dynamic component
-        Expr::FString(f) => f.value.iter().any(|part| {
-            use ruff_python_ast::FStringPart;
-            matches!(part, FStringPart::FString(_))
+        // f-string with at least one dynamic interpolation. A pure literal
+        // f-string like `f"hello"` still parses to FStringPart::FString whose
+        // elements are all literals — those must not trigger the rule.
+        Expr::FString(f) => f.value.iter().any(|part| match part {
+            FStringPart::FString(inner) => inner
+                .elements
+                .iter()
+                .any(|el| matches!(el, InterpolatedStringElement::Interpolation(_))),
+            FStringPart::Literal(_) => false,
         }),
         // string + anything or anything + string
         Expr::BinOp(ExprBinOp {
@@ -68,21 +73,22 @@ impl Rule for LogInjectionRule {
 
         let name_opt = get_call_name(&call.func);
 
-        fn has_case_insensitive_suffix(value: &str, suffix: &str) -> bool {
-            value
-                .get(value.len().saturating_sub(suffix.len())..)
-                .is_some_and(|tail| tail.eq_ignore_ascii_case(suffix))
-        }
-
+        // Only match stdlib logging / common logger variable names to avoid FPs on
+        // unrelated methods that happen to share the name (.error, .info, .debug, etc.)
         let is_log_call = name_opt.as_deref().is_some_and(|name| {
             name.starts_with("logging.")
                 || name.starts_with("logger.")
-                || name == "log"
-                || has_case_insensitive_suffix(name, ".debug")
-                || has_case_insensitive_suffix(name, ".info")
-                || has_case_insensitive_suffix(name, ".warning")
-                || has_case_insensitive_suffix(name, ".error")
-                || has_case_insensitive_suffix(name, ".critical")
+                || name.starts_with("log.")
+                || matches!(
+                    name,
+                    "logging.debug"
+                        | "logging.info"
+                        | "logging.warning"
+                        | "logging.error"
+                        | "logging.critical"
+                        | "logging.exception"
+                        | "logging.log"
+                )
         });
 
         if !is_log_call {

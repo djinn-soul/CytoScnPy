@@ -23,7 +23,6 @@ const DEFAULT_CREDS: &[&str] = &[
     "guest",
     "test",
     "secret",
-    "",
 ];
 
 /// Variable name substrings that indicate credential/auth context.

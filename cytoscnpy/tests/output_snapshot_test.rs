@@ -82,6 +82,15 @@ fn sanitize_output(output: &str, file_path: &str, _format: &str) -> Result<Strin
     s = s.replace(&normalized_path, "[FILE]");
     s = s.replace(filename, "[FILE]");
 
+    // Also replace the bare file stem so the module-qualified `name` field
+    // (e.g. `snapshot_test_K3XK9X.unused_func`) collapses to `[MOD].unused_func`.
+    if let Some(stem) = std::path::Path::new(filename)
+        .file_stem()
+        .and_then(|s| s.to_str())
+    {
+        s = s.replace(stem, "[MOD]");
+    }
+
     // 3. Sanitize timing info
     let re_time = regex::Regex::new(r"(Analysis completed|Completed) in \d+\.\d+s")
         .context("Invalid timing regex")?;

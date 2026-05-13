@@ -299,6 +299,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Move major version tag to latest release
+        run: |
+          MAJOR=$(echo "${{ github.ref_name }}" | grep -oP '^v\d+')
+          gh api repos/${{ github.repository }}/git/refs/tags/$MAJOR \
+            --method PATCH \
+            --field sha=${{ github.sha }} \
+            --field force=true \
+            || gh api repos/${{ github.repository }}/git/refs \
+            --method POST \
+            --field ref=refs/tags/$MAJOR \
+            --field sha=${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # =============================================================================
   # Create GitHub Release (Test - test tags)
   # =============================================================================

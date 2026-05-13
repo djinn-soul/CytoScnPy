@@ -76,6 +76,11 @@ impl AstRecognizer {
             return false;
         }
 
+        // jwt_token-style vars hold bearer tokens, not secrets — CSP-S122 covers jwt_secret/jwt_key
+        if lower.contains("jwt") && lower.contains("token") {
+            return false;
+        }
+
         // 2. Check built-in patterns with word boundary awareness
         for &pattern in SUSPICIOUS_NAMES {
             // Use match_indices for more idiomatic and efficient matching

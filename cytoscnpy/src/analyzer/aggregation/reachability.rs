@@ -142,10 +142,16 @@ fn similarity_threshold_met(intersection_count: usize, proto_len: usize) -> bool
 }
 
 fn protocol_hint_matches(proto_name: &str, runtime_protocol_hints: &FxHashSet<String>) -> bool {
-    runtime_protocol_hints.contains(proto_name)
-        || runtime_protocol_hints
-            .iter()
-            .any(|hint| hint.ends_with(&format!(".{proto_name}")))
+    if runtime_protocol_hints.contains(proto_name) {
+        return true;
+    }
+    // Build the suffix once and reuse, rather than `format!` per hint.
+    let suffix_len = proto_name.len() + 1;
+    runtime_protocol_hints.iter().any(|hint| {
+        hint.len() > suffix_len
+            && hint.as_bytes()[hint.len() - suffix_len] == b'.'
+            && hint.ends_with(proto_name)
+    })
 }
 
 fn collect_reachable_nodes(
@@ -159,6 +165,15 @@ fn collect_reachable_nodes(
     let mut roots = FxHashSet::default();
     let mut method_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
     let mut callable_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
+    let mut class_bases: FxHashMap<String, Vec<String>> = FxHashMap::default();
+    let mut class_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
+
+    // Hoist prefix-form once instead of `format!("{module}.")` per definition.
+    let dynamic_module_prefixes: Vec<(String, String)> = dynamic_imported_modules
+        .iter()
+        .filter(|module| !module.is_empty())
+        .map(|module| (module.clone(), format!("{module}.")))
+        .collect();
 
     for def in definitions {
         if def.def_type == "method" {
@@ -171,6 +186,18 @@ fn collect_reachable_nodes(
                 .entry(def.simple_name.clone())
                 .or_default()
                 .push(def.full_name.clone());
+            if def.def_type == "class" {
+                class_simple_to_full
+                    .entry(def.simple_name.clone())
+                    .or_default()
+                    .push(def.full_name.clone());
+                if !def.base_classes.is_empty() {
+                    class_bases.insert(
+                        def.full_name.clone(),
+                        def.base_classes.iter().cloned().collect(),
+                    );
+                }
+            }
         }
 
         if def.is_exported
@@ -178,10 +205,8 @@ fn collect_reachable_nodes(
             || def.confidence == 0
             || implicitly_used_methods.contains(&def.full_name)
             || (include_tests && crate::utils::is_test_path(&def.file.to_string_lossy()))
-            || dynamic_imported_modules.iter().any(|module| {
-                !module.is_empty()
-                    && (def.full_name == *module
-                        || def.full_name.starts_with(&format!("{module}.")))
+            || dynamic_module_prefixes.iter().any(|(module, prefix)| {
+                def.full_name == *module || def.full_name.starts_with(prefix)
             })
         {
             roots.insert(def.full_name.clone());
@@ -210,6 +235,23 @@ fn collect_reachable_nodes(
     while let Some(current) = stack.pop() {
         if !reachable_nodes.insert(current.clone()) {
             continue;
+        }
+
+        // Propagate reachability through base classes: a reachable class implicitly
+        // keeps its bases alive (subclassing is a usage edge the call graph misses).
+        if let Some(bases) = class_bases.get(&current) {
+            for base in bases {
+                if call_graph.nodes.contains_key(base) && !reachable_nodes.contains(base) {
+                    stack.push(base.clone());
+                }
+                if let Some(candidates) = class_simple_to_full.get(base) {
+                    for candidate in candidates {
+                        if !reachable_nodes.contains(candidate) {
+                            stack.push(candidate.clone());
+                        }
+                    }
+                }
+            }
         }
 
         if let Some(node) = call_graph.nodes.get(&current) {

@@ -107,12 +107,16 @@ impl CallGraph {
             Stmt::Assign(assign) => {
                 if let Some(caller) = current_func {
                     self.visit_expr_for_calls(&assign.value, caller, module_name);
+                    for target in &assign.targets {
+                        self.visit_expr_for_calls(target, caller, module_name);
+                    }
                 }
             }
 
             Stmt::AugAssign(aug_assign) => {
                 if let Some(caller) = current_func {
                     self.visit_expr_for_calls(&aug_assign.value, caller, module_name);
+                    self.visit_expr_for_calls(&aug_assign.target, caller, module_name);
                 }
             }
 
@@ -149,6 +153,9 @@ impl CallGraph {
                     self.visit_stmt(s, current_func, module_name);
                 }
                 for clause in &if_stmt.elif_else_clauses {
+                    if let (Some(caller), Some(test)) = (current_func, clause.test.as_ref()) {
+                        self.visit_expr_for_calls(test, caller, module_name);
+                    }
                     for s in &clause.body {
                         self.visit_stmt(s, current_func, module_name);
                     }
@@ -172,6 +179,9 @@ impl CallGraph {
                     self.visit_expr_for_calls(&while_stmt.test, caller, module_name);
                 }
                 for s in &while_stmt.body {
+                    self.visit_stmt(s, current_func, module_name);
+                }
+                for s in &while_stmt.orelse {
                     self.visit_stmt(s, current_func, module_name);
                 }
             }
@@ -220,6 +230,9 @@ impl CallGraph {
                 }
                 for handler in &try_stmt.handlers {
                     let ast::ExceptHandler::ExceptHandler(h) = handler;
+                    if let (Some(caller), Some(type_)) = (current_func, h.type_.as_deref()) {
+                        self.visit_expr_for_calls(type_, caller, module_name);
+                    }
                     for s in &h.body {
                         self.visit_stmt(s, current_func, module_name);
                     }
@@ -274,6 +287,10 @@ impl CallGraph {
                         callee_node.called_by.insert(caller.to_owned());
                     }
                 }
+
+                // Recurse into the callee receiver itself so chained calls
+                // (`Foo().bar()`) still pick up the inner `Foo()` invocation.
+                self.visit_expr_for_calls(&call.func, caller, module_name);
 
                 // Visit arguments (positional and keyword)
                 for arg in &call.arguments.args {
@@ -422,6 +439,12 @@ impl CallGraph {
                 if let Some(step) = &slice.step {
                     self.visit_expr_for_calls(step, caller, module_name);
                 }
+            }
+
+            Expr::Attribute(attr) => {
+                // Walk into the receiver so `obj.method()` still surfaces calls
+                // hidden inside `obj` (e.g. `Foo().bar()` → see inner `Foo()`).
+                self.visit_expr_for_calls(&attr.value, caller, module_name);
             }
 
             Expr::FString(fstring) => {

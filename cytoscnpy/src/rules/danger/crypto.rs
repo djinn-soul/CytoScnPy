@@ -255,6 +255,10 @@ impl Rule for PyNaclLowlevelRule {
 
         let name_opt = get_call_name(&call.func);
 
+        // Flag calls rooted at nacl.bindings, or the unambiguous full NaCl C primitive
+        // names (nobody names their own function crypto_secretbox_xsalsa20poly1305).
+        // Short prefixes like crypto_box/crypto_sign are omitted — too generic, high FP
+        // risk on user-defined helpers (crypto_box_open, crypto_sign_verify, etc.).
         let is_nacl_lowlevel = name_opt.as_deref().is_some_and(|name| {
             name.contains("nacl.bindings")
                 || name.starts_with("bindings.")
@@ -263,13 +267,6 @@ impl Rule for PyNaclLowlevelRule {
                 || name.contains("crypto_sign_ed25519")
                 || name.contains("crypto_hash_sha256")
                 || name.contains("crypto_hash_sha512")
-                // Raw binding function prefix patterns
-                || name.starts_with("crypto_secretbox")
-                || name.starts_with("crypto_box")
-                || name.starts_with("crypto_sign")
-                || name.starts_with("crypto_auth")
-                || name.starts_with("crypto_stream")
-                || name.starts_with("crypto_onetimeauth")
         });
 
         if is_nacl_lowlevel {

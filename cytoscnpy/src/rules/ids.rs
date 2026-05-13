@@ -181,6 +181,3 @@ pub const RULE_ID_RACE_CONDITION: &str = "CSP-D507";
 
 /// Cryptography: `PyNaCl` low-level primitive usage (nacl.bindings)
 pub const RULE_ID_PYNACL_LOWLEVEL: &str = "CSP-D306";
-
-/// Cryptography: Hardcoded cryptographic key/IV/nonce in source
-pub const RULE_ID_HARDCODED_KEY: &str = "CSP-D307";

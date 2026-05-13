@@ -1122,6 +1122,7 @@ fn test_ldap_injection_search_s_positional() {
 import ldap
 user_input = request.args.get("user")
 ldap_filter = f"(uid={user_input})"
+conn = ldap.initialize("ldap://example.com")
 conn.search_s("dc=example,dc=com", ldap.SCOPE_SUBTREE, ldap_filter)
 "#;
     scan_danger!(source, linter);
@@ -1160,7 +1161,24 @@ conn.search_s("dc=example,dc=com", ldap.SCOPE_SUBTREE, "(objectClass=person)")
 }
 
 #[test]
-fn test_ldap3_search_filter_kwarg() {
+fn test_ldap3_search_ext_s_flagged() {
+    // ldap3 also exposes search_ext_s which IS in the known list
+    let source = r#"
+import ldap
+user = request.form["username"]
+ldap_filter = f"(uid={user})"
+conn = ldap.initialize("ldap://example.com")
+conn.search_ext_s("dc=example,dc=com", ldap.SCOPE_SUBTREE, ldap_filter)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "search_ext_s with non-literal filter should trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_ldap3_connection_search_filter_kwarg() {
     let source = r#"
 from ldap3 import Connection
 user = request.form["username"]
@@ -1170,7 +1188,32 @@ conn.search("dc=example,dc=com", search_filter=f"(uid={user})")
     scan_danger!(source, linter);
     assert!(
         linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
-        "Non-literal ldap3 search_filter kwarg should trigger CSP-D106"
+        "Non-literal ldap3 Connection.search search_filter kwarg should trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_ldap_non_ldap_search_filter_kwarg_no_trigger() {
+    // A non-ldap function with a search_filter kwarg must not fire CSP-D106
+    let source = r#"
+results = engine.search(query, search_filter=user_filter)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "generic engine.search(search_filter=) without ldap context should not trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_ldap_non_ldap_search_s_no_trigger() {
+    let source = r#"
+result = index.search_s(query, filterstr=user_filter)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "generic search_s(filterstr=) without ldap context should not trigger CSP-D106"
     );
 }
 
@@ -1351,6 +1394,82 @@ logging.info("Application started")
     );
 }
 
+#[test]
+fn test_log_injection_literal_fstring_no_trigger() {
+    // Regression: an f-string with zero interpolations (e.g. f"started") is a
+    // pure literal and must not be flagged as injectable.
+    let source = r#"
+import logging
+logger = logging.getLogger(__name__)
+logger.info(f"started")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D904"),
+        "Literal-only f-string log arg should not trigger CSP-D904"
+    );
+}
+
+#[test]
+fn test_ldap3_connection_search_positional_filter_flagged() {
+    // Regression: ldap3 Connection.search puts the filter at positional index
+    // 1 (search_base, search_filter, ...), not index 2 like python-ldap.
+    let source = r#"
+from ldap3 import Connection
+user = request.form["username"]
+conn = Connection(server)
+conn.search("dc=example,dc=com", f"(uid={user})")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "ldap3 Connection.search positional filter should trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_ldap3_connection_search_literal_positional_safe() {
+    let source = r#"
+from ldap3 import Connection
+conn = Connection(server)
+conn.search("dc=example,dc=com", "(objectClass=person)")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "ldap3 Connection.search literal filter must not trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_python_ldap_connection_search_filter_index_flagged() {
+    let source = r#"
+import ldap
+user = request.form["username"]
+conn = ldap.initialize("ldap://example.com")
+conn.search("dc=example,dc=com", ldap.SCOPE_SUBTREE, f"(uid={user})")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "python-ldap conn.search positional filter at index 2 should trigger CSP-D106"
+    );
+}
+
+#[test]
+fn test_python_ldap_connection_search_literal_filter_safe() {
+    let source = r#"
+import ldap
+conn = ldap.initialize("ldap://example.com")
+conn.search("dc=example,dc=com", ldap.SCOPE_SUBTREE, "(objectClass=person)")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D106"),
+        "python-ldap conn.search literal filter should not treat scope as injectable"
+    );
+}
+
 // -------------------------------------------------------------------------
 // CSP-D705: Hardcoded Default Credentials
 // -------------------------------------------------------------------------
@@ -1404,6 +1523,19 @@ if username == stored_username:
     assert!(
         !linter.findings.iter().any(|f| f.rule_id == "CSP-D705"),
         "variable comparison should not trigger CSP-D705"
+    );
+}
+
+#[test]
+fn test_hardcoded_creds_empty_string_no_trigger() {
+    let source = r#"
+if password == "":
+    raise ValueError("password cannot be empty")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D705"),
+        "defensive empty-string check should not trigger CSP-D705"
     );
 }
 
@@ -1469,6 +1601,84 @@ if os.access(path, os.R_OK):
     );
 }
 
+#[test]
+fn test_race_condition_else_fallback_open_no_trigger() {
+    let source = r#"
+import os
+if os.path.exists(path):
+    use_cached_metadata(path)
+else:
+    with open("fallback.txt") as f:
+        data = f.read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "fallback open in else branch should not trigger CSP-D507 for checked path"
+    );
+}
+
+#[test]
+fn test_race_condition_unrelated_open_path_no_trigger() {
+    let source = r#"
+import os
+if os.path.exists(path):
+    with open(other_path) as f:
+        data = f.read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "open() of a different path should not trigger CSP-D507"
+    );
+}
+
+#[test]
+fn test_race_condition_generic_open_method_no_trigger() {
+    let source = r#"
+import os
+if os.path.exists(path):
+    session.open(path)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "generic .open() methods should not trigger CSP-D507"
+    );
+}
+
+#[test]
+fn test_race_condition_pathlib_instance_exists_then_open() {
+    let source = r#"
+from pathlib import Path
+p = Path(name)
+if p.exists():
+    with p.open() as f:
+        data = f.read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "Path.exists() followed by Path.open() should trigger CSP-D507"
+    );
+}
+
+#[test]
+fn test_race_condition_pathlib_instance_is_file_then_builtin_open() {
+    let source = r#"
+from pathlib import Path
+p = Path(name)
+if p.is_file():
+    with open(p) as f:
+        data = f.read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "Path.is_file() followed by open(path_object) should trigger CSP-D507"
+    );
+}
+
 // -------------------------------------------------------------------------
 // CSP-D306: PyNaCl Low-level Bindings
 // -------------------------------------------------------------------------
@@ -1520,5 +1730,84 @@ box = SecretBox(key)
     assert!(
         !linter.findings.iter().any(|f| f.rule_id == "CSP-D306"),
         "nacl.secret.SecretBox should not trigger CSP-D306"
+    );
+}
+
+#[test]
+fn test_pynacl_user_defined_crypto_prefix_no_trigger() {
+    // User-defined functions with crypto_ prefix must not fire CSP-D306
+    let source = r#"
+def crypto_box_open(ciphertext, key):
+    return decrypt(ciphertext, key)
+
+result = crypto_box_open(data, my_key)
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D306"),
+        "user-defined crypto_box_open should not trigger CSP-D306"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D904: Log injection FP — non-logger .error/.info/.debug methods
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_log_injection_result_error_no_trigger() {
+    let source = r#"
+result.error(f"failed: {reason}")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D904"),
+        "result.error() should not trigger CSP-D904"
+    );
+}
+
+#[test]
+fn test_log_injection_click_echo_no_trigger() {
+    let source = r#"
+import click
+click.echo(f"Hello {name}")
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D904"),
+        "click.echo() should not trigger CSP-D904"
+    );
+}
+
+// -------------------------------------------------------------------------
+// CSP-D507: TOCTOU FP — ORM queryset.exists() should not trigger
+// -------------------------------------------------------------------------
+
+#[test]
+fn test_race_condition_orm_exists_no_trigger() {
+    let source = r#"
+if User.objects.filter(email=email).exists():
+    with open("report.txt") as f:
+        data = f.read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "ORM queryset.exists() should not trigger CSP-D507"
+    );
+}
+
+#[test]
+fn test_race_condition_redis_exists_no_trigger() {
+    let source = r#"
+import redis
+r = redis.Redis()
+if r.exists("my_key"):
+    with open("cache.txt") as f:
+        data = f.read()
+"#;
+    scan_danger!(source, linter);
+    assert!(
+        !linter.findings.iter().any(|f| f.rule_id == "CSP-D507"),
+        "redis.exists() should not trigger CSP-D507"
     );
 }

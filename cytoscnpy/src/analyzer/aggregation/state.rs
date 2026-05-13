@@ -43,6 +43,40 @@ pub(super) struct AggregationState {
     pub(super) global_call_graph: CallGraph,
 }
 
+/// Propagates import binding references through `map` using `bindings`.
+///
+/// For every symbol in `map` with a non-zero count, follows the binding chain
+/// through `bindings` and ensures all transitive sources have count ≥ 1.
+fn propagate_import_bindings(
+    map: &mut FxHashMap<String, usize>,
+    bindings: &FxHashMap<String, String>,
+) {
+    // Seed both the visited set and the worklist in one pass — avoids
+    // a second `clone()` over every used symbol.
+    let mut used_symbols: FxHashSet<String> = FxHashSet::default();
+    let mut worklist: Vec<String> = Vec::new();
+    for (name, count) in map.iter() {
+        if *count > 0 {
+            used_symbols.insert(name.clone());
+            worklist.push(name.clone());
+        }
+    }
+
+    while let Some(symbol) = worklist.pop() {
+        if let Some(source_symbol) = bindings.get(&symbol) {
+            if used_symbols.insert(source_symbol.clone()) {
+                worklist.push(source_symbol.clone());
+            }
+        }
+    }
+
+    for symbol in used_symbols {
+        map.entry(symbol)
+            .and_modify(|count| *count = (*count).max(1))
+            .or_insert(1);
+    }
+}
+
 impl AggregationState {
     pub(super) fn ingest_file_result(
         &mut self,
@@ -178,55 +212,13 @@ impl AggregationState {
     }
 
     pub(super) fn apply_import_binding_reference_increments(&mut self) {
-        let mut used_symbols: FxHashSet<String> = self
-            .ref_counts
-            .iter()
-            .filter_map(|(name, count)| if *count > 0 { Some(name.clone()) } else { None })
-            .collect();
-
-        let mut worklist: Vec<String> = used_symbols.iter().cloned().collect();
-        while let Some(symbol) = worklist.pop() {
-            if let Some(source_symbol) = self.all_import_bindings.get(&symbol) {
-                let source_symbol = source_symbol.clone();
-                if used_symbols.insert(source_symbol.clone()) {
-                    worklist.push(source_symbol);
-                }
-            }
-        }
-
-        for symbol in used_symbols {
-            self.ref_counts
-                .entry(symbol)
-                .and_modify(|count| *count = (*count).max(1))
-                .or_insert(1);
-        }
+        propagate_import_bindings(&mut self.ref_counts, &self.all_import_bindings);
     }
 
     /// Same as `apply_import_binding_reference_increments` but operates on `prod_ref_counts`.
     /// Must run after `apply_star_import_bindings` and `apply_export_reference_increments`.
     pub(super) fn apply_prod_import_binding_reference_increments(&mut self) {
-        let mut used_symbols: FxHashSet<String> = self
-            .prod_ref_counts
-            .iter()
-            .filter_map(|(name, count)| if *count > 0 { Some(name.clone()) } else { None })
-            .collect();
-
-        let mut worklist: Vec<String> = used_symbols.iter().cloned().collect();
-        while let Some(symbol) = worklist.pop() {
-            if let Some(source_symbol) = self.all_import_bindings.get(&symbol) {
-                let source_symbol = source_symbol.clone();
-                if used_symbols.insert(source_symbol.clone()) {
-                    worklist.push(source_symbol);
-                }
-            }
-        }
-
-        for symbol in used_symbols {
-            self.prod_ref_counts
-                .entry(symbol)
-                .and_modify(|count| *count = (*count).max(1))
-                .or_insert(1);
-        }
+        propagate_import_bindings(&mut self.prod_ref_counts, &self.all_import_bindings);
     }
 
     /// Resolves `from x import *` cross-file.

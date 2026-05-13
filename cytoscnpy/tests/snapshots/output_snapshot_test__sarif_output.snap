@@ -1,5 +1,6 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
+assertion_line: 163
 expression: output
 ---
 {
@@ -18,7 +19,7 @@ expression: output
           "ruleId": "unused-function",
           "level": "note",
           "message": {
-            "text": "Unused function: unused_func ([FILE]:5)"
+            "text": "Unused function: [MOD].unused_func ([FILE]:5)"
           },
           "locations": [
             {
@@ -37,7 +38,7 @@ expression: output
           "ruleId": "unused-import",
           "level": "note",
           "message": {
-            "text": "Unused import: os ([FILE]:2)"
+            "text": "Unused import: [MOD].os ([FILE]:2)"
           },
           "locations": [
             {
@@ -56,7 +57,7 @@ expression: output
           "ruleId": "unused-import",
           "level": "note",
           "message": {
-            "text": "Unused import: sys ([FILE]:3)"
+            "text": "Unused import: [MOD].sys ([FILE]:3)"
           },
           "locations": [
             {
@@ -75,7 +76,7 @@ expression: output
           "ruleId": "unused-variable",
           "level": "note",
           "message": {
-            "text": "Unused variable: main.unused_var ([FILE]:9)"
+            "text": "Unused variable: [MOD].main.unused_var ([FILE]:9)"
           },
           "locations": [
             {

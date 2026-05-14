@@ -5,21 +5,21 @@ const RUNTIME_PROTOCOL_REF_PREFIX: &str = "__csp_runtime_protocol__.";
 impl CytoScnPyVisitor<'_> {
     pub(super) fn visit_name_expr(&mut self, node: &ast::ExprName) {
         if node.ctx.is_load() {
-            let name = node.id.to_string();
+            let name = node.id.as_str();
 
-            if let Some((qualified, scope_idx)) = self.resolve_name_with_info(&name) {
+            if let Some((qualified, scope_idx)) = self.resolve_name_with_info(name) {
                 if scope_idx < self.scope_stack.len() - 1 {
                     self.captured_definitions.insert(qualified.clone());
                 }
                 self.add_ref(&qualified);
             } else if self.module_name.is_empty() {
-                self.add_ref(&name);
+                self.add_ref(name);
             } else {
                 let qualified = format!("{}.{}", self.module_name, name);
                 self.add_ref(&qualified);
             }
 
-            if let Some(original) = self.alias_map.get(&name).cloned() {
+            if let Some(original) = self.alias_map.get(name).cloned() {
                 if let Some(simple) = original.split('.').next_back() {
                     if simple != original {
                         self.add_ref(simple);
@@ -255,9 +255,9 @@ impl CytoScnPyVisitor<'_> {
     }
 
     pub(super) fn visit_string_literal(&mut self, node: &ast::ExprStringLiteral) {
-        let s = node.value.to_string();
+        let s = node.value.to_str();
         if !s.contains(' ') && !s.is_empty() {
-            self.add_ref(&s);
+            self.add_ref(s);
             if !self.module_name.is_empty() {
                 let qualified = format!("{}.{}", self.module_name, s);
                 self.add_ref(&qualified);

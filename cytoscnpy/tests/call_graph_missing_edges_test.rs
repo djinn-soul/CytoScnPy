@@ -6,16 +6,18 @@
 use cytoscnpy::taint::call_graph::CallGraph;
 use ruff_python_parser::parse_module;
 
-fn build_cg(source: &str) -> CallGraph {
-    let parsed = parse_module(source).expect("parse module");
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+fn build_cg(source: &str) -> Result<CallGraph, Box<dyn std::error::Error>> {
+    let parsed = parse_module(source).map_err(|e| e.to_string())?;
     let module = parsed.into_syntax();
     let mut cg = CallGraph::new();
     cg.build_from_module(&module.body, "m");
-    cg
+    Ok(cg)
 }
 
 #[test]
-fn elif_condition_call_is_tracked() {
+fn elif_condition_call_is_tracked() -> TestResult {
     let cg = build_cg(
         "
 def cond():
@@ -27,17 +29,18 @@ def caller():
     elif cond():
         pass
 ",
-    );
-    let node = cg.nodes.get("m.caller").expect("caller node");
+    )?;
+    let node = cg.nodes.get("m.caller").ok_or("caller node missing")?;
     assert!(
         node.calls.contains("m.cond"),
         "elif test must register `cond` as a call from `caller`; got: {:?}",
         node.calls
     );
+    Ok(())
 }
 
 #[test]
-fn while_else_body_call_is_tracked() {
+fn while_else_body_call_is_tracked() -> TestResult {
     let cg = build_cg(
         "
 def helper():
@@ -49,17 +52,18 @@ def caller():
     else:
         helper()
 ",
-    );
-    let node = cg.nodes.get("m.caller").expect("caller node");
+    )?;
+    let node = cg.nodes.get("m.caller").ok_or("caller node missing")?;
     assert!(
         node.calls.contains("m.helper"),
         "while...else body must register `helper` as a call; got: {:?}",
         node.calls
     );
+    Ok(())
 }
 
 #[test]
-fn except_handler_type_call_is_tracked() {
+fn except_handler_type_call_is_tracked() -> TestResult {
     let cg = build_cg(
         "
 def make_exc():
@@ -71,17 +75,18 @@ def caller():
     except (make_exc(),):
         pass
 ",
-    );
-    let node = cg.nodes.get("m.caller").expect("caller node");
+    )?;
+    let node = cg.nodes.get("m.caller").ok_or("caller node missing")?;
     assert!(
         node.calls.contains("m.make_exc"),
         "except type expression must register `make_exc`; got: {:?}",
         node.calls
     );
+    Ok(())
 }
 
 #[test]
-fn assign_target_subscript_call_is_tracked() {
+fn assign_target_subscript_call_is_tracked() -> TestResult {
     let cg = build_cg(
         "
 def get_key():
@@ -91,17 +96,18 @@ def caller():
     d = {}
     d[get_key()] = 1
 ",
-    );
-    let node = cg.nodes.get("m.caller").expect("caller node");
+    )?;
+    let node = cg.nodes.get("m.caller").ok_or("caller node missing")?;
     assert!(
         node.calls.contains("m.get_key"),
         "assign target subscript must register `get_key`; got: {:?}",
         node.calls
     );
+    Ok(())
 }
 
 #[test]
-fn aug_assign_target_subscript_call_is_tracked() {
+fn aug_assign_target_subscript_call_is_tracked() -> TestResult {
     let cg = build_cg(
         "
 def get_key():
@@ -111,11 +117,12 @@ def caller():
     d = {'k': 0}
     d[get_key()] += 1
 ",
-    );
-    let node = cg.nodes.get("m.caller").expect("caller node");
+    )?;
+    let node = cg.nodes.get("m.caller").ok_or("caller node missing")?;
     assert!(
         node.calls.contains("m.get_key"),
         "aug-assign target subscript must register `get_key`; got: {:?}",
         node.calls
     );
+    Ok(())
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -9,23 +10,25 @@ import cytoscnpy.pytest_plugin as pytest_plugin
 
 
 class _DummyConfig:
-    def __init__(self, rootdir):
-        self.rootdir = rootdir
+    def __init__(self, rootpath: Path) -> None:
+        self.rootpath = rootpath
 
-    def getini(self, name: str) -> str:
+    def getini(self, name: str) -> Any:
         if name == "cytoscnpy_path":
             return "."
         if name == "cytoscnpy":
             return False
         raise AssertionError(name)
 
-    def getoption(self, name: str, default: object | None = None):
+    def getoption(self, name: str, default: object | None = None) -> Any:
         assert name == "--cytoscnpy"
         return True
 
 
 def test_sessionfinish_fails_on_nonjson_nonzero_output(monkeypatch, tmp_path):
-    session = SimpleNamespace(config=_DummyConfig(tmp_path), exitstatus=0, stash={})
+    session: Any = SimpleNamespace(
+        config=_DummyConfig(tmp_path), exitstatus=0, stash={}
+    )
     result = SimpleNamespace(
         returncode=2,
         stdout="not valid json at all",
@@ -49,9 +52,9 @@ def test_collection_modifyitems_adds_files_from_scan_path(monkeypatch, tmp_path)
     target.write_text("VALUE = 1\n", encoding="utf-8")
 
     collected_paths: list[Path] = []
-    items: list[str] = []
-    session = SimpleNamespace(stash={pytest_plugin.SCAN_PATH_KEY: scan_path})
-    config = _DummyConfig(tmp_path)
+    items: list[Any] = []
+    session: Any = SimpleNamespace(stash={pytest_plugin.SCAN_PATH_KEY: scan_path})
+    config: Any = _DummyConfig(tmp_path)
 
     class _Collector:
         def __init__(self, path: Path) -> None:
@@ -99,7 +102,7 @@ def test_runtest_fails_when_file_has_parse_error():
             },
         }
     )
-    fake_item = SimpleNamespace(session=session, fspath="src/broken.py")
+    fake_item: Any = SimpleNamespace(session=session, fspath="src/broken.py")
 
     with pytest.raises(pytest_plugin.CytoScnPyError, match="parse error"):
         pytest_plugin.CytoScnPyItem.runtest(fake_item)

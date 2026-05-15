@@ -125,8 +125,10 @@ def _inject_mock(pytester, *, returncode=0, stdout=_EMPTY_JSON, stderr=""):
 def test_disabled_by_default(pytester):
     """Plugin must NOT produce cytoscnpy items without opt-in."""
     pytester.makepyfile("def test_ok(): pass\n")
-    result = pytester.runpytest()
-    assert "cytoscnpy" not in result.stdout.str()
+    result = pytester.runpytest("-v")
+    # "cytoscnpy" alone appears in the `plugins:` banner since the package is
+    # installed as an entry point; the item id "::cytoscnpy" is the real signal.
+    assert "::cytoscnpy" not in result.stdout.str()
 
 
 def test_enabled_via_cli_flag(pytester):
@@ -159,8 +161,8 @@ def test_cytoscnpy_path_alone_does_not_enable(pytester):
     """Setting only cytoscnpy_path without cytoscnpy=true must NOT activate."""
     pytester.makeini("[pytest]\ncytoscnpy_path = .\n")
     pytester.makepyfile("def test_ok(): pass\n")
-    result = pytester.runpytest()
-    assert "cytoscnpy" not in result.stdout.str()
+    result = pytester.runpytest("-v")
+    assert "::cytoscnpy" not in result.stdout.str()
 
 
 def test_flag_overrides_ini_false(pytester):

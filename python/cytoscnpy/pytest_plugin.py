@@ -24,9 +24,13 @@ from typing import TYPE_CHECKING, Iterable
 import pytest
 
 if TYPE_CHECKING:
-    from _pytest._code.code import ExceptionInfo
+    from typing import Literal
+
+    from _pytest._code.code import ExceptionInfo, TerminalRepr
     from _pytest.config import Config, Parser
     from _pytest.main import Session
+
+    _TracebackStyle = Literal["long", "short", "line", "no", "native", "value", "auto"]
 
 SCAN_PATH_KEY = pytest.StashKey[Path]()
 ERROR_KEY = pytest.StashKey[str | None]()
@@ -77,7 +81,7 @@ def pytest_sessionstart(session: Session) -> None:
         return
 
     ini_path = session.config.getini("cytoscnpy_path") or "."
-    scan_path = Path(str(session.config.rootdir)) / ini_path
+    scan_path = session.config.rootpath / ini_path
 
     result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "cytoscnpy", str(scan_path), "--json"],
@@ -208,7 +212,7 @@ class CytoScnPyError(Exception):
 class CytoScnPyFile(pytest.File):
     """One collector per Python file — yields a single CytoScnPyItem."""
 
-    def collect(self) -> Iterable[pytest.Item | pytest.Collector]:
+    def collect(self) -> Iterable[pytest.Item]:
         """Yield the synthetic CytoScnPy item for this file."""
         yield CytoScnPyItem.from_parent(parent=self, name="cytoscnpy")
 
@@ -216,12 +220,19 @@ class CytoScnPyFile(pytest.File):
 class CytoScnPyItem(pytest.Item):
     """Test item representing the cytoscnpy result for one file."""
 
-    def runtest(self) -> None:
-        """Fail when CytoScnPy reported issues for this file or the whole run."""
+    def setup(self) -> None:
+        """Raise during setup when CytoScnPy itself failed.
+
+        Raising here (rather than in runtest) makes pytest report the item as
+        an ERROR instead of a FAILED, which correctly distinguishes a broken
+        analyzer run from a file that simply has findings.
+        """
         error = self.session.stash.get(ERROR_KEY, None)
         if error:
             raise CytoScnPyError([f"cytoscnpy error: {error}"])
 
+    def runtest(self) -> None:
+        """Fail when CytoScnPy reported issues for this file."""
         by_file = self.session.stash.get(BY_FILE_KEY, {})
         current_path = str(self.fspath)
         resolved_current = _resolve_file(Path(current_path))
@@ -243,17 +254,16 @@ class CytoScnPyItem(pytest.Item):
     def repr_failure(
         self,
         excinfo: ExceptionInfo[BaseException],
-        *args: object,
-        **kwargs: object,
-    ) -> str:
+        style: _TracebackStyle | None = None,
+    ) -> str | TerminalRepr:
         """Show CytoScnPy findings directly in pytest's failure output."""
         if excinfo.errisinstance(CytoScnPyError):
             return str(excinfo.value)
-        return super().repr_failure(excinfo, *args, **kwargs)
+        return super().repr_failure(excinfo, style)
 
     def reportinfo(self) -> tuple[Path, None, str]:
         """Describe this synthetic item in pytest reports."""
-        return self.fspath, None, f"[cytoscnpy] {self.fspath}"
+        return self.path, None, f"[cytoscnpy] {self.path}"
 
 
 def _resolve_file(path: Path) -> Path | None:

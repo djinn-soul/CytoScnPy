@@ -76,6 +76,7 @@ impl AstRecognizer {
             return false;
         }
 
+        // jwt_token-style vars hold bearer tokens, not secrets — CSP-S122 covers jwt_secret/jwt_key
         if lower.contains("jwt") && lower.contains("token") {
             return false;
         }

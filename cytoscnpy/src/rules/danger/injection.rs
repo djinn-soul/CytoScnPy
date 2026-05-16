@@ -1,8 +1,9 @@
 use super::utils::{create_finding, get_call_name, is_literal_expr};
 use crate::rules::ids;
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
-use ruff_python_ast::Expr;
+use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_text_size::Ranged;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Rule for detecting potential SQL injection vulnerabilities.
 pub const META_SQL_INJECTION: RuleMetadata = RuleMetadata {
@@ -27,6 +28,16 @@ pub const META_XML: RuleMetadata = RuleMetadata {
 /// Rule for detecting use of `mark_safe` which bypasses autoescaping.
 pub const META_MARK_SAFE: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_MARK_SAFE,
+    category: super::CAT_INJECTION,
+};
+/// Rule for detecting `XPath` injection via non-literal `XPath` expressions.
+pub const META_XPATH_INJECTION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_XPATH_INJECTION,
+    category: super::CAT_INJECTION,
+};
+/// Rule for detecting LDAP injection via non-literal filter strings.
+pub const META_LDAP_INJECTION: RuleMetadata = RuleMetadata {
+    id: ids::RULE_ID_LDAP_INJECTION,
     category: super::CAT_INJECTION,
 };
 
@@ -376,6 +387,324 @@ impl Rule for XmlRule {
                 )]);
             }
         }
+        None
+    }
+}
+
+/// Rule for detecting LDAP injection via non-literal filter strings.
+///
+/// Detects calls to python-ldap (`ldap.search*`) and ldap3 (`Connection.search`)
+/// where the filter argument is not a string literal, enabling LDAP injection.
+/// PY104 / OWASP A03:2021.
+pub struct LdapInjectionRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+    python_ldap_module_aliases: FxHashSet<String>,
+    ldap3_module_aliases: FxHashSet<String>,
+    ldap_connection_class_aliases: FxHashSet<String>,
+    ldap_connection_kinds: FxHashMap<String, LdapApiKind>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LdapApiKind {
+    PythonLdap,
+    Ldap3,
+}
+
+impl LdapInjectionRule {
+    /// Creates a new instance with the specified metadata.
+    #[must_use]
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self {
+            metadata,
+            python_ldap_module_aliases: FxHashSet::default(),
+            ldap3_module_aliases: FxHashSet::default(),
+            ldap_connection_class_aliases: FxHashSet::default(),
+            ldap_connection_kinds: FxHashMap::default(),
+        }
+    }
+
+    fn alias_name(alias: &ast::Alias) -> String {
+        alias
+            .asname
+            .as_ref()
+            .map_or_else(|| alias.name.to_string(), ToString::to_string)
+    }
+
+    fn record_imports(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Import(import_stmt) => {
+                for alias in &import_stmt.names {
+                    let name = alias.name.as_str();
+                    if name == "ldap" {
+                        self.python_ldap_module_aliases
+                            .insert(Self::alias_name(alias));
+                    } else if name == "ldap3" {
+                        self.ldap3_module_aliases.insert(Self::alias_name(alias));
+                    }
+                }
+            }
+            Stmt::ImportFrom(import_from) => {
+                if import_from.level > 0 {
+                    return;
+                }
+                let Some(module) = &import_from.module else {
+                    return;
+                };
+                if module.as_str() == "ldap3" {
+                    for alias in &import_from.names {
+                        if alias.name.as_str() == "Connection" {
+                            self.ldap_connection_class_aliases
+                                .insert(Self::alias_name(alias));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn record_connection_assignment(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Assign(assign) => {
+                if let Some(kind) = self.connection_factory_kind(&assign.value) {
+                    for target in &assign.targets {
+                        if let Expr::Name(name) = target {
+                            self.ldap_connection_kinds.insert(name.id.to_string(), kind);
+                        }
+                    }
+                }
+            }
+            Stmt::AnnAssign(assign) => {
+                if let Some(kind) = assign
+                    .value
+                    .as_ref()
+                    .and_then(|value| self.connection_factory_kind(value))
+                {
+                    if let Expr::Name(name) = &*assign.target {
+                        self.ldap_connection_kinds.insert(name.id.to_string(), kind);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn connection_factory_kind(&self, expr: &Expr) -> Option<LdapApiKind> {
+        let Expr::Call(call) = expr else {
+            return None;
+        };
+
+        if let Some(name) = get_call_name(&call.func) {
+            if self.ldap_connection_class_aliases.contains(&name) {
+                return Some(LdapApiKind::Ldap3);
+            }
+            if name.rsplit_once('.').is_some_and(|(module, attr)| {
+                attr == "Connection" && self.ldap3_module_aliases.contains(module)
+            }) {
+                return Some(LdapApiKind::Ldap3);
+            }
+            if name.rsplit_once('.').is_some_and(|(module, attr)| {
+                attr == "initialize" && self.python_ldap_module_aliases.contains(module)
+            }) {
+                return Some(LdapApiKind::PythonLdap);
+            }
+        }
+
+        None
+    }
+
+    fn connection_receiver_kind(&self, expr: &Expr) -> Option<LdapApiKind> {
+        match expr {
+            Expr::Name(name) => self.ldap_connection_kinds.get(name.id.as_str()).copied(),
+            Expr::Call(_) => self.connection_factory_kind(expr),
+            _ => None,
+        }
+    }
+
+    /// Resolves an attribute call to (kind, filter-positional-index) when it
+    /// matches an LDAP search API. `python-ldap` puts the filter at index 2
+    /// (`search_s(base, scope, filterstr, ...)`) while `ldap3` puts it at
+    /// index 1 (`Connection.search(search_base, search_filter, ...)`).
+    fn classify_ldap_search_call(&self, func: &Expr) -> Option<usize> {
+        let Expr::Attribute(attr) = func else {
+            return None;
+        };
+        let method = attr.attr.as_str();
+        let receiver = &attr.value;
+
+        // python-ldap module-level or connection-bound search APIs.
+        if matches!(
+            method,
+            "search_s" | "search_st" | "search_ext" | "search_ext_s"
+        ) {
+            if let Expr::Name(name) = &**receiver {
+                if self.python_ldap_module_aliases.contains(name.id.as_str()) {
+                    return Some(2);
+                }
+            }
+            if self.connection_receiver_kind(receiver).is_some() {
+                return Some(2);
+            }
+            return None;
+        }
+
+        // python-ldap uses conn.search(base, scope, filterstr, ...), while
+        // ldap3 uses Connection.search(search_base, search_filter, ...).
+        if method == "search" {
+            return match self.connection_receiver_kind(receiver)? {
+                LdapApiKind::PythonLdap => Some(2),
+                LdapApiKind::Ldap3 => Some(1),
+            };
+        }
+
+        None
+    }
+}
+
+impl Rule for LdapInjectionRule {
+    fn name(&self) -> &'static str {
+        "LdapInjectionRule"
+    }
+
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
+    }
+
+    fn enter_stmt(&mut self, stmt: &Stmt, _context: &Context) -> Option<Vec<Finding>> {
+        self.record_imports(stmt);
+        self.record_connection_assignment(stmt);
+        None
+    }
+
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        let Expr::Call(call) = expr else {
+            return None;
+        };
+
+        let filter_index = self.classify_ldap_search_call(&call.func)?;
+
+        // Check kwarg filterstr / search_filter for non-literal value
+        for kw in &call.arguments.keywords {
+            if let Some(arg) = &kw.arg {
+                if matches!(arg.as_str(), "filterstr" | "search_filter")
+                    && !is_literal_expr(&kw.value)
+                {
+                    return Some(vec![create_finding(
+                        "Potential LDAP injection: non-literal filter string passed to LDAP search. Use ldap.filter.escape_filter_chars() to sanitize.",
+                        self.metadata,
+                        context,
+                        call.range().start(),
+                        "HIGH",
+                    )]);
+                }
+            }
+        }
+
+        // Positional filter index depends on the API family — python-ldap uses
+        // index 2, ldap3 uses index 1. `classify_ldap_search_call` already
+        // disambiguated and handed us the right slot.
+        if let Some(filter_arg) = call.arguments.args.get(filter_index) {
+            if !is_literal_expr(filter_arg) {
+                return Some(vec![create_finding(
+                    "Potential LDAP injection: non-literal filter string passed to LDAP search. Use ldap.filter.escape_filter_chars() to sanitize.",
+                    self.metadata,
+                    context,
+                    call.range().start(),
+                    "HIGH",
+                )]);
+            }
+        }
+
+        None
+    }
+}
+
+/// Rule for detecting `XPath` injection via non-literal `XPath` expressions.
+///
+/// Detects calls to `lxml.etree.XPath(expr)`, `tree.xpath(expr)`, and
+/// `ElementPath.xpath(expr)` where the expression argument is non-literal.
+/// XPATH720 / OWASP A03:2021.
+pub struct XPathInjectionRule {
+    /// The rule's metadata.
+    pub metadata: RuleMetadata,
+}
+
+impl XPathInjectionRule {
+    /// Creates a new instance with the specified metadata.
+    #[must_use]
+    pub fn new(metadata: RuleMetadata) -> Self {
+        Self { metadata }
+    }
+}
+
+impl Rule for XPathInjectionRule {
+    fn name(&self) -> &'static str {
+        "XPathInjectionRule"
+    }
+
+    fn metadata(&self) -> RuleMetadata {
+        self.metadata
+    }
+
+    #[allow(clippy::case_sensitive_file_extension_comparisons)]
+    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
+        let Expr::Call(call) = expr else {
+            return None;
+        };
+
+        let name_opt = get_call_name(&call.func);
+        let attr_name = if let Expr::Attribute(attr) = &*call.func {
+            Some(attr.attr.as_str())
+        } else {
+            None
+        };
+
+        let is_xpath_call = match (&name_opt, attr_name) {
+            (Some(name), _) => {
+                name == "XPath"
+                    || name == "etree.XPath"
+                    || name == "lxml.etree.XPath"
+                    || name.ends_with(".XPath")
+                    || name.ends_with(".xpath")
+            }
+            (None, Some(attr)) => attr == "XPath" || attr == "xpath",
+            _ => false,
+        };
+
+        if !is_xpath_call {
+            return None;
+        }
+
+        if let Some(arg) = call.arguments.args.first() {
+            if !is_literal_expr(arg) {
+                return Some(vec![create_finding(
+                    "Potential XPath injection: non-literal XPath expression. Sanitize user input before constructing XPath queries.",
+                    self.metadata,
+                    context,
+                    call.range().start(),
+                    "HIGH",
+                )]);
+            }
+        }
+
+        for kw in &call.arguments.keywords {
+            if kw
+                .arg
+                .as_ref()
+                .is_some_and(|a| matches!(a.as_str(), "path" | "xpath"))
+                && !is_literal_expr(&kw.value)
+            {
+                return Some(vec![create_finding(
+                    "Potential XPath injection: non-literal XPath expression. Sanitize user input before constructing XPath queries.",
+                    self.metadata,
+                    context,
+                    call.range().start(),
+                    "HIGH",
+                )]);
+            }
+        }
+
         None
     }
 }

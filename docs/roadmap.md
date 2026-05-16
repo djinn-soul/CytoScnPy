@@ -3,7 +3,7 @@
 > **Architecture:** Hybrid PyO3 + Standalone CLI
 > **Status:** Production-ready core, active development
 
-For completed features and implementation history, see [GitHub Releases](https://github.com/djinn09/CytoScnPy/releases).
+For completed features and implementation history, see [GitHub Releases](https://github.com/djinn-soul/CytoScnPy/releases).
 
 ---
 
@@ -30,7 +30,7 @@ The sections below highlight the work that is still active:
 
 - **Phase 5.7 (Radon Parity Gaps)** – The parity tests around module-level complexity, `else` clauses on loops/try, wildcard matching, and Halstead/raw metrics are in place, but the analyzer logic still needs to be implemented (see the `### 5.7` section below).
 - **Phase 6 (Editor Integration)** – The VS Code extension and accompanying code audit continue to evolve; Phase 6.1 and 6.2 list the UX, command, and bundling gaps that remain.
-- **Phase 6.x (Editor Client Flag)** – Implement `--client` (currently only `vscode`). In the future we may need other editor clients, so keep room to extend behavior safely.
+- **Phase 6.x (Editor Client Expansion)** – `--client vscode` is already shipped. Future work is extending the client model safely if additional editors need client-specific behavior.
 - **Phase 7.6 (Accuracy Improvements)** – The benchmark (F1 = 0.72) and the remaining false positives/negatives (34/60 items) are being chipped away in the dedicated Phase 7.6 subsection.
 
 ### 5.7 Radon Parity Gaps IN PROGRESS
@@ -109,7 +109,7 @@ cargo test --features cfg
 
 ## <a id="phase-6"></a>Phase 6: Editor Integration ✅ DONE
 
-### 6.1 VS Code Extension IN PROGRESS
+### 6.1 VS Code Extension SHIPPED
 
 ### 6.2 Extension Code Audit (Pending Fixes) IN PROGRESS
 
@@ -127,8 +127,8 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 
 #### 6.2.5 Path Handling ✅
 
-- [ ] Add macOS (`cytoscnpy-cli-darwin`) binary bundling
-- [ ] Add Linux (`cytoscnpy-cli-linux`) binary bundling
+- [x] Dedicated VS Code binary workflows build Linux, Windows, macOS x64, and macOS ARM64 artifacts.
+- [ ] Align binary naming across the extension runtime and every release/publish workflow so packaging uses one canonical filename set everywhere.
 
 #### 6.2.6 UX Enhancements
 
@@ -138,7 +138,7 @@ _Fields in CLI JSON output not captured by `analyzer.ts`:_
 | Sidebar Badge      | Show issue count in Explorer sidebar       | Medium   | ✅     |
 | Quick Fixes        | Code actions to remove/comment unused code | High     | ✅     |
 | Gutter Decorations | Visual icons for severity levels           | Low      | ✅     |
-| Progress Indicator | Show progress during workspace analysis    | Medium   | ❌     |
+| Progress Indicator | Show progress during workspace analysis    | Medium   | ✅     |
 | File Caching       | Skip re-analyzing unchanged files          | Low      | ✅     |
 | Problem Grouping   | Better categorization in Problems panel    | Low      | ✅     |
 
@@ -342,11 +342,11 @@ _Tools to improve the workflow around CytoScnPy._
   - Implement a real-time LSP server for VS Code, Neovim, and Zed.
   - Provide instant diagnostics without saving or running CLI.
 
-- [ ] **Config File Support for Notebook Options**
-  - Allow `include_ipynb` and `ipynb_cells` in `.cytoscnpy.toml` and `pyproject.toml`
-  - Currently these are CLI-only flags (`--include-ipynb`, `--ipynb-cells`)
-  - **Rationale:** Enable persistent configuration without passing flags on every run
-  - **Implementation:** Add fields to `CytoScnPyConfig` struct in `src/config.rs`
+- [ ] **Config File Support for Notebook Cell Reporting**
+  - `include_ipynb` is already supported in `.cytoscnpy.toml` / `pyproject.toml`.
+  - `ipynb_cells` is still CLI-only (`--ipynb-cells`).
+  - **Rationale:** Enable persistent notebook cell-level reporting without passing flags on every run.
+  - **Implementation:** Add `ipynb_cells` config support alongside the existing notebook config fields.
 
 - [ ] **Git Integration**
   - **Blame Analysis:** Identify who introduced unused code.

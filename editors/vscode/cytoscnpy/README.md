@@ -21,8 +21,8 @@ This extension requires the `cytoscnpy` CLI tool to be available.
 The extension comes with pre-compiled binaries for:
 
 - **Windows**: `cytoscnpy-cli-win32.exe`
-- **Linux**: `cytoscnpy-cli-linux-x64`
-- **macOS**: `cytoscnpy-cli-darwin` (x64) and `cytoscnpy-cli-darwin-arm64` (Apple Silicon)
+- **Linux**: `cytoscnpy-cli-linux`
+- **macOS**: `cytoscnpy-cli-darwin`
 
 The appropriate binary is automatically selected based on your platform.
 

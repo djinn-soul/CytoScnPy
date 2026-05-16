@@ -73,3 +73,14 @@ def test_keyboard_interrupt_handled(mock_run):
         with pytest.raises(SystemExit) as e:
             main()
         assert e.value.code == 130
+
+
+def test_unexpected_backend_error_exits_1(mock_run, capsys):
+    """Unexpected backend exceptions are rendered as CLI errors."""
+    mock_run.side_effect = RuntimeError("backend exploded")
+    with patch.object(sys, "argv", ["cytoscnpy"]):
+        with pytest.raises(SystemExit) as e:
+            main()
+
+    assert e.value.code == 1
+    assert "cytoscnpy error: backend exploded" in capsys.readouterr().err

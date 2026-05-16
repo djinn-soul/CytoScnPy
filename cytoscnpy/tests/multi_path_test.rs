@@ -438,3 +438,61 @@ fn test_analyze_paths_precommit_style() {
     assert!(!unused_funcs.contains(&"func_in_file2".to_owned()));
     assert!(!unused_funcs.contains(&"func_in_file4".to_owned()));
 }
+
+/// Regression: when the first path in `analyze_paths` is a test file (common in
+/// pre-commit runs), `analysis_root` must not collapse to that file. Otherwise
+/// `strip_prefix` returns an empty relative path and `is_test_path` mistakes
+/// the test file for production code, allowing test-only references to mask
+/// production dead code.
+#[test]
+fn test_analyze_paths_first_path_is_test_file_keeps_classification() {
+    let dir = project_tempdir();
+    let tests_dir = dir.path().join("tests");
+    fs::create_dir_all(&tests_dir).unwrap();
+
+    let test_path = tests_dir.join("test_thing.py");
+    {
+        let mut f = File::create(&test_path).unwrap();
+        write!(
+            f,
+            r#"
+from app import production_helper
+
+def test_it():
+    assert production_helper() == 1
+"#
+        )
+        .unwrap();
+        f.sync_all().unwrap();
+    }
+
+    let app_path = dir.path().join("app.py");
+    {
+        let mut f = File::create(&app_path).unwrap();
+        write!(
+            f,
+            r#"
+def production_helper():
+    return 1
+"#
+        )
+        .unwrap();
+        f.sync_all().unwrap();
+    }
+
+    let mut analyzer = CytoScnPy::default().with_confidence(60).with_tests(false);
+    // Order matters — putting the test file first is what used to break things.
+    let result = analyzer.analyze_paths(&[test_path.clone(), app_path.clone()]);
+
+    let unused_funcs: Vec<String> = result
+        .unused_functions
+        .iter()
+        .map(|f| f.simple_name.clone())
+        .collect();
+
+    assert!(
+        unused_funcs.contains(&"production_helper".to_owned()),
+        "production_helper is only called from tests, so it should be flagged \
+         unused in production; got {unused_funcs:?}"
+    );
+}

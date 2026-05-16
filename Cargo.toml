@@ -3,7 +3,7 @@ members = ["cytoscnpy", "cytoscnpy-cli", "cytoscnpy-mcp"]
 resolver = "2"
 
 [workspace.package]
-version = "1.2.21"
+version = "1.2.22"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -62,3 +62,12 @@ panic = "abort"     # Remove unwinding code
 strip = true        # Strip debug symbols
 incremental = false # Full optimization context
 # target-cpu = "native" # Uncomment to optimize for your local CPU architecture (limits portability)
+
+# Profiling profile: release perf settings + debug symbols for samply/flamegraph.
+# Use: cargo build --profile profiling --bin cytoscnpy-cli
+[profile.profiling]
+inherits = "release"
+opt-level = 3       # Speed over size — measure realistic hot paths
+lto = "thin"        # Fast link, still optimized
+strip = false       # Keep symbols for the profiler
+debug = "line-tables-only"

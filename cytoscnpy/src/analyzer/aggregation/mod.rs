@@ -37,6 +37,7 @@ impl CytoScnPy {
         state.apply_export_reference_increments();
         state.apply_star_import_bindings();
         state.apply_import_binding_reference_increments();
+        state.apply_prod_import_binding_reference_increments();
         let total_definitions = state.all_defs.len();
         let functions_count = state
             .all_defs
@@ -67,6 +68,7 @@ impl CytoScnPy {
         let mut classified = classify_definitions(
             state.all_defs,
             &state.ref_counts,
+            &state.prod_ref_counts,
             &reachability,
             &fixture_definition_names,
             self.confidence_threshold,

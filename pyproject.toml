@@ -39,6 +39,12 @@ features = ["python-bindings"]
 [project.scripts]
 cytoscnpy = "cytoscnpy.cli:main"
 
+[project.optional-dependencies]
+pytest = ["pytest>=7.0"]
+
+[project.entry-points."pytest11"]
+cytoscnpy = "cytoscnpy.pytest_plugin"
+
 [tool.pytest.ini_options]
 testpaths = ["python/tests", "benchmark/tests"]
 addopts = ""

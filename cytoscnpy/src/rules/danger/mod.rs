@@ -23,17 +23,20 @@ pub mod utils;
 
 use crate::rules::Rule;
 use code_execution::{AsyncSubprocessRule, EvalRule, ExecRule, SubprocessRule};
-use crypto::{HashlibRule, RandomRule};
+use crypto::{HashlibRule, PyNaclLowlevelRule, RandomRule};
 use deserialization::{MarshalRule, ModelDeserializationRule, PickleRule, YamlRule};
 use filesystem::{
-    BadFilePermissionsRule, PathTraversalRule, TarfileExtractionRule, TempfileRule,
-    ZipfileExtractionRule,
+    BadFilePermissionsRule, PathTraversalRule, RaceConditionRule, TarfileExtractionRule,
+    TempfileRule, ZipfileExtractionRule,
 };
-use frameworks::DjangoSecurityRule;
-use injection::{SqlInjectionRawRule, SqlInjectionRule, XSSRule, XmlRule};
+use frameworks::{CsrfExemptRule, DjangoSecurityRule};
+use injection::{
+    LdapInjectionRule, SqlInjectionRawRule, SqlInjectionRule, XPathInjectionRule, XSSRule, XmlRule,
+};
 use misc::{
-    AssertUsedRule, BlacklistCallRule, DebugModeRule, InsecureImportRule, Jinja2AutoescapeRule,
-    LoggingSensitiveDataRule,
+    AssertUsedRule, BlacklistCallRule, DebugModeRule, HardcodedCredsRule, InsecureImportRule,
+    Jinja2AutoescapeRule, LogInjectionRule, LoggingSensitiveDataRule, McpStdioRule,
+    PrivEscalationRule,
 };
 use network::{HardcodedBindAllInterfacesRule, RequestWithoutTimeoutRule, RequestsRule, SSRFRule};
 use std::collections::HashMap;
@@ -88,6 +91,8 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
                 Box::new(AsyncSubprocessRule::new(
                     code_execution::META_ASYNC_SUBPROCESS,
                 )),
+                Box::new(McpStdioRule::new(misc::META_MCP_STDIO)),
+                Box::new(PrivEscalationRule::new(misc::META_PRIV_ESCALATION)),
             ],
         ),
         (
@@ -97,6 +102,8 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
                 Box::new(SqlInjectionRawRule::new(injection::META_SQL_RAW)),
                 Box::new(XSSRule::new(injection::META_XSS)),
                 Box::new(XmlRule::new(injection::META_XML)),
+                Box::new(LdapInjectionRule::new(injection::META_LDAP_INJECTION)),
+                Box::new(XPathInjectionRule::new(injection::META_XPATH_INJECTION)),
             ],
         ),
         (
@@ -115,6 +122,7 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
             vec![
                 Box::new(HashlibRule::new(crypto::META_MD5)),
                 Box::new(RandomRule::new(crypto::META_RANDOM)),
+                Box::new(PyNaclLowlevelRule::new(crypto::META_PYNACL_LOWLEVEL)),
             ],
         ),
         (
@@ -135,6 +143,7 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
                 Box::new(ZipfileExtractionRule::new(filesystem::META_ZIPFILE)),
                 Box::new(TempfileRule::new(filesystem::META_TEMPFILE)),
                 Box::new(BadFilePermissionsRule::new(filesystem::META_PERMISSIONS)),
+                Box::new(RaceConditionRule::new(filesystem::META_RACE_CONDITION)),
             ],
         ),
         (
@@ -150,13 +159,16 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
                 Box::new(InsecureImportRule::new(misc::META_INSECURE_IMPORT)),
                 Box::new(Jinja2AutoescapeRule::new(misc::META_JINJA_AUTOESCAPE)),
                 Box::new(BlacklistCallRule::new(misc::META_BLACKLIST)),
+                Box::new(HardcodedCredsRule::new(misc::META_HARDCODED_CREDS)),
             ],
         ),
         (
             CAT_PRIVACY,
             vec![
                 Box::new(LoggingSensitiveDataRule::new(misc::META_LOGGING_SENSITIVE)),
+                Box::new(LogInjectionRule::new(misc::META_LOG_INJECTION)),
                 Box::new(DjangoSecurityRule::new(frameworks::META_DJANGO_SECURITY)),
+                Box::new(CsrfExemptRule::new(frameworks::META_CSRF_EXEMPT)),
             ],
         ),
     ]

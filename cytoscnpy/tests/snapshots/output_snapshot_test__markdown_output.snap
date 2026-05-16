@@ -1,5 +1,6 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
+assertion_line: 156
 expression: output
 ---
 # CytoScnPy Analysis Report
@@ -24,7 +25,7 @@ expression: output
 
 | Type | Name | File | Line |
 | --- | --- | --- | ---: |
-| Function | unused_func | [FILE] | 5 |
-| Import | os | [FILE] | 2 |
-| Import | sys | [FILE] | 3 |
+| Function | [MOD].unused_func | [FILE] | 5 |
+| Import | [MOD].os | [FILE] | 2 |
+| Import | [MOD].sys | [FILE] | 3 |
 | Variable | unused_var | [FILE] | 9 |

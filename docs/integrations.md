@@ -121,6 +121,28 @@ Automatically enabled when the [VS Code Extension](#vs-code-extension) is instal
 
 CytoScnPy supports a wide variety of CI/CD environments through structured output formats (JSON, GitLab, SARIF, GitHub Annotations).
 
+### GitHub Action
+
+The easiest way to integrate CytoScnPy into GitHub Actions is via the official action:
+
+```yaml
+- name: Run CytoScnPy Analysis
+  uses: djinn-soul/CytoScnPy@main
+  with:
+    args: "--secrets --danger --quality"
+```
+
+**Action Inputs:**
+
+| Input            | Description                              | Default  |
+| ---------------- | ---------------------------------------- | -------- |
+| `path`           | Path(s) to analyze                       | `.`      |
+| `args`           | Additional arguments (e.g., `--secrets`) | ` `      |
+| `version`        | Version of `cytoscnpy` to install        | `latest` |
+| `python-version` | Version of Python to set up              | `3.x`    |
+
+### Other CI/CD Formats
+
 For detailed setup guides and examples for:
 
 - **GitLab Code Quality**

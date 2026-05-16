@@ -126,8 +126,17 @@ impl CytoScnPyVisitor<'_> {
     }
 
     /// Records a reference to a name by incrementing its count.
+    ///
+    /// Hot path: every identifier reference funnels through here. Avoids the
+    /// `entry(name.to_owned())` allocation on the common existing-key path by
+    /// probing with a borrowed key first, paying the `to_owned` only on
+    /// first insertion.
     pub fn add_ref(&mut self, name: &str) {
-        *self.references.entry(name.to_owned()).or_insert(0) += 1;
+        if let Some(count) = self.references.get_mut(name) {
+            *count += 1;
+        } else {
+            self.references.insert(name.to_owned(), 1);
+        }
     }
 
     /// Returns the fully qualified ID of the current scope.

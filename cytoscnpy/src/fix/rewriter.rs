@@ -218,7 +218,7 @@ impl ByteRangeRewriter {
         let mut sorted_edits = self.edits;
 
         // Sort by start position descending (apply from end to start)
-        sorted_edits.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
+        sorted_edits.sort_by_key(|e| std::cmp::Reverse(e.start_byte));
 
         // Apply edits
         for edit in sorted_edits {

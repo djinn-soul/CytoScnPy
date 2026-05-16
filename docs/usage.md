@@ -29,14 +29,14 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
 ```
 
 **Framework Support**: Automatically detects usage in Flask routes, Django views, FastAPI endpoints, and Pydantic models.
@@ -58,7 +58,7 @@ Enable with `--quality`.
 - **Maintainability Index (MI)**: 0-100 score (higher is better).
 - **Halstead Metrics**: Algorithmic complexity.
 
-For a full list of quality rules and their standard IDs (B006, E722, etc.), see the **[Code Quality Rules](quality.md)** reference.
+For a full list of quality rules and their CytoScnPy rule IDs (`CSP-L001`, `CSP-Q301`, etc.), see the **[Code Quality Rules](quality.md)** reference.
 Per-rule pages are available across Best Practices, Maintainability, and Performance categories.
 
 ### Rule Index
@@ -549,4 +549,4 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
 - **PyPI**: [pypi.org/project/cytoscnpy](https://pypi.org/project/cytoscnpy/)
 - **VS Code Extension**: [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy)
-- **GitHub Repository**: [github.com/djinn09/CytoScnPy](https://github.com/djinn09/CytoScnPy/)
+- **GitHub Repository**: [github.com/djinn-soul/CytoScnPy](https://github.com/djinn-soul/CytoScnPy/)

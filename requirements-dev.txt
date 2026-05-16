@@ -36,7 +36,7 @@ packaging==26.0
 paginate==0.5.7
 pastel==0.2.1
 pathspec==1.0.4
-pip==26.0.1
+pip==26.1.1
 pip-api==0.0.34
 pip-audit==2.10.0
 pip-requirements-parser==32.0.1
@@ -64,5 +64,5 @@ tomli-w==1.2.0
 trove-classifiers==2026.1.14.14
 ty==0.0.28
 typing-extensions==4.15.0 ; python_full_version < '3.13'
-urllib3==2.6.3
+urllib3==2.7.0
 watchdog==6.0.0

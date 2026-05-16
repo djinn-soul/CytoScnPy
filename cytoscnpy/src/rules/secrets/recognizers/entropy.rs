@@ -1,7 +1,7 @@
 use super::types::{RawFinding, SecretRecognizer};
+use crate::rules::secrets::calculate_entropy;
 use crate::utils::LineIndex;
 use ruff_python_ast::Stmt;
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// High-entropy string detection recognizer.
@@ -29,29 +29,6 @@ impl EntropyRecognizer {
             threshold,
             min_length,
         }
-    }
-
-    /// Calculate Shannon entropy of a string.
-    #[allow(clippy::cast_precision_loss)]
-    fn calculate_entropy(s: &str) -> f64 {
-        if s.is_empty() {
-            return 0.0;
-        }
-
-        let mut char_counts: HashMap<char, usize> = HashMap::new();
-        let len = s.len() as f64;
-
-        for c in s.chars() {
-            *char_counts.entry(c).or_insert(0) += 1;
-        }
-
-        char_counts
-            .values()
-            .map(|&count| {
-                let p = count as f64 / len;
-                -p * p.log2()
-            })
-            .sum()
     }
 
     /// Extract quoted strings from a line.
@@ -152,7 +129,7 @@ impl EntropyRecognizer {
                 return;
             }
 
-            let entropy = Self::calculate_entropy(s);
+            let entropy = calculate_entropy(s);
             if entropy >= self.threshold && !Self::looks_like_path_or_url(s) {
                 findings.push(RawFinding {
                     message: format!("High-entropy string detected (entropy: {entropy:.2})"),

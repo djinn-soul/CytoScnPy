@@ -1,6 +1,6 @@
 use crate::utils::LineIndex;
 use ruff_python_ast::visitor::{self, Visitor};
-use ruff_python_ast::Expr;
+use ruff_python_ast::{Expr, ModModule, Stmt};
 use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
 
@@ -59,9 +59,38 @@ impl StringCollector {
     }
 }
 
+/// Collects byte ranges of all string/bytes/f-string literals in a module body.
+fn collect_string_ranges(body: &[Stmt]) -> Vec<(usize, usize)> {
+    let mut collector = StringCollector { ranges: Vec::new() };
+    for stmt in body {
+        collector.visit_stmt(stmt);
+    }
+    collector.ranges
+}
+
 /// Analyzes raw metrics (LOC, SLOC, etc.) from source code.
+///
+/// Parses `code` internally. Callers that already hold the parsed AST should
+/// use `analyze_raw_with_module` to skip the reparse.
 #[must_use]
 pub fn analyze_raw(code: &str) -> RawMetrics {
+    let string_ranges = match parse_module(code) {
+        Ok(parsed) => collect_string_ranges(&parsed.into_syntax().body),
+        Err(_) => Vec::new(),
+    };
+    analyze_raw_inner(code, &string_ranges)
+}
+
+/// Analyzes raw metrics from source code using an already-parsed module.
+///
+/// Avoids the full reparse that `analyze_raw` performs.
+#[must_use]
+pub fn analyze_raw_with_module(code: &str, module: &ModModule) -> RawMetrics {
+    let string_ranges = collect_string_ranges(&module.body);
+    analyze_raw_inner(code, &string_ranges)
+}
+
+fn analyze_raw_inner(code: &str, string_ranges: &[(usize, usize)]) -> RawMetrics {
     let mut metrics = RawMetrics::default();
 
     let mut lines: Vec<&str> = code.lines().collect();
@@ -80,20 +109,9 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
         }
     }
 
-    // 2. Scan AST to find Strings (Multi-line) and mask them to find Comments
-    let mut string_ranges = Vec::new();
-    if let Ok(parsed) = parse_module(code) {
-        let module = parsed.into_syntax();
-        let mut collector = StringCollector { ranges: Vec::new() };
-        for stmt in &module.body {
-            collector.visit_stmt(stmt);
-        }
-        string_ranges = collector.ranges;
-    }
-
     let line_index = LineIndex::new(code);
 
-    for (start_offset, end_offset) in &string_ranges {
+    for (start_offset, end_offset) in string_ranges {
         let start_row = line_index.line_index(ruff_text_size::TextSize::new(
             u32::try_from(*start_offset).unwrap_or(0),
         ));
@@ -140,7 +158,7 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
 
             // Check if this hash_offset is inside any string range [start, end)
             let mut is_in_string = false;
-            for (s, e) in &string_ranges {
+            for (s, e) in string_ranges {
                 if hash_offset >= *s && hash_offset < *e {
                     is_in_string = true;
                     break;

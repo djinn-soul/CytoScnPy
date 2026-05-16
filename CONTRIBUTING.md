@@ -6,7 +6,7 @@ Thank you for your interest in contributing to the Rust implementation of CytoSc
 
 - **Rust**: Version 1.70 or higher. Install via [rustup.rs](https://rustup.rs).
 - **Cargo**: Comes with Rust.
-- **Python**: Version 3.8 or higher (for hybrid packaging).
+- **Python**: Version 3.10 or higher (matches `pyproject.toml`).
 - **UV or pip**: For Python package management.
 - **Maturin**: For building PyO3 extensions.
 - **Prek**: Rust-based pre-commit runner. Install via `cargo install prek`. Note: `prek` is a standalone binary that automatically handles its own Python runtimes and virtual environments for hooks, so no manual Python environment management is needed for the hooks themselves.
@@ -69,10 +69,11 @@ Thank you for your interest in contributing to the Rust implementation of CytoSc
 
    ```bash
    # Using uv (fast)
-   uv pip install -e ".[dev]"
+   uv sync --group dev
 
    # Or using pip
-   pip install -e ".[dev]"
+   pip install maturin pytest
+   maturin develop -m cytoscnpy/Cargo.toml
    ```
 
 4. **Install Pre-commit Hooks:**
@@ -89,7 +90,7 @@ The MCP server implementation is located in `cytoscnpy-mcp/`. It allows CytoScnP
 ### Running the MCP Server locally
 
 ```bash
-cargo run --bin cytoscnpy-mcp
+cargo run -p cytoscnpy-cli -- mcp-server
 ```
 
 ### Testing the MCP Server
@@ -245,7 +246,7 @@ To create a `.vsix` installer:
 vsce package
 ```
 
-This will generate `cytoscnpy-0.0.1.vsix`.
+This will generate `cytoscnpy-<version>.vsix`.
 
 **Publishing:**
 To publish to the VS Code Marketplace, run `vsce publish` after authentication with `vsce login <publisher>`.
@@ -580,7 +581,7 @@ uv run --with pytest pytest python/tests
 
 # Or with virtual environment activated
 # Install dev dependencies
-uv pip install -e ".[dev]"
+uv sync --group dev
 
 # Run all Python CLI tests
 pytest python/tests/ -v

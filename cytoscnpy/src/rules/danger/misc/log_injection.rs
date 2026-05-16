@@ -3,6 +3,39 @@ use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{Expr, ExprBinOp, FStringPart, InterpolatedStringElement, Operator};
 use ruff_text_size::Ranged;
 
+/// Stdlib `logging.Logger` method names whose first positional arg is the
+/// message — these are the entry points that propagate unsanitized content
+/// into the log stream.
+const LOGGER_METHODS: &[&str] = &[
+    "debug",
+    "info",
+    "warning",
+    "warn",
+    "error",
+    "critical",
+    "exception",
+    "log",
+];
+
+/// True when `func` is `<call>.<logger-method>` and the receiver call is
+/// `getLogger(...)` or `logging.getLogger(...)`. This covers the common
+/// `logging.getLogger(__name__).info(...)` chain that `get_call_name` cannot
+/// flatten because its receiver is a `Call`, not a `Name`/`Attribute`.
+fn is_chained_logger_call(func: &Expr) -> bool {
+    let Expr::Attribute(attr) = func else {
+        return false;
+    };
+    if !LOGGER_METHODS.contains(&attr.attr.as_str()) {
+        return false;
+    }
+    let Expr::Call(inner) = &*attr.value else {
+        return false;
+    };
+    get_call_name(&inner.func)
+        .as_deref()
+        .is_some_and(|inner_name| matches!(inner_name, "getLogger" | "logging.getLogger"))
+}
+
 /// Returns true if the expression is a potential log-injection vector:
 /// an f-string with dynamic parts, string concatenation, or `%`-formatting.
 fn is_injectable_log_arg(expr: &Expr) -> bool {
@@ -89,7 +122,7 @@ impl Rule for LogInjectionRule {
                         | "logging.exception"
                         | "logging.log"
                 )
-        });
+        }) || is_chained_logger_call(&call.func);
 
         if !is_log_call {
             return None;

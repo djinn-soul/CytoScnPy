@@ -55,7 +55,7 @@ fn print_verbose_stats(result: &crate::analyzer::AnalysisResult, run: &AnalysisR
 
     let mut file_counts = collect_issue_counts(result);
     if !file_counts.is_empty() {
-        file_counts.sort_by(|a, b| b.1.cmp(&a.1));
+        file_counts.sort_by_key(|entry| std::cmp::Reverse(entry.1));
         eprintln!("[VERBOSE] Files with most issues:");
         for (file, count) in file_counts.iter().take(5) {
             eprintln!("   {count:3} issues: {file}");

@@ -36,7 +36,6 @@ fn test_halstead_if_and() {
 }
 
 #[test]
-#[ignore = "TODO: Fix distinct operand counting"]
 fn test_halstead_if_elif_and_or() {
     // if a and b: pass
     // elif b or c: pass

@@ -108,6 +108,17 @@ def pytest_sessionstart(session: Session) -> None:
         return
 
     session.stash[BY_FILE_KEY] = _group_by_file(data)
+    # A non-zero exit with valid JSON still means the analyzer failed (e.g.
+    # invalid custom secret regex emits findings on `.cytoscnpy.toml` and
+    # exits 1). Those findings are attached to non-`*.py` files and would
+    # otherwise be dropped by `_iter_python_files`, letting pytest exit 0.
+    if result.returncode != 0:
+        session.stash[FORCE_FAIL_KEY] = True
+        if session.stash[ERROR_KEY] is None:
+            stderr = result.stderr.strip()
+            session.stash[ERROR_KEY] = (
+                stderr or f"cytoscnpy exited with status {result.returncode}"
+            )
 
 
 def pytest_sessionfinish(session: Session, exitstatus: int) -> None:
@@ -132,12 +143,43 @@ def pytest_collection_modifyitems(
         items.extend(collector.collect())
 
 
+# Directories that the analyzer itself skips. Mirrors the default exclusion
+# set so pytest does not synthesize items for files cytoscnpy never analyzed
+# (e.g. `.venv`, vendored deps, build artefacts).
+_SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "env",
+        ".env",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".nox",
+        "build",
+        "dist",
+        "node_modules",
+        "site-packages",
+        ".eggs",
+    }
+)
+
+
 def _iter_python_files(scan_path: Path) -> list[Path]:
     if scan_path.is_file():
         return [scan_path] if scan_path.suffix == ".py" else []
     if not scan_path.exists():
         return []
-    return sorted(path for path in scan_path.rglob("*.py") if path.is_file())
+    return sorted(
+        path
+        for path in scan_path.rglob("*.py")
+        if path.is_file() and not any(part in _SKIP_DIRS for part in path.parts)
+    )
 
 
 def _group_by_file(data: dict) -> dict[str, list[str]]:

@@ -558,15 +558,14 @@ impl RaceConditionRule {
                     }
                 }
             }
-            Stmt::AnnAssign(assign) => {
+            Stmt::AnnAssign(assign)
                 if assign
                     .value
                     .as_ref()
-                    .is_some_and(|value| is_pathlib_constructor_call(value))
-                {
-                    if let Expr::Name(name) = &*assign.target {
-                        self.pathlib_object_names.insert(name.id.to_string());
-                    }
+                    .is_some_and(|value| is_pathlib_constructor_call(value)) =>
+            {
+                if let Expr::Name(name) = &*assign.target {
+                    self.pathlib_object_names.insert(name.id.to_string());
                 }
             }
             _ => {}
@@ -593,24 +592,37 @@ impl Rule for RaceConditionRule {
             return None;
         };
 
-        let (checked_path, negated) =
-            existence_check_path(&if_stmt.test, &self.pathlib_object_names)?;
+        // Build the full list of (test, body) pairs that participate in this
+        // chain: the leading `if` plus every `elif`. Trailing `else` clauses
+        // are recorded separately because they apply to whichever sibling
+        // test matched the existence check.
+        let mut tests_with_bodies: Vec<(&Expr, &[Stmt])> = Vec::new();
+        tests_with_bodies.push((&if_stmt.test, &if_stmt.body));
+        let mut else_bodies: Vec<&[Stmt]> = Vec::new();
+        for clause in &if_stmt.elif_else_clauses {
+            match clause.test.as_ref() {
+                Some(test) => tests_with_bodies.push((test, &clause.body)),
+                None => else_bodies.push(&clause.body),
+            }
+        }
 
-        let guarded_branch_has_open = if negated {
-            if_stmt
-                .elif_else_clauses
-                .last()
-                .filter(|clause| clause.test.is_none())
-                .is_some_and(|clause| {
-                    body_contains_open_for_path(
-                        &clause.body,
-                        checked_path,
-                        &self.pathlib_object_names,
-                    )
-                })
-        } else {
-            body_contains_open_for_path(&if_stmt.body, checked_path, &self.pathlib_object_names)
-        };
+        // For each branch whose test is an existence check, the TOCTOU window
+        // covers both its own body (check-then-act) and any sibling `else`
+        // body — the negated complement opens the same path. Polarity of the
+        // check does not matter: either branch can be the offending one.
+        let guarded_branch_has_open = tests_with_bodies.iter().any(|(test, body)| {
+            let Some((checked_path, _negated)) =
+                existence_check_path(test, &self.pathlib_object_names)
+            else {
+                return false;
+            };
+            if body_contains_open_for_path(body, checked_path, &self.pathlib_object_names) {
+                return true;
+            }
+            else_bodies.iter().any(|else_body| {
+                body_contains_open_for_path(else_body, checked_path, &self.pathlib_object_names)
+            })
+        });
 
         if guarded_branch_has_open {
             return Some(vec![create_finding(

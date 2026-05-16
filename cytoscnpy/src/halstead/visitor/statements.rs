@@ -81,7 +81,12 @@ fn visit_control_flow(visitor: &mut HalsteadVisitor, stmt: &Stmt) {
                 visitor.visit_stmt(stmt);
             }
             for clause in &node.elif_else_clauses {
-                visitor.add_operator("else");
+                if let Some(test) = &clause.test {
+                    visitor.add_operator("elif");
+                    visitor.visit_expr(test);
+                } else {
+                    visitor.add_operator("else");
+                }
                 for stmt in &clause.body {
                     visitor.visit_stmt(stmt);
                 }

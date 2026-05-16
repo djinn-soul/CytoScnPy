@@ -121,8 +121,8 @@ pub fn run_cc<W: Write>(roots: &[PathBuf], options: CcOptions, mut writer: W) ->
     // Order results
     if let Some(ord) = options.order {
         match ord.as_str() {
-            "score" => results.sort_by(|a, b| b.complexity.cmp(&a.complexity)),
-            "lines" => results.sort_by(|a, b| a.line.cmp(&b.line)),
+            "score" => results.sort_by_key(|r| std::cmp::Reverse(r.complexity)),
+            "lines" => results.sort_by_key(|r| r.line),
             "alpha" => results.sort_by(|a, b| a.name.cmp(&b.name)),
             _ => {}
         }

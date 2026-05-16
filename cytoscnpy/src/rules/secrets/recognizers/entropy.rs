@@ -1,4 +1,5 @@
 use super::types::{RawFinding, SecretRecognizer};
+use crate::rules::secrets::calculate_entropy;
 use crate::utils::LineIndex;
 use ruff_python_ast::Stmt;
 use std::path::PathBuf;
@@ -28,34 +29,6 @@ impl EntropyRecognizer {
             threshold,
             min_length,
         }
-    }
-
-    /// Calculate Shannon entropy of a string's byte distribution.
-    ///
-    /// Same rationale as `secrets::entropy::calculate_entropy`: secret/token
-    /// payloads are ASCII, and a `[u32; 256]` frequency table is dramatically
-    /// faster than `HashMap<char, usize>` for this hot path.
-    #[allow(clippy::cast_precision_loss)]
-    fn calculate_entropy(s: &str) -> f64 {
-        let bytes = s.as_bytes();
-        if bytes.is_empty() {
-            return 0.0;
-        }
-
-        let mut counts = [0u32; 256];
-        for &b in bytes {
-            counts[b as usize] += 1;
-        }
-
-        let len = bytes.len() as f64;
-        let mut entropy = 0.0;
-        for &count in &counts {
-            if count > 0 {
-                let p = f64::from(count) / len;
-                entropy -= p * p.log2();
-            }
-        }
-        entropy
     }
 
     /// Extract quoted strings from a line.
@@ -156,7 +129,7 @@ impl EntropyRecognizer {
                 return;
             }
 
-            let entropy = Self::calculate_entropy(s);
+            let entropy = calculate_entropy(s);
             if entropy >= self.threshold && !Self::looks_like_path_or_url(s) {
                 findings.push(RawFinding {
                     message: format!("High-entropy string detected (entropy: {entropy:.2})"),

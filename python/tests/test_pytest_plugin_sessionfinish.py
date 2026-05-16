@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -71,7 +71,7 @@ def test_package_imports_reload_under_coverage():
 def test_pytest_addoption_registers_flag_and_ini_options():
     parser = _DummyParser()
 
-    pytest_plugin.pytest_addoption(parser)  # type: ignore[arg-type]
+    pytest_plugin.pytest_addoption(cast(Any, parser))
 
     assert parser.group.options[0][0] == ("--cytoscnpy",)
     assert [entry[0][0] for entry in parser.ini] == [
@@ -81,12 +81,12 @@ def test_pytest_addoption_registers_flag_and_ini_options():
 
 
 def test_is_enabled_accepts_cli_or_ini(tmp_path):
-    assert pytest_plugin._is_enabled(_DummyConfig(tmp_path, enabled=True))
+    assert pytest_plugin._is_enabled(cast(Any, _DummyConfig(tmp_path, enabled=True)))
     assert pytest_plugin._is_enabled(
-        _DummyConfig(tmp_path, enabled=False, ini_enabled=True)
+        cast(Any, _DummyConfig(tmp_path, enabled=False, ini_enabled=True))
     )
     assert not pytest_plugin._is_enabled(
-        _DummyConfig(tmp_path, enabled=False, ini_enabled=False)
+        cast(Any, _DummyConfig(tmp_path, enabled=False, ini_enabled=False))
     )
 
 
@@ -191,10 +191,10 @@ def test_collection_modifyitems_returns_when_not_enabled_or_no_scan_path(tmp_pat
     enabled_config: Any = _DummyConfig(tmp_path)
 
     pytest_plugin.pytest_collection_modifyitems(
-        SimpleNamespace(stash={}), disabled_config, items
+        cast(Any, SimpleNamespace(stash={})), disabled_config, items
     )
     pytest_plugin.pytest_collection_modifyitems(
-        SimpleNamespace(stash={}), enabled_config, items
+        cast(Any, SimpleNamespace(stash={})), enabled_config, items
     )
 
     assert items == []
@@ -296,7 +296,7 @@ def test_repr_failure_uses_cytoscnpy_error_string():
     )
     fake_item: Any = SimpleNamespace()
 
-    rendered = pytest_plugin.CytoScnPyItem.repr_failure(fake_item, excinfo)
+    rendered = pytest_plugin.CytoScnPyItem.repr_failure(fake_item, cast(Any, excinfo))
 
     assert rendered == "finding"
 

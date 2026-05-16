@@ -1,4 +1,35 @@
-// child_process.execFile is used inline in runCytoScnPyAnalysis
+import { execFile, spawn } from "child_process";
+import * as path from "path";
+
+/**
+ * Runs the analyzer and collects stdout via a streaming pipe instead of
+ * `execFile`'s in-memory buffer. Workspaces with many findings used to throw
+ * `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` once stdout crossed 50MB; the streaming
+ * variant has no fixed cap.
+ */
+function runAnalyzerStreaming(
+  binaryPath: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binaryPath, args, {
+      windowsHide: true,
+      shell: false,
+    });
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+        stderr: Buffer.concat(stderrChunks).toString("utf8"),
+        code,
+      });
+    });
+  });
+}
 
 export interface CytoScnPyFinding {
   file_path: string;
@@ -130,16 +161,9 @@ function transformRawResult(
 
   const normalizeSeverity = (
     severity: string | undefined,
-  ): "error" | "warning" | "info" => {
-    switch (severity?.toUpperCase()) {
-      case "HIGH":
-      case "CRITICAL":
-        return "error";
-      case "MEDIUM":
-        return "warning";
-      default:
-        return "warning";
-    }
+  ): "error" | "warning" => {
+    const upper = severity?.toUpperCase();
+    return upper === "HIGH" || upper === "CRITICAL" ? "error" : "warning";
   };
 
   const processCategory = (
@@ -182,32 +206,35 @@ function transformRawResult(
     (f) => `Method '${f.simple_name || f.name}' is defined but never used`,
     "warning",
   );
+  // Fallback formatters: when the CLI omits `message`, render the bare
+  // `simple_name` rather than the module-qualified `name` (e.g. `pkg.foo.os`)
+  // so user-visible diagnostics stay short and stable across analysis roots.
   processCategory(
     rawResult.unused_imports,
     "unused-import",
     "Dead Code",
-    (f) => `'${f.name}' is imported but never used`,
+    (f) => `'${f.simple_name || f.name}' is imported but never used`,
     "warning",
   );
   processCategory(
     rawResult.unused_classes,
     "unused-class",
     "Dead Code",
-    (f) => `Class '${f.name}' is defined but never used`,
+    (f) => `Class '${f.simple_name || f.name}' is defined but never used`,
     "warning",
   );
   processCategory(
     rawResult.unused_variables,
     "unused-variable",
     "Dead Code",
-    (f) => `Variable '${f.name}' is assigned but never used`,
+    (f) => `Variable '${f.simple_name || f.name}' is assigned but never used`,
     "warning",
   );
   processCategory(
     rawResult.unused_parameters,
     "unused-parameter",
     "Dead Code",
-    (f) => `Parameter '${f.name}' is never used`,
+    (f) => `Parameter '${f.simple_name || f.name}' is never used`,
     "warning",
   );
 
@@ -216,21 +243,21 @@ function transformRawResult(
     rawResult.secrets,
     "secret-detected",
     "Secrets",
-    (f) => f.message || `Potential secret detected: ${f.name}`,
+    (f) => f.message || `Potential secret detected: ${f.simple_name || f.name}`,
     "error",
   );
   processCategory(
     rawResult.danger,
     "dangerous-code",
     "Security",
-    (f) => f.message || `Dangerous code pattern: ${f.name}`,
+    (f) => f.message || `Dangerous code pattern: ${f.simple_name || f.name}`,
     "error",
   );
   processCategory(
     rawResult.quality,
     "quality-issue",
     "Quality",
-    (f) => f.message || `Quality issue: ${f.name}`,
+    (f) => f.message || `Quality issue: ${f.simple_name || f.name}`,
     "warning",
   );
 
@@ -312,66 +339,76 @@ function transformRawResult(
   return { findings, parseErrors };
 }
 
+/**
+ * Builds the CLI argument vector shared by single-file and workspace analysis.
+ * Exported for test snapshotting — keep deterministic and pure.
+ */
+export function buildAnalyzerArgs(
+  target: string,
+  config: CytoScnPyConfig,
+): string[] {
+  const args: string[] = ["--client", "vscode", target, "--json"];
+
+  if (config.enableSecretsScan) {
+    args.push("--secrets");
+  }
+  if (config.enableDangerScan) {
+    args.push("--danger");
+  }
+  if (config.enableCloneScan) {
+    args.push("--clones");
+  }
+  if (
+    config.confidenceThreshold !== undefined &&
+    config.confidenceThreshold > 0
+  ) {
+    args.push("--confidence", config.confidenceThreshold.toString());
+  }
+  if (config.excludeFolders && config.excludeFolders.length > 0) {
+    for (const folder of config.excludeFolders) {
+      args.push("--exclude-folders", folder);
+    }
+  }
+  if (config.includeFolders && config.includeFolders.length > 0) {
+    for (const folder of config.includeFolders) {
+      args.push("--include-folders", folder);
+    }
+  }
+  if (config.includeTests) {
+    args.push("--include-tests");
+  }
+  if (config.includeIpynb) {
+    args.push("--include-ipynb");
+  }
+
+  if (config.enableQualityScan) {
+    args.push("--quality");
+    if (config.maxComplexity !== undefined) {
+      args.push("--max-complexity", config.maxComplexity.toString());
+    }
+    if (config.minMaintainabilityIndex !== undefined) {
+      args.push("--min-mi", config.minMaintainabilityIndex.toString());
+    }
+    if (config.maxNesting !== undefined) {
+      args.push("--max-nesting", config.maxNesting.toString());
+    }
+    if (config.maxArguments !== undefined) {
+      args.push("--max-args", config.maxArguments.toString());
+    }
+    if (config.maxLines !== undefined) {
+      args.push("--max-lines", config.maxLines.toString());
+    }
+  }
+
+  return args;
+}
+
 export function runCytoScnPyAnalysis(
   filePath: string,
   config: CytoScnPyConfig,
 ): Promise<CytoScnPyAnalysisResult> {
   return new Promise((resolve, reject) => {
-    // Build args array (avoids shell escaping issues on Windows)
-    const args: string[] = ["--client", "vscode", filePath, "--json"];
-
-    if (config.enableSecretsScan) {
-      args.push("--secrets");
-    }
-    if (config.enableDangerScan) {
-      args.push("--danger");
-    }
-    if (config.enableCloneScan) {
-      args.push("--clones");
-    }
-    if (
-      config.confidenceThreshold !== undefined &&
-      config.confidenceThreshold > 0
-    ) {
-      args.push("--confidence", config.confidenceThreshold.toString());
-    }
-    if (config.excludeFolders && config.excludeFolders.length > 0) {
-      for (const folder of config.excludeFolders) {
-        args.push("--exclude-folders", folder);
-      }
-    }
-    if (config.includeFolders && config.includeFolders.length > 0) {
-      for (const folder of config.includeFolders) {
-        args.push("--include-folders", folder);
-      }
-    }
-    if (config.includeTests) {
-      args.push("--include-tests");
-    }
-    if (config.includeIpynb) {
-      args.push("--include-ipynb");
-    }
-
-    if (config.enableQualityScan) {
-      args.push("--quality");
-      if (config.maxComplexity !== undefined) {
-        args.push("--max-complexity", config.maxComplexity.toString());
-      }
-      if (config.minMaintainabilityIndex !== undefined) {
-        args.push("--min-mi", config.minMaintainabilityIndex.toString());
-      }
-      if (config.maxNesting !== undefined) {
-        args.push("--max-nesting", config.maxNesting.toString());
-      }
-      if (config.maxArguments !== undefined) {
-        args.push("--max-args", config.maxArguments.toString());
-      }
-      if (config.maxLines !== undefined) {
-        args.push("--max-lines", config.maxLines.toString());
-      }
-    }
-
-    const { execFile } = require("child_process");
+    const args = buildAnalyzerArgs(filePath, config);
 
     execFile(
       config.path,
@@ -427,130 +464,62 @@ export function runCytoScnPyAnalysis(
  * Run workspace-level analysis and return findings grouped by file path.
  * This provides cross-file reference tracking for accurate unused code detection.
  */
-export function runWorkspaceAnalysis(
+function normalizeAbsolutePath(filePath: string, workspacePath: string): string {
+  let resolved = filePath;
+  if (!path.isAbsolute(resolved)) {
+    resolved = path.resolve(workspacePath, resolved);
+  }
+  if (process.platform === "win32") {
+    resolved = resolved.toLowerCase();
+  }
+  return resolved;
+}
+
+export async function runWorkspaceAnalysis(
   workspacePath: string,
   config: CytoScnPyConfig,
 ): Promise<WorkspaceAnalysisResult> {
-  return new Promise((resolve, reject) => {
-    const args: string[] = ["--client", "vscode", workspacePath, "--json"];
+  const args = buildAnalyzerArgs(workspacePath, config);
 
-    if (config.enableSecretsScan) {
-      args.push("--secrets");
+  // Streaming pipe — large workspaces routinely exceeded the prior 50MB
+  // `execFile` cap once secrets/danger output was enabled.
+  const { stdout, stderr, code } = await runAnalyzerStreaming(config.path, args);
+
+  if (code !== 0 && !stdout.trim()) {
+    console.error(`CytoScnPy workspace analysis failed (exit ${code})`);
+    if (stderr) {
+      console.error(`Stderr: ${stderr}`);
     }
-    if (config.enableDangerScan) {
-      args.push("--danger");
-    }
-    if (config.enableCloneScan) {
-      args.push("--clones");
-    }
-    if (
-      config.confidenceThreshold !== undefined &&
-      config.confidenceThreshold > 0
-    ) {
-      args.push("--confidence", config.confidenceThreshold.toString());
-    }
-    if (config.excludeFolders && config.excludeFolders.length > 0) {
-      for (const folder of config.excludeFolders) {
-        args.push("--exclude-folders", folder);
-      }
-    }
-    if (config.includeFolders && config.includeFolders.length > 0) {
-      for (const folder of config.includeFolders) {
-        args.push("--include-folders", folder);
-      }
-    }
-    if (config.includeTests) {
-      args.push("--include-tests");
-    }
-    if (config.includeIpynb) {
-      args.push("--include-ipynb");
-    }
+    throw new Error(`Workspace analysis failed (exit ${code})`);
+  }
 
-    if (config.enableQualityScan) {
-      args.push("--quality");
-      if (config.maxComplexity !== undefined) {
-        args.push("--max-complexity", config.maxComplexity.toString());
-      }
-      if (config.minMaintainabilityIndex !== undefined) {
-        args.push("--min-mi", config.minMaintainabilityIndex.toString());
-      }
-      if (config.maxNesting !== undefined) {
-        args.push("--max-nesting", config.maxNesting.toString());
-      }
-      if (config.maxArguments !== undefined) {
-        args.push("--max-args", config.maxArguments.toString());
-      }
-      if (config.maxLines !== undefined) {
-        args.push("--max-lines", config.maxLines.toString());
-      }
-    }
-
-    const { execFile } = require("child_process");
-
-    execFile(
-      config.path,
-      args,
-      { maxBuffer: 50 * 1024 * 1024 }, // 50MB buffer for large workspaces
-      (error: Error | null, stdout: string, stderr: string) => {
-        if (error && !stdout.trim()) {
-          console.error(
-            `CytoScnPy workspace analysis failed: ${error.message}`,
-          );
-          if (stderr) {
-            console.error(`Stderr: ${stderr}`);
-          }
-          reject(new Error(`Workspace analysis failed: ${error.message}`));
-          return;
-        }
-
-        try {
-          const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
-          const result = transformRawResult(rawResult);
-          const path = require("path");
-
-          // Group findings by file path, converting to absolute paths
-          const findingsByFile = new Map<string, CytoScnPyFinding[]>();
-          for (const finding of result.findings) {
-            // Convert relative paths to absolute paths using workspace root
-            let filePath = finding.file_path;
-            if (!path.isAbsolute(filePath)) {
-              filePath = path.resolve(workspacePath, filePath);
-            }
-            if (process.platform === "win32") {
-              filePath = filePath.toLowerCase();
-            }
-
-            if (!findingsByFile.has(filePath)) {
-              findingsByFile.set(filePath, []);
-            }
-            findingsByFile.get(filePath)!.push(finding);
-          }
-
-          const parseErrorsByFile = new Map<string, ParseError[]>();
-          for (const parseError of result.parseErrors) {
-            let filePath = parseError.file;
-            if (!path.isAbsolute(filePath)) {
-              filePath = path.resolve(workspacePath, filePath);
-            }
-            if (process.platform === "win32") {
-              filePath = filePath.toLowerCase();
-            }
-
-            if (!parseErrorsByFile.has(filePath)) {
-              parseErrorsByFile.set(filePath, []);
-            }
-            parseErrorsByFile.get(filePath)!.push(parseError);
-          }
-
-          resolve({ findingsByFile, parseErrorsByFile });
-        } catch (parseError: any) {
-          reject(
-            new Error(
-              `Failed to parse workspace analysis output: ${parseError.message}`,
-            ),
-          );
-        }
-      },
+  let rawResult: RawCytoScnPyResult;
+  try {
+    rawResult = JSON.parse(stdout.trim());
+  } catch (parseError: any) {
+    throw new Error(
+      `Failed to parse workspace analysis output: ${parseError.message}`,
     );
-  });
+  }
+  const result = transformRawResult(rawResult);
+
+  const findingsByFile = new Map<string, CytoScnPyFinding[]>();
+  for (const finding of result.findings) {
+    const filePath = normalizeAbsolutePath(finding.file_path, workspacePath);
+    if (!findingsByFile.has(filePath)) {
+      findingsByFile.set(filePath, []);
+    }
+    findingsByFile.get(filePath)!.push(finding);
+  }
+
+  const parseErrorsByFile = new Map<string, ParseError[]>();
+  for (const parseError of result.parseErrors) {
+    const filePath = normalizeAbsolutePath(parseError.file, workspacePath);
+    if (!parseErrorsByFile.has(filePath)) {
+      parseErrorsByFile.set(filePath, []);
+    }
+    parseErrorsByFile.get(filePath)!.push(parseError);
+  }
+
+  return { findingsByFile, parseErrorsByFile };
 }

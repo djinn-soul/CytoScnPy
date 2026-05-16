@@ -63,14 +63,12 @@ impl EntropyRecognizer {
         ctx: Context,
     ) {
         match expr {
-            Expr::StringLiteral(s) => {
-                if !ctx.in_logging && !ctx.safe_assignment {
-                    self.check_string(
-                        s.value.to_str(),
-                        line_index.line_index(expr.start()),
-                        findings,
-                    );
-                }
+            Expr::StringLiteral(s) if !ctx.in_logging && !ctx.safe_assignment => {
+                self.check_string(
+                    s.value.to_str(),
+                    line_index.line_index(expr.start()),
+                    findings,
+                );
             }
             Expr::Call(call) => {
                 let is_log = Self::is_logging_call(expr);

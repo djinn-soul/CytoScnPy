@@ -20,31 +20,27 @@ pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Optio
 
     for stmt in body {
         match stmt {
-            Stmt::FunctionDef(f) if def_type == "function" => {
-                if f.name.as_str() == name {
-                    let start = f.range().start().to_usize();
-                    let start = f
-                        .decorator_list
-                        .iter()
-                        .map(|d| d.range().start().to_usize())
-                        .min()
-                        .unwrap_or(start)
-                        .min(start);
-                    return Some((start, f.range().end().to_usize()));
-                }
+            Stmt::FunctionDef(f) if def_type == "function" && f.name.as_str() == name => {
+                let start = f.range().start().to_usize();
+                let start = f
+                    .decorator_list
+                    .iter()
+                    .map(|d| d.range().start().to_usize())
+                    .min()
+                    .unwrap_or(start)
+                    .min(start);
+                return Some((start, f.range().end().to_usize()));
             }
-            Stmt::ClassDef(c) if def_type == "class" => {
-                if c.name.as_str() == name {
-                    let start = c.range().start().to_usize();
-                    let start = c
-                        .decorator_list
-                        .iter()
-                        .map(|d| d.range().start().to_usize())
-                        .min()
-                        .unwrap_or(start)
-                        .min(start);
-                    return Some((start, c.range().end().to_usize()));
-                }
+            Stmt::ClassDef(c) if def_type == "class" && c.name.as_str() == name => {
+                let start = c.range().start().to_usize();
+                let start = c
+                    .decorator_list
+                    .iter()
+                    .map(|d| d.range().start().to_usize())
+                    .min()
+                    .unwrap_or(start)
+                    .min(start);
+                return Some((start, c.range().end().to_usize()));
             }
             Stmt::Import(i) if def_type == "import" => {
                 for alias in &i.names {

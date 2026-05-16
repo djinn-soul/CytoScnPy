@@ -6,7 +6,32 @@ use super::{AnalysisResult, CytoScnPy, FileAnalysisResult};
 use crate::constants::{CHUNK_SIZE, CONFIG_FILENAME};
 use crate::rules::secrets::{validate_secrets_config, SecretFinding};
 use rayon::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Computes the longest shared ancestor directory across `paths`.
+///
+/// Used when callers pass a heterogeneous list (mix of files / directories /
+/// nested subtrees). The previous implementation pinned `analysis_root` to the
+/// first input, which broke `is_test_path` whenever that first input was a test
+/// file because `strip_prefix` then returned an empty relative path.
+fn common_ancestor(paths: &[PathBuf]) -> Option<PathBuf> {
+    let mut iter = paths.iter().map(|p| {
+        if p.is_file() {
+            p.parent().unwrap_or(Path::new(".")).to_path_buf()
+        } else {
+            p.clone()
+        }
+    });
+    let mut acc = iter.next()?;
+    for next in iter {
+        while !next.starts_with(&acc) {
+            if !acc.pop() {
+                return Some(PathBuf::from("."));
+            }
+        }
+    }
+    Some(acc)
+}
 
 impl CytoScnPy {
     /// Runs the analysis on multiple paths (files or directories).
@@ -50,12 +75,12 @@ impl CytoScnPy {
             }
         }
 
-        // Analyze the collected files
-        self.analyze_file_list(
-            &all_files,
-            paths.first().map(std::path::PathBuf::as_path),
-            total_directories,
-        )
+        // Pick a project root that all inputs share. Using `paths[0]` as the
+        // root caused `strip_prefix` to drop the relative path entirely when
+        // the first input was itself a file, which in turn made
+        // `is_test_path` misclassify that file as production code.
+        let inferred_root = common_ancestor(paths).unwrap_or_else(|| PathBuf::from("."));
+        self.analyze_file_list(&all_files, Some(&inferred_root), total_directories)
     }
 
     /// Collects all Python files from a directory, respecting exclusion rules.
@@ -82,6 +107,10 @@ impl CytoScnPy {
         let total_files = files.len();
         self.total_files_analyzed = total_files;
 
+        // Sync analysis_root so aggregation can compute root-relative paths
+        if let Some(hint) = root_hint {
+            self.analysis_root = hint.to_path_buf();
+        }
         // Determine root path for relative path calculation
         let root_path = root_hint.unwrap_or(&self.analysis_root);
 

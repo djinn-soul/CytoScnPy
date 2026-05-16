@@ -63,3 +63,12 @@ pub fn calculate_module_complexity(code: &str) -> Option<usize> {
     }
     None
 }
+
+/// Calculates the total cyclomatic complexity of an already-parsed module.
+///
+/// Avoids the full reparse that `calculate_module_complexity` performs on raw
+/// source — for callers that already hold the parsed AST.
+#[must_use]
+pub fn calculate_module_complexity_ast(module: &ruff_python_ast::ModModule) -> usize {
+    calculate_complexity(&module.body, false)
+}

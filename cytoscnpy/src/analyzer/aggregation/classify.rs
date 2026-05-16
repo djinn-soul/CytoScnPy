@@ -79,6 +79,7 @@ impl ClassificationResult {
 pub(super) fn classify_definitions(
     definitions: Vec<Definition>,
     ref_counts: &FxHashMap<String, usize>,
+    prod_ref_counts: &FxHashMap<String, usize>,
     reachability: &ReachabilityContext,
     fixture_definition_names: &FxHashSet<String>,
     confidence_threshold: u8,
@@ -92,20 +93,39 @@ pub(super) fn classify_definitions(
         .collect();
 
     for mut def in definitions {
-        // Check if this definition is whitelisted
+        // Check if this definition is whitelisted. Match on both the fully
+        // qualified name (e.g. `module.symbol`) and the bare simple name so
+        // Vulture-style whitelists (bare identifiers) keep working regardless
+        // of which analysis root we inferred — that root influences how the
+        // module qualifier is reconstructed.
         if let Some(matcher) = whitelist {
             let relative_path = def
                 .file
                 .strip_prefix(analysis_root)
                 .unwrap_or(def.file.as_path());
             let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
-            if matcher.is_whitelisted(&def.name, Some(&normalized_path)) {
+            if matcher.is_whitelisted(&def.name, Some(&normalized_path))
+                || matcher.is_whitelisted(&def.simple_name, Some(&normalized_path))
+            {
                 continue; // Skip whitelisted definitions
             }
         }
 
+        // For production-file definitions use only prod refs so that test-only callers
+        // don't mask unused prod code. For test-file definitions keep the full ref_counts
+        // so that fixtures used exclusively by tests are not falsely flagged.
+        let def_relative = def
+            .file
+            .strip_prefix(analysis_root)
+            .unwrap_or(def.file.as_path());
+        let effective_refs = if crate::utils::is_test_path(&def_relative.to_string_lossy()) {
+            ref_counts
+        } else {
+            prod_ref_counts
+        };
+
         let mut evidence =
-            sync_definition_reference(&mut def, ref_counts, fixture_definition_names);
+            sync_definition_reference(&mut def, effective_refs, fixture_definition_names);
 
         apply_heuristics(&mut def);
 
@@ -120,11 +140,7 @@ pub(super) fn classify_definitions(
         if (def.def_type == "function" || def.def_type == "method" || def.def_type == "class")
             && !reachability.reachable_nodes.contains(&def.full_name)
         {
-            let loose_ref_exists = if def.def_type == "method" || def.def_type == "function" {
-                ref_counts.contains_key(&format!(".{}", def.simple_name))
-            } else {
-                false
-            };
+            let loose_ref_exists = effective_refs.contains_key(&format!(".{}", def.simple_name));
             let is_nested_under_callable = has_parent_callable(&def, &definition_kinds);
             let is_explicitly_called = reachability
                 .explicitly_called_nodes
@@ -177,7 +193,12 @@ fn has_parent_callable(
     def: &Definition,
     definition_kinds: &FxHashMap<String, DefinitionType>,
 ) -> bool {
-    if def.def_type != DefinitionType::Function {
+    // Only nested functions and classes benefit from the parent-callable exemption;
+    // methods are owned by their class and analyzed via the class container instead.
+    if !matches!(
+        def.def_type,
+        DefinitionType::Function | DefinitionType::Class
+    ) {
         return false;
     }
 
@@ -185,9 +206,24 @@ fn has_parent_callable(
         return false;
     };
 
-    definition_kinds
-        .get(parent_name)
-        .is_some_and(|kind| *kind == DefinitionType::Function || *kind == DefinitionType::Method)
+    let Some(parent_kind) = definition_kinds.get(parent_name) else {
+        return false;
+    };
+
+    match def.def_type {
+        DefinitionType::Function => matches!(
+            parent_kind,
+            DefinitionType::Function | DefinitionType::Method
+        ),
+        // Nested classes live inside another class/method/function — treat the
+        // enclosing container as the unit of reachability and suppress the FP
+        // when the parent is itself a structural callable/container.
+        DefinitionType::Class => matches!(
+            parent_kind,
+            DefinitionType::Function | DefinitionType::Method | DefinitionType::Class
+        ),
+        _ => false,
+    }
 }
 
 fn should_report_definition(def: &Definition, confidence_threshold: u8) -> bool {
@@ -264,7 +300,9 @@ fn sync_definition_reference(
         }
     }
 
-    if def.references == 0 && (def.def_type == "method" || def.def_type == "function") {
+    if def.references == 0
+        && (def.def_type == "method" || def.def_type == "function" || def.def_type == "class")
+    {
         let loose_attr_key = format!(".{}", def.simple_name);
         if let Some(count) = ref_counts.get(&loose_attr_key) {
             if *count > 0 {

@@ -218,6 +218,24 @@ fn get_generic_patterns() -> Result<Vec<BuiltinPattern>, regex::Error> {
             severity: "CRITICAL",
             base_score: 95,
         },
+        // Anthropic / Claude API Key
+        BuiltinPattern {
+            name: "Anthropic API Key",
+            regex: Regex::new(r"sk-ant-api[0-9]{2}-[A-Za-z0-9_\-]{93}")?,
+            rule_id: "CSP-S121",
+            severity: "CRITICAL",
+            base_score: 97,
+        },
+        // JWT Secret / Signing Key (hardcoded)
+        BuiltinPattern {
+            name: "JWT Secret",
+            regex: Regex::new(
+                r#"(?i)(jwt[_-]?secret|jwt[_-]?key|jwt[_-]?signing[_-]?key)\s*=\s*['"][^'"]{8,}['"]"#,
+            )?,
+            rule_id: "CSP-S122",
+            severity: "CRITICAL",
+            base_score: 92,
+        },
     ])
 }
 

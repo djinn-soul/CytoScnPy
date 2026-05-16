@@ -1,9 +1,9 @@
 use super::common::{apply_danger_config_filters, apply_taint_filters, split_lint_finding};
 use super::pipeline::PipelineOutput;
 use crate::analyzer::CytoScnPy;
-use crate::halstead::analyze_halstead;
+use crate::halstead::analyze_halstead_module;
 use crate::metrics::mi_compute;
-use crate::raw_metrics::analyze_raw;
+use crate::raw_metrics::analyze_raw_with_module;
 use crate::rules::Finding;
 use crate::utils::{LineIndex, Suppression};
 use rustc_hash::FxHashMap;
@@ -76,9 +76,9 @@ pub(super) fn apply_raw_rules(ctx: &RuleEngineContext<'_>, output: &mut Pipeline
         return;
     }
 
-    let raw = analyze_raw(ctx.source);
-    let halstead = analyze_halstead(&ruff_python_ast::Mod::Module(ctx.module.clone()));
-    let complexity = crate::complexity::calculate_module_complexity(ctx.source).unwrap_or(1);
+    let raw = analyze_raw_with_module(ctx.source, ctx.module);
+    let halstead = analyze_halstead_module(ctx.module);
+    let complexity = crate::complexity::calculate_module_complexity_ast(ctx.module);
 
     output.file_complexity = complexity as f64;
     output.file_mi = mi_compute(halstead.volume, complexity, raw.sloc, raw.comments);

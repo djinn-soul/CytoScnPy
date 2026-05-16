@@ -19,7 +19,7 @@ The MCP server is available in the standalone CLI binary:
 
 ```bash
 # Install (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
 
 # Run MCP server (standalone CLI)
 cytoscnpy mcp-server
@@ -37,7 +37,7 @@ Install the [CytoScnPy VS Code extension](../editors/vscode/cytoscnpy/README.md)
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
 
 # Start MCP server
 cytoscnpy mcp-server
@@ -47,7 +47,7 @@ cytoscnpy mcp-server
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn09/CytoScnPy/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
 
 # Start MCP server (after restarting terminal)
 cytoscnpy mcp-server
@@ -102,7 +102,7 @@ The VS Code extension automatically registers the MCP server. Just install the e
 
 | Tool                    | Description                                       | Parameters                                                               |
 | ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| `analyze_path`          | Full analysis on files/directories                | `path`, `scan_secrets`, `scan_danger`, `check_quality`, `taint_analysis` |
+| `analyze_path`          | Full analysis on files/directories                | `path`, `scan_secrets`, `scan_danger`, `check_quality`                    |
 | `analyze_code`          | Analyze code snippet directly                     | `code`, `filename`                                                       |
 | `quick_scan`            | Fast security scan (secrets & dangerous patterns) | `path`                                                                   |
 | `cyclomatic_complexity` | Calculate complexity metrics                      | `path`                                                                   |

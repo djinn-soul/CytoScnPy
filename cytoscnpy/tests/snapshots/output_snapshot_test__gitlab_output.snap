@@ -1,12 +1,13 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
+assertion_line: 149
 expression: output
 ---
 [
   {
     "check_name": "func",
-    "description": "Unused function: unused_func ([FILE]:5)",
-    "fingerprint": "unused-func-unused_func-[FILE]-5",
+    "description": "Unused function: [MOD].unused_func ([FILE]:5)",
+    "fingerprint": "unused-func-[MOD].unused_func-[FILE]-5",
     "location": {
       "lines": {
         "begin": 5
@@ -17,8 +18,8 @@ expression: output
   },
   {
     "check_name": "import",
-    "description": "Unused import: os ([FILE]:2)",
-    "fingerprint": "unused-import-os-[FILE]-2",
+    "description": "Unused import: [MOD].os ([FILE]:2)",
+    "fingerprint": "unused-import-[MOD].os-[FILE]-2",
     "location": {
       "lines": {
         "begin": 2
@@ -29,8 +30,8 @@ expression: output
   },
   {
     "check_name": "import",
-    "description": "Unused import: sys ([FILE]:3)",
-    "fingerprint": "unused-import-sys-[FILE]-3",
+    "description": "Unused import: [MOD].sys ([FILE]:3)",
+    "fingerprint": "unused-import-[MOD].sys-[FILE]-3",
     "location": {
       "lines": {
         "begin": 3
@@ -41,8 +42,8 @@ expression: output
   },
   {
     "check_name": "var",
-    "description": "Unused variable: main.unused_var ([FILE]:9)",
-    "fingerprint": "unused-var-main.unused_var-[FILE]-9",
+    "description": "Unused variable: [MOD].main.unused_var ([FILE]:9)",
+    "fingerprint": "unused-var-[MOD].main.unused_var-[FILE]-9",
     "location": {
       "lines": {
         "begin": 9

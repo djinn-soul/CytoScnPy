@@ -67,7 +67,7 @@ Integrate CytoScnPy directly into your GitHub Actions workflow:
 
 ```yaml
 - name: Run CytoScnPy Analysis
-  uses: djinn-soul/CytoScnPy@main
+  uses: djinn-soul/CytoScnPy@v1
   with:
     args: "--secrets --danger --quality"
 ```
@@ -94,8 +94,6 @@ Integrate CytoScnPy directly into your GitHub Actions workflow:
 - **Cross-File Detection**: Tracks symbol usage across the entire codebase, including nested packages and complex import chains, to ensure code used in other modules is never incorrectly flagged.
 
 ## Usage
-
-> [!IMPORTANT] **Behavioral Change**: Starting from version 1.2.2, tests are **excluded by default** across both the CLI and the library API to reduce noise in production analysis. Use the `--include-tests` flag or set `include_tests = true` in your configuration to scan test files.
 
 ### Command Line
 
@@ -152,7 +150,8 @@ cytoscnpy . --html --secrets --danger
 | `-a, --apply`   | Apply fixes to files (use with `--fix`)         |
 | `--json`        | Output results in machine-readable JSON         |
 
-> [!TIP] > **[View the Full CLI Reference](docs/CLI.md)** for detailed usage, advanced configuration, and quality gate options.
+> [!TIP]
+> **[View the Full CLI Reference](docs/CLI.md)** for detailed usage, advanced configuration, and quality gate options.
 
 **CI/CD Gate Options:**
 
@@ -166,8 +165,6 @@ cytoscnpy . --html --secrets --danger
 | `--max-args <N>`       | Exit code 1 if any function has > N args   |
 | `--max-lines <N>`      | Exit code 1 if any function has > N lines  |
 
-> **Full CLI Reference:** See [docs/CLI.md](docs/CLI.md) for complete command documentation.
-
 ### Metric Subcommands
 
 ```bash
@@ -178,6 +175,8 @@ cytoscnpy mi .                     # Maintainability Index
 cytoscnpy stats . --all            # Full project report (secrets, danger, quality)
 cytoscnpy stats . --all -o report.md  # Save report to file
 cytoscnpy files .                  # Per-file metrics table
+cytoscnpy deps .                   # Dependency analysis
+cytoscnpy init                     # Scaffold config in the current project
 ```
 
 > **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories globally, or `--ignore <PATTERN>` for subcommand-specific glob filtering.
@@ -212,7 +211,7 @@ max_args = 5          # Max arguments per function
 max_complexity = 10   # Max cyclomatic complexity
 max_nesting = 4       # Max indentation depth
 min_mi = 65.0         # Minimum Maintainability Index
-ignore = ["R001"]     # Ignore specific rule IDs
+ignore = ["CSP-P003"] # Ignore specific rule IDs
 
 # Advanced Secret Scanning
 [cytoscnpy.secrets_config]
@@ -280,13 +279,9 @@ cytoscnpy . --fail-threshold 5 --quiet
 
 > See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 
-## Testing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md#testing) for testing instructions.
-
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing instructions, and guidelines.
 
 ## License
 

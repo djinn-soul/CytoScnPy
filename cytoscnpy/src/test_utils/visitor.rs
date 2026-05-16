@@ -150,12 +150,12 @@ impl<'a> TestAwareVisitor<'a> {
                     self.visit_stmt(stmt);
                 }
             }
-            Stmt::Assign(node) => {
-                if node.targets.iter().any(
-                    |target| matches!(target, Expr::Name(name) if name.id.as_str() == "pytest_plugins"),
-                ) {
-                    self.extract_pytest_plugins(&node.value);
-                }
+            Stmt::Assign(node)
+                if node.targets.iter().any(|target| {
+                    matches!(target, Expr::Name(name) if name.id.as_str() == "pytest_plugins")
+                }) =>
+            {
+                self.extract_pytest_plugins(&node.value);
             }
             Stmt::ImportFrom(node) => {
                 self.extract_import_bindings(node);

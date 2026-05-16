@@ -3,6 +3,7 @@
 import * as vscode from "vscode";
 import * as os from "os";
 import * as path from "path";
+import * as fs from "fs";
 import * as crypto from "crypto";
 import {
   runCytoScnPyAnalysis,
@@ -39,6 +40,89 @@ export function computeHash(content: string): string {
   return crypto.createHash("sha256").update(content).digest("hex");
 }
 
+// Per-document memo of the most recent (version, hash) pair so that
+// `provideCodeActions` does not recompute SHA-256 over the full document
+// every time the lightbulb is invoked. Keyed by VS Code URI string.
+const documentHashCache = new Map<string, { version: number; hash: string }>();
+
+export function hashForDocument(document: vscode.TextDocument): string {
+  const key = document.uri.toString();
+  const cached = documentHashCache.get(key);
+  if (cached && cached.version === document.version) {
+    return cached.hash;
+  }
+  const hash = computeHash(document.getText());
+  documentHashCache.set(key, { version: document.version, hash });
+  return hash;
+}
+
+// Single source of truth for translating CytoScnPy severity strings to VS Code
+// DiagnosticSeverity. Both `findingsToDiagnostics` and the closed-file branch
+// in `runFullWorkspaceAnalysis` route through this helper so that the two
+// previously divergent switches cannot drift apart again.
+//
+// Behavior intentionally mirrors the pre-refactor switches: only CRITICAL/ERROR
+// elevate to Error, everything else maps to Warning.
+export function mapSeverity(severity: string): vscode.DiagnosticSeverity {
+  const upper = severity.toUpperCase();
+  if (upper === "CRITICAL" || upper === "ERROR") {
+    return vscode.DiagnosticSeverity.Error;
+  }
+  return vscode.DiagnosticSeverity.Warning;
+}
+
+const UNUSED_RULE_IDS: ReadonlySet<string> = new Set([
+  "unused-function",
+  "unused-method",
+  "unused-class",
+  "unused-import",
+  "unused-variable",
+  "unused-parameter",
+]);
+
+// Builds the closed-file diagnostic for a single finding. Closed files have no
+// document, so end-of-line is unknown; VS Code clamps the oversized end column
+// down to the actual line length when the editor opens the file.
+export function buildClosedFileDiagnosticFromFinding(
+  finding: CytoScnPyFinding,
+): vscode.Diagnostic {
+  const lineIndex = Math.max(0, finding.line_number - 1);
+  const startCol = finding.col && finding.col > 0 ? finding.col : 0;
+  const range = new vscode.Range(
+    new vscode.Position(lineIndex, startCol),
+    new vscode.Position(lineIndex, Number.MAX_SAFE_INTEGER),
+  );
+  const diagnostic = new vscode.Diagnostic(
+    range,
+    `${finding.message} [${finding.rule_id}]`,
+    mapSeverity(finding.severity),
+  );
+  diagnostic.source = "CytoScnPy";
+  diagnostic.code = finding.rule_id;
+  if (UNUSED_RULE_IDS.has(finding.rule_id)) {
+    diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
+  }
+  return diagnostic;
+}
+
+export function buildClosedFileDiagnosticFromParseError(
+  parseError: ParseError,
+): vscode.Diagnostic {
+  const lineIndex = Math.max(0, parseError.line - 1);
+  const range = new vscode.Range(
+    new vscode.Position(lineIndex, 0),
+    new vscode.Position(lineIndex, Number.MAX_SAFE_INTEGER),
+  );
+  const diagnostic = new vscode.Diagnostic(
+    range,
+    `Parse error: ${parseError.message}`,
+    vscode.DiagnosticSeverity.Error,
+  );
+  diagnostic.source = "CytoScnPy [Parse]";
+  diagnostic.code = "parse-error";
+  return diagnostic;
+}
+
 // Helper function to get a consistent cache key (case-insensitive on Windows)
 export function getCacheKey(fsPath: string): string {
   return process.platform === "win32" ? fsPath.toLowerCase() : fsPath;
@@ -50,6 +134,34 @@ const cytoscnpyDiagnostics =
 // Create an output channel for metric commands
 const cytoscnpyOutputChannel =
   vscode.window.createOutputChannel("CytoScnPy Metrics");
+
+// Persistent status bar item showing current analyzer state — created once at
+// module load so re-activation (e.g. window reload) does not multiply the item.
+const statusBarItem = vscode.window.createStatusBarItem(
+  vscode.StatusBarAlignment.Right,
+  100,
+);
+statusBarItem.command = "cytoscnpy.analyzeWorkspace";
+
+type StatusKind = "idle" | "running" | "error";
+function setStatus(kind: StatusKind, detail: string): void {
+  switch (kind) {
+    case "running":
+      statusBarItem.text = `$(sync~spin) CytoScnPy: ${detail}`;
+      statusBarItem.tooltip = "CytoScnPy analysis running";
+      break;
+    case "error":
+      statusBarItem.text = `$(error) CytoScnPy: ${detail}`;
+      statusBarItem.tooltip = detail;
+      break;
+    case "idle":
+    default:
+      statusBarItem.text = `$(check) CytoScnPy: ${detail}`;
+      statusBarItem.tooltip = "Click to re-run workspace analysis";
+      break;
+  }
+  statusBarItem.show();
+}
 
 // Gutter decoration types for severity levels
 let errorDecorationType: vscode.TextEditorDecorationType;
@@ -75,17 +187,12 @@ function getExecutablePath(context: vscode.ExtensionContext): string {
       return "cytoscnpy";
   }
 
+  // `executableName` comes from a hardcoded switch on `os.platform()`, so it
+  // cannot contain `..` segments; no separate path-traversal check needed.
   const bundledPath = path.join(context.extensionPath, "bin", executableName);
-
-  // Security: Ensure the bundled path is actually within the extension directory
-  // to prevent potential path traversal vulnerabilities.
-  if (!bundledPath.startsWith(context.extensionPath)) {
-    return "cytoscnpy";
-  }
 
   // Check if bundled binary exists, otherwise fall back to pip-installed version
   try {
-    const fs = require("fs");
     if (fs.existsSync(bundledPath)) {
       return bundledPath;
     }
@@ -143,10 +250,14 @@ function getCytoScnPyConfiguration(
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Congratulations, your extension "cytoscnpy" is now active!');
   const config = getCytoScnPyConfiguration(context);
-  console.log(`CytoScnPy using binary at: ${config.path}`);
-  console.log(`Danger scan enabled: ${config.enableDangerScan}`);
+  const isDevBuild =
+    context.extensionMode === vscode.ExtensionMode.Development;
+  if (isDevBuild) {
+    cytoscnpyOutputChannel.appendLine(
+      `[CytoScnPy] Activated; binary=${config.path}, danger=${config.enableDangerScan}`,
+    );
+  }
   try {
     // Register MCP server definition provider for GitHub Copilot integration
     // This allows Copilot to use CytoScnPy's MCP server in agent mode
@@ -184,14 +295,9 @@ export function activate(context: vscode.ExtensionContext) {
             resolveMcpServerDefinition: async (server) => server,
           }),
         );
-        console.log("CytoScnPy MCP server provider registered successfully");
       } catch (mcpError) {
         console.warn("Failed to register MCP server provider:", mcpError);
       }
-    } else {
-      console.log(
-        "MCP server registration not available (requires VS Code 1.96+ with Copilot)",
-      );
     }
 
     // Initialize gutter decoration types
@@ -233,6 +339,7 @@ export function activate(context: vscode.ExtensionContext) {
       warningDecorationType,
       infoDecorationType,
     );
+    setStatus("idle", "ready");
 
     // Function to apply gutter decorations based on diagnostics
     function applyGutterDecorations(
@@ -329,32 +436,10 @@ export function activate(context: vscode.ExtensionContext) {
             new vscode.Position(lineIndex, startCol),
             new vscode.Position(lineIndex, lineText.text.length),
           );
-          let severity: vscode.DiagnosticSeverity;
-          switch (finding.severity.toUpperCase()) {
-            case "CRITICAL":
-            case "ERROR":
-              severity = vscode.DiagnosticSeverity.Error;
-              break;
-            case "HIGH":
-            case "WARNING":
-              severity = vscode.DiagnosticSeverity.Warning;
-              break;
-            case "MEDIUM":
-            case "INFO":
-              severity = vscode.DiagnosticSeverity.Warning;
-              break;
-            case "LOW":
-            case "HINT":
-              severity = vscode.DiagnosticSeverity.Warning;
-              break;
-            default:
-              severity = vscode.DiagnosticSeverity.Warning;
-          }
-
           const diagnostic = new vscode.Diagnostic(
             range,
             `${finding.message} [${finding.rule_id}]`,
-            severity,
+            mapSeverity(finding.severity),
           );
 
           if (finding.category === "Dead Code") {
@@ -408,6 +493,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       isWorkspaceAnalysisRunning = true;
+      setStatus("running", "scanning workspace");
       const workspacePath = workspaceFolders[0].uri.fsPath;
       const config = getCytoScnPyConfiguration(context);
 
@@ -432,15 +518,17 @@ export function activate(context: vscode.ExtensionContext) {
             workspaceCacheTimestamp = Date.now();
 
             const duration = (Date.now() - startTime) / 1000;
-            const fileCount = new Set<string>([
-              ...workspaceCache.keys(),
-              ...(workspaceParseErrorsCache?.keys() ?? []),
-            ]).size;
-            console.log(
-              `[CytoScnPy] Workspace analysis completed in ${duration.toFixed(
-                2,
-              )}s, found findings in ${fileCount} files`,
-            );
+            if (isDevBuild) {
+              const fileCount = new Set<string>([
+                ...workspaceCache.keys(),
+                ...(workspaceParseErrorsCache?.keys() ?? []),
+              ]).size;
+              cytoscnpyOutputChannel.appendLine(
+                `[CytoScnPy] Workspace analysis completed in ${duration.toFixed(
+                  2,
+                )}s, findings in ${fileCount} files`,
+              );
+            }
 
             progress.report({ message: `Updating diagnostics...` });
 
@@ -461,73 +549,10 @@ export function activate(context: vscode.ExtensionContext) {
               const findings = workspaceCache.get(filePath) || [];
               const parseErrors =
                 workspaceParseErrorsCache?.get(filePath) || [];
-              // Create diagnostics with simplified info (no document access for closed files)
-              const findingDiagnostics = findings.map((finding) => {
-                const lineIndex = Math.max(0, finding.line_number - 1);
-                const startCol =
-                  finding.col && finding.col > 0 ? finding.col : 0;
-                const range = new vscode.Range(
-                  new vscode.Position(lineIndex, startCol),
-                  new vscode.Position(lineIndex, 100), // Approximate end
-                );
-
-                let severity: vscode.DiagnosticSeverity;
-                switch (finding.severity.toUpperCase()) {
-                  case "CRITICAL":
-                  case "ERROR":
-                    severity = vscode.DiagnosticSeverity.Error;
-                    break;
-                  case "HIGH":
-                  case "WARNING":
-                    severity = vscode.DiagnosticSeverity.Warning;
-                    break;
-                  case "MEDIUM":
-                  case "INFO":
-                    severity = vscode.DiagnosticSeverity.Warning;
-                    break;
-                  default:
-                    severity = vscode.DiagnosticSeverity.Warning;
-                }
-
-                const diagnostic = new vscode.Diagnostic(
-                  range,
-                  `${finding.message} [${finding.rule_id}]`,
-                  severity,
-                );
-                diagnostic.source = `CytoScnPy`;
-                diagnostic.code = finding.rule_id;
-
-                const unusedRules = [
-                  "unused-function",
-                  "unused-method",
-                  "unused-class",
-                  "unused-import",
-                  "unused-variable",
-                  "unused-parameter",
-                ];
-                if (unusedRules.includes(finding.rule_id)) {
-                  diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
-                }
-
-                return diagnostic;
-              });
-              const parseDiagnostics = parseErrors.map((parseError) => {
-                const lineIndex = Math.max(0, parseError.line - 1);
-                const range = new vscode.Range(
-                  new vscode.Position(lineIndex, 0),
-                  new vscode.Position(lineIndex, 100),
-                );
-                const diagnostic = new vscode.Diagnostic(
-                  range,
-                  `Parse error: ${parseError.message}`,
-                  vscode.DiagnosticSeverity.Error,
-                );
-                diagnostic.source = "CytoScnPy [Parse]";
-                diagnostic.code = "parse-error";
-                return diagnostic;
-              });
-              const diagnostics = [...findingDiagnostics, ...parseDiagnostics];
-
+              const diagnostics = [
+                ...findings.map(buildClosedFileDiagnosticFromFinding),
+                ...parseErrors.map(buildClosedFileDiagnosticFromParseError),
+              ];
               cytoscnpyDiagnostics.set(uri, diagnostics);
             }
 
@@ -550,10 +575,13 @@ export function activate(context: vscode.ExtensionContext) {
               }
             }
 
-            // Show completion message in status bar
-            vscode.window.setStatusBarMessage(
-              `$(check) CytoScnPy: Analyzed in ${duration.toFixed(1)}s`,
-              5000,
+            const findingsCount = Array.from(workspaceCache.values()).reduce(
+              (sum, list) => sum + list.length,
+              0,
+            );
+            setStatus(
+              "idle",
+              `${findingsCount} finding${findingsCount === 1 ? "" : "s"} (${duration.toFixed(1)}s)`,
             );
           } catch (error: any) {
             console.error(
@@ -562,6 +590,7 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage(
               `CytoScnPy analysis failed: ${error.message}`,
             );
+            setStatus("error", "analysis failed");
             workspaceCache = null;
             workspaceParseErrorsCache = null;
           } finally {
@@ -571,12 +600,17 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }
 
-    // Function to invalidate workspace cache
+    // Function to invalidate workspace cache.
+    // Also clears the surfaced diagnostic collection so stale findings do not
+    // linger in the Problems panel between a config change and the next analysis
+    // completing (the closed-file workspace branch keeps diagnostics by default).
     function invalidateWorkspaceCache() {
       workspaceCache = null;
       workspaceParseErrorsCache = null;
       workspaceCacheTimestamp = 0;
       fileCache.clear();
+      documentHashCache.clear();
+      cytoscnpyDiagnostics.clear();
     }
 
     // Function to run incremental analysis on a single file and merge into workspace cache
@@ -584,6 +618,7 @@ export function activate(context: vscode.ExtensionContext) {
     async function runIncrementalAnalysis(document: vscode.TextDocument) {
       const filePath = document.uri.fsPath;
       const config = getCytoScnPyConfiguration(context);
+      setStatus("running", `scanning ${path.basename(filePath)}`);
 
       try {
         // Run single-file analysis
@@ -630,15 +665,23 @@ export function activate(context: vscode.ExtensionContext) {
           applyGutterDecorations(vscode.window.activeTextEditor, diagnostics);
         }
 
-        console.log(
-          `[CytoScnPy] Incremental analysis completed for ${path.basename(
-            filePath,
-          )}`,
+        setStatus(
+          "idle",
+          `${diagnostics.length} finding${diagnostics.length === 1 ? "" : "s"}`,
         );
+
+        if (isDevBuild) {
+          cytoscnpyOutputChannel.appendLine(
+            `[CytoScnPy] Incremental analysis completed for ${path.basename(
+              filePath,
+            )}`,
+          );
+        }
       } catch (error: any) {
         console.error(
           `[CytoScnPy] Incremental analysis failed for ${filePath}: ${error.message}`,
         );
+        setStatus("error", "incremental failed");
         // On failure, fall back to full workspace analysis
         if (!isWorkspaceAnalysisRunning) {
           await runFullWorkspaceAnalysis();
@@ -743,37 +786,28 @@ export function activate(context: vscode.ExtensionContext) {
       refreshDiagnostics(vscode.window.activeTextEditor.document);
     }
 
-    // Periodic workspace re-scan
-    // Ensures cross-file dependencies are eventually caught even if only incremental scans ran
+    // Periodic workspace re-scan: catches cross-file dependencies even if only
+    // incremental scans ran. Skip the tick entirely when no Python files are open
+    // and when there have been no changes since the last full analysis — both
+    // gates apply in debug builds too so dev sessions are not flooded.
     let lastFileChangeTime = Date.now();
-
-    // Use 15 seconds for testing/debugging (Development mode), 5 minutes for production
     const isDebug = context.extensionMode === vscode.ExtensionMode.Development;
     const PERIODIC_SCAN_INTERVAL_MS = isDebug ? 15 * 1000 : 5 * 60 * 1000;
 
-    console.log(
-      `[CytoScnPy] Periodic scan interval set to ${PERIODIC_SCAN_INTERVAL_MS}ms (Debug: ${isDebug})`,
-    );
+    function hasOpenPythonDocument(): boolean {
+      return vscode.workspace.textDocuments.some(
+        (d) => d.languageId === "python",
+      );
+    }
 
     const periodicScanInterval = setInterval(async () => {
-      console.log(
-        `[CytoScnPy] Periodic scan timer tick. Debug: ${isDebug}, Last Change: ${lastFileChangeTime}, Last Scan: ${workspaceCacheTimestamp}`,
-      );
-
-      // In Debug mode: ALWAYS run (to verify timer works)
-      // In Production mode: ONLY run if changes occurred since last full workspace analysis
-      if (isDebug || lastFileChangeTime > workspaceCacheTimestamp) {
-        console.log(
-          "[CytoScnPy] Triggering periodic workspace re-scan (Reason: " +
-            (isDebug ? "Debug Force" : "Changes Detected") +
-            ")...",
-        );
-        await runFullWorkspaceAnalysis();
-      } else {
-        console.log(
-          "[CytoScnPy] Skipping periodic re-scan (No changes detected).",
-        );
+      if (!hasOpenPythonDocument()) {
+        return;
       }
+      if (lastFileChangeTime <= workspaceCacheTimestamp) {
+        return;
+      }
+      await runFullWorkspaceAnalysis();
     }, PERIODIC_SCAN_INTERVAL_MS);
     context.subscriptions.push({
       dispose: () => clearInterval(periodicScanInterval),
@@ -856,6 +890,7 @@ export function activate(context: vscode.ExtensionContext) {
           cytoscnpyDiagnostics.delete(document.uri);
         }
         fileCache.delete(getCacheKey(document.uri.fsPath)); // Clear cache entry
+        documentHashCache.delete(document.uri.toString());
       }),
     );
 
@@ -1097,6 +1132,13 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
     context: vscode.CodeActionContext,
     token: vscode.CancellationToken,
   ): vscode.CodeAction[] {
+    // Honour the cancellation token: VS Code routinely cancels stale invocations
+    // when the user keeps typing. Doing the SHA-256 + diagnostic walk anyway is
+    // wasted work and can starve the next valid request.
+    if (token.isCancellationRequested) {
+      return [];
+    }
+
     const actions: vscode.CodeAction[] = [];
 
     // Collect all fixable findings for "Fix All" action
@@ -1109,7 +1151,10 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       diagnostic: vscode.Diagnostic;
     }[] = [];
 
-    const currentHash = computeHash(document.getText());
+    // Reuse memoised SHA-256 keyed on `document.version`. Recomputing the hash
+    // over the full document on every lightbulb invocation showed up as a
+    // measurable hotspot on large files.
+    const currentHash = hashForDocument(document);
     const cacheKey = getCacheKey(document.uri.fsPath);
     const cachedHistory = fileCache.get(cacheKey) || [];
     const cachedEntry = cachedHistory.find((e) => e.hash === currentHash);
@@ -1162,40 +1207,46 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       return undefined;
     };
 
-    const fileDiagnostics = vscode.languages.getDiagnostics(document.uri);
-    for (const diagnostic of fileDiagnostics) {
-      if (!diagnostic.source?.startsWith("CytoScnPy")) {
-        continue;
-      }
-
+    // Resolve file diagnostics for file-wide "Fix All" actions. Context
+    // diagnostics are resolved separately because VS Code may pass equivalent
+    // diagnostic objects that are not identical to the global collection.
+    type ResolvedDiag = {
+      diagnostic: vscode.Diagnostic;
+      ruleId: string | undefined;
+      finding: CytoScnPyFinding | undefined;
+    };
+    const isCytoScnPyDiagnostic = (diagnostic: vscode.Diagnostic): boolean =>
+      diagnostic.source?.startsWith("CytoScnPy") ?? false;
+    const resolveDiagnostic = (diagnostic: vscode.Diagnostic): ResolvedDiag => {
       const ruleId = getRuleId(diagnostic);
       const finding = findFindingForDiagnostic(diagnostic, ruleId);
+      return { diagnostic, ruleId, finding };
+    };
+    const fileDiagnostics = vscode.languages.getDiagnostics(document.uri);
+    for (const diagnostic of fileDiagnostics) {
+      if (!isCytoScnPyDiagnostic(diagnostic)) {
+        continue;
+      }
+      const resolvedDiagnostic = resolveDiagnostic(diagnostic);
+      const { ruleId, finding } = resolvedDiagnostic;
 
-      if (finding && finding.fix && ruleId) {
-        const labels = UNUSED_RULE_LABELS[ruleId];
-        if (labels) {
-          fixableUnused.push({ finding, diagnostic });
-          if (!fixableByRule.has(ruleId)) {
-            fixableByRule.set(ruleId, []);
-          }
-          fixableByRule.get(ruleId)!.push({ finding, diagnostic });
+      if (finding && finding.fix && ruleId && UNUSED_RULE_LABELS[ruleId]) {
+        fixableUnused.push({ finding, diagnostic });
+        if (!fixableByRule.has(ruleId)) {
+          fixableByRule.set(ruleId, []);
         }
+        fixableByRule.get(ruleId)!.push({ finding, diagnostic });
       }
     }
 
     for (const diagnostic of context.diagnostics) {
-      // Check if it's a CytoScnPy diagnostic (source starts with "CytoScnPy")
-      if (!diagnostic.source?.startsWith("CytoScnPy")) {
+      if (!isCytoScnPyDiagnostic(diagnostic)) {
         continue;
       }
-
-      // 1. Try to find precise "Remove" or "Fix" from cache (if available)
-      const ruleId = getRuleId(diagnostic);
-      const finding = findFindingForDiagnostic(diagnostic, ruleId);
+      const { ruleId, finding } = resolveDiagnostic(diagnostic);
 
       if (finding && finding.fix && ruleId) {
         const labels = UNUSED_RULE_LABELS[ruleId];
-
         if (labels) {
           // Extract symbol name from diagnostic message (e.g., "'ceil' is imported but never used")
           // Also try backticks for messages like "`name` is defined but never used"
@@ -1203,7 +1254,6 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
             diagnostic.message.match(/'([^']+)'/) ||
             diagnostic.message.match(/`([^`]+)`/);
 
-          // Use specific symbol name if found, otherwise use generic fallback
           const actionTitle = symbolMatch
             ? `Remove unused ${labels.singular} '${symbolMatch[1]}'`
             : `Remove unused ${labels.singular}`;
@@ -1229,7 +1279,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         }
       }
 
-      // 2. Add "Suppress" action for ALL CytoScnPy diagnostics
+      // "Suppress" action for every CytoScnPy diagnostic at the cursor.
       const suppressAction = this.createSuppressionAction(document, diagnostic);
       if (suppressAction) {
         actions.push(suppressAction);
@@ -1390,6 +1440,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
 export function deactivate() {
   cytoscnpyDiagnostics.dispose(); // Clean up diagnostics when extension is deactivated
   cytoscnpyOutputChannel.dispose(); // Clean up output channel
+  statusBarItem.dispose();
   errorDecorationType?.dispose(); // Clean up decoration types
   warningDecorationType?.dispose();
   infoDecorationType?.dispose();

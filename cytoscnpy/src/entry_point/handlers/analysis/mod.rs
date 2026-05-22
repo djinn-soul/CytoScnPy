@@ -6,7 +6,7 @@ mod run;
 
 use anyhow::Result;
 
-use context::build_analysis_context;
+use context::{build_analysis_context, dependency_scan_requested};
 use fix::run_fix_if_requested;
 use gates::apply_gates;
 use report::report_results;
@@ -49,8 +49,8 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         writer,
     )?;
 
-    // Run dependency analysis (opt-in via --deps flag or config deps = true)
-    let run_deps = cli_var.scan.deps || config.cytoscnpy.deps.enabled.unwrap_or(false);
+    // Run dependency analysis when requested directly or needed by dependency fail gates.
+    let run_deps = dependency_scan_requested(cli_var, config);
     if run_deps {
         let deps_options = crate::deps::DepsOptions {
             roots: effective_paths,

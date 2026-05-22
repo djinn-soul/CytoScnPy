@@ -35,6 +35,10 @@ pub struct CytoScnPyConfig {
     pub danger: Option<bool>,
     /// Whether to scan for code quality issues.
     pub quality: Option<bool>,
+    /// Exit with code 1 if any secret findings are reported.
+    pub fail_on_secrets: Option<bool>,
+    /// Exit with code 1 if any danger or taint findings are reported.
+    pub fail_on_danger: Option<bool>,
     /// Configuration for danger rules and taint analysis.
     #[serde(default)]
     pub danger_config: DangerConfig,
@@ -94,6 +98,10 @@ pub struct DepsConfig {
     pub enabled: Option<bool>,
     pub ignore_unused: Option<Vec<String>>,
     pub ignore_missing: Option<Vec<String>>,
+    pub fail_on_unused: Option<bool>,
+    pub fail_on_missing: Option<bool>,
+    pub fail_on_extra_installed: Option<bool>,
+    pub fail_on_orphans: Option<bool>,
     pub package_mapping: Option<rustc_hash::FxHashMap<String, Vec<String>>>,
 }
 

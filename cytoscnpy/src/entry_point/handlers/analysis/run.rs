@@ -36,7 +36,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         if context.include_tests {
             config_summary.push("Tests");
         }
-        if cli_var.scan.deps || config.cytoscnpy.deps.enabled.unwrap_or(false) {
+        if super::context::dependency_scan_requested(cli_var, config) {
             config_summary.push("Deps");
         }
 

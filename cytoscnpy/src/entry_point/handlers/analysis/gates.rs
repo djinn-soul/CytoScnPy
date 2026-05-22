@@ -7,6 +7,10 @@ use super::run::AnalysisRun;
 
 static MCCABE_RE: OnceLock<Option<Regex>> = OnceLock::new();
 
+fn resolve_gate(cli_flag: bool, config_flag: Option<bool>) -> bool {
+    cli_flag || config_flag.unwrap_or(false)
+}
+
 fn extract_mccabe_value(message: &str) -> Option<usize> {
     MCCABE_RE
         .get_or_init(|| Regex::new(r"McCabe\s*=\s*(\d+)").ok())
@@ -132,6 +136,63 @@ pub(crate) fn apply_gates<W: std::io::Write>(
             eprintln!(
                 "\n[GATE] Quality issues: {} found - FAILED",
                 result.quality.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_secrets,
+        config.cytoscnpy.fail_on_secrets,
+    ) && !result.secrets.is_empty()
+    {
+        if !cli_var.output.json {
+            eprintln!(
+                "\n[GATE] Secret findings: {} found - FAILED",
+                result.secrets.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_danger,
+        config.cytoscnpy.fail_on_danger,
+    ) && (!result.danger.is_empty() || !result.taint_findings.is_empty())
+    {
+        if !cli_var.output.json {
+            eprintln!(
+                "\n[GATE] Security findings: {} danger, {} taint - FAILED",
+                result.danger.len(),
+                result.taint_findings.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_missing_deps,
+        config.cytoscnpy.deps.fail_on_missing,
+    ) && !result.missing_dependencies.is_empty()
+    {
+        if !cli_var.output.json {
+            eprintln!(
+                "\n[GATE] Missing dependencies: {} found - FAILED",
+                result.missing_dependencies.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_unused_deps,
+        config.cytoscnpy.deps.fail_on_unused,
+    ) && !result.unused_dependencies.is_empty()
+    {
+        if !cli_var.output.json {
+            eprintln!(
+                "\n[GATE] Unused dependencies: {} found - FAILED",
+                result.unused_dependencies.len()
             );
         }
         exit_code = 1;

@@ -19,7 +19,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable, Mapping, TypeVar, cast
 
 import pytest
 
@@ -27,15 +27,26 @@ if TYPE_CHECKING:
     from typing import Literal
 
     from _pytest._code.code import ExceptionInfo, TerminalRepr
-    from _pytest.config import Config, Parser
+    from _pytest.config import Config
+    from _pytest.config.argparsing import Parser
     from _pytest.main import Session
+    from typing_extensions import override
 
     _TracebackStyle = Literal["long", "short", "line", "no", "native", "value", "auto"]
+else:
+    _T = TypeVar("_T")
+
+    def override(method: _T) -> _T:
+        """Return method unchanged on Python versions without runtime override."""
+        return method
+
 
 SCAN_PATH_KEY = pytest.StashKey[Path]()
 ERROR_KEY = pytest.StashKey[str | None]()
 FORCE_FAIL_KEY = pytest.StashKey[bool]()
 BY_FILE_KEY = pytest.StashKey[dict[str, list[str]]]()
+
+JsonObject = Mapping[str, object]
 
 # ---------------------------------------------------------------------------
 # Registration hooks
@@ -65,9 +76,9 @@ def pytest_addoption(parser: Parser) -> None:
 
 
 def _is_enabled(config: Config) -> bool:
-    return config.getoption("--cytoscnpy", default=False) or bool(
-        config.getini("cytoscnpy")
-    )
+    option_value = cast(object, config.getoption("--cytoscnpy", default=False))
+    ini_value = cast(object, config.getini("cytoscnpy"))
+    return option_value is True or ini_value is True
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +91,8 @@ def pytest_sessionstart(session: Session) -> None:
     if not _is_enabled(session.config):
         return
 
-    ini_path = session.config.getini("cytoscnpy_path") or "."
+    ini_path_value = cast(object, session.config.getini("cytoscnpy_path"))
+    ini_path = ini_path_value if isinstance(ini_path_value, str) else "."
     scan_path = session.config.rootpath / ini_path
 
     result = subprocess.run(  # noqa: S603
@@ -97,7 +109,7 @@ def pytest_sessionstart(session: Session) -> None:
     session.stash[BY_FILE_KEY] = {}
 
     try:
-        data = json.loads(result.stdout)
+        data = cast(object, json.loads(result.stdout))
     except json.JSONDecodeError:
         session.stash[ERROR_KEY] = (
             result.stderr.strip()
@@ -107,7 +119,12 @@ def pytest_sessionstart(session: Session) -> None:
         session.stash[FORCE_FAIL_KEY] = result.returncode != 0
         return
 
-    session.stash[BY_FILE_KEY] = _group_by_file(data)
+    if not isinstance(data, dict):
+        session.stash[ERROR_KEY] = "cytoscnpy produced non-object JSON"
+        session.stash[FORCE_FAIL_KEY] = True
+        return
+
+    session.stash[BY_FILE_KEY] = _group_by_file(cast(JsonObject, data))
     # A non-zero exit with valid JSON still means the analyzer failed (e.g.
     # invalid custom secret regex emits findings on `.cytoscnpy.toml` and
     # exits 1). Those findings are attached to non-`*.py` files and would
@@ -139,7 +156,11 @@ def pytest_collection_modifyitems(
         return
 
     for file_path in _iter_python_files(scan_path):
-        collector = CytoScnPyFile.from_parent(parent=session, path=file_path)
+        from_parent = cast(
+            Callable[..., CytoScnPyFile],
+            CytoScnPyFile.from_parent,
+        )
+        collector = from_parent(parent=session, path=file_path)
         items.extend(collector.collect())
 
 
@@ -182,7 +203,21 @@ def _iter_python_files(scan_path: Path) -> list[Path]:
     )
 
 
-def _group_by_file(data: dict) -> dict[str, list[str]]:
+def _iter_objects(value: object) -> Iterable[JsonObject]:
+    if not isinstance(value, list):
+        return
+    items = cast(list[object], value)
+    for item in items:
+        if isinstance(item, dict):
+            yield cast(JsonObject, item)
+
+
+def _string_field(item: JsonObject, key: str, default: str = "?") -> str:
+    value = item.get(key, default)
+    return value if isinstance(value, str) else str(value)
+
+
+def _group_by_file(data: JsonObject) -> dict[str, list[str]]:
     """Normalize all finding types into {file_path_str: [message, ...]}."""
     by_file: dict[str, list[str]] = {}
 
@@ -195,35 +230,35 @@ def _group_by_file(data: dict) -> dict[str, list[str]]:
         ("unused_parameters", "unused parameter"),
     ]
     for key, label in dead_keys:
-        for item in data.get(key, []):
-            file = str(item.get("file", ""))
-            name = item.get("name", "?")
-            line = item.get("line", "?")
+        for item in _iter_objects(data.get(key, [])):
+            file = _string_field(item, "file", "")
+            name = _string_field(item, "name")
+            line = _string_field(item, "line")
             by_file.setdefault(file, []).append(f"  {line}: {label}: {name}")
 
     for key in ("danger", "quality"):
-        for item in data.get(key, []):
-            file = str(item.get("file", ""))
-            msg = item.get("message", "?")
-            rule = item.get("rule_id", key)
-            line = item.get("line", "?")
+        for item in _iter_objects(data.get(key, [])):
+            file = _string_field(item, "file", "")
+            msg = _string_field(item, "message")
+            rule = _string_field(item, "rule_id", key)
+            line = _string_field(item, "line")
             by_file.setdefault(file, []).append(f"  {line}: {rule}: {msg}")
 
-    for item in data.get("secrets", []):
-        file = str(item.get("file", ""))
-        msg = item.get("message", "?")
-        line = item.get("line", "?")
+    for item in _iter_objects(data.get("secrets", [])):
+        file = _string_field(item, "file", "")
+        msg = _string_field(item, "message")
+        line = _string_field(item, "line")
         by_file.setdefault(file, []).append(f"  {line}: secret: {msg}")
 
-    for item in data.get("taint_findings", []):
-        file = str(item.get("file", ""))
-        source = item.get("source", "?")
-        line = item.get("source_line", "?")
+    for item in _iter_objects(data.get("taint_findings", [])):
+        file = _string_field(item, "file", "")
+        source = _string_field(item, "source")
+        line = _string_field(item, "source_line")
         by_file.setdefault(file, []).append(f"  {line}: taint: {source}")
 
-    for item in data.get("parse_errors", []):
-        file = str(item.get("file", ""))
-        error = item.get("error", "parse error")
+    for item in _iter_objects(data.get("parse_errors", [])):
+        file = _string_field(item, "file", "")
+        error = _string_field(item, "error", "parse error")
         by_file.setdefault(file, []).append(f"  parse error: {error}")
 
     return by_file
@@ -244,8 +279,10 @@ class CytoScnPyError(Exception):
 
     def __init__(self, findings: list[str]) -> None:
         """Store the rendered findings for pytest failure output."""
+        super().__init__("\n".join(findings))
         self.findings = findings
 
+    @override
     def __str__(self) -> str:
         """Render all findings as a newline-delimited failure body."""
         return "\n".join(self.findings)
@@ -254,14 +291,20 @@ class CytoScnPyError(Exception):
 class CytoScnPyFile(pytest.File):
     """One collector per Python file — yields a single CytoScnPyItem."""
 
+    @override
     def collect(self) -> Iterable[pytest.Item]:
         """Yield the synthetic CytoScnPy item for this file."""
-        yield CytoScnPyItem.from_parent(parent=self, name="cytoscnpy")
+        from_parent = cast(
+            Callable[..., CytoScnPyItem],
+            CytoScnPyItem.from_parent,
+        )
+        yield from_parent(parent=self, name="cytoscnpy")
 
 
 class CytoScnPyItem(pytest.Item):
     """Test item representing the cytoscnpy result for one file."""
 
+    @override
     def setup(self) -> None:
         """Raise during setup when CytoScnPy itself failed.
 
@@ -273,9 +316,11 @@ class CytoScnPyItem(pytest.Item):
         if error:
             raise CytoScnPyError([f"cytoscnpy error: {error}"])
 
+    @override
     def runtest(self) -> None:
         """Fail when CytoScnPy reported issues for this file."""
-        by_file = self.session.stash.get(BY_FILE_KEY, {})
+        empty_findings: dict[str, list[str]] = {}
+        by_file = self.session.stash.get(BY_FILE_KEY, empty_findings)
         current_path = str(self.fspath)
         resolved_current = _resolve_file(Path(current_path))
 
@@ -293,6 +338,7 @@ class CytoScnPyItem(pytest.Item):
         if findings:
             raise CytoScnPyError(findings)
 
+    @override
     def repr_failure(
         self,
         excinfo: ExceptionInfo[BaseException],
@@ -303,6 +349,7 @@ class CytoScnPyItem(pytest.Item):
             return str(excinfo.value)
         return super().repr_failure(excinfo, style)
 
+    @override
     def reportinfo(self) -> tuple[Path, None, str]:
         """Describe this synthetic item in pytest reports."""
         return self.path, None, f"[cytoscnpy] {self.path}"

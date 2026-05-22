@@ -1,16 +1,14 @@
 import sys
 
-from cytoscnpy import (
-    run,  # type: ignore[reportAttributeAccessIssue, reportUnknownVariableType]
-)
+from . import run
 
 
 def main() -> None:
     """Main entry point for CLI."""
     args = sys.argv[1:]
     try:
-        rc: int = run(args)  # type: ignore[reportUnknownVariableType, reportUnknownArgumentType]
-        raise SystemExit(int(rc))  # type: ignore[reportUnknownArgumentType]
+        rc = run(args)
+        raise SystemExit(int(rc))
     except KeyboardInterrupt:
         raise SystemExit(130) from None
     except Exception as e:

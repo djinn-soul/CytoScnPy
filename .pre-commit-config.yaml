@@ -65,12 +65,11 @@ repos:
   - repo: local
     hooks:
       - id: basedpyright
-        name: basedpyright strict type-check (push)
+        name: basedpyright strict type-check
         entry: uv run basedpyright
         language: system
         types: [python]
         pass_filenames: false
-        stages: [push]
 
       - id: pip-audit
         name: pip-audit dependency scan

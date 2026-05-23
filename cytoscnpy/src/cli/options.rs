@@ -79,6 +79,22 @@ pub struct OutputOptions {
     #[arg(long)]
     pub fail_on_quality: bool,
 
+    /// Exit with code 1 if any secret findings are found.
+    #[arg(long)]
+    pub fail_on_secrets: bool,
+
+    /// Exit with code 1 if any danger or taint findings are found.
+    #[arg(long)]
+    pub fail_on_danger: bool,
+
+    /// Exit with code 1 if any missing dependency findings are found.
+    #[arg(long)]
+    pub fail_on_missing_deps: bool,
+
+    /// Exit with code 1 if any unused dependency findings are found.
+    #[arg(long)]
+    pub fail_on_unused_deps: bool,
+
     /// Generate HTML report.
     #[arg(long)]
     #[cfg(feature = "html_report")]

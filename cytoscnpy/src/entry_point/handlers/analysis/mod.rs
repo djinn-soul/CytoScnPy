@@ -6,7 +6,7 @@ mod run;
 
 use anyhow::Result;
 
-use context::{build_analysis_context, dependency_scan_requested};
+use context::build_analysis_context;
 use fix::run_fix_if_requested;
 use gates::apply_gates;
 use report::report_results;
@@ -50,8 +50,7 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
     )?;
 
     // Run dependency analysis when requested directly or needed by dependency fail gates.
-    let run_deps = dependency_scan_requested(cli_var, config);
-    if run_deps {
+    if context.deps {
         let deps_options = crate::deps::DepsOptions {
             roots: effective_paths,
             exclude: &context.exclude_folders,

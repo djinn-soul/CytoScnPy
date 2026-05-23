@@ -36,7 +36,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         if context.include_tests {
             config_summary.push("Tests");
         }
-        if super::context::dependency_scan_requested(cli_var, config) {
+        if context.deps {
             config_summary.push("Deps");
         }
 

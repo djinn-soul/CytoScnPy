@@ -94,5 +94,9 @@ pub(crate) fn handle_deps<W: std::io::Write>(
         || (fail_on_extra_installed && !result.extra_installed.is_empty())
         || (fail_on_orphans && !result.orphan_installed.is_empty());
 
+    if should_fail && !args.flags.json {
+        eprintln!("\n[GATE] Dependency analysis failed due to gated findings.");
+    }
+
     Ok(i32::from(should_fail))
 }

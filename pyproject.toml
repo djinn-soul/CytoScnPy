@@ -258,6 +258,7 @@ docs = [
 
 # ============================================================
 [tool.basedpyright]
+include = ["python/cytoscnpy"]
 typeCheckingMode = "strict"
 reportMissingImports = true
 reportMissingTypeStubs = true  # Stricter: require type stubs
@@ -352,6 +353,7 @@ exclude = [
      "benchmark/examples",
     "benchmark/test_corpus",
     "benchmark/tests",
+    "test_repo",
     "python/tests",
     "cytoscnpy-mcp/scripts",
     "security_example",

@@ -1,0 +1,3 @@
+from collections.abc import Sequence
+
+def run(args: Sequence[str]) -> int: ...

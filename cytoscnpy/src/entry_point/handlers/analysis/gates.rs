@@ -7,6 +7,10 @@ use super::run::AnalysisRun;
 
 static MCCABE_RE: OnceLock<Option<Regex>> = OnceLock::new();
 
+fn resolve_gate(cli_flag: bool, config_flag: Option<bool>) -> bool {
+    cli_flag || config_flag.unwrap_or(false)
+}
+
 fn extract_mccabe_value(message: &str) -> Option<usize> {
     MCCABE_RE
         .get_or_init(|| Regex::new(r"McCabe\s*=\s*(\d+)").ok())
@@ -84,19 +88,19 @@ pub(crate) fn apply_gates<W: std::io::Write>(
 
         if let Some(&max_found) = complexity_violations.iter().max() {
             if max_found > threshold {
-                if !cli_var.output.json {
+                if !context.is_structured {
                     eprintln!(
                         "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - FAILED"
                     );
                 }
                 exit_code = 1;
-            } else if !cli_var.output.json {
+            } else if !context.is_structured {
                 writeln!(
                     writer,
                     "\n[GATE] Max complexity: {max_found} (threshold: {threshold}) - PASSED"
                 )?;
             }
-        } else if !cli_var.output.json && !result.quality.is_empty() {
+        } else if !context.is_structured && !result.quality.is_empty() {
             // No complexity violations found, all functions are below threshold
             writeln!(
                 writer,
@@ -111,13 +115,13 @@ pub(crate) fn apply_gates<W: std::io::Write>(
         let mi = result.analysis_summary.average_mi;
         if mi > 0.0 {
             if mi < threshold {
-                if !cli_var.output.json {
+                if !context.is_structured {
                     eprintln!(
                         "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - FAILED"
                     );
                 }
                 exit_code = 1;
-            } else if !cli_var.output.json {
+            } else if !context.is_structured {
                 writeln!(
                     writer,
                     "\n[GATE] Maintainability Index: {mi:.1} (threshold: {threshold:.1}) - PASSED"
@@ -128,10 +132,67 @@ pub(crate) fn apply_gates<W: std::io::Write>(
 
     // Quality gate check (--fail-on-quality)
     if cli_var.output.fail_on_quality && !result.quality.is_empty() {
-        if !cli_var.output.json {
+        if !context.is_structured {
             eprintln!(
                 "\n[GATE] Quality issues: {} found - FAILED",
                 result.quality.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_secrets,
+        config.cytoscnpy.fail_on_secrets,
+    ) && !result.secrets.is_empty()
+    {
+        if !context.is_structured {
+            eprintln!(
+                "\n[GATE] Secret findings: {} found - FAILED",
+                result.secrets.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_danger,
+        config.cytoscnpy.fail_on_danger,
+    ) && (!result.danger.is_empty() || !result.taint_findings.is_empty())
+    {
+        if !context.is_structured {
+            eprintln!(
+                "\n[GATE] Security findings: {} danger, {} taint - FAILED",
+                result.danger.len(),
+                result.taint_findings.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_missing_deps,
+        config.cytoscnpy.deps.fail_on_missing,
+    ) && !result.missing_dependencies.is_empty()
+    {
+        if !context.is_structured {
+            eprintln!(
+                "\n[GATE] Missing dependencies: {} found - FAILED",
+                result.missing_dependencies.len()
+            );
+        }
+        exit_code = 1;
+    }
+
+    if resolve_gate(
+        cli_var.output.fail_on_unused_deps,
+        config.cytoscnpy.deps.fail_on_unused,
+    ) && !result.unused_dependencies.is_empty()
+    {
+        if !context.is_structured {
+            eprintln!(
+                "\n[GATE] Unused dependencies: {} found - FAILED",
+                result.unused_dependencies.len()
             );
         }
         exit_code = 1;

@@ -6,7 +6,10 @@ use serde_json::json;
 
 /// Executes the deps subcommand — v3 edition.
 /// Reports unused, missing, extra-installed, orphan, and removable-branch findings.
-pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) -> Result<()> {
+pub fn run_deps<W: std::io::Write>(
+    options: &DepsOptions<'_>,
+    writer: &mut W,
+) -> Result<crate::deps::DepsResult> {
     let result = analyze_dependencies(options);
 
     if options.json {
@@ -27,7 +30,7 @@ pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) ->
             })).collect::<Vec<_>>(),
         });
         writeln!(writer, "{}", serde_json::to_string_pretty(&out)?)?;
-        return Ok(());
+        return Ok(result);
     }
 
     // ── Unused declared ───────────────────────────────────────────────────────
@@ -161,5 +164,5 @@ pub fn run_deps<W: std::io::Write>(options: &DepsOptions<'_>, writer: &mut W) ->
         )?;
     }
 
-    Ok(())
+    Ok(result)
 }

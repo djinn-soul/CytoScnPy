@@ -235,3 +235,52 @@ def function():
         assert (
             "Average Complexity:" in combined or "Quality:" in combined
         ), "Expected complexity metrics when --max-complexity is used"
+
+
+class TestSecurityAndDependencyGates:
+    """Tests for explicit security and dependency failure gates."""
+
+    def test_fail_on_danger(self, tmp_path):
+        file_path = tmp_path / "danger.py"
+        file_path.write_text(
+            """
+import os
+
+def run_cmd(user_input):
+    os.system(user_input)
+"""
+        )
+        exit_code = run(["--fail-on-danger", "--json", str(tmp_path)])
+        assert exit_code == 1, "Expected failure when danger findings are gated"
+
+    def test_fail_on_secrets(self, tmp_path):
+        file_path = tmp_path / "secrets.py"
+        file_path.write_text('STRIPE_KEY = "sk_live_abcdefghijklmnopqrstuvwx"\n')
+        exit_code = run(["--fail-on-secrets", "--json", str(tmp_path)])
+        assert exit_code == 1, "Expected failure when secret findings are gated"
+
+    def test_fail_on_missing_deps(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text(
+            """
+[project]
+name = "dep-check"
+version = "0.1.0"
+dependencies = ["requests"]
+"""
+        )
+        (tmp_path / "main.py").write_text("import missing_dep\n")
+        exit_code = run(["--fail-on-missing-deps", "--json", str(tmp_path)])
+        assert exit_code == 1, "Expected failure when missing dependencies are gated"
+
+    def test_fail_on_unused_deps(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text(
+            """
+[project]
+name = "dep-check"
+version = "0.1.0"
+dependencies = ["unused-dep"]
+"""
+        )
+        (tmp_path / "main.py").write_text("print('hello')\n")
+        exit_code = run(["--fail-on-unused-deps", "--json", str(tmp_path)])
+        assert exit_code == 1, "Expected failure when unused dependencies are gated"

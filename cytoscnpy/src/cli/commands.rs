@@ -172,6 +172,22 @@ pub enum Commands {
         #[arg(long)]
         orphans: bool,
 
+        /// Exit with code 1 if unused dependencies are found.
+        #[arg(long)]
+        fail_on_unused: bool,
+
+        /// Exit with code 1 if missing dependencies are found.
+        #[arg(long)]
+        fail_on_missing: bool,
+
+        /// Exit with code 1 if extra installed packages are found.
+        #[arg(long)]
+        fail_on_extra_installed: bool,
+
+        /// Exit with code 1 if orphan packages are found.
+        #[arg(long)]
+        fail_on_orphans: bool,
+
         /// Show removal impact for a specific package (transitive deps that would also go).
         #[arg(long)]
         impact: Option<String>,

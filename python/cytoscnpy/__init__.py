@@ -1,3 +1,3 @@
-from .cytoscnpy import run  # type: ignore
+from .cytoscnpy import run
 
 __all__ = ["run"]

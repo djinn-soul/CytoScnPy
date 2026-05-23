@@ -154,6 +154,58 @@ dependencies = ["unused-dep"]
 }
 
 #[test]
+fn test_deps_fail_on_missing_flag() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["requests"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import missing_dep\n")?;
+
+    let (code, _output) = run_deps_command(vec![
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--fail-on-missing".to_owned(),
+    ]);
+
+    assert_eq!(code, 1);
+    Ok(())
+}
+
+#[test]
+fn test_deps_fail_on_unused_flag() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["unused-dep"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "print('hello')\n")?;
+
+    let (code, _output) = run_deps_command(vec![
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--fail-on-unused".to_owned(),
+    ]);
+
+    assert_eq!(code, 1);
+    Ok(())
+}
+
+#[test]
 fn test_deps_local_package() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();

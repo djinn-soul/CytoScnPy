@@ -316,7 +316,7 @@ _Tools to improve the workflow around CytoScnPy._
   - See `docs/pre-commit.md` for setup instructions.
 - [x] **CI/CD Integration Examples** ✅
   - Reference workflows for GitHub Actions provided in `.github/workflows/`.
-  - Supports `--fail-on-quality` and `--fail-threshold` for gatekeeping.
+  - Supports `--fail-on-quality`, security failure gates (`--fail-on-secrets`, `--fail-on-danger`), dependency failure gates, and `--fail-threshold` for gatekeeping.
 - [x] **uv Package Manager Integration** ✅
   - Full support for `uv`-managed environments.
   - Used in official lint/CI workflows.

@@ -161,6 +161,10 @@ cytoscnpy . --html --secrets --danger
 | `--max-complexity <N>` | Exit code 1 if any function complexity > N |
 | `--min-mi <N>`         | Exit code 1 if maintainability index < N   |
 | `--fail-on-quality`    | Exit code 1 if any quality issues found    |
+| `--fail-on-secrets`    | Exit code 1 if any secret findings found   |
+| `--fail-on-danger`     | Exit code 1 if danger or taint findings found |
+| `--fail-on-missing-deps` | Exit code 1 if missing dependencies found |
+| `--fail-on-unused-deps` | Exit code 1 if unused dependencies found  |
 | `--max-nesting <N>`    | Exit code 1 if any block nesting > N       |
 | `--max-args <N>`       | Exit code 1 if any function has > N args   |
 | `--max-lines <N>`      | Exit code 1 if any function has > N lines  |

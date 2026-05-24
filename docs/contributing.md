@@ -47,7 +47,10 @@ Thank you for your interest in contributing to CytoScnPy!
    ```bash
    cargo test
    uv run pytest python/tests
+   prek run --all-files
    ```
+
+   The full `prek` gate includes formatting/linting, Rust checks, `uv` lock/export hooks, strict `basedpyright`, and `pip-audit`.
 
 ## Development Workflow
 
@@ -57,6 +60,7 @@ Thank you for your interest in contributing to CytoScnPy!
 2. **Make Changes:**
    - Run `cargo fmt` to format.
    - Run `cargo clippy` to lint.
+   - Run `prek run --all-files` before opening a PR; it includes strict `basedpyright` and `pip-audit`.
 
 3. **Test:**
    - `cargo test` (Rust unit tests)

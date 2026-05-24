@@ -19,6 +19,10 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--verbose`, `-v`: Prints detailed logs during the analysis process, including which files are being scanned and any non-fatal issues encountered.
 - `--quiet`: Minimalist output. Only the final summary table (or JSON) is displayed, suppressing the per-file findings table.
 - `--fail-on-quality`: Causes the process to exit with code `1` if _any_ code quality issues (like high complexity or deep nesting) are detected.
+- `--fail-on-secrets`: Enables secret scanning if needed and exits with code `1` if any secret findings are detected.
+- `--fail-on-danger`: Enables dangerous-code/taint scanning if needed and exits with code `1` if any danger or taint findings are detected.
+- `--fail-on-missing-deps`: Enables dependency analysis if needed and exits with code `1` if any missing dependency findings are detected.
+- `--fail-on-unused-deps`: Enables dependency analysis if needed and exits with code `1` if any unused dependency findings are detected.
 - `--html`: Generates a self-contained, interactive HTML report. Note that this feature may require additional dependencies and automatically enables quality scanning.
 - `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, scan enable/disable comes only from CLI flags (VS Code settings), but project config is still loaded for advanced tuning (for example, custom secret patterns).
 
@@ -49,9 +53,9 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--make-whitelist`: Generates a Python whitelist from currently detected unused symbols.
 - `--whitelist <PATH>`: Loads one or more whitelist files to suppress matching dead-code findings.
 
-### Quality Thresholds (Gate Overrides)
+### CI/CD Failure Gates
 
-These flags allow you to set strict "gates" for your code. If any part of the codebase exceeds these numbers, CytoScnPy will exit with code `1`.
+These flags allow you to set strict gates for CI/CD. If any enabled gate fails, CytoScnPy exits with code `1`. Failure gates that depend on optional scans enable those scans automatically.
 
 - `--fail-threshold <N>`: Exit with 1 if the total percentage of unused code exceeds `N`.
 - `--max-complexity <N>`: Sets the maximum allowed Cyclomatic Complexity (standard is often `10`).
@@ -59,6 +63,11 @@ These flags allow you to set strict "gates" for your code. If any part of the co
 - `--max-nesting <N>`: Sets the maximum allowed indentation/nesting level (e.g., `3` or `4`).
 - `--max-args <N>`: Sets the maximum number of arguments a function can have.
 - `--max-lines <N>`: Sets the maximum number of lines a function can have.
+- `--fail-on-quality`: Exit with 1 if any quality issue is found.
+- `--fail-on-secrets`: Exit with 1 if any secret finding is found; implies `--secrets`.
+- `--fail-on-danger`: Exit with 1 if any danger or taint finding is found; implies `--danger`.
+- `--fail-on-missing-deps`: Exit with 1 if missing dependencies are found; implies `--deps`.
+- `--fail-on-unused-deps`: Exit with 1 if unused dependencies are found; implies `--deps`.
 
 ## Subcommands
 
@@ -174,6 +183,10 @@ cytoscnpy deps [OPTIONS] [PATHS]...
 - `--exclude <DIRS>`: Folders to exclude from import scanning.
 - `--extra-installed`: Also report packages installed in the venv but not declared.
 - `--orphans`: Report orphan packages — installed, undeclared, not imported, and not required by any other installed package.
+- `--fail-on-unused`: Exit with code `1` if unused dependencies are found.
+- `--fail-on-missing`: Exit with code `1` if missing dependencies are found.
+- `--fail-on-extra-installed`: Exit with code `1` if extra installed packages are found; also enables the extra-installed report.
+- `--fail-on-orphans`: Exit with code `1` if orphan packages are found; also enables the orphan report.
 - `--impact <PKG>`: Show which transitive packages would be removable if `<PKG>` were dropped (requires a lockfile).
 - `--venv <PATH>`: Override the venv path (default: auto-detect `.venv`).
 - `--lockfile <PATH>`: Override the lockfile path (default: auto-detect `uv.lock` / `poetry.lock`).
@@ -239,6 +252,8 @@ clone_similarity = 0.8     # Similarity threshold (0.0-1.0)
 
 # CI/CD
 fail_threshold = 5.0
+fail_on_secrets = true
+fail_on_danger = true
 
 # Inline whitelist (suppress specific dead-code symbols)
 [[cytoscnpy.whitelist]]
@@ -275,6 +290,10 @@ rule_id = "CSP-SCUSTOM-001" # Optional
 enabled = true                        # Run dep analysis by default (same as --deps)
 ignore_unused = ["celery", "redis"]   # Suppress specific unused-dep findings
 ignore_missing = ["numpy"]            # Suppress specific missing-dep findings
+fail_on_unused = true                 # Fail if unused dependencies are reported
+fail_on_missing = true                # Fail if missing dependencies are reported
+fail_on_extra_installed = false       # Fail on undeclared installed packages
+fail_on_orphans = false               # Fail on installed orphan packages
 
 # Custom package → import name mappings (for packages where the import name
 # differs from the package name and is not in the built-in mapping)
@@ -297,7 +316,7 @@ custom_sanitizers = ["mylib.clean"] # Functions that clear taint
 ## Exit Codes
 
 - `0`: Success, no issues found (or issues below threshold).
-- `1`: Issues found exceeding thresholds (quality, security, or fail_threshold).
+- `1`: Issues found exceeding configured gates (quality, security, dependency, or fail_threshold).
 - `2`: Runtime error or invalid arguments.
 
 ## See Also

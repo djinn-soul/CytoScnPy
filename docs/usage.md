@@ -88,6 +88,14 @@ cytoscnpy deps . --ignore-unused celery,redis
 cytoscnpy deps . --impact httpx   # show what transitive deps would go with httpx
 ```
 
+**CI gates** — fail a build on dependency findings. Main-scan gates enable dependency analysis automatically:
+
+```bash
+cytoscnpy . --fail-on-missing-deps --fail-on-unused-deps
+cytoscnpy deps . --fail-on-missing --fail-on-unused
+cytoscnpy deps . --fail-on-extra-installed --fail-on-orphans
+```
+
 **What it reports:**
 
 | Finding | Meaning |
@@ -97,9 +105,16 @@ cytoscnpy deps . --impact httpx   # show what transitive deps would go with http
 | Extra installed | In the venv but not declared (transitive deps) |
 | Orphan | Installed, undeclared, not imported, not needed by any other package |
 
-**Package name aliasing** is handled automatically for common packages (e.g. `Pillow` → `PIL`, `scikit-learn` → `sklearn`, `python-dateutil` → `dateutil`). For custom internal packages, add a mapping in `.cytoscnpy.toml`:
+**Package name aliasing** is handled automatically for common packages (e.g. `Pillow` → `PIL`, `scikit-learn` → `sklearn`, `python-dateutil` → `dateutil`). For custom internal packages, add a mapping in `.cytoscnpy.toml`. Dependency gates can also live in config:
 
 ```toml
+[cytoscnpy.deps]
+enabled = true
+fail_on_unused = true
+fail_on_missing = true
+fail_on_extra_installed = false
+fail_on_orphans = false
+
 [cytoscnpy.deps.package_mapping]
 "my-internal-lib" = ["mylib", "mylib_ext"]
 ```
@@ -268,6 +283,8 @@ clone_similarity = 0.8     # Similarity threshold (0.0-1.0)
 fail_threshold = 5.0   # >5% unused code
 max_complexity = 15    # Function CC > 15
 min_mi = 40.0          # MI < 40
+fail_on_secrets = true # Any secret finding
+fail_on_danger = true  # Any danger or taint finding
 ```
 
 ### Option 2: `pyproject.toml`
@@ -293,6 +310,8 @@ clone_similarity = 0.8
 fail_threshold = 5.0
 max_complexity = 15
 min_mi = 40.0
+fail_on_secrets = true
+fail_on_danger = true
 ```
 
 ### Advanced Config (Security)
@@ -373,9 +392,9 @@ cytoscnpy [PATHS]... [OPTIONS]
 | `--include-tests`        | Include test files in analysis. |
 | `--include-ipynb`        | Include Jupyter notebooks.      |
 
-### CI/CD Quality Gates
+### CI/CD Failure Gates
 
-CytoScnPy can enforce quality standards by exiting with code `1`:
+CytoScnPy can enforce quality, security, and dependency standards by exiting with code `1`. Security and dependency failure gates enable their required scans automatically.
 
 | Flag                   | Description                          |
 | ---------------------- | ------------------------------------ |
@@ -383,6 +402,10 @@ CytoScnPy can enforce quality standards by exiting with code `1`:
 | `--max-complexity <N>` | Fail if any function complexity > N. |
 | `--min-mi <N>`         | Fail if Maintainability Index < N.   |
 | `--fail-on-quality`    | Fail on any quality issue.           |
+| `--fail-on-secrets`    | Fail on any secret finding.          |
+| `--fail-on-danger`     | Fail on any danger or taint finding. |
+| `--fail-on-missing-deps` | Fail on any missing dependency.     |
+| `--fail-on-unused-deps` | Fail on any unused dependency.      |
 
 ### Subcommands
 
@@ -477,6 +500,10 @@ Analyzes unused and missing dependencies in isolation.
 - `--impact <PKG>`: Show transitive packages removable with `<PKG>`.
 - `--ignore-unused <PKGS>`: Suppress specific unused-dep findings.
 - `--ignore-missing <PKGS>`: Suppress specific missing-dep findings.
+- `--fail-on-unused`: Fail if unused dependencies are found.
+- `--fail-on-missing`: Fail if missing dependencies are found.
+- `--fail-on-extra-installed`: Fail if extra installed packages are found.
+- `--fail-on-orphans`: Fail if orphan packages are found.
 - `--venv <PATH>`: Override venv path (default: auto-detect `.venv`).
 
 #### `mcp-server` - MCP Integration

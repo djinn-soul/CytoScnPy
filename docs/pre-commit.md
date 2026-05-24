@@ -45,18 +45,24 @@ If you only want to fail on security issues but want to see quality warnings, us
 
 ```yaml
 - id: cytoscnpy-security
-  args: ["--fail-threshold", "0"]
+  args: ["--fail-on-secrets", "--fail-on-danger"]
 - id: cytoscnpy-quality
   # no quality gate flags => findings are reported without forcing failure
 ```
 
 ### Strictness Levels
 
-You can enforce strict quality gates using these flags in `args`:
+You can enforce strict failure gates using these flags in `args`:
 
 - `--fail-on-quality`: Exit with code 1 if any quality issues are found.
+- `--fail-on-secrets`: Exit with code 1 if any secret findings are found.
+- `--fail-on-danger`: Exit with code 1 if any danger or taint findings are found.
+- `--fail-on-missing-deps`: Exit with code 1 if missing dependencies are found.
+- `--fail-on-unused-deps`: Exit with code 1 if unused dependencies are found.
 - `--fail-threshold <N>`: Fail if unused code percentage exceeds N.
 - `--max-complexity <N>`: Fail if any function exceeds complexity N.
+
+For this repository's own contributor checks, `prek run --all-files` also runs the local `basedpyright` strict type-check and `pip-audit` dependency scan hooks through `uv`.
 
 ### Performance
 

@@ -1,4 +1,4 @@
-use super::{CytoScnPyVisitor, DefinitionInfo, DefinitionType, SmallVec};
+use super::{CytoScnPyVisitor, DefinitionInfo, DefinitionType, ScopeType, SmallVec};
 
 impl CytoScnPyVisitor<'_> {
     pub(super) fn register_function_definition(
@@ -8,10 +8,14 @@ impl CytoScnPyVisitor<'_> {
     ) -> String {
         let name = name_node.id.as_str();
         let qualified_name = self.get_qualified_name(name);
-        let def_type = if self.class_stack.is_empty() {
-            DefinitionType::Function
-        } else {
+        let def_type = if self
+            .scope_stack
+            .last()
+            .is_some_and(|scope| matches!(scope.kind, ScopeType::Class(_)))
+        {
             DefinitionType::Method
+        } else {
+            DefinitionType::Function
         };
 
         let def_range = name_node.range;

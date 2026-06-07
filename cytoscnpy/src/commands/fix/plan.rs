@@ -76,73 +76,57 @@ pub(super) fn print_fix_stats<W: Write>(
     results: &crate::analyzer::AnalysisResult,
     options: &DeadCodeFixOptions,
 ) -> Result<()> {
-    if options.verbose {
-        let total_items: usize = items_by_file.values().map(Vec::len).sum();
-        let files_count = items_by_file.len();
-
-        let mut func_count = 0;
-        let mut method_count = 0;
-        let mut class_count = 0;
-        let mut import_count = 0;
-        let mut variable_count = 0;
-        for items in items_by_file.values() {
-            for (item_type, _) in items {
-                match *item_type {
-                    "function" => func_count += 1,
-                    "method" => method_count += 1,
-                    "class" => class_count += 1,
-                    "import" => import_count += 1,
-                    "variable" => variable_count += 1,
-                    _ => {}
-                }
-            }
-        }
-
-        writeln!(writer, "[VERBOSE] Fix Statistics:")?;
-        writeln!(writer, "   Files to modify: {files_count}")?;
-        writeln!(writer, "   Items to remove: {total_items}")?;
-        writeln!(writer, "   Functions: {func_count}")?;
-        writeln!(writer, "   Methods: {method_count}")?;
-        writeln!(writer, "   Classes: {class_count}")?;
-        writeln!(writer, "   Imports: {import_count}")?;
-        writeln!(writer, "   Variables: {variable_count}")?;
-
-        let skipped_funcs = results
-            .unused_functions
-            .iter()
-            .filter(|d| d.confidence < options.min_confidence)
-            .count();
-        let skipped_methods = results
-            .unused_methods
-            .iter()
-            .filter(|d| d.confidence < options.min_confidence)
-            .count();
-        let skipped_classes = results
-            .unused_classes
-            .iter()
-            .filter(|d| d.confidence < options.min_confidence)
-            .count();
-        let skipped_imports = results
-            .unused_imports
-            .iter()
-            .filter(|d| d.confidence < options.min_confidence)
-            .count();
-        let skipped_variables = results
-            .unused_variables
-            .iter()
-            .filter(|d| d.confidence < options.min_confidence)
-            .count();
-        let total_skipped =
-            skipped_funcs + skipped_methods + skipped_classes + skipped_imports + skipped_variables;
-
-        if total_skipped > 0 {
-            writeln!(
-                writer,
-                "   Skipped (confidence < {}%): {}",
-                options.min_confidence, total_skipped
-            )?;
-        }
-        writeln!(writer)?;
+    if !options.verbose {
+        return Ok(());
     }
+
+    let total_items: usize = items_by_file.values().map(Vec::len).sum();
+    let files_count = items_by_file.len();
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for (item_type, _) in items_by_file.values().flatten() {
+        *counts.entry(*item_type).or_default() += 1;
+    }
+
+    writeln!(writer, "[VERBOSE] Fix Statistics:")?;
+    writeln!(writer, "   Files to modify: {files_count}")?;
+    writeln!(writer, "   Items to remove: {total_items}")?;
+    for (label, item_type) in [
+        ("Functions", "function"),
+        ("Methods", "method"),
+        ("Classes", "class"),
+        ("Imports", "import"),
+        ("Variables", "variable"),
+    ] {
+        writeln!(
+            writer,
+            "   {label}: {}",
+            counts.get(item_type).copied().unwrap_or_default()
+        )?;
+    }
+
+    let total_skipped: usize = [
+        results.unused_functions.as_slice(),
+        results.unused_methods.as_slice(),
+        results.unused_classes.as_slice(),
+        results.unused_imports.as_slice(),
+        results.unused_variables.as_slice(),
+    ]
+    .into_iter()
+    .map(|definitions| {
+        definitions
+            .iter()
+            .filter(|definition| definition.confidence < options.min_confidence)
+            .count()
+    })
+    .sum();
+
+    if total_skipped > 0 {
+        writeln!(
+            writer,
+            "   Skipped (confidence < {}%): {}",
+            options.min_confidence, total_skipped
+        )?;
+    }
+    writeln!(writer)?;
     Ok(())
 }

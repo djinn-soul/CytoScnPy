@@ -7,6 +7,8 @@ mod ast;
 mod custom;
 mod entropy;
 mod entropy_ast;
+mod entropy_stmt;
+mod entropy_stmt_blocks;
 mod regex;
 mod types;
 

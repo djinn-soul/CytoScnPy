@@ -20,6 +20,8 @@ pub mod taint_aware;
 pub mod type_inference;
 /// Utility functions for danger rules.
 pub mod utils;
+/// XML parsing rules.
+pub mod xml;
 
 use crate::rules::Rule;
 use code_execution::{AsyncSubprocessRule, EvalRule, ExecRule, SubprocessRule};
@@ -31,7 +33,7 @@ use filesystem::{
 };
 use frameworks::{CsrfExemptRule, DjangoSecurityRule};
 use injection::{
-    LdapInjectionRule, SqlInjectionRawRule, SqlInjectionRule, XPathInjectionRule, XSSRule, XmlRule,
+    LdapInjectionRule, SqlInjectionRawRule, SqlInjectionRule, XPathInjectionRule, XSSRule,
 };
 use misc::{
     AssertUsedRule, BlacklistCallRule, DebugModeRule, HardcodedCredsRule, InsecureImportRule,
@@ -41,6 +43,7 @@ use misc::{
 use network::{HardcodedBindAllInterfacesRule, RequestWithoutTimeoutRule, RequestsRule, SSRFRule};
 use std::collections::HashMap;
 use type_inference::MethodMisuseRule;
+use xml::XmlRule;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Category Names (Single Source of Truth)
@@ -101,7 +104,7 @@ pub fn get_danger_rules_by_category() -> Vec<(&'static str, Vec<Box<dyn Rule>>)>
                 Box::new(SqlInjectionRule::new(injection::META_SQL_INJECTION)),
                 Box::new(SqlInjectionRawRule::new(injection::META_SQL_RAW)),
                 Box::new(XSSRule::new(injection::META_XSS)),
-                Box::new(XmlRule::new(injection::META_XML)),
+                Box::new(XmlRule::new(xml::META_XML)),
                 Box::new(LdapInjectionRule::new(injection::META_LDAP_INJECTION)),
                 Box::new(XPathInjectionRule::new(injection::META_XPATH_INJECTION)),
             ],

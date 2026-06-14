@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use super::declared::{locate_and_parse_declarations, DeclaredDependency};
-use super::imports::extract_imports;
+use super::imports::extract_import_scan;
 use super::installed::{detect_venv, scan_installed, InstalledPackage};
 use super::lockfile::load_lockfile_graph;
 use super::mapping::{get_package_mapping, get_reverse_mapping};
@@ -28,6 +28,15 @@ pub struct TransitiveDependency {
     pub package_name: String,
 }
 
+/// Development dependency imported from production code.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DevDependencyInProduction {
+    /// Top-level import name seen in production source code.
+    pub import_name: String,
+    /// Declared development dependency that provides the import.
+    pub dependency: DeclaredDependency,
+}
+
 /// The result of the full v3 dependency analysis.
 pub struct DepsResult {
     /// Declared but not imported in the codebase.
@@ -42,6 +51,8 @@ pub struct DepsResult {
     pub removable_branches: Vec<RemovableBranch>,
     /// Imported packages that are present only as transitive lockfile dependencies.
     pub transitive: Vec<TransitiveDependency>,
+    /// Development dependencies imported from production files.
+    pub dev_in_production: Vec<DevDependencyInProduction>,
     /// Declared packages that are part of the Python standard library.
     pub stdlib: Vec<DeclaredDependency>,
 }
@@ -280,6 +291,54 @@ fn find_stdlib_declarations(
         .collect()
 }
 
+fn find_dev_dependencies_in_production(
+    declared: &[DeclaredDependency],
+    production_imports: &FxHashSet<String>,
+    options: &DepsOptions<'_>,
+    pkg_mapping: &FxHashMap<&'static str, Vec<&'static str>>,
+) -> Vec<DevDependencyInProduction> {
+    let mut findings = Vec::new();
+    for dep in declared.iter().filter(|dep| dep.is_dev) {
+        if options
+            .ignore_missing
+            .iter()
+            .any(|ig| ig == &dep.package_name || ig == &dep.normalized_name)
+        {
+            continue;
+        }
+        let custom_expected = options.package_mapping.and_then(|m| {
+            m.get(dep.package_name.as_str())
+                .or_else(|| m.get(dep.normalized_name.as_str()))
+        });
+        let expected_imports: Vec<&str> = match custom_expected {
+            Some(names) => names.iter().map(std::string::String::as_str).collect(),
+            None => match pkg_mapping
+                .get(dep.package_name.as_str())
+                .or_else(|| pkg_mapping.get(dep.normalized_name.as_str()))
+            {
+                Some(names) => names.clone(),
+                None => vec![dep.normalized_name.as_str()],
+            },
+        };
+
+        for import_name in expected_imports {
+            if production_imports.contains(import_name) {
+                findings.push(DevDependencyInProduction {
+                    import_name: import_name.to_owned(),
+                    dependency: dep.clone(),
+                });
+            }
+        }
+    }
+    findings.sort_by(|a, b| {
+        a.dependency
+            .normalized_name
+            .cmp(&b.dependency.normalized_name)
+            .then_with(|| a.import_name.cmp(&b.import_name))
+    });
+    findings
+}
+
 fn scan_environment(
     options: &DepsOptions<'_>,
     primary_root: &Path,
@@ -427,7 +486,8 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         .unwrap_or_else(|| Path::new("."));
 
     let declared = locate_and_parse_declarations(primary_root, options.requirements.as_ref());
-    let imported = extract_imports(options.roots, options.exclude, options.verbose);
+    let import_scan = extract_import_scan(options.roots, options.exclude, options.verbose);
+    let imported = &import_scan.all;
 
     let pkg_mapping = get_package_mapping();
     let stdlib_modules = get_stdlib_modules();
@@ -439,9 +499,9 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         .unwrap_or(primary_root);
     let lockfile_graph = load_lockfile_graph(lockfile_root);
 
-    let unused = find_unused_declared(&declared, &imported, options, pkg_mapping, stdlib_modules);
+    let unused = find_unused_declared(&declared, imported, options, pkg_mapping, stdlib_modules);
     let missing = find_missing_imports(
-        &imported,
+        imported,
         &declared,
         options,
         stdlib_modules,
@@ -449,19 +509,25 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         lockfile_graph.as_ref(),
     );
     let transitive = find_transitive_imports(
-        &imported,
+        imported,
         &declared,
         options,
         stdlib_modules,
         reverse_mapping,
         lockfile_graph.as_ref(),
     );
+    let dev_in_production = find_dev_dependencies_in_production(
+        &declared,
+        &import_scan.production,
+        options,
+        pkg_mapping,
+    );
     let stdlib = find_stdlib_declarations(&declared, stdlib_modules);
     let (extra_installed, orphan_installed) = scan_environment(
         options,
         primary_root,
         &declared,
-        &imported,
+        imported,
         stdlib_modules,
         reverse_mapping,
     );
@@ -474,6 +540,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         orphan_installed,
         removable_branches,
         transitive,
+        dev_in_production,
         stdlib,
     }
 }

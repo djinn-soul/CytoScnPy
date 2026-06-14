@@ -276,6 +276,24 @@ fn test_fail_on_quality_flag() {
     assert_eq!(result.unwrap(), 1); // Should fail due to quality issues
 }
 
+#[test]
+fn test_fail_on_quality_enables_quality_scan() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("quality_fail_test.py");
+    fs::write(
+        &file_path,
+        "def foo():\n    if True:\n        if True:\n            if True:\n                if True:\n                    pass\n",
+    )
+    .unwrap();
+
+    let result = run_with_captured_output(vec![
+        "--fail-on-quality".to_owned(),
+        file_path.to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1);
+}
+
 /// Test --fail-on-quality with no quality issues returns exit code 0.
 #[test]
 fn test_fail_on_quality_no_issues() {
@@ -364,6 +382,71 @@ dependencies = ["requests", "unused-dep"]
     assert_eq!(unused_result.unwrap(), 1);
 }
 
+/// Test --fail-on-any enables all main analysis gates.
+#[test]
+fn test_fail_on_any_flag_in_main_analysis() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("secret_config.py"),
+        "STRIPE_KEY = 'sk_live_abcdefghijklmnopqrstuvwx'\n",
+    )
+    .unwrap();
+
+    let result = run_with_captured_output(vec![
+        "--fail-on-any".to_owned(),
+        "--json".to_owned(),
+        dir.path().to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1);
+}
+
+#[test]
+fn test_fail_on_any_file_target_uses_parent_for_dependency_declarations() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("main.py");
+    fs::write(
+        dir.path().join("pyproject.toml"),
+        r#"
+[project]
+name = "dep-check"
+version = "0.1.0"
+dependencies = ["requests"]
+"#,
+    )
+    .unwrap();
+    fs::write(&file_path, "import requests\nprint(requests.__version__)\n").unwrap();
+
+    let result = run_with_captured_output(vec![
+        "--fail-on-any".to_owned(),
+        "--json".to_owned(),
+        file_path.to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
+}
+
+/// Explicit --fail-threshold should override --fail-on-any's zero-tolerance default.
+#[test]
+fn test_fail_on_any_respects_explicit_fail_threshold() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("unused.py"),
+        "def unused_function():\n    pass\n",
+    )
+    .unwrap();
+
+    let result = run_with_captured_output(vec![
+        "--fail-on-any".to_owned(),
+        "--fail-threshold".to_owned(),
+        "1000".to_owned(),
+        "--json".to_owned(),
+        dir.path().to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
+}
+
 /// Test config fail gates also enable their required analyses.
 #[test]
 fn test_config_fail_gates_enable_required_scans() {
@@ -412,14 +495,14 @@ dependencies = ["requests"]
     assert_eq!(deps_result.unwrap(), 1);
 }
 
-/// VS Code integration should only enable costly scans from explicit CLI flags,
-/// not project config fail gates.
+/// VS Code integration should honor project config fail gates from pyproject.toml
+/// and .cytoscnpy.toml when editor settings are unset.
 #[test]
-fn test_vscode_client_ignores_config_fail_gates_for_scan_selection() {
+fn test_vscode_client_honors_config_fail_gates_for_scan_selection() {
     let security_dir = tempdir().unwrap();
     fs::write(
-        security_dir.path().join(".cytoscnpy.toml"),
-        "[cytoscnpy]\nfail_on_danger = true\nfail_on_secrets = true\n",
+        security_dir.path().join("pyproject.toml"),
+        "[tool.cytoscnpy]\nfail_on_danger = true\nfail_on_secrets = true\n",
     )
     .unwrap();
     fs::write(
@@ -435,7 +518,7 @@ fn test_vscode_client_ignores_config_fail_gates_for_scan_selection() {
         security_dir.path().to_string_lossy().to_string(),
     ]);
     assert!(security_result.is_ok());
-    assert_eq!(security_result.unwrap(), 0);
+    assert_eq!(security_result.unwrap(), 1);
 
     let deps_dir = tempdir().unwrap();
     fs::write(
@@ -462,7 +545,7 @@ dependencies = ["requests"]
         deps_dir.path().to_string_lossy().to_string(),
     ]);
     assert!(deps_result.is_ok());
-    assert_eq!(deps_result.unwrap(), 0);
+    assert_eq!(deps_result.unwrap(), 1);
 }
 
 /// VS Code integration still honors explicit CLI fail gates.

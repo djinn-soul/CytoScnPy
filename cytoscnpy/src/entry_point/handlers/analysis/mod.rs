@@ -51,8 +51,9 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
 
     // Run dependency analysis when requested directly or needed by dependency fail gates.
     if context.deps {
+        let dependency_roots = dependency_analysis_roots(effective_paths, analysis_root);
         let deps_options = crate::deps::DepsOptions {
-            roots: effective_paths,
+            roots: &dependency_roots,
             exclude: &context.exclude_folders,
             requirements: None, // Use auto-discovery
             ignore_unused: config
@@ -119,4 +120,33 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
     let exit_code = apply_gates(cli_var, config, analysis_root, &context, &run, writer)?;
     writer.flush()?;
     Ok(exit_code)
+}
+
+fn dependency_analysis_roots(
+    effective_paths: &[std::path::PathBuf],
+    analysis_root: &std::path::Path,
+) -> Vec<std::path::PathBuf> {
+    let roots: Vec<std::path::PathBuf> = effective_paths
+        .iter()
+        .map(|path| dependency_root_for_path(path, analysis_root))
+        .collect();
+
+    if roots.is_empty() {
+        vec![analysis_root.to_path_buf()]
+    } else {
+        roots
+    }
+}
+
+fn dependency_root_for_path(
+    path: &std::path::Path,
+    analysis_root: &std::path::Path,
+) -> std::path::PathBuf {
+    if path.is_file() {
+        path.parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_else(|| analysis_root.to_path_buf())
+    } else {
+        path.to_path_buf()
+    }
 }

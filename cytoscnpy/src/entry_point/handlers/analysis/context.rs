@@ -33,7 +33,7 @@ pub(crate) fn build_analysis_context(
 
     // Auto-enable quality mode when:
     // - --quality flag is passed
-    // - quality is enabled in config (except when `--client vscode`)
+    // - quality is enabled in config
     // - --min-mi or --max-complexity thresholds are set
     // - --html flag is passed (for dashboard metrics)
     #[cfg(feature = "html_report")]
@@ -42,11 +42,12 @@ pub(crate) fn build_analysis_context(
     let html_enabled = false;
 
     let quality = cli_var.scan.quality
-        || (!is_vscode_client && config.cytoscnpy.quality.unwrap_or(false))
+        || config.cytoscnpy.quality.unwrap_or(false)
         || cli_var.min_mi.is_some()
         || cli_var.max_complexity.is_some()
-        || (!is_vscode_client
-            && (config.cytoscnpy.min_mi.is_some() || config.cytoscnpy.max_complexity.is_some()))
+        || config.cytoscnpy.min_mi.is_some()
+        || config.cytoscnpy.max_complexity.is_some()
+        || cli_var.output.fail_on_any
         || html_enabled;
 
     let is_structured = cli_var.output.json
@@ -77,14 +78,12 @@ pub(crate) fn build_analysis_context(
 fn dependency_scan_requested(
     cli_var: &crate::cli::Cli,
     config: &crate::config::Config,
-    is_vscode_client: bool,
+    _is_vscode_client: bool,
 ) -> bool {
     let cli_requested = cli_var.scan.deps
+        || cli_var.output.fail_on_any
         || cli_var.output.fail_on_missing_deps
         || cli_var.output.fail_on_unused_deps;
-    if is_vscode_client {
-        return cli_requested;
-    }
     cli_requested
         || config.cytoscnpy.deps.enabled.unwrap_or(false)
         || config.cytoscnpy.deps.fail_on_missing.unwrap_or(false)
@@ -100,8 +99,9 @@ fn secrets_scan_requested(
         cli_var.scan.secrets,
         config.cytoscnpy.secrets,
         is_vscode_client,
-    ) || cli_var.output.fail_on_secrets
-        || (!is_vscode_client && config.cytoscnpy.fail_on_secrets.unwrap_or(false))
+    ) || cli_var.output.fail_on_any
+        || cli_var.output.fail_on_secrets
+        || config.cytoscnpy.fail_on_secrets.unwrap_or(false)
 }
 
 fn danger_scan_requested(
@@ -113,6 +113,7 @@ fn danger_scan_requested(
         cli_var.scan.danger,
         config.cytoscnpy.danger,
         is_vscode_client,
-    ) || cli_var.output.fail_on_danger
-        || (!is_vscode_client && config.cytoscnpy.fail_on_danger.unwrap_or(false))
+    ) || cli_var.output.fail_on_any
+        || cli_var.output.fail_on_danger
+        || config.cytoscnpy.fail_on_danger.unwrap_or(false)
 }

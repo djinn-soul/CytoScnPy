@@ -54,6 +54,7 @@ If you only want to fail on security issues but want to see quality warnings, us
 
 You can enforce strict failure gates using these flags in `args`:
 
+- `--fail-on-any`: Exit with code 1 if any supported gate finds issues.
 - `--fail-on-quality`: Exit with code 1 if any quality issues are found.
 - `--fail-on-secrets`: Exit with code 1 if any secret findings are found.
 - `--fail-on-danger`: Exit with code 1 if any danger or taint findings are found.

@@ -10,6 +10,7 @@ pub(crate) struct DepsFlags {
     pub verbose: bool,
     pub show_extra: bool,
     pub show_orphans: bool,
+    pub fail_on_any: bool,
     pub fail_on_unused: bool,
     pub fail_on_missing: bool,
     pub fail_on_extra_installed: bool,
@@ -50,18 +51,22 @@ pub(crate) fn handle_deps<W: std::io::Write>(
         final_ignore_missing.extend(conf_ignored.clone());
     }
 
-    let fail_on_unused =
-        args.flags.fail_on_unused || config.cytoscnpy.deps.fail_on_unused.unwrap_or(false);
-    let fail_on_missing =
-        args.flags.fail_on_missing || config.cytoscnpy.deps.fail_on_missing.unwrap_or(false);
+    let fail_on_unused = args.flags.fail_on_any
+        || args.flags.fail_on_unused
+        || config.cytoscnpy.deps.fail_on_unused.unwrap_or(false);
+    let fail_on_missing = args.flags.fail_on_any
+        || args.flags.fail_on_missing
+        || config.cytoscnpy.deps.fail_on_missing.unwrap_or(false);
     let fail_on_extra_installed = args.flags.fail_on_extra_installed
+        || args.flags.fail_on_any
         || config
             .cytoscnpy
             .deps
             .fail_on_extra_installed
             .unwrap_or(false);
-    let fail_on_orphans =
-        args.flags.fail_on_orphans || config.cytoscnpy.deps.fail_on_orphans.unwrap_or(false);
+    let fail_on_orphans = args.flags.fail_on_any
+        || args.flags.fail_on_orphans
+        || config.cytoscnpy.deps.fail_on_orphans.unwrap_or(false);
 
     let venv_path = args.venv.map(PathBuf::from);
     let lockfile_path = args.lockfile.map(PathBuf::from);

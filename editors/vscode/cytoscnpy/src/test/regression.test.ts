@@ -19,6 +19,7 @@ import {
   buildAnalyzerArgs,
   CytoScnPyConfig,
   CytoScnPyFinding,
+  transformRawResult,
 } from "../analyzer";
 
 const MAX_CACHE_HISTORY = 10;
@@ -593,6 +594,83 @@ suite("Regression: buildAnalyzerArgs", () => {
     assert.strictEqual(args[excludeFlagPositions[0] + 1], "build");
     assert.strictEqual(args[excludeFlagPositions[1] + 1], "dist");
     assert.ok(args.includes("--include-folders"));
+  });
+});
+
+suite("Regression: transformRawResult categories", () => {
+  test("surfaces all CLI finding categories as diagnostics input", () => {
+    const result = transformRawResult(
+      {
+        unused_functions: [
+          {
+            file: "app.py",
+            line: 1,
+            name: "unused_fn",
+            simple_name: "unused_fn",
+          },
+        ],
+        secrets: [
+          {
+            file: "app.py",
+            line: 2,
+            message: "secret",
+            severity: "HIGH",
+          },
+        ],
+        danger: [
+          {
+            file: "app.py",
+            line: 3,
+            message: "danger",
+            severity: "CRITICAL",
+          },
+        ],
+        quality: [
+          {
+            file: "app.py",
+            line: 4,
+            message: "quality",
+          },
+        ],
+        taint_findings: [
+          {
+            source: "request.args",
+            source_line: 5,
+            sink: "os.system",
+            sink_line: 6,
+            sink_col: 2,
+            flow_path: [],
+            vuln_type: "Command Injection",
+            severity: "HIGH",
+            file: "app.py",
+            remediation: "validate input",
+          },
+        ],
+        unused_dependencies: [
+          {
+            package_name: "unused-dep",
+            normalized_name: "unused_dep",
+            is_dev: false,
+            source: "Pyproject",
+          },
+        ],
+        missing_dependencies: ["missing_dep"],
+      },
+      "pyproject.toml",
+    );
+
+    assert.deepStrictEqual(
+      result.findings.map((finding) => finding.rule_id),
+      [
+        "unused-function",
+        "secret-detected",
+        "dangerous-code",
+        "quality-issue",
+        "unused-dependency",
+        "missing-dependency",
+        "taint-command injection",
+      ],
+    );
   });
 });
 

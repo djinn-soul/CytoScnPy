@@ -75,6 +75,7 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
             show_extra: false,
             show_orphans: false,
             impact_package: None,
+            include_dev_unused: false,
         };
         let deps_result = crate::deps::analyze_dependencies(&deps_options);
         run.result.unused_dependencies = deps_result.unused;

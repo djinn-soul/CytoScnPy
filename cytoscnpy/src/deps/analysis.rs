@@ -19,6 +19,15 @@ pub struct RemovableBranch {
     pub unique_transitive: Vec<String>,
 }
 
+/// Imported package that is available only through another dependency.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransitiveDependency {
+    /// Top-level import name seen in source code.
+    pub import_name: String,
+    /// Normalized package name found in the lockfile graph.
+    pub package_name: String,
+}
+
 /// The result of the full v3 dependency analysis.
 pub struct DepsResult {
     /// Declared but not imported in the codebase.
@@ -31,6 +40,10 @@ pub struct DepsResult {
     pub orphan_installed: Vec<InstalledPackage>,
     /// For each unused declared package, what would be removable with it.
     pub removable_branches: Vec<RemovableBranch>,
+    /// Imported packages that are present only as transitive lockfile dependencies.
+    pub transitive: Vec<TransitiveDependency>,
+    /// Declared packages that are part of the Python standard library.
+    pub stdlib: Vec<DeclaredDependency>,
 }
 
 /// Configuration options for the v3 dependency analysis.
@@ -62,6 +75,8 @@ pub struct DepsOptions<'a> {
     pub show_orphans: bool,
     /// If set, only report the removal impact for this one package.
     pub impact_package: Option<String>,
+    /// Whether development dependencies should be reported as unused.
+    pub include_dev_unused: bool,
 }
 
 fn is_local_package(roots: &[PathBuf], module_name: &str) -> bool {
@@ -115,6 +130,7 @@ fn find_unused_declared(
     imported: &FxHashSet<String>,
     options: &DepsOptions<'_>,
     pkg_mapping: &FxHashMap<&'static str, Vec<&'static str>>,
+    stdlib_modules: &FxHashSet<&'static str>,
 ) -> Vec<DeclaredDependency> {
     let mut unused = Vec::new();
     for dep in declared {
@@ -123,6 +139,12 @@ fn find_unused_declared(
             .iter()
             .any(|ig| ig == &dep.package_name || ig == &dep.normalized_name)
         {
+            continue;
+        }
+        if dep.is_dev && !options.include_dev_unused {
+            continue;
+        }
+        if stdlib_modules.contains(dep.normalized_name.as_str()) {
             continue;
         }
 
@@ -149,12 +171,26 @@ fn find_unused_declared(
     unused
 }
 
+fn package_name_for_import(
+    import_name: &str,
+    reverse_mapping: &FxHashMap<&'static str, &'static str>,
+) -> String {
+    let import_lower = import_name.to_lowercase();
+    let pkg_name_guess = reverse_mapping
+        .get(import_name)
+        .or_else(|| reverse_mapping.get(import_lower.as_str()))
+        .copied()
+        .unwrap_or(import_lower.as_str());
+    super::declared::normalize_package_name(pkg_name_guess)
+}
+
 fn find_missing_imports(
     imported: &FxHashSet<String>,
     declared: &[DeclaredDependency],
     options: &DepsOptions<'_>,
     stdlib_modules: &FxHashSet<&'static str>,
     reverse_mapping: &FxHashMap<&'static str, &'static str>,
+    lockfile_graph: Option<&super::lockfile::LockfileGraph>,
 ) -> Vec<String> {
     // Pre-build a set of all declared names (original and normalized) for O(1) lookup.
     let declared_names: FxHashSet<String> = declared
@@ -175,17 +211,16 @@ fn find_missing_imports(
         }
 
         let import_lower = import_name.to_lowercase();
-        // Try the original casing first (handles entries like "PIL"), then lowercase.
-        let pkg_name_guess = reverse_mapping
-            .get(import_name.as_str())
-            .or_else(|| reverse_mapping.get(import_lower.as_str()))
-            .copied()
-            .unwrap_or(import_lower.as_str());
-        let pkg_normalized = super::declared::normalize_package_name(pkg_name_guess);
+        let pkg_normalized = package_name_for_import(import_name, reverse_mapping);
+        let is_transitive = lockfile_graph.is_some_and(|graph| {
+            graph.forward.contains_key(&pkg_normalized) && !declared_names.contains(&pkg_normalized)
+        });
+        if is_transitive {
+            continue;
+        }
 
-        let is_declared = declared_names.contains(pkg_name_guess)
-            || declared_names.contains(&pkg_normalized)
-            || declared_names.contains(&import_lower);
+        let is_declared =
+            declared_names.contains(&pkg_normalized) || declared_names.contains(&import_lower);
 
         if !is_declared {
             missing_set.insert(import_name.clone());
@@ -195,6 +230,54 @@ fn find_missing_imports(
     let mut missing: Vec<String> = missing_set.into_iter().collect();
     missing.sort();
     missing
+}
+
+fn find_transitive_imports(
+    imported: &FxHashSet<String>,
+    declared: &[DeclaredDependency],
+    options: &DepsOptions<'_>,
+    stdlib_modules: &FxHashSet<&'static str>,
+    reverse_mapping: &FxHashMap<&'static str, &'static str>,
+    lockfile_graph: Option<&super::lockfile::LockfileGraph>,
+) -> Vec<TransitiveDependency> {
+    let Some(graph) = lockfile_graph else {
+        return Vec::new();
+    };
+    let declared_norm: FxHashSet<String> = declared
+        .iter()
+        .map(|dep| dep.normalized_name.clone())
+        .collect();
+    let mut transitive = Vec::new();
+    for import_name in imported {
+        if options.ignore_missing.iter().any(|ig| ig == import_name) {
+            continue;
+        }
+        if stdlib_modules.contains(import_name.as_str())
+            || is_local_package(options.roots, import_name)
+        {
+            continue;
+        }
+        let package_name = package_name_for_import(import_name, reverse_mapping);
+        if graph.forward.contains_key(&package_name) && !declared_norm.contains(&package_name) {
+            transitive.push(TransitiveDependency {
+                import_name: import_name.clone(),
+                package_name,
+            });
+        }
+    }
+    transitive.sort_by(|a, b| a.import_name.cmp(&b.import_name));
+    transitive
+}
+
+fn find_stdlib_declarations(
+    declared: &[DeclaredDependency],
+    stdlib_modules: &FxHashSet<&'static str>,
+) -> Vec<DeclaredDependency> {
+    declared
+        .iter()
+        .filter(|dep| stdlib_modules.contains(dep.normalized_name.as_str()))
+        .cloned()
+        .collect()
 }
 
 fn scan_environment(
@@ -349,15 +432,31 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     let pkg_mapping = get_package_mapping();
     let stdlib_modules = get_stdlib_modules();
     let reverse_mapping = get_reverse_mapping();
+    let lockfile_root = options
+        .lockfile_path
+        .as_deref()
+        .and_then(Path::parent)
+        .unwrap_or(primary_root);
+    let lockfile_graph = load_lockfile_graph(lockfile_root);
 
-    let unused = find_unused_declared(&declared, &imported, options, pkg_mapping);
+    let unused = find_unused_declared(&declared, &imported, options, pkg_mapping, stdlib_modules);
     let missing = find_missing_imports(
         &imported,
         &declared,
         options,
         stdlib_modules,
         reverse_mapping,
+        lockfile_graph.as_ref(),
     );
+    let transitive = find_transitive_imports(
+        &imported,
+        &declared,
+        options,
+        stdlib_modules,
+        reverse_mapping,
+        lockfile_graph.as_ref(),
+    );
+    let stdlib = find_stdlib_declarations(&declared, stdlib_modules);
     let (extra_installed, orphan_installed) = scan_environment(
         options,
         primary_root,
@@ -374,5 +473,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         extra_installed,
         orphan_installed,
         removable_branches,
+        transitive,
+        stdlib,
     }
 }

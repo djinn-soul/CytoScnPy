@@ -172,7 +172,12 @@ cytoscnpy files [OPTIONS] <PATH>
 
 ### `deps`
 
-Analyze unused and missing dependencies.
+Analyze dependency hygiene with deptry-style rule categories:
+
+- `DEP001`: imported package is missing from direct dependency declarations.
+- `DEP002`: declared production dependency is unused.
+- `DEP003`: imported package is present only as a transitive lockfile dependency.
+- `DEP005`: declared dependency belongs to the Python standard library.
 
 ```bash
 cytoscnpy deps [OPTIONS] [PATHS]...
@@ -185,6 +190,7 @@ cytoscnpy deps [OPTIONS] [PATHS]...
 - `--exclude <DIRS>`: Folders to exclude from import scanning.
 - `--extra-installed`: Also report packages installed in the venv but not declared.
 - `--orphans`: Report orphan packages — installed, undeclared, not imported, and not required by any other installed package.
+- `--include-dev-unused`: Include development dependencies in unused-dependency findings. By default, dev dependencies from dependency groups, optional dependency groups, or dev/test requirements exports are not reported as unused.
 - `--fail-on-any`: Exit with code `1` if any dependency finding is found; also enables the extra-installed and orphan reports.
 - `--fail-on-unused`: Exit with code `1` if unused dependencies are found.
 - `--fail-on-missing`: Exit with code `1` if missing dependencies are found.

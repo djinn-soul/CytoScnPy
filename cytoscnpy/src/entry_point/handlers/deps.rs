@@ -99,6 +99,7 @@ pub(crate) fn handle_deps<W: std::io::Write>(
     let should_fail = (fail_on_unused && !result.unused.is_empty())
         || (fail_on_missing && !result.missing.is_empty())
         || (fail_on_missing && !result.transitive.is_empty())
+        || (fail_on_missing && !result.dev_in_production.is_empty())
         || (fail_on_unused && !result.stdlib.is_empty())
         || (fail_on_extra_installed && !result.extra_installed.is_empty())
         || (fail_on_orphans && !result.orphan_installed.is_empty());

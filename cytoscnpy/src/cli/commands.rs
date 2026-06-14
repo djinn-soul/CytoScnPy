@@ -172,7 +172,7 @@ pub enum Commands {
         #[arg(long)]
         orphans: bool,
 
-        /// Include development dependencies in unused-dependency findings.
+        /// Include development dependencies in CSP-R002 findings.
         #[arg(long)]
         include_dev_unused: bool,
 

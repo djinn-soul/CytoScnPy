@@ -147,7 +147,7 @@ fn test_deps_include_dev_unused_flag() -> anyhow::Result<()> {
 
     assert_eq!(code, 0);
     assert!(output.contains("pytest"));
-    assert!(output.contains("DEP002"));
+    assert!(output.contains("CSP-R002"));
     Ok(())
 }
 
@@ -187,9 +187,9 @@ version = "2024.7.4"
         run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
 
     assert_eq!(code, 0);
-    assert!(output.contains("Transitive Dependencies (DEP003)"));
+    assert!(output.contains("Transitive Dependencies (CSP-R003)"));
     assert!(output.contains("certifi"));
-    assert!(!output.contains("Missing Dependencies (DEP001)"));
+    assert!(!output.contains("Missing Dependencies (CSP-R001)"));
     Ok(())
 }
 
@@ -213,9 +213,67 @@ dependencies = ["asyncio"]
         run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
 
     assert_eq!(code, 0);
-    assert!(output.contains("Standard Library Dependencies (DEP005)"));
+    assert!(output.contains("Standard Library Dependencies (CSP-R005)"));
     assert!(output.contains("asyncio"));
-    assert!(!output.contains("Unused Dependencies (DEP002)"));
+    assert!(!output.contains("Unused Dependencies (CSP-R002)"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_dev_dependency_in_production() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest"]
+"#,
+    )?;
+    fs::write(root.join("app.py"), "import pytest\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(output.contains("Development Dependency Used in Production (CSP-R004)"));
+    assert!(output.contains("pytest"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_dev_dependency_allowed_in_tests() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest"]
+"#,
+    )?;
+    let tests_dir = root.join("tests");
+    fs::create_dir(&tests_dir)?;
+    fs::write(tests_dir.join("test_app.py"), "import pytest\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(!output.contains("CSP-R004"));
+    assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
     Ok(())
 }
 

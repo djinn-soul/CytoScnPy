@@ -184,7 +184,7 @@ cytoscnpy deps .                   # Dependency analysis
 cytoscnpy init                     # Scaffold config in the current project
 ```
 
-Dependency analysis reports deptry-style hygiene categories for missing (`DEP001`), unused production (`DEP002`), transitive (`DEP003`), and standard-library (`DEP005`) dependencies. Development dependencies are not reported as unused by default; pass `cytoscnpy deps --include-dev-unused` for stricter checks.
+Dependency analysis reports CytoScnPy-style hygiene categories for missing (`CSP-R001`), unused production (`CSP-R002`), transitive (`CSP-R003`), dev dependency used in production (`CSP-R004`), and standard-library (`CSP-R005`) dependencies. Development dependencies are not reported as unused by default; pass `cytoscnpy deps --include-dev-unused` for stricter checks.
 
 > **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories globally, or `--ignore <PATTERN>` for subcommand-specific glob filtering.
 

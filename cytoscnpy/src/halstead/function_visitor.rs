@@ -24,87 +24,76 @@ impl FunctionHalsteadVisitor {
 
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::FunctionDef(node) => {
-                let mut visitor = HalsteadVisitor::new();
-                if node.is_async {
-                    visitor.add_operator("async def");
-                }
-                for s in &node.body {
-                    visitor.visit_stmt(s);
-                }
-                for arg in &node.parameters.args {
-                    visitor.add_operand(&arg.parameter.name);
-                }
-                for arg in &node.parameters.posonlyargs {
-                    visitor.add_operand(&arg.parameter.name);
-                }
-                for arg in &node.parameters.kwonlyargs {
-                    visitor.add_operand(&arg.parameter.name);
-                }
-                self.results
-                    .push((node.name.to_string(), visitor.calculate_metrics()));
-
-                for s in &node.body {
-                    self.visit_stmt(s);
-                }
-            }
-            Stmt::ClassDef(node) => {
-                for s in &node.body {
-                    self.visit_stmt(s);
-                }
-            }
-            _ => match stmt {
-                Stmt::If(node) => {
-                    for s in &node.body {
-                        self.visit_stmt(s);
-                    }
-                    for clause in &node.elif_else_clauses {
-                        self.visit_stmt(&clause.body[0]);
-                        for s in &clause.body {
-                            self.visit_stmt(s);
-                        }
-                    }
-                }
-                Stmt::For(node) => {
-                    for s in &node.body {
-                        self.visit_stmt(s);
-                    }
-                    for s in &node.orelse {
-                        self.visit_stmt(s);
-                    }
-                }
-                Stmt::While(node) => {
-                    for s in &node.body {
-                        self.visit_stmt(s);
-                    }
-                    for s in &node.orelse {
-                        self.visit_stmt(s);
-                    }
-                }
-                Stmt::With(node) => {
-                    for s in &node.body {
-                        self.visit_stmt(s);
-                    }
-                }
-                Stmt::Try(node) => {
-                    for s in &node.body {
-                        self.visit_stmt(s);
-                    }
-                    for handler in &node.handlers {
-                        let ast::ExceptHandler::ExceptHandler(h) = handler;
-                        for s in &h.body {
-                            self.visit_stmt(s);
-                        }
-                    }
-                    for s in &node.orelse {
-                        self.visit_stmt(s);
-                    }
-                    for s in &node.finalbody {
-                        self.visit_stmt(s);
-                    }
-                }
-                _ => {}
-            },
+            Stmt::FunctionDef(node) => self.visit_function_def(node),
+            Stmt::ClassDef(node) => self.visit_body(&node.body),
+            _ => self.visit_control_flow_stmt(stmt),
         }
+    }
+
+    fn visit_function_def(&mut self, node: &ast::StmtFunctionDef) {
+        let mut visitor = HalsteadVisitor::new();
+        if node.is_async {
+            visitor.add_operator("async def");
+        }
+        for stmt in &node.body {
+            visitor.visit_stmt(stmt);
+        }
+        add_function_parameters(&mut visitor, node);
+        self.results
+            .push((node.name.to_string(), visitor.calculate_metrics()));
+
+        self.visit_body(&node.body);
+    }
+
+    fn visit_body(&mut self, body: &[Stmt]) {
+        for stmt in body {
+            self.visit_stmt(stmt);
+        }
+    }
+
+    fn visit_control_flow_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::If(node) => self.visit_if_stmt(node),
+            Stmt::For(node) => self.visit_loop_parts(&node.body, &node.orelse),
+            Stmt::While(node) => self.visit_loop_parts(&node.body, &node.orelse),
+            Stmt::With(node) => self.visit_body(&node.body),
+            Stmt::Try(node) => self.visit_try_stmt(node),
+            _ => {}
+        }
+    }
+
+    fn visit_if_stmt(&mut self, node: &ast::StmtIf) {
+        self.visit_body(&node.body);
+        for clause in &node.elif_else_clauses {
+            self.visit_stmt(&clause.body[0]);
+            self.visit_body(&clause.body);
+        }
+    }
+
+    fn visit_loop_parts(&mut self, body: &[Stmt], orelse: &[Stmt]) {
+        self.visit_body(body);
+        self.visit_body(orelse);
+    }
+
+    fn visit_try_stmt(&mut self, node: &ast::StmtTry) {
+        self.visit_body(&node.body);
+        for handler in &node.handlers {
+            let ast::ExceptHandler::ExceptHandler(handler) = handler;
+            self.visit_body(&handler.body);
+        }
+        self.visit_body(&node.orelse);
+        self.visit_body(&node.finalbody);
+    }
+}
+
+fn add_function_parameters(visitor: &mut HalsteadVisitor, node: &ast::StmtFunctionDef) {
+    for arg in &node.parameters.args {
+        visitor.add_operand(&arg.parameter.name);
+    }
+    for arg in &node.parameters.posonlyargs {
+        visitor.add_operand(&arg.parameter.name);
+    }
+    for arg in &node.parameters.kwonlyargs {
+        visitor.add_operand(&arg.parameter.name);
     }
 }

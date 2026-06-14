@@ -1,4 +1,4 @@
-use super::generate_clone_suggestion;
+use super::suggestions::generate_clone_suggestion;
 use crate::clones::{CloneFinding, ClonePair, ConfidenceScorer, FixContext};
 use rayon::prelude::*;
 use std::collections::HashMap;

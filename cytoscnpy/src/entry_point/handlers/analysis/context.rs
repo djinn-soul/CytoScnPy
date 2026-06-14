@@ -48,6 +48,7 @@ pub(crate) fn build_analysis_context(
         || config.cytoscnpy.min_mi.is_some()
         || config.cytoscnpy.max_complexity.is_some()
         || cli_var.output.fail_on_any
+        || cli_var.output.fail_on_quality
         || html_enabled;
 
     let is_structured = cli_var.output.json

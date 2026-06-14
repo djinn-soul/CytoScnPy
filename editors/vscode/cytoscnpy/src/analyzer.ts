@@ -189,9 +189,8 @@ function dependencySourcePath(
   anchorPath: string,
 ): string {
   const source = dep.source;
-  const baseDir = fs.existsSync(anchorPath) && fs.statSync(anchorPath).isDirectory()
-    ? anchorPath
-    : path.dirname(anchorPath);
+  const isDir = pathIsDirectory(anchorPath);
+  const baseDir = isDir ? anchorPath : path.dirname(anchorPath);
 
   if (source === "Pyproject") {
     return path.join(baseDir, "pyproject.toml");
@@ -201,7 +200,15 @@ function dependencySourcePath(
       ? source.Requirements
       : path.join(baseDir, source.Requirements);
   }
-  return anchorPath;
+  return isDir ? path.join(anchorPath, "pyproject.toml") : anchorPath;
+}
+
+function pathIsDirectory(target: string): boolean {
+  try {
+    return fs.existsSync(target) && fs.statSync(target).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 export function transformRawResult(
@@ -327,9 +334,12 @@ export function transformRawResult(
   }
 
   if (rawResult.missing_dependencies) {
+    const sourcePath = pathIsDirectory(anchorPath)
+      ? path.join(anchorPath, "pyproject.toml")
+      : anchorPath;
     for (const name of rawResult.missing_dependencies) {
       findings.push({
-        file_path: anchorPath,
+        file_path: sourcePath,
         line_number: 1,
         message: `Import '${name}' is used but is not declared as a dependency`,
         rule_id: "missing-dependency",

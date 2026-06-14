@@ -3,6 +3,7 @@
 // the surrounding behavior.
 
 import * as assert from "assert";
+import * as path from "path";
 import * as vscode from "vscode";
 import {
   QuickFixProvider,
@@ -669,6 +670,31 @@ suite("Regression: transformRawResult categories", () => {
         "unused-dependency",
         "missing-dependency",
         "taint-command injection",
+      ],
+    );
+  });
+
+  test("anchors dependency diagnostics to files for directory targets", () => {
+    const result = transformRawResult(
+      {
+        unused_dependencies: [
+          {
+            package_name: "unused-dep",
+            normalized_name: "unused_dep",
+            is_dev: false,
+            source: undefined,
+          },
+        ],
+        missing_dependencies: ["missing_dep"],
+      },
+      __dirname,
+    );
+
+    assert.deepStrictEqual(
+      result.findings.map((finding) => finding.file_path),
+      [
+        path.join(__dirname, "pyproject.toml"),
+        path.join(__dirname, "pyproject.toml"),
       ],
     );
   });

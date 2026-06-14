@@ -58,14 +58,12 @@ pub(crate) fn is_vscode_client(cli: &Cli) -> bool {
 pub(crate) fn resolve_scan_flag(
     cli_flag: bool,
     config_flag: Option<bool>,
-    is_vscode: bool,
+    _is_vscode: bool,
 ) -> bool {
-    if is_vscode {
-        cli_flag
-    } else {
-        // Keep scan categories opt-in unless enabled via CLI or config.
-        cli_flag || config_flag.unwrap_or(false)
-    }
+    // Keep scan categories opt-in unless enabled via CLI or project config.
+    // VS Code passes only explicitly enabled settings as CLI flags, so project
+    // TOML remains the source of truth when editor settings are unset.
+    cli_flag || config_flag.unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -83,8 +81,8 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_scan_flag_vscode_uses_cli_only() {
-        assert!(!resolve_scan_flag(false, Some(true), true));
+    fn test_resolve_scan_flag_vscode_honors_config() {
+        assert!(resolve_scan_flag(false, Some(true), true));
         assert!(resolve_scan_flag(true, Some(false), true));
     }
 }

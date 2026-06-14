@@ -1,4 +1,5 @@
 import { execFile, spawn } from "child_process";
+import * as fs from "fs";
 import * as path from "path";
 
 /**
@@ -113,6 +114,13 @@ interface RawTaintFinding {
   remediation: string;
 }
 
+interface RawDeclaredDependency {
+  package_name: string;
+  normalized_name: string;
+  is_dev: boolean;
+  source?: "Pyproject" | { Requirements: string };
+}
+
 interface RawCytoScnPyResult {
   unused_functions?: RawCytoScnPyFinding[];
   unused_methods?: RawCytoScnPyFinding[];
@@ -124,6 +132,8 @@ interface RawCytoScnPyResult {
   danger?: RawCytoScnPyFinding[];
   quality?: RawCytoScnPyFinding[];
   taint_findings?: RawTaintFinding[];
+  unused_dependencies?: RawDeclaredDependency[];
+  missing_dependencies?: string[];
   clones?: RawCloneFinding[];
   parse_errors?: { file: string; line: number; message: string }[];
 }
@@ -153,8 +163,50 @@ interface RawCloneFinding {
   node_kind: "Function" | "AsyncFunction" | "Class" | "Method";
 }
 
-function transformRawResult(
+function dependencyAnchorPath(target: string): string {
+  try {
+    if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
+      for (const filename of [
+        "pyproject.toml",
+        ".cytoscnpy.toml",
+        "requirements.txt",
+        "requirements-dev.txt",
+      ]) {
+        const candidate = path.join(target, filename);
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
+      }
+    }
+  } catch {
+    // Keep diagnostics visible even if the target cannot be inspected.
+  }
+  return target;
+}
+
+function dependencySourcePath(
+  dep: RawDeclaredDependency,
+  anchorPath: string,
+): string {
+  const source = dep.source;
+  const baseDir = fs.existsSync(anchorPath) && fs.statSync(anchorPath).isDirectory()
+    ? anchorPath
+    : path.dirname(anchorPath);
+
+  if (source === "Pyproject") {
+    return path.join(baseDir, "pyproject.toml");
+  }
+  if (source && typeof source === "object" && "Requirements" in source) {
+    return path.isAbsolute(source.Requirements)
+      ? source.Requirements
+      : path.join(baseDir, source.Requirements);
+  }
+  return anchorPath;
+}
+
+export function transformRawResult(
   rawResult: RawCytoScnPyResult,
+  anchorPath = "",
 ): CytoScnPyAnalysisResult {
   const findings: CytoScnPyFinding[] = [];
   const parseErrors: ParseError[] = [];
@@ -260,6 +312,32 @@ function transformRawResult(
     (f) => f.message || `Quality issue: ${f.simple_name || f.name}`,
     "warning",
   );
+
+  if (rawResult.unused_dependencies) {
+    for (const dep of rawResult.unused_dependencies) {
+      findings.push({
+        file_path: dependencySourcePath(dep, anchorPath),
+        line_number: 1,
+        message: `Dependency '${dep.package_name}' is declared but never imported`,
+        rule_id: "unused-dependency",
+        category: "Dependencies",
+        severity: "warning",
+      });
+    }
+  }
+
+  if (rawResult.missing_dependencies) {
+    for (const name of rawResult.missing_dependencies) {
+      findings.push({
+        file_path: anchorPath,
+        line_number: 1,
+        message: `Import '${name}' is used but is not declared as a dependency`,
+        rule_id: "missing-dependency",
+        category: "Dependencies",
+        severity: "warning",
+      });
+    }
+  }
 
   // Process taint findings separately because they have a different structure
   if (rawResult.taint_findings) {
@@ -419,7 +497,10 @@ export function runCytoScnPyAnalysis(
           // (e.g., gate thresholds failed but analysis succeeded)
           try {
             const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
-            const result = transformRawResult(rawResult);
+            const result = transformRawResult(
+              rawResult,
+              dependencyAnchorPath(filePath),
+            );
             resolve(result);
           } catch (parseError) {
             // JSON parsing failed - this is a real error
@@ -446,7 +527,7 @@ export function runCytoScnPyAnalysis(
 
         try {
           const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
-          const result = transformRawResult(rawResult);
+          const result = transformRawResult(rawResult, dependencyAnchorPath(filePath));
           resolve(result);
         } catch (parseError: any) {
           reject(
@@ -501,7 +582,7 @@ export async function runWorkspaceAnalysis(
       `Failed to parse workspace analysis output: ${parseError.message}`,
     );
   }
-  const result = transformRawResult(rawResult);
+  const result = transformRawResult(rawResult, dependencyAnchorPath(workspacePath));
 
   const findingsByFile = new Map<string, CytoScnPyFinding[]>();
   for (const finding of result.findings) {

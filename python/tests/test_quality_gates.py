@@ -284,3 +284,10 @@ dependencies = ["unused-dep"]
         (tmp_path / "main.py").write_text("print('hello')\n")
         exit_code = run(["--fail-on-unused-deps", "--json", str(tmp_path)])
         assert exit_code == 1, "Expected failure when unused dependencies are gated"
+
+    def test_fail_on_any(self, tmp_path):
+        (tmp_path / "secrets.py").write_text(
+            'STRIPE_KEY = "sk_live_abcdefghijklmnopqrstuvwx"\n'
+        )
+        exit_code = run(["--fail-on-any", "--json", str(tmp_path)])
+        assert exit_code == 1, "Expected failure when any supported gate finds issues"

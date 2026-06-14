@@ -53,6 +53,7 @@ fn configured_fail_threshold(cli_var: &crate::cli::Cli, config: &crate::config::
                 .ok()
                 .and_then(|v| v.parse::<f64>().ok())
         })
+        .or_else(|| cli_var.output.fail_on_any.then_some(0.0))
         .unwrap_or(100.0)
 }
 
@@ -184,7 +185,8 @@ fn apply_quality_gate(
     context: &AnalysisContext,
     exit_code: &mut i32,
 ) {
-    if cli_var.output.fail_on_quality && !result.quality.is_empty() {
+    if (cli_var.output.fail_on_any || cli_var.output.fail_on_quality) && !result.quality.is_empty()
+    {
         if !context.is_structured {
             eprintln!(
                 "\n[GATE] Quality issues: {} found - FAILED",
@@ -203,7 +205,7 @@ fn apply_secrets_gate(
     exit_code: &mut i32,
 ) {
     if resolve_gate(
-        cli_var.output.fail_on_secrets,
+        cli_var.output.fail_on_any || cli_var.output.fail_on_secrets,
         config.cytoscnpy.fail_on_secrets,
     ) && !result.secrets.is_empty()
     {
@@ -225,7 +227,7 @@ fn apply_danger_gate(
     exit_code: &mut i32,
 ) {
     if resolve_gate(
-        cli_var.output.fail_on_danger,
+        cli_var.output.fail_on_any || cli_var.output.fail_on_danger,
         config.cytoscnpy.fail_on_danger,
     ) && (!result.danger.is_empty() || !result.taint_findings.is_empty())
     {
@@ -248,7 +250,7 @@ fn apply_missing_deps_gate(
     exit_code: &mut i32,
 ) {
     if resolve_gate(
-        cli_var.output.fail_on_missing_deps,
+        cli_var.output.fail_on_any || cli_var.output.fail_on_missing_deps,
         config.cytoscnpy.deps.fail_on_missing,
     ) && !result.missing_dependencies.is_empty()
     {
@@ -270,7 +272,7 @@ fn apply_unused_deps_gate(
     exit_code: &mut i32,
 ) {
     if resolve_gate(
-        cli_var.output.fail_on_unused_deps,
+        cli_var.output.fail_on_any || cli_var.output.fail_on_unused_deps,
         config.cytoscnpy.deps.fail_on_unused,
     ) && !result.unused_dependencies.is_empty()
     {

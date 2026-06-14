@@ -172,6 +172,10 @@ pub enum Commands {
         #[arg(long)]
         orphans: bool,
 
+        /// Include development dependencies in unused-dependency findings.
+        #[arg(long)]
+        include_dev_unused: bool,
+
         /// Exit with code 1 if any dependency findings are found.
         #[arg(long)]
         fail_on_any: bool,

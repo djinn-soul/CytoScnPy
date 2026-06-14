@@ -13,7 +13,9 @@ pub mod mapping;
 /// Standard library reference list.
 pub mod stdlib;
 
-pub use analysis::{analyze_dependencies, DepsOptions, DepsResult, RemovableBranch};
+pub use analysis::{
+    analyze_dependencies, DepsOptions, DepsResult, RemovableBranch, TransitiveDependency,
+};
 pub use declared::{DeclaredDependency, DependencySource};
 pub use installed::InstalledPackage;
 pub use lockfile::LockfileGraph;

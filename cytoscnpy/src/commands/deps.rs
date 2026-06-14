@@ -26,6 +26,11 @@ fn write_json_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> 
     let out = json!({
         "unused": result.unused.iter().map(|d| d.package_name.clone()).collect::<Vec<_>>(),
         "missing": result.missing,
+        "transitive": result.transitive.iter().map(|d| json!({
+            "import_name": d.import_name,
+            "package_name": d.package_name,
+        })).collect::<Vec<_>>(),
+        "stdlib": result.stdlib.iter().map(|d| d.package_name.clone()).collect::<Vec<_>>(),
         "extra_installed": result.extra_installed.iter().map(|p| json!({
             "name": p.name,
             "version": p.version,
@@ -46,6 +51,8 @@ fn write_json_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> 
 fn write_text_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
     write_unused_dependencies(&result.unused, writer)?;
     write_missing_dependencies(&result.missing, writer)?;
+    write_transitive_dependencies(result, writer)?;
+    write_stdlib_dependencies(result, writer)?;
     write_extra_installed(result, writer)?;
     write_orphan_installed(result, writer)?;
     write_removable_branches(result, writer)?;
@@ -61,7 +68,7 @@ fn write_unused_dependencies<W: Write>(
         return Ok(());
     }
 
-    writeln!(writer, "\n{}", "Unused Dependencies".red().bold())?;
+    writeln!(writer, "\n{}", "Unused Dependencies (DEP002)".red().bold())?;
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -98,18 +105,63 @@ fn write_missing_dependencies<W: Write>(missing: &[String], writer: &mut W) -> R
         return Ok(());
     }
 
-    writeln!(
-        writer,
-        "\n{}",
-        "Missing Dependencies (Imported but not declared)"
-            .red()
-            .bold()
-    )?;
+    writeln!(writer, "\n{}", "Missing Dependencies (DEP001)".red().bold())?;
     let mut table = Table::new();
     table.load_preset(UTF8_FULL).set_header(vec!["Import Name"]);
 
     for missing in missing {
         table.add_row(vec![Cell::new(missing).fg(Color::Yellow)]);
+    }
+    writeln!(writer, "{table}")?;
+    Ok(())
+}
+
+fn write_transitive_dependencies<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
+    if result.transitive.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(
+        writer,
+        "\n{}",
+        "Transitive Dependencies (DEP003)".red().bold()
+    )?;
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .set_header(vec!["Import Name", "Package Name"]);
+
+    for dep in &result.transitive {
+        table.add_row(vec![
+            Cell::new(&dep.import_name).fg(Color::Yellow),
+            Cell::new(&dep.package_name),
+        ]);
+    }
+    writeln!(writer, "{table}")?;
+    Ok(())
+}
+
+fn write_stdlib_dependencies<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
+    if result.stdlib.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(
+        writer,
+        "\n{}",
+        "Standard Library Dependencies (DEP005)".red().bold()
+    )?;
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .set_header(vec!["Package Name", "Declared In", "Type"]);
+
+    for dep in &result.stdlib {
+        table.add_row(vec![
+            Cell::new(&dep.package_name).fg(Color::Yellow),
+            Cell::new(dependency_source_name(dep)),
+            Cell::new(dependency_kind(dep)),
+        ]);
     }
     writeln!(writer, "{table}")?;
     Ok(())
@@ -221,9 +273,11 @@ fn write_summary<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
     } else {
         writeln!(
             writer,
-            "\nFound: {} unused, {} missing, {} extra installed, {} orphan.",
+            "\nFound: {} unused, {} missing, {} transitive, {} stdlib, {} extra installed, {} orphan.",
             result.unused.len(),
             result.missing.len(),
+            result.transitive.len(),
+            result.stdlib.len(),
             result.extra_installed.len(),
             result.orphan_installed.len(),
         )?;
@@ -234,6 +288,8 @@ fn write_summary<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
 fn deps_are_clean(result: &DepsResult) -> bool {
     result.unused.is_empty()
         && result.missing.is_empty()
+        && result.transitive.is_empty()
+        && result.stdlib.is_empty()
         && result.extra_installed.is_empty()
         && result.orphan_installed.is_empty()
 }

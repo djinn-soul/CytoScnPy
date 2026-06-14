@@ -112,6 +112,114 @@ fn test_deps_requirements_txt() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_deps_dev_requirements_not_unused_by_default() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(root.join("requirements-dev.txt"), "pytest==8.0.0\n")?;
+    fs::write(root.join("main.py"), "print('hello')\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(
+        !output.contains("pytest"),
+        "dev dependency should not be reported unused by default"
+    );
+    assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_include_dev_unused_flag() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(root.join("requirements-dev.txt"), "pytest==8.0.0\n")?;
+    fs::write(root.join("main.py"), "print('hello')\n")?;
+
+    let (code, output) = run_deps_command(vec![
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--include-dev-unused".to_owned(),
+    ]);
+
+    assert_eq!(code, 0);
+    assert!(output.contains("pytest"));
+    assert!(output.contains("DEP002"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_transitive_dependency_from_uv_lock() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["httpx"]
+"#,
+    )?;
+    fs::write(
+        root.join("uv.lock"),
+        r#"
+version = 1
+requires-python = ">=3.10"
+
+[[package]]
+name = "httpx"
+version = "0.27.0"
+dependencies = [{ name = "certifi" }]
+
+[[package]]
+name = "certifi"
+version = "2024.7.4"
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import certifi\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(output.contains("Transitive Dependencies (DEP003)"));
+    assert!(output.contains("certifi"));
+    assert!(!output.contains("Missing Dependencies (DEP001)"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_stdlib_dependency_declared() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["asyncio"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import asyncio\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(output.contains("Standard Library Dependencies (DEP005)"));
+    assert!(output.contains("asyncio"));
+    assert!(!output.contains("Unused Dependencies (DEP002)"));
+    Ok(())
+}
+
+#[test]
 fn test_deps_json_output() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();

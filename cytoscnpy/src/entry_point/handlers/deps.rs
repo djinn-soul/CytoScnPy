@@ -15,6 +15,7 @@ pub(crate) struct DepsFlags {
     pub fail_on_missing: bool,
     pub fail_on_extra_installed: bool,
     pub fail_on_orphans: bool,
+    pub include_dev_unused: bool,
 }
 
 /// All CLI-provided arguments for the `deps` subcommand, grouped to avoid a
@@ -85,6 +86,7 @@ pub(crate) fn handle_deps<W: std::io::Write>(
         show_extra: args.flags.show_extra || fail_on_extra_installed,
         show_orphans: args.flags.show_orphans || fail_on_orphans,
         impact_package: args.impact_package,
+        include_dev_unused: args.flags.include_dev_unused,
     };
 
     let result = if let Some(out_path) = args.output_file {
@@ -96,6 +98,8 @@ pub(crate) fn handle_deps<W: std::io::Write>(
 
     let should_fail = (fail_on_unused && !result.unused.is_empty())
         || (fail_on_missing && !result.missing.is_empty())
+        || (fail_on_missing && !result.transitive.is_empty())
+        || (fail_on_unused && !result.stdlib.is_empty())
         || (fail_on_extra_installed && !result.extra_installed.is_empty())
         || (fail_on_orphans && !result.orphan_installed.is_empty());
 

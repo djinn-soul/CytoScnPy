@@ -172,6 +172,10 @@ pub enum Commands {
         #[arg(long)]
         orphans: bool,
 
+        /// Exit with code 1 if any dependency findings are found.
+        #[arg(long)]
+        fail_on_any: bool,
+
         /// Exit with code 1 if unused dependencies are found.
         #[arg(long)]
         fail_on_unused: bool,

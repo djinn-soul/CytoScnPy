@@ -18,13 +18,14 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--json`: Format the result as a raw JSON object. Shorthand for `--format json`. This is ideal for piping into tools like `jq` or for consumption by CI/CD scripts.
 - `--verbose`, `-v`: Prints detailed logs during the analysis process, including which files are being scanned and any non-fatal issues encountered.
 - `--quiet`: Minimalist output. Only the final summary table (or JSON) is displayed, suppressing the per-file findings table.
+- `--fail-on-any`: Enables all supported failure gates and exits with code `1` if any actionable finding is detected. For unused code, it uses zero tolerance unless `--fail-threshold`, config, or `CYTOSCNPY_FAIL_THRESHOLD` supplies a threshold.
 - `--fail-on-quality`: Causes the process to exit with code `1` if _any_ code quality issues (like high complexity or deep nesting) are detected.
 - `--fail-on-secrets`: Enables secret scanning if needed and exits with code `1` if any secret findings are detected.
 - `--fail-on-danger`: Enables dangerous-code/taint scanning if needed and exits with code `1` if any danger or taint findings are detected.
 - `--fail-on-missing-deps`: Enables dependency analysis if needed and exits with code `1` if any missing dependency findings are detected.
 - `--fail-on-unused-deps`: Enables dependency analysis if needed and exits with code `1` if any unused dependency findings are detected.
 - `--html`: Generates a self-contained, interactive HTML report. Note that this feature may require additional dependencies and automatically enables quality scanning.
-- `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, scan enable/disable comes only from CLI flags (VS Code settings), but project config is still loaded for advanced tuning (for example, custom secret patterns).
+- `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, project config from `.cytoscnpy.toml` or `pyproject.toml` is still honored, and explicit VS Code settings are passed as CLI flags that override matching thresholds.
 
 ### Scan Types
 
@@ -57,6 +58,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 
 These flags allow you to set strict gates for CI/CD. If any enabled gate fails, CytoScnPy exits with code `1`. Failure gates that depend on optional scans enable those scans automatically.
 
+- `--fail-on-any`: Convenience gate for CI. Implies quality, secrets, danger/taint, missing dependency, and unused dependency failure gates. For unused code, it defaults to `--fail-threshold 0.0` unless an explicit threshold is supplied.
 - `--fail-threshold <N>`: Exit with 1 if the total percentage of unused code exceeds `N`.
 - `--max-complexity <N>`: Sets the maximum allowed Cyclomatic Complexity (standard is often `10`).
 - `--min-mi <N>`: Sets the minimum allowed Maintainability Index (usually `40-65`).
@@ -183,6 +185,7 @@ cytoscnpy deps [OPTIONS] [PATHS]...
 - `--exclude <DIRS>`: Folders to exclude from import scanning.
 - `--extra-installed`: Also report packages installed in the venv but not declared.
 - `--orphans`: Report orphan packages — installed, undeclared, not imported, and not required by any other installed package.
+- `--fail-on-any`: Exit with code `1` if any dependency finding is found; also enables the extra-installed and orphan reports.
 - `--fail-on-unused`: Exit with code `1` if unused dependencies are found.
 - `--fail-on-missing`: Exit with code `1` if missing dependencies are found.
 - `--fail-on-extra-installed`: Exit with code `1` if extra installed packages are found; also enables the extra-installed report.

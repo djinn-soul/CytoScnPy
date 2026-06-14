@@ -75,6 +75,10 @@ pub struct OutputOptions {
     #[arg(long)]
     pub quiet: bool,
 
+    /// Exit with code 1 if any supported gate finds actionable issues.
+    #[arg(long)]
+    pub fail_on_any: bool,
+
     /// Exit with code 1 if any quality issues are found.
     #[arg(long)]
     pub fail_on_quality: bool,

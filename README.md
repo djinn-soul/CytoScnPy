@@ -157,6 +157,7 @@ cytoscnpy . --html --secrets --danger
 
 | Flag                   | Description                                |
 | ---------------------- | ------------------------------------------ |
+| `--fail-on-any`        | Exit code 1 if any supported gate finds issues |
 | `--fail-threshold <N>` | Exit code 1 if unused code % > N           |
 | `--max-complexity <N>` | Exit code 1 if any function complexity > N |
 | `--min-mi <N>`         | Exit code 1 if maintainability index < N   |
@@ -208,6 +209,7 @@ quality = true
 # Fail Threshold (exit code 1 if exceeded)
 fail_threshold = 10.0  # Fail if >10% of code is unused
 # fail_threshold = 0.0  # Zero tolerance: fail on any unused code
+# CLI shortcut: --fail-on-any uses zero tolerance unless fail_threshold is set
 
 # Code Quality Thresholds
 max_lines = 100       # Max lines per function

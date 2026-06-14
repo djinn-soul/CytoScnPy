@@ -8,6 +8,7 @@
 
 mod aggregation;
 mod builder;
+mod confidence_penalties;
 mod fixtures;
 mod heuristics;
 pub mod single_file;
@@ -18,7 +19,8 @@ mod utils;
 pub mod types;
 
 // Re-export types for public API
-pub use heuristics::{apply_heuristics, apply_penalties};
+pub use confidence_penalties::apply_penalties;
+pub use heuristics::apply_heuristics;
 pub use types::{AnalysisResult, AnalysisSummary, FileAnalysisResult, ParseError};
 
 use crate::config::Config;

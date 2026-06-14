@@ -113,36 +113,58 @@ impl CytoScnPyVisitor<'_> {
         decorator_list: &[ruff_python_ast::Decorator],
     ) -> bool {
         let mut should_add_ref = false;
-        if let Some(scope) = self.scope_stack.last_mut() {
-            for decorator in decorator_list {
-                let expr = match &decorator.expression {
-                    ruff_python_ast::Expr::Call(call) => &*call.func,
-                    _ => &decorator.expression,
-                };
 
-                if let ruff_python_ast::Expr::Attribute(attr) = expr {
-                    if let ruff_python_ast::Expr::Name(name) = &*attr.value {
-                        let base = name.id.as_str();
-                        if matches!(base, "app" | "router" | "celery") {
-                            scope.is_framework = true;
-                            if base == "app" {
-                                if let Some(def) = self.definitions.last_mut() {
-                                    def.is_framework_managed = true;
-                                    def.is_exported = true;
-                                    if def.references == 0 {
-                                        def.references = 1;
-                                    }
-                                }
-                                should_add_ref = true;
-                            } else if let Some(def) = self.definitions.last_mut() {
-                                def.is_framework_managed = true;
-                            }
-                        }
-                    }
-                }
-            }
+        for decorator in decorator_list {
+            let Some(base) = Self::framework_decorator_base(decorator) else {
+                continue;
+            };
+
+            self.mark_current_scope_as_framework();
+            should_add_ref |= self.mark_last_definition_for_framework(base);
         }
+
         should_add_ref
+    }
+
+    fn framework_decorator_base(decorator: &ruff_python_ast::Decorator) -> Option<&str> {
+        let expr = match &decorator.expression {
+            ruff_python_ast::Expr::Call(call) => &*call.func,
+            _ => &decorator.expression,
+        };
+
+        let ruff_python_ast::Expr::Attribute(attr) = expr else {
+            return None;
+        };
+
+        let ruff_python_ast::Expr::Name(name) = &*attr.value else {
+            return None;
+        };
+
+        let base = name.id.as_str();
+        matches!(base, "app" | "router" | "celery").then_some(base)
+    }
+
+    fn mark_current_scope_as_framework(&mut self) {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope.is_framework = true;
+        }
+    }
+
+    fn mark_last_definition_for_framework(&mut self, base: &str) -> bool {
+        let Some(def) = self.definitions.last_mut() else {
+            return false;
+        };
+
+        def.is_framework_managed = true;
+        if base != "app" {
+            return false;
+        }
+
+        def.is_exported = true;
+        if def.references == 0 {
+            def.references = 1;
+        }
+        true
     }
 
     pub(super) fn should_skip_parameters(

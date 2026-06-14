@@ -20,11 +20,6 @@ pub const META_XSS: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_XSS,
     category: super::CAT_INJECTION,
 };
-/// Rule for detecting insecure XML parsing.
-pub const META_XML: RuleMetadata = RuleMetadata {
-    id: ids::RULE_ID_XML,
-    category: super::CAT_INJECTION,
-};
 /// Rule for detecting use of `mark_safe` which bypasses autoescaping.
 pub const META_MARK_SAFE: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_MARK_SAFE,
@@ -271,120 +266,6 @@ impl Rule for XSSRule {
                         "HIGH",
                     )]);
                 }
-            }
-        }
-        None
-    }
-}
-
-/// Rule for detecting insecure XML parsing (XXE/DoS risk).
-pub struct XmlRule {
-    /// The rule's metadata.
-    pub metadata: RuleMetadata,
-}
-impl XmlRule {
-    /// Creates a new instance with the specified metadata.
-    #[must_use]
-    pub fn new(metadata: RuleMetadata) -> Self {
-        Self { metadata }
-    }
-}
-impl Rule for XmlRule {
-    fn name(&self) -> &'static str {
-        "XmlRule"
-    }
-    fn metadata(&self) -> RuleMetadata {
-        self.metadata
-    }
-    fn visit_expr(&mut self, expr: &Expr, context: &Context) -> Option<Vec<Finding>> {
-        if let Expr::Call(call) = expr {
-            let name_opt = get_call_name(&call.func);
-            let attr_name = if let Expr::Attribute(attr) = &*call.func {
-                Some(attr.attr.as_str())
-            } else {
-                None
-            };
-
-            // Detect patterns by full name or attribute name for aliases like "ET"
-            let is_xml_pattern = if let Some(name) = &name_opt {
-                name.contains("lxml.etree")
-                    || name.contains("etree.")
-                    || name.starts_with("xml.etree.ElementTree.")
-                    || name.starts_with("ElementTree.")
-                    || name.starts_with("xml.dom.minidom.")
-                    || name.starts_with("xml.sax.")
-                    || name.contains("minidom.")
-                    || name.contains("sax.")
-                    || name.contains("pulldom.")
-                    || name.contains("expatbuilder.")
-                    || name.starts_with("ET.")
-                    || name == "ET.parse"
-                    || name == "ET.fromstring"
-                    || name == "ET.XML"
-                    || name == "xml.sax.make_parser"
-            } else if let Some(attr) = attr_name {
-                attr == "parse"
-                    || attr == "fromstring"
-                    || attr == "XML"
-                    || attr == "make_parser"
-                    || attr == "RestrictedElement"
-                    || attr == "GlobalParserTLS"
-                    || attr == "getDefaultParser"
-                    || attr == "check_docinfo"
-            } else {
-                false
-            };
-
-            if is_xml_pattern {
-                let mut severity = "MEDIUM";
-                let mut msg = "Insecure XML parsing (vulnerable to XXE or DoS).";
-
-                if let Some(name) = &name_opt {
-                    if name.contains("lxml") || name.contains("etree") {
-                        severity = "HIGH";
-                        msg = "Insecure XML parsing (resolve_entities is enabled by default in lxml). XXE risk.";
-                    } else if name.contains("sax") {
-                        msg = "Insecure XML parsing (SAX is vulnerable to XXE).";
-                    } else if name.contains("minidom") {
-                        msg = "Insecure XML parsing (minidom is vulnerable to XXE).";
-                    }
-                } else if let Some(attr) = attr_name {
-                    if attr == "RestrictedElement"
-                        || attr == "GlobalParserTLS"
-                        || attr == "getDefaultParser"
-                        || attr == "check_docinfo"
-                    {
-                        severity = "HIGH";
-                        msg = "Insecure XML parsing (resolve_entities is enabled by default in lxml). XXE risk.";
-                    }
-                }
-
-                // Check lxml resolve_entities specifically
-                if let Some(name) = &name_opt {
-                    if name.contains("lxml.etree") {
-                        let mut resolve_entities = true;
-                        for keyword in &call.arguments.keywords {
-                            if let Some(arg) = &keyword.arg {
-                                if arg == "resolve_entities" {
-                                    if let Expr::BooleanLiteral(b) = &keyword.value {
-                                        resolve_entities = b.value;
-                                    }
-                                }
-                            }
-                        }
-                        if !resolve_entities {
-                            return None; // Explicitly safe
-                        }
-                    }
-                }
-
-                return Some(vec![create_finding(
-                    msg,
-                    self.metadata,
-                    context,
-                    call.range().start(),
-                    severity,
-                )]);
             }
         }
         None

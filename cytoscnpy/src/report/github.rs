@@ -1,5 +1,9 @@
+use crate::analyzer::types::ParseError;
 use crate::analyzer::AnalysisResult;
+use crate::rules::secrets::SecretFinding;
 use crate::rules::Finding;
+use crate::taint::types::TaintFinding;
+use crate::visitor::Definition;
 use std::io::Write;
 
 /// Generates `GitHub Actions` workflow commands.
@@ -23,139 +27,126 @@ pub fn print_github_with_root(
     result: &AnalysisResult,
     root: Option<&std::path::Path>,
 ) -> std::io::Result<()> {
-    // Security Findings
-    for finding in &result.danger {
-        write_annotation(writer, "error", finding, root)?;
+    write_findings(writer, "error", &result.danger, root)?;
+    write_secrets(writer, &result.secrets, root)?;
+    write_findings(writer, "warning", &result.quality, root)?;
+    write_taint_findings(writer, &result.taint_findings, root)?;
+    write_unused_code(writer, result, root)?;
+    write_parse_errors(writer, &result.parse_errors, root)?;
+
+    Ok(())
+}
+
+fn write_findings(
+    writer: &mut impl Write,
+    level: &str,
+    findings: &[Finding],
+    root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
+    for finding in findings {
+        write_annotation(writer, level, finding, root)?;
     }
-    // Secrets
-    for secret in &result.secrets {
-        // Secrets are always errors
+    Ok(())
+}
+
+fn write_secrets(
+    writer: &mut impl Write,
+    secrets: &[SecretFinding],
+    root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
+    for secret in secrets {
         let path = normalize_path(&secret.file, root);
         writeln!(
             writer,
             "::error file={},line={},title={}::{}",
-            path, secret.line, secret.rule_id, secret.message
+            escape_property(&path),
+            secret.line,
+            escape_property(&secret.rule_id),
+            escape_message(&secret.message)
         )?;
     }
-    // Quality Findings
-    for finding in &result.quality {
-        write_annotation(writer, "warning", finding, root)?;
-    }
-    // Taint Findings
-    for finding in &result.taint_findings {
-        // Handle TaintFinding manually since it differs from Finding
+    Ok(())
+}
+
+fn write_taint_findings(
+    writer: &mut impl Write,
+    findings: &[TaintFinding],
+    root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
+    for finding in findings {
         let path = normalize_path(&finding.file, root);
         writeln!(
             writer,
             "::warning file={},line={},col={},title={}::{} (Source: {})",
-            path,
+            escape_property(&path),
             finding.sink_line,
             finding.sink_col,
-            finding.rule_id,
-            finding.vuln_type,
-            finding.source
+            escape_property(&finding.rule_id),
+            escape_message(&finding.vuln_type.to_string()),
+            escape_message(&finding.source)
         )?;
     }
+    Ok(())
+}
 
-    // Unused Code - usually warnings
-    for func in &result.unused_functions {
-        write_unused(
-            writer,
-            "warning",
-            "UnusedFunction",
-            &func.file,
-            func.line,
-            func.col,
-            &func.name,
-            root,
-        )?;
-    }
-    for cls in &result.unused_classes {
-        write_unused(
-            writer,
-            "warning",
-            "UnusedClass",
-            &cls.file,
-            cls.line,
-            cls.col,
-            &cls.name,
-            root,
-        )?;
-    }
-    for imp in &result.unused_imports {
-        write_unused(
-            writer,
-            "warning",
-            "UnusedImport",
-            &imp.file,
-            imp.line,
-            imp.col,
-            &imp.name,
-            root,
-        )?;
-    }
-    for var in &result.unused_variables {
-        write_unused(
-            writer,
-            "warning",
-            "UnusedVariable",
-            &var.file,
-            var.line,
-            var.col,
-            &var.name,
-            root,
-        )?;
-    }
-    for method in &result.unused_methods {
-        write_unused(
-            writer,
-            "warning",
-            "UnusedMethod",
-            &method.file,
-            method.line,
-            method.col,
-            &method.name,
-            root,
-        )?;
-    }
-    for param in &result.unused_parameters {
-        write_unused(
-            writer,
-            "warning",
-            "UnusedParameter",
-            &param.file,
-            param.line,
-            param.col,
-            &param.name,
-            root,
-        )?;
-    }
+fn write_unused_code(
+    writer: &mut impl Write,
+    result: &AnalysisResult,
+    root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
+    write_unused_definitions(writer, "UnusedFunction", &result.unused_functions, root)?;
+    write_unused_definitions(writer, "UnusedClass", &result.unused_classes, root)?;
+    write_unused_definitions(writer, "UnusedImport", &result.unused_imports, root)?;
+    write_unused_definitions(writer, "UnusedVariable", &result.unused_variables, root)?;
+    write_unused_definitions(writer, "UnusedMethod", &result.unused_methods, root)?;
+    write_unused_definitions(writer, "UnusedParameter", &result.unused_parameters, root)
+}
 
-    // Parse Errors
-    for error in &result.parse_errors {
+fn write_unused_definitions(
+    writer: &mut impl Write,
+    title: &str,
+    definitions: &[Definition],
+    root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
+    for definition in definitions {
+        write_unused(
+            writer,
+            "warning",
+            title,
+            definition.file.as_ref(),
+            definition.line,
+            definition.col,
+            &definition.name,
+            root,
+        )?;
+    }
+    Ok(())
+}
+
+fn write_parse_errors(
+    writer: &mut impl Write,
+    errors: &[ParseError],
+    root: Option<&std::path::Path>,
+) -> std::io::Result<()> {
+    for error in errors {
         let path = normalize_path(&error.file, root);
-
-        // Try to extract line number from message: "... at line 5"
-        let line_meta = if let Some(idx) = error.error.rfind(" at line ") {
-            if let Ok(line_num) = error.error[idx + 9..].parse::<usize>() {
-                format!(",line={line_num}")
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        };
-
         writeln!(
             writer,
             "::error file={}{},title=ParseError::{}",
             escape_property(&path),
-            line_meta,
+            parse_error_line_meta(&error.error),
             escape_message(&error.error)
         )?;
     }
-
     Ok(())
+}
+
+fn parse_error_line_meta(error: &str) -> String {
+    error
+        .rfind(" at line ")
+        .and_then(|idx| error[idx + 9..].parse::<usize>().ok())
+        .map(|line| format!(",line={line}"))
+        .unwrap_or_default()
 }
 
 fn normalize_path(path: &std::path::Path, root: Option<&std::path::Path>) -> String {

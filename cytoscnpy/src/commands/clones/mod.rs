@@ -3,8 +3,9 @@
 mod findings;
 mod fixes;
 mod stats;
+mod suggestions;
 
-use crate::clones::{CloneConfig, CloneDetector, CloneFinding, CloneType, NodeKind};
+use crate::clones::{CloneConfig, CloneDetector, CloneFinding};
 use anyhow::Result;
 use colored::Colorize;
 use comfy_table::{Cell, Color, Table};
@@ -13,6 +14,7 @@ use std::path::PathBuf;
 
 use fixes::apply_clone_fixes_internal;
 use stats::{load_matched_files, print_clone_stats_simple};
+use suggestions::generate_clone_suggestion;
 
 pub use findings::generate_clone_findings;
 
@@ -36,58 +38,6 @@ pub struct CloneOptions {
     pub with_cst: bool,
     /// Progress bar for tracking progress
     pub progress_bar: Option<std::sync::Arc<indicatif::ProgressBar>>,
-}
-
-/// Generates context-aware refactoring suggestions for clone findings.
-fn generate_clone_suggestion(
-    clone_type: CloneType,
-    node_kind: NodeKind,
-    name: &str,
-    similarity: f64,
-) -> String {
-    let is_init = name == "__init__";
-    let is_dunder = name.starts_with("__") && name.ends_with("__");
-
-    match clone_type {
-        CloneType::Type1 => match node_kind {
-            NodeKind::Class => "Remove duplicate class, import from original".to_owned(),
-            NodeKind::Method if is_init => "Extract shared __init__ to base class".to_owned(),
-            NodeKind::Method => "Move to base class or mixin".to_owned(),
-            NodeKind::Function | NodeKind::AsyncFunction => {
-                "Remove duplicate, import from original module".to_owned()
-            }
-        },
-        CloneType::Type2 => match node_kind {
-            NodeKind::Class => "Consider inheritance or factory pattern".to_owned(),
-            NodeKind::Method if is_init || is_dunder => "Extract to mixin or base class".to_owned(),
-            NodeKind::Method => "Parameterize and move to base class".to_owned(),
-            NodeKind::Function | NodeKind::AsyncFunction => {
-                "Parameterize into single configurable function".to_owned()
-            }
-        },
-        CloneType::Type3 => {
-            if similarity >= 0.9 {
-                match node_kind {
-                    NodeKind::Class => "High similarity: use inheritance".to_owned(),
-                    NodeKind::Method if is_init => "Extract common init to base class".to_owned(),
-                    NodeKind::Method => "Consider template method pattern".to_owned(),
-                    NodeKind::Function | NodeKind::AsyncFunction => {
-                        "Consider higher-order function or decorator".to_owned()
-                    }
-                }
-            } else if similarity >= 0.8 {
-                match node_kind {
-                    NodeKind::Class => "Review for composition pattern".to_owned(),
-                    NodeKind::Method => "Consider template method pattern".to_owned(),
-                    NodeKind::Function | NodeKind::AsyncFunction => {
-                        "Review for potential abstraction".to_owned()
-                    }
-                }
-            } else {
-                "Review for potential consolidation".to_owned()
-            }
-        }
-    }
 }
 
 fn create_detector(options: &CloneOptions) -> CloneDetector {

@@ -71,129 +71,95 @@ pub fn extract_package_name_from_pep508(spec: &str) -> Option<String> {
 pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
     let mut deps = Vec::new();
 
-    if let Ok(content) = std::fs::read_to_string(path) {
-        let parsed: Value = match toml::from_str(&content) {
-            Ok(v) => v,
-            Err(_) => {
-                return deps;
-            }
-        };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return deps;
+    };
+    let parsed: Value = match toml::from_str(&content) {
+        Ok(value) => value,
+        Err(_) => return deps,
+    };
+    let make_dep = |package_name: &str, is_dev| DeclaredDependency {
+        package_name: package_name.to_owned(),
+        normalized_name: normalize_package_name(package_name),
+        is_dev,
+        source: DependencySource::Pyproject,
+    };
 
-        // Parse [project].dependencies
-        if let Some(project) = parsed.get("project") {
-            if let Some(dependencies) = project.get("dependencies").and_then(Value::as_array) {
-                for dep in dependencies.iter().filter_map(Value::as_str) {
-                    if let Some(pkg) = extract_package_name_from_pep508(dep) {
-                        deps.push(DeclaredDependency {
-                            package_name: pkg.clone(),
-                            normalized_name: normalize_package_name(&pkg),
-                            is_dev: false,
-                            source: DependencySource::Pyproject,
-                        });
-                    }
-                }
-            }
-
-            // Parse optional-dependencies
-            if let Some(optional) = project
-                .get("optional-dependencies")
-                .and_then(Value::as_table)
-            {
-                for (_, reqs) in optional {
-                    if let Some(req_arr) = reqs.as_array() {
-                        for dep in req_arr.iter().filter_map(Value::as_str) {
-                            if let Some(pkg) = extract_package_name_from_pep508(dep) {
-                                deps.push(DeclaredDependency {
-                                    package_name: pkg.clone(),
-                                    normalized_name: normalize_package_name(&pkg),
-                                    is_dev: true,
-                                    source: DependencySource::Pyproject,
-                                });
-                            }
-                        }
-                    }
-                }
+    if let Some(project) = parsed.get("project") {
+        if let Some(dependencies) = project.get("dependencies").and_then(Value::as_array) {
+            deps.extend(
+                dependencies
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .filter_map(extract_package_name_from_pep508)
+                    .map(|package_name| make_dep(&package_name, false)),
+            );
+        }
+        if let Some(optional) = project
+            .get("optional-dependencies")
+            .and_then(Value::as_table)
+        {
+            for reqs in optional.values().filter_map(Value::as_array) {
+                deps.extend(
+                    reqs.iter()
+                        .filter_map(Value::as_str)
+                        .filter_map(extract_package_name_from_pep508)
+                        .map(|package_name| make_dep(&package_name, true)),
+                );
             }
         }
+    }
 
-        // tools like poetry and pdm also put dev dependencies elsewhere
-        // We can also check [dependency-groups] per PEP 735 (used by uv)
-        if let Some(groups) = parsed.get("dependency-groups").and_then(Value::as_table) {
-            for (_, reqs) in groups {
-                if let Some(req_arr) = reqs.as_array() {
-                    for dep in req_arr.iter().filter_map(|v| match v {
+    if let Some(groups) = parsed.get("dependency-groups").and_then(Value::as_table) {
+        for reqs in groups.values().filter_map(Value::as_array) {
+            deps.extend(
+                reqs.iter()
+                    .filter_map(|v| match v {
                         Value::String(s) => Some(s.as_str()),
                         Value::Table(t) => t.get("name").and_then(Value::as_str),
                         _ => None,
-                    }) {
-                        if let Some(pkg) = extract_package_name_from_pep508(dep) {
-                            deps.push(DeclaredDependency {
-                                package_name: pkg.clone(),
-                                normalized_name: normalize_package_name(&pkg),
-                                is_dev: true,
-                                source: DependencySource::Pyproject,
-                            });
-                        }
-                    }
-                }
+                    })
+                    .filter_map(extract_package_name_from_pep508)
+                    .map(|package_name| make_dep(&package_name, true)),
+            );
+        }
+    }
+
+    if let Some(tool) = parsed.get("tool").and_then(Value::as_table) {
+        if let Some(pdm) = tool.get("pdm").and_then(Value::as_table) {
+            if let Some(dev_deps) = pdm.get("dev-dependencies").and_then(Value::as_table) {
+                deps.extend(
+                    dev_deps
+                        .keys()
+                        .map(|package_name| make_dep(package_name, true)),
+                );
             }
         }
 
-        // PDM dev dependencies [tool.pdm.dev-dependencies]
-        if let Some(tool) = parsed.get("tool").and_then(Value::as_table) {
-            if let Some(pdm) = tool.get("pdm").and_then(Value::as_table) {
-                if let Some(dev_deps) = pdm.get("dev-dependencies").and_then(Value::as_table) {
-                    for (pkg, _) in dev_deps {
-                        deps.push(DeclaredDependency {
-                            package_name: pkg.clone(),
-                            normalized_name: normalize_package_name(pkg),
-                            is_dev: true,
-                            source: DependencySource::Pyproject,
-                        });
-                    }
-                }
+        if let Some(poetry) = tool.get("poetry").and_then(Value::as_table) {
+            if let Some(poetry_deps) = poetry.get("dependencies").and_then(Value::as_table) {
+                deps.extend(
+                    poetry_deps
+                        .keys()
+                        .filter(|package_name| package_name.as_str() != "python")
+                        .map(|package_name| make_dep(package_name, false)),
+                );
             }
-        }
-
-        // Poetry legacy format [tool.poetry.dependencies]
-        if let Some(tool) = parsed.get("tool").and_then(Value::as_table) {
-            if let Some(poetry) = tool.get("poetry").and_then(Value::as_table) {
-                if let Some(poetry_deps) = poetry.get("dependencies").and_then(Value::as_table) {
-                    for (pkg, _) in poetry_deps {
-                        if pkg != "python" {
-                            deps.push(DeclaredDependency {
-                                package_name: pkg.clone(),
-                                normalized_name: normalize_package_name(pkg),
-                                is_dev: false,
-                                source: DependencySource::Pyproject,
-                            });
-                        }
-                    }
-                }
-                if let Some(dev_deps) = poetry.get("dev-dependencies").and_then(Value::as_table) {
-                    for (pkg, _) in dev_deps {
-                        deps.push(DeclaredDependency {
-                            package_name: pkg.clone(),
-                            normalized_name: normalize_package_name(pkg),
-                            is_dev: true,
-                            source: DependencySource::Pyproject,
-                        });
-                    }
-                }
-                if let Some(group) = poetry.get("group").and_then(Value::as_table) {
-                    for (_, grp_val) in group {
-                        if let Some(grp_deps) =
-                            grp_val.get("dependencies").and_then(Value::as_table)
-                        {
-                            for (pkg, _) in grp_deps {
-                                deps.push(DeclaredDependency {
-                                    package_name: pkg.clone(),
-                                    normalized_name: normalize_package_name(pkg),
-                                    is_dev: true,
-                                    source: DependencySource::Pyproject,
-                                });
-                            }
-                        }
+            if let Some(dev_deps) = poetry.get("dev-dependencies").and_then(Value::as_table) {
+                deps.extend(
+                    dev_deps
+                        .keys()
+                        .map(|package_name| make_dep(package_name, true)),
+                );
+            }
+            if let Some(group) = poetry.get("group").and_then(Value::as_table) {
+                for grp_val in group.values() {
+                    if let Some(grp_deps) = grp_val.get("dependencies").and_then(Value::as_table) {
+                        deps.extend(
+                            grp_deps
+                                .keys()
+                                .map(|package_name| make_dep(package_name, true)),
+                        );
                     }
                 }
             }

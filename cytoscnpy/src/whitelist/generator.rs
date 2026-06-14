@@ -8,6 +8,25 @@ use std::path::Path;
 
 use crate::visitor::Definition;
 
+const HEADER_AFTER_COUNT: &str = r#"#
+# Each entry below represents a symbol that was detected as unused.
+# Review each entry and remove any that are actually unused code.
+# The remaining entries will be treated as "used" in future scans.
+#
+# Usage:
+#   cytoscnpy src/ --make-whitelist > whitelist.py
+#   cytoscnpy src/ --whitelist whitelist.py
+"#;
+
+const FOOTER: &str = r"
+# End of whitelist
+# To use this whitelist:
+#   1. Review each entry above
+#   2. Remove entries for code that is truly unused
+#   3. Save this file as 'whitelist.py' in your project
+#   4. Run: cytoscnpy src/ --whitelist whitelist.py
+";
+
 /// Generate a Python whitelist file from detected dead code.
 ///
 /// The output is valid Python syntax that can be parsed by CytoScnPy
@@ -38,66 +57,56 @@ use crate::visitor::Definition;
 /// helper_constant
 /// ```
 pub fn generate_whitelist(definitions: &[Definition], output: &mut dyn Write) -> io::Result<()> {
-    // Header
+    write_header(output, definitions.len())?;
+    let sorted_defs = sorted_definitions(definitions);
+    write_definition_entries(output, &sorted_defs)?;
+    write_footer(output)
+}
+
+fn write_header(output: &mut dyn Write, entry_count: usize) -> io::Result<()> {
     writeln!(output, "# CytoScnPy Whitelist")?;
-    writeln!(output, "# Total entries: {}", definitions.len())?;
-    writeln!(output, "#")?;
-    writeln!(
-        output,
-        "# Each entry below represents a symbol that was detected as unused."
-    )?;
-    writeln!(
-        output,
-        "# Review each entry and remove any that are actually unused code."
-    )?;
-    writeln!(
-        output,
-        "# The remaining entries will be treated as \"used\" in future scans."
-    )?;
-    writeln!(output, "#")?;
-    writeln!(output, "# Usage:")?;
-    writeln!(output, "#   cytoscnpy src/ --make-whitelist > whitelist.py")?;
-    writeln!(output, "#   cytoscnpy src/ --whitelist whitelist.py")?;
-    writeln!(output)?;
+    writeln!(output, "# Total entries: {entry_count}")?;
+    write!(output, "{HEADER_AFTER_COUNT}")
+}
 
-    // Group by file for better organization
-    let mut sorted_defs: Vec<_> = definitions.to_vec();
+fn sorted_definitions(definitions: &[Definition]) -> Vec<Definition> {
+    let mut sorted_defs = definitions.to_vec();
     sorted_defs.sort_by(|a, b| a.file.cmp(&b.file).then_with(|| a.line.cmp(&b.line)));
+    sorted_defs
+}
 
+fn write_definition_entries(output: &mut dyn Write, definitions: &[Definition]) -> io::Result<()> {
     let mut current_file: Option<&Path> = None;
 
-    for item in &sorted_defs {
-        // Add file separator when file changes
-        if current_file != Some(item.file.as_ref()) {
-            current_file = Some(item.file.as_ref());
-            writeln!(output)?;
-            writeln!(output, "# File: {}", item.file.display())?;
-        }
-
-        // Write the entry with comment
-        writeln!(output, "# Line {} - {}", item.line, item.def_type)?;
-        writeln!(output, "{}", item.name)?;
+    for item in definitions {
+        write_file_header_if_changed(output, &mut current_file, item.file.as_ref())?;
+        write_definition_entry(output, item)?;
     }
 
-    // Footer with instructions
-    writeln!(output)?;
-    writeln!(output, "# End of whitelist")?;
-    writeln!(output, "# To use this whitelist:")?;
-    writeln!(output, "#   1. Review each entry above")?;
-    writeln!(
-        output,
-        "#   2. Remove entries for code that is truly unused"
-    )?;
-    writeln!(
-        output,
-        "#   3. Save this file as 'whitelist.py' in your project"
-    )?;
-    writeln!(
-        output,
-        "#   4. Run: cytoscnpy src/ --whitelist whitelist.py"
-    )?;
-
     Ok(())
+}
+
+fn write_file_header_if_changed<'a>(
+    output: &mut dyn Write,
+    current_file: &mut Option<&'a Path>,
+    file: &'a Path,
+) -> io::Result<()> {
+    if *current_file == Some(file) {
+        return Ok(());
+    }
+
+    *current_file = Some(file);
+    writeln!(output)?;
+    writeln!(output, "# File: {}", file.display())
+}
+
+fn write_definition_entry(output: &mut dyn Write, item: &Definition) -> io::Result<()> {
+    writeln!(output, "# Line {} - {}", item.line, item.def_type)?;
+    writeln!(output, "{}", item.name)
+}
+
+fn write_footer(output: &mut dyn Write) -> io::Result<()> {
+    write!(output, "{FOOTER}")
 }
 
 #[cfg(test)]

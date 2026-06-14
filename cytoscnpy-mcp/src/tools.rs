@@ -8,7 +8,7 @@ use cytoscnpy::commands::{run_cc, run_mi};
 use rmcp::{
     handler::server::tool::ToolRouter,
     handler::server::wrapper::Parameters,
-    model::{CallToolResult, ServerCapabilities, ServerInfo},
+    model::{CallToolResult, Implementation, ServerCapabilities, ServerInfo},
     tool, tool_router, ErrorData as McpError, ServerHandler,
 };
 use schemars::JsonSchema;
@@ -304,8 +304,12 @@ impl ServerHandler for CytoScnPyServer {
     fn get_info(&self) -> ServerInfo {
         let _ = &self.tool_router;
 
-        ServerInfo {
-            instructions: Some(
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION"),
+            ))
+            .with_instructions(
                 "CytoScnPy is a high-performance Python static analyzer built in Rust. \n\n\
                  🔍 TOOLS AVAILABLE:\n\
                  • analyze_path - Full analysis of files/directories\n\
@@ -319,12 +323,8 @@ impl ServerHandler for CytoScnPyServer {
                  • 'Find unused code' → analyze_path, check unused_functions/imports\n\
                  • 'Is this function too complex?' → cyclomatic_complexity\n\
                  • 'Rate code quality' → maintainability_index\n\n\
-                 ⚠️ SEVERITY LEVELS: CRITICAL > HIGH > MEDIUM > LOW"
-                    .into(),
-            ),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
+                 ⚠️ SEVERITY LEVELS: CRITICAL > HIGH > MEDIUM > LOW",
+            )
     }
 }
 

@@ -276,6 +276,24 @@ fn test_fail_on_quality_flag() {
     assert_eq!(result.unwrap(), 1); // Should fail due to quality issues
 }
 
+#[test]
+fn test_fail_on_quality_enables_quality_scan() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("quality_fail_test.py");
+    fs::write(
+        &file_path,
+        "def foo():\n    if True:\n        if True:\n            if True:\n                if True:\n                    pass\n",
+    )
+    .unwrap();
+
+    let result = run_with_captured_output(vec![
+        "--fail-on-quality".to_owned(),
+        file_path.to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1);
+}
+
 /// Test --fail-on-quality with no quality issues returns exit code 0.
 #[test]
 fn test_fail_on_quality_no_issues() {
@@ -381,6 +399,31 @@ fn test_fail_on_any_flag_in_main_analysis() {
     ]);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
+}
+
+#[test]
+fn test_fail_on_any_file_target_uses_parent_for_dependency_declarations() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("main.py");
+    fs::write(
+        dir.path().join("pyproject.toml"),
+        r#"
+[project]
+name = "dep-check"
+version = "0.1.0"
+dependencies = ["requests"]
+"#,
+    )
+    .unwrap();
+    fs::write(&file_path, "import requests\nprint(requests.__version__)\n").unwrap();
+
+    let result = run_with_captured_output(vec![
+        "--fail-on-any".to_owned(),
+        "--json".to_owned(),
+        file_path.to_string_lossy().to_string(),
+    ]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
 }
 
 /// Explicit --fail-threshold should override --fail-on-any's zero-tolerance default.

@@ -99,39 +99,36 @@ fn extract_imports_from_file(file: &std::path::Path) -> FxHashSet<String> {
     FxHashSet::default()
 }
 
-fn merge_imports(mut acc: FxHashSet<String>, set: FxHashSet<String>) -> FxHashSet<String> {
-    acc.extend(set);
-    acc
-}
-
 /// Scans Python files and returns import names split by all files and
 /// production files. Test/dev files are excluded only from the production set.
 pub fn extract_import_scan(roots: &[PathBuf], exclude: &[String], verbose: bool) -> ImportScan {
     let files = find_python_files(roots, exclude, verbose);
 
-    let import_sets: Vec<(bool, FxHashSet<String>)> = files
+    files
         .into_par_iter()
         .map(|file| {
-            (
-                !is_test_or_dev_file(&file),
-                extract_imports_from_file(&file),
-            )
+            let is_production = !is_test_or_dev_file(&file);
+            let imports = extract_imports_from_file(&file);
+            let mut scan = ImportScan {
+                all: imports,
+                production: FxHashSet::default(),
+            };
+            if is_production {
+                scan.production.extend(scan.all.iter().cloned());
+            }
+            scan
         })
-        .collect();
-
-    let all = import_sets
-        .iter()
-        .map(|(_, imports)| imports.clone())
-        .reduce(merge_imports)
-        .unwrap_or_default();
-    let production = import_sets
-        .into_iter()
-        .filter(|(is_production, _)| *is_production)
-        .map(|(_, imports)| imports)
-        .reduce(merge_imports)
-        .unwrap_or_default();
-
-    ImportScan { all, production }
+        .reduce(
+            || ImportScan {
+                all: FxHashSet::default(),
+                production: FxHashSet::default(),
+            },
+            |mut acc, scan| {
+                acc.all.extend(scan.all);
+                acc.production.extend(scan.production);
+                acc
+            },
+        )
 }
 
 /// Scans Python files within the provided roots and extracts all import names,

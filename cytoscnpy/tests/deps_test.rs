@@ -398,6 +398,22 @@ dependencies = ["requests"]
 }
 
 #[test]
+fn test_deps_top_level_fail_on_any_flag() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+    fs::write(root.join("main.py"), "import missing_dep\n")?;
+
+    let (code, _output) = run_deps_command(vec![
+        "--fail-on-any".to_owned(),
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+    ]);
+
+    assert_eq!(code, 1);
+    Ok(())
+}
+
+#[test]
 fn test_deps_local_package() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();

@@ -55,6 +55,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
             command,
             cli_var.output.verbose,
             cli_var.output.fail_on_quality,
+            cli_var.output.fail_on_any,
             &context,
             writer,
         )
@@ -144,6 +145,7 @@ fn run_subcommand<W: std::io::Write>(
     command: Commands,
     verbose: bool,
     fail_on_quality: bool,
+    root_fail_on_any: bool,
     context: &RuntimeContext,
     writer: &mut W,
 ) -> Result<i32> {
@@ -288,7 +290,7 @@ fn run_subcommand<W: std::io::Write>(
                     verbose,
                     show_extra: extra_installed,
                     show_orphans: orphans,
-                    fail_on_any,
+                    fail_on_any: root_fail_on_any || fail_on_any,
                     fail_on_unused,
                     fail_on_missing,
                     fail_on_extra_installed,

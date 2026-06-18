@@ -297,8 +297,16 @@ fn find_dev_dependencies_in_production(
     options: &DepsOptions<'_>,
     pkg_mapping: &FxHashMap<&'static str, Vec<&'static str>>,
 ) -> Vec<DevDependencyInProduction> {
+    let production_declared: FxHashSet<&str> = declared
+        .iter()
+        .filter(|dep| !dep.is_dev)
+        .map(|dep| dep.normalized_name.as_str())
+        .collect();
     let mut findings = Vec::new();
     for dep in declared.iter().filter(|dep| dep.is_dev) {
+        if production_declared.contains(dep.normalized_name.as_str()) {
+            continue;
+        }
         if options
             .ignore_missing
             .iter()

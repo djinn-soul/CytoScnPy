@@ -248,6 +248,34 @@ dev = ["pytest"]
 }
 
 #[test]
+fn test_deps_dependency_declared_in_prod_and_dev_is_allowed_in_production() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["pytest"]
+
+[dependency-groups]
+dev = ["pytest"]
+"#,
+    )?;
+    fs::write(root.join("app.py"), "import pytest\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(!output.contains("CSP-R004"));
+    assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
+    Ok(())
+}
+
+#[test]
 fn test_deps_dev_dependency_allowed_in_tests() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();

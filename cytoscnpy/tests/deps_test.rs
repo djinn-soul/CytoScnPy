@@ -248,6 +248,33 @@ dev = ["pytest"]
 }
 
 #[test]
+fn test_deps_optional_extra_allowed_in_production() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = []
+
+[project.optional-dependencies]
+pytest = ["pytest"]
+"#,
+    )?;
+    fs::write(root.join("plugin.py"), "import pytest\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(!output.contains("CSP-R004"));
+    Ok(())
+}
+
+#[test]
 fn test_deps_dependency_declared_in_prod_and_dev_is_allowed_in_production() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();
@@ -272,6 +299,129 @@ dev = ["pytest"]
     assert_eq!(code, 0);
     assert!(!output.contains("CSP-R004"));
     assert!(output.contains("No unused, missing, extra, or orphan dependencies found!"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_transitive_requires_reachability_from_declared_dependency() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["requests"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import orphan_dep\n")?;
+    fs::write(
+        root.join("uv.lock"),
+        r#"
+version = 1
+
+[[package]]
+name = "requests"
+version = "2.31.0"
+
+[[package]]
+name = "orphan-dep"
+version = "1.0.0"
+"#,
+    )?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(output.contains("Missing Dependencies (CSP-R001)"));
+    assert!(output.contains("orphan_dep"));
+    assert!(!output.contains("Transitive Dependencies (CSP-R003)"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_lockfile_override_uses_exact_file() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+    let locks = root.join("locks");
+    fs::create_dir(&locks)?;
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["requests"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import urllib3\n")?;
+    fs::write(
+        root.join("uv.lock"),
+        r#"
+version = 1
+
+[[package]]
+name = "requests"
+version = "2.31.0"
+"#,
+    )?;
+    let override_lock = locks.join("uv.lock");
+    fs::write(
+        &override_lock,
+        r#"
+version = 1
+
+[[package]]
+name = "requests"
+version = "2.31.0"
+dependencies = [
+  { name = "urllib3" },
+]
+
+[[package]]
+name = "urllib3"
+version = "2.0.0"
+"#,
+    )?;
+
+    let (code, output) = run_deps_command(vec![
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--lockfile".to_owned(),
+        override_lock.to_string_lossy().into_owned(),
+    ]);
+
+    assert_eq!(code, 0);
+    assert!(output.contains("Transitive Dependencies (CSP-R003)"));
+    assert!(!output.contains("Missing Dependencies (CSP-R001)"));
+    Ok(())
+}
+
+#[test]
+fn test_deps_stdlib_backport_with_marker_is_allowed() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["dataclasses; python_version < '3.7'"]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "print('hello')\n")?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(!output.contains("Standard Library Dependencies (CSP-R005)"));
     Ok(())
 }
 

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use super::declared::{locate_and_parse_declarations, DeclaredDependency};
 use super::imports::extract_import_scan;
 use super::installed::{detect_venv, scan_installed, InstalledPackage};
-use super::lockfile::load_lockfile_graph;
+use super::lockfile::{load_lockfile_graph, load_lockfile_graph_at};
 use super::mapping::{get_package_mapping, get_reverse_mapping};
 use super::stdlib::get_stdlib_modules;
 
@@ -195,13 +195,24 @@ fn package_name_for_import(
     super::declared::normalize_package_name(pkg_name_guess)
 }
 
+fn reachable_lockfile_packages(
+    declared: &[DeclaredDependency],
+    graph: &super::lockfile::LockfileGraph,
+) -> FxHashSet<String> {
+    let mut reachable = FxHashSet::default();
+    for dep in declared.iter().filter(|dep| !dep.is_dev) {
+        reachable.extend(graph.transitive_deps(&dep.normalized_name));
+    }
+    reachable
+}
+
 fn find_missing_imports(
     imported: &FxHashSet<String>,
     declared: &[DeclaredDependency],
     options: &DepsOptions<'_>,
     stdlib_modules: &FxHashSet<&'static str>,
     reverse_mapping: &FxHashMap<&'static str, &'static str>,
-    lockfile_graph: Option<&super::lockfile::LockfileGraph>,
+    lockfile_reachable: Option<&FxHashSet<String>>,
 ) -> Vec<String> {
     // Pre-build a set of all declared names (original and normalized) for O(1) lookup.
     let declared_names: FxHashSet<String> = declared
@@ -223,8 +234,8 @@ fn find_missing_imports(
 
         let import_lower = import_name.to_lowercase();
         let pkg_normalized = package_name_for_import(import_name, reverse_mapping);
-        let is_transitive = lockfile_graph.is_some_and(|graph| {
-            graph.forward.contains_key(&pkg_normalized) && !declared_names.contains(&pkg_normalized)
+        let is_transitive = lockfile_reachable.is_some_and(|reachable| {
+            reachable.contains(&pkg_normalized) && !declared_names.contains(&pkg_normalized)
         });
         if is_transitive {
             continue;
@@ -249,9 +260,9 @@ fn find_transitive_imports(
     options: &DepsOptions<'_>,
     stdlib_modules: &FxHashSet<&'static str>,
     reverse_mapping: &FxHashMap<&'static str, &'static str>,
-    lockfile_graph: Option<&super::lockfile::LockfileGraph>,
+    lockfile_reachable: Option<&FxHashSet<String>>,
 ) -> Vec<TransitiveDependency> {
-    let Some(graph) = lockfile_graph else {
+    let Some(reachable) = lockfile_reachable else {
         return Vec::new();
     };
     let declared_norm: FxHashSet<String> = declared
@@ -269,7 +280,7 @@ fn find_transitive_imports(
             continue;
         }
         let package_name = package_name_for_import(import_name, reverse_mapping);
-        if graph.forward.contains_key(&package_name) && !declared_norm.contains(&package_name) {
+        if reachable.contains(&package_name) && !declared_norm.contains(&package_name) {
             transitive.push(TransitiveDependency {
                 import_name: import_name.clone(),
                 package_name,
@@ -286,7 +297,7 @@ fn find_stdlib_declarations(
 ) -> Vec<DeclaredDependency> {
     declared
         .iter()
-        .filter(|dep| stdlib_modules.contains(dep.normalized_name.as_str()))
+        .filter(|dep| dep.marker.is_none() && stdlib_modules.contains(dep.normalized_name.as_str()))
         .cloned()
         .collect()
 }
@@ -303,7 +314,7 @@ fn find_dev_dependencies_in_production(
         .map(|dep| dep.normalized_name.as_str())
         .collect();
     let mut findings = Vec::new();
-    for dep in declared.iter().filter(|dep| dep.is_dev) {
+    for dep in declared.iter().filter(|dep| dep.is_dev && !dep.is_optional) {
         if production_declared.contains(dep.normalized_name.as_str()) {
             continue;
         }
@@ -429,13 +440,11 @@ fn build_removable_branches(
     declared: &[DeclaredDependency],
     unused: &[DeclaredDependency],
 ) -> Vec<RemovableBranch> {
-    let lockfile_root = options
-        .lockfile_path
-        .as_deref()
-        .and_then(Path::parent)
-        .unwrap_or(primary_root);
-
-    let Some(graph) = load_lockfile_graph(lockfile_root) else {
+    let graph = match options.lockfile_path.as_deref() {
+        Some(path) => load_lockfile_graph_at(path),
+        None => load_lockfile_graph(primary_root),
+    };
+    let Some(graph) = graph else {
         return Vec::new();
     };
 
@@ -500,12 +509,13 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     let pkg_mapping = get_package_mapping();
     let stdlib_modules = get_stdlib_modules();
     let reverse_mapping = get_reverse_mapping();
-    let lockfile_root = options
-        .lockfile_path
-        .as_deref()
-        .and_then(Path::parent)
-        .unwrap_or(primary_root);
-    let lockfile_graph = load_lockfile_graph(lockfile_root);
+    let lockfile_graph = match options.lockfile_path.as_deref() {
+        Some(path) => load_lockfile_graph_at(path),
+        None => load_lockfile_graph(primary_root),
+    };
+    let lockfile_reachable = lockfile_graph
+        .as_ref()
+        .map(|graph| reachable_lockfile_packages(&declared, graph));
 
     let unused = find_unused_declared(&declared, imported, options, pkg_mapping, stdlib_modules);
     let missing = find_missing_imports(
@@ -514,7 +524,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         options,
         stdlib_modules,
         reverse_mapping,
-        lockfile_graph.as_ref(),
+        lockfile_reachable.as_ref(),
     );
     let transitive = find_transitive_imports(
         imported,
@@ -522,7 +532,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         options,
         stdlib_modules,
         reverse_mapping,
-        lockfile_graph.as_ref(),
+        lockfile_reachable.as_ref(),
     );
     let dev_in_production = find_dev_dependencies_in_production(
         &declared,

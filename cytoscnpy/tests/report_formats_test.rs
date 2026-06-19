@@ -41,6 +41,9 @@ fn create_mock_result() -> AnalysisResult {
         file_metrics: vec![],
         missing_dependencies: vec![],
         unused_dependencies: vec![],
+        transitive_dependencies: vec![],
+        dev_dependencies_in_production: vec![],
+        stdlib_dependencies: vec![],
         analysis_summary: AnalysisSummary::default(),
     };
 

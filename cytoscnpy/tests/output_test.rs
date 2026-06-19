@@ -64,6 +64,9 @@ fn test_print_report_formatting() {
         file_metrics: vec![],
         missing_dependencies: vec![],
         unused_dependencies: vec![],
+        transitive_dependencies: vec![],
+        dev_dependencies_in_production: vec![],
+        stdlib_dependencies: vec![],
         analysis_summary: AnalysisSummary {
             total_files: 5,
             secrets_count: 0,

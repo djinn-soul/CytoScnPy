@@ -81,6 +81,9 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         let deps_result = crate::deps::analyze_dependencies(&deps_options);
         run.result.unused_dependencies = deps_result.unused;
         run.result.missing_dependencies = deps_result.missing;
+        run.result.transitive_dependencies = deps_result.transitive;
+        run.result.dev_dependencies_in_production = deps_result.dev_in_production;
+        run.result.stdlib_dependencies = deps_result.stdlib;
     }
 
     // If --no-dead flag is set, clear dead code detection results

@@ -45,6 +45,7 @@ expression: output
   },
   "clones": [],
   "danger": [],
+  "dev_dependencies_in_production": [],
   "file_metrics": [
     {
       "complexity": 2.0,
@@ -102,7 +103,9 @@ expression: output
       "start_byte": 84
     }
   ],
+  "stdlib_dependencies": [],
   "taint_findings": [],
+  "transitive_dependencies": [],
   "unused_classes": [],
   "unused_dependencies": [],
   "unused_functions": [

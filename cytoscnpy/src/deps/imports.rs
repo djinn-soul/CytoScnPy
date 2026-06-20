@@ -71,21 +71,7 @@ fn collect_imports(stmts: &[Stmt], imports: &mut FxHashSet<String>) {
 }
 
 fn is_test_or_dev_file(file: &std::path::Path) -> bool {
-    let file_name = file
-        .file_name()
-        .and_then(std::ffi::OsStr::to_str)
-        .unwrap_or_default();
-    if file_name.starts_with("test_") || file_name.ends_with("_test.py") {
-        return true;
-    }
-
-    file.components().any(|component| {
-        let name = component.as_os_str().to_string_lossy();
-        matches!(
-            name.as_ref(),
-            "test" | "tests" | "testing" | "__tests__" | "conftest.py"
-        )
-    })
+    crate::utils::is_test_path(&file.to_string_lossy())
 }
 
 fn extract_imports_from_file(file: &std::path::Path) -> FxHashSet<String> {

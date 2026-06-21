@@ -101,6 +101,12 @@ nav:
               - "CSP-P012: Tuple over List": rule/CSP-P012.md
               - "CSP-P013: Comprehension Suggestion": rule/CSP-P013.md
               - "CSP-P015: Pandas chunksize": rule/CSP-P015.md
+          - Dependency Hygiene:
+              - "CSP-R001: Missing Dependency": rule/CSP-R001.md
+              - "CSP-R002: Unused Dependency": rule/CSP-R002.md
+              - "CSP-R003: Transitive Dependency": rule/CSP-R003.md
+              - "CSP-R004: Development Dependency Used in Production": rule/CSP-R004.md
+              - "CSP-R005: Standard Library Dependency": rule/CSP-R005.md
       - Migration Guide: migration.md
   - Changelog: https://github.com/djinn-soul/CytoScnPy/releases
   - Roadmap: roadmap.md

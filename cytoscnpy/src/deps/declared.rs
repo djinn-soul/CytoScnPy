@@ -18,8 +18,12 @@ pub struct DeclaredDependency {
     pub package_name: String,
     /// The normalized package name for comparison.
     pub normalized_name: String,
-    /// Whether this is a development/optional dependency.
+    /// Whether this is a development dependency.
     pub is_dev: bool,
+    /// Whether this dependency came from an optional runtime extra.
+    pub is_optional: bool,
+    /// PEP 508 environment marker, if present.
+    pub marker: Option<String>,
     /// The source file or location of the declaration.
     pub source: DependencySource,
 }
@@ -31,6 +35,10 @@ pub fn normalize_package_name(name: &str) -> String {
 
 /// Extracts the clean package name from a PEP 508 specification string.
 pub fn extract_package_name_from_pep508(spec: &str) -> Option<String> {
+    extract_pep508_parts(spec).map(|(name, _)| name)
+}
+
+fn extract_pep508_parts(spec: &str) -> Option<(String, Option<String>)> {
     let spec = spec.trim();
     if spec.is_empty() || spec.starts_with('#') {
         return None;
@@ -63,7 +71,11 @@ pub fn extract_package_name_from_pep508(spec: &str) -> Option<String> {
     if name.is_empty() {
         None
     } else {
-        Some(name.to_owned())
+        let marker = spec
+            .split_once(';')
+            .map(|(_, marker)| marker.trim().to_owned())
+            .filter(|marker| !marker.is_empty());
+        Some((name.to_owned(), marker))
     }
 }
 
@@ -78,11 +90,16 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
         Ok(value) => value,
         Err(_) => return deps,
     };
-    let make_dep = |package_name: &str, is_dev| DeclaredDependency {
-        package_name: package_name.to_owned(),
-        normalized_name: normalize_package_name(package_name),
-        is_dev,
-        source: DependencySource::Pyproject,
+    let make_dep = |spec: &str, is_dev, is_optional| {
+        let (package_name, marker) = extract_pep508_parts(spec)?;
+        Some(DeclaredDependency {
+            package_name: package_name.clone(),
+            normalized_name: normalize_package_name(&package_name),
+            is_dev,
+            is_optional,
+            marker,
+            source: DependencySource::Pyproject,
+        })
     };
 
     if let Some(project) = parsed.get("project") {
@@ -91,8 +108,7 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
                 dependencies
                     .iter()
                     .filter_map(Value::as_str)
-                    .filter_map(extract_package_name_from_pep508)
-                    .map(|package_name| make_dep(&package_name, false)),
+                    .filter_map(|spec| make_dep(spec, false, false)),
             );
         }
         if let Some(optional) = project
@@ -103,8 +119,7 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
                 deps.extend(
                     reqs.iter()
                         .filter_map(Value::as_str)
-                        .filter_map(extract_package_name_from_pep508)
-                        .map(|package_name| make_dep(&package_name, true)),
+                        .filter_map(|spec| make_dep(spec, false, true)),
                 );
             }
         }
@@ -119,8 +134,7 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
                         Value::Table(t) => t.get("name").and_then(Value::as_str),
                         _ => None,
                     })
-                    .filter_map(extract_package_name_from_pep508)
-                    .map(|package_name| make_dep(&package_name, true)),
+                    .filter_map(|spec| make_dep(spec, true, false)),
             );
         }
     }
@@ -131,7 +145,7 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
                 deps.extend(
                     dev_deps
                         .keys()
-                        .map(|package_name| make_dep(package_name, true)),
+                        .filter_map(|package_name| make_dep(package_name, true, false)),
                 );
             }
         }
@@ -142,14 +156,14 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
                     poetry_deps
                         .keys()
                         .filter(|package_name| package_name.as_str() != "python")
-                        .map(|package_name| make_dep(package_name, false)),
+                        .filter_map(|package_name| make_dep(package_name, false, false)),
                 );
             }
             if let Some(dev_deps) = poetry.get("dev-dependencies").and_then(Value::as_table) {
                 deps.extend(
                     dev_deps
                         .keys()
-                        .map(|package_name| make_dep(package_name, true)),
+                        .filter_map(|package_name| make_dep(package_name, true, false)),
                 );
             }
             if let Some(group) = poetry.get("group").and_then(Value::as_table) {
@@ -158,7 +172,7 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
                         deps.extend(
                             grp_deps
                                 .keys()
-                                .map(|package_name| make_dep(package_name, true)),
+                                .filter_map(|package_name| make_dep(package_name, true, false)),
                         );
                     }
                 }
@@ -185,11 +199,13 @@ pub fn parse_requirements(path: &Path) -> Vec<DeclaredDependency> {
                 continue;
             }
 
-            if let Some(pkg) = extract_package_name_from_pep508(line) {
+            if let Some((pkg, marker)) = extract_pep508_parts(line) {
                 deps.push(DeclaredDependency {
                     package_name: pkg.clone(),
                     normalized_name: normalize_package_name(&pkg),
                     is_dev: filename.contains("dev") || filename.contains("test"),
+                    is_optional: false,
+                    marker,
                     source: DependencySource::Requirements(filename.clone()),
                 });
             }

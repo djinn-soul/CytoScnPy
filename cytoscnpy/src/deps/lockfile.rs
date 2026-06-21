@@ -208,6 +208,18 @@ pub fn load_lockfile_graph(project_root: &Path) -> Option<LockfileGraph> {
     None
 }
 
+/// Parse the exact lockfile path supplied by the user.
+pub fn load_lockfile_graph_at(lockfile_path: &Path) -> Option<LockfileGraph> {
+    let content = std::fs::read_to_string(lockfile_path).ok()?;
+    let filename = lockfile_path.file_name()?.to_string_lossy();
+    let nodes = match filename.as_ref() {
+        "uv.lock" => parse_uv_lock(&content),
+        "poetry.lock" => parse_poetry_lock(&content),
+        _ => return None,
+    };
+    (!nodes.is_empty()).then(|| LockfileGraph::from_nodes(&nodes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -30,7 +30,7 @@ pub fn get_test_file_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         compile_regex(
-            r"(?:^|[/\\])tests?[/\\]|(?:^|[/\\])test_[^/\\]+\.py$|[^/\\]+_test\.py$|conftest\.py$",
+            r"(?:^|[/\\])tests?[/\\]|(?:^|[/\\])test_[^/\\]+\.py$|[^/\\]+_test\.py$|(?:conftest|noxfile)\.py$",
             "Invalid test file regex pattern",
         )
     })

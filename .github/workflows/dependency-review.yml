@@ -60,7 +60,8 @@ jobs:
           allow-dependencies-licenses: >-
             pkg:pypi/cyclonedx-python-lib@*: Apache-2.0 AND Python-2.0,
             pkg:pypi/pyparsing@*: MIT AND Python-2.0,
-            pkg:pypi/basedpyright@*: MIT
+            pkg:pypi/basedpyright@*: MIT,
+            pkg:cargo/pyo3@*: MIT OR Apache-2.0
 
           # Warn on low OpenSSF scorecard
           warn-on-openssf-scorecard-level: 3

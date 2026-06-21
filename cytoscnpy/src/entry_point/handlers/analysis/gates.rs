@@ -252,12 +252,16 @@ fn apply_missing_deps_gate(
     if resolve_gate(
         cli_var.output.fail_on_any || cli_var.output.fail_on_missing_deps,
         config.cytoscnpy.deps.fail_on_missing,
-    ) && !result.missing_dependencies.is_empty()
+    ) && !(result.missing_dependencies.is_empty()
+        && result.transitive_dependencies.is_empty()
+        && result.dev_dependencies_in_production.is_empty())
     {
         if !context.is_structured {
             eprintln!(
                 "\n[GATE] Missing dependencies: {} found - FAILED",
                 result.missing_dependencies.len()
+                    + result.transitive_dependencies.len()
+                    + result.dev_dependencies_in_production.len()
             );
         }
         *exit_code = 1;
@@ -274,12 +278,12 @@ fn apply_unused_deps_gate(
     if resolve_gate(
         cli_var.output.fail_on_any || cli_var.output.fail_on_unused_deps,
         config.cytoscnpy.deps.fail_on_unused,
-    ) && !result.unused_dependencies.is_empty()
+    ) && !(result.unused_dependencies.is_empty() && result.stdlib_dependencies.is_empty())
     {
         if !context.is_structured {
             eprintln!(
                 "\n[GATE] Unused dependencies: {} found - FAILED",
-                result.unused_dependencies.len()
+                result.unused_dependencies.len() + result.stdlib_dependencies.len()
             );
         }
         *exit_code = 1;

@@ -19,6 +19,14 @@ fn run_json(args: Vec<String>) -> (i32, Value) {
     (exit_code, json)
 }
 
+fn has_rule(json: &Value, category: &str, rule_id: &str) -> bool {
+    json[category]
+        .as_array()
+        .expect("category should be an array")
+        .iter()
+        .any(|f| f["rule_id"] == rule_id)
+}
+
 #[test]
 fn test_max_complexity_cli_override_triggers_gate() {
     let dir = project_tempdir();
@@ -113,4 +121,119 @@ fn test_dangerous_comparison_left_hand_literal_detected() {
         has_dangerous_comparison,
         "Expected CSP-L003 dangerous comparison finding"
     );
+}
+
+#[test]
+fn test_path_aware_danger_rules_suppress_test_support_files() {
+    let dir = project_tempdir();
+    let production_path = dir.path().join("app.py");
+    let tests_dir = dir.path().join("tests");
+    fs::create_dir(&tests_dir).expect("Failed to create tests dir");
+    let test_path = tests_dir.join("test_app.py");
+    let nox_path = dir.path().join("noxfile.py");
+
+    let source = r#"
+import hashlib
+import os
+
+
+def load_config(value, password, path):
+    eval(value)
+    exec(value)
+    assert value
+    if password == "password":
+        pass
+    if os.path.exists(path):
+        open(path).read()
+    hashlib.md5(b"demo").hexdigest()
+"#;
+    fs::write(&production_path, source).expect("Failed to write production file");
+    fs::write(&test_path, source).expect("Failed to write test file");
+    fs::write(&nox_path, source).expect("Failed to write noxfile");
+
+    let (_exit_code, production_json) = run_json(vec![
+        "--json".to_owned(),
+        "--danger".to_owned(),
+        production_path.to_string_lossy().to_string(),
+    ]);
+    let (_exit_code, test_json) = run_json(vec![
+        "--json".to_owned(),
+        "--danger".to_owned(),
+        test_path.to_string_lossy().to_string(),
+    ]);
+    let (_exit_code, nox_json) = run_json(vec![
+        "--json".to_owned(),
+        "--danger".to_owned(),
+        nox_path.to_string_lossy().to_string(),
+    ]);
+
+    let test_aware_rules = [
+        cytoscnpy::rules::ids::RULE_ID_EVAL,
+        cytoscnpy::rules::ids::RULE_ID_EXEC,
+        cytoscnpy::rules::ids::RULE_ID_ASSERT,
+        cytoscnpy::rules::ids::RULE_ID_HARDCODED_CREDS,
+        cytoscnpy::rules::ids::RULE_ID_RACE_CONDITION,
+    ];
+    for rule_id in test_aware_rules {
+        assert!(
+            has_rule(&production_json, "danger", rule_id),
+            "Expected {rule_id} in production file"
+        );
+        assert!(
+            !has_rule(&test_json, "danger", rule_id),
+            "Did not expect {rule_id} in tests/test_app.py"
+        );
+        assert!(
+            !has_rule(&nox_json, "danger", rule_id),
+            "Did not expect {rule_id} in noxfile.py"
+        );
+    }
+
+    assert!(has_rule(
+        &test_json,
+        "danger",
+        cytoscnpy::rules::ids::RULE_ID_MD5
+    ));
+    assert!(has_rule(
+        &nox_json,
+        "danger",
+        cytoscnpy::rules::ids::RULE_ID_MD5
+    ));
+}
+
+#[test]
+fn test_quality_rules_still_report_in_test_files() {
+    let dir = project_tempdir();
+    let tests_dir = dir.path().join("tests");
+    fs::create_dir(&tests_dir).expect("Failed to create tests dir");
+    let file_path = tests_dir.join("test_quality.py");
+    fs::write(
+        &file_path,
+        r"
+def bad(values=[]):
+    try:
+        if True == flag:
+            return values
+    except:
+        return []
+",
+    )
+    .expect("Failed to write test file");
+
+    let (_exit_code, json) = run_json(vec![
+        "--json".to_owned(),
+        "--quality".to_owned(),
+        file_path.to_string_lossy().to_string(),
+    ]);
+
+    for rule_id in [
+        cytoscnpy::rules::ids::RULE_ID_MUTABLE_DEFAULT,
+        cytoscnpy::rules::ids::RULE_ID_BARE_EXCEPT,
+        cytoscnpy::rules::ids::RULE_ID_DANGEROUS_COMPARISON,
+    ] {
+        assert!(
+            has_rule(&json, "quality", rule_id),
+            "Expected quality rule {rule_id} in test file"
+        );
+    }
 }

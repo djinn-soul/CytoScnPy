@@ -5,6 +5,14 @@ use ruff_python_parser::parse_module;
 use rustc_hash::FxHashSet;
 use std::path::PathBuf;
 
+/// Import names split by all files and production files.
+pub struct ImportScan {
+    /// Imports found anywhere in scanned Python files.
+    pub all: FxHashSet<String>,
+    /// Imports found in files classified as production code.
+    pub production: FxHashSet<String>,
+}
+
 fn collect_imports(stmts: &[Stmt], imports: &mut FxHashSet<String>) {
     for stmt in stmts {
         match stmt {
@@ -62,27 +70,57 @@ fn collect_imports(stmts: &[Stmt], imports: &mut FxHashSet<String>) {
     }
 }
 
-/// Scans Python files within the provided roots and extracts all import names,
-/// including imports nested inside functions, classes, and control flow blocks.
-pub fn extract_imports(roots: &[PathBuf], exclude: &[String], verbose: bool) -> FxHashSet<String> {
+fn is_test_or_dev_file(file: &std::path::Path) -> bool {
+    crate::utils::is_test_path(&file.to_string_lossy())
+}
+
+fn extract_imports_from_file(file: &std::path::Path) -> FxHashSet<String> {
+    if let Ok(content) = std::fs::read_to_string(file) {
+        if let Ok(parsed) = parse_module(&content) {
+            let mut imports = FxHashSet::default();
+            collect_imports(&parsed.into_syntax().body, &mut imports);
+            return imports;
+        }
+    }
+    FxHashSet::default()
+}
+
+/// Scans Python files and returns import names split by all files and
+/// production files. Test/dev files are excluded only from the production set.
+pub fn extract_import_scan(roots: &[PathBuf], exclude: &[String], verbose: bool) -> ImportScan {
     let files = find_python_files(roots, exclude, verbose);
 
     files
         .into_par_iter()
         .map(|file| {
-            if let Ok(content) = std::fs::read_to_string(&file) {
-                if let Ok(parsed) = parse_module(&content) {
-                    let mut imports = FxHashSet::default();
-                    collect_imports(&parsed.into_syntax().body, &mut imports);
-                    return imports;
-                }
+            let is_production = !is_test_or_dev_file(&file);
+            let imports = extract_imports_from_file(&file);
+            let mut scan = ImportScan {
+                all: imports,
+                production: FxHashSet::default(),
+            };
+            if is_production {
+                scan.production.extend(scan.all.iter().cloned());
             }
-            FxHashSet::default()
+            scan
         })
-        .reduce(FxHashSet::default, |mut acc: FxHashSet<String>, set| {
-            acc.extend(set);
-            acc
-        })
+        .reduce(
+            || ImportScan {
+                all: FxHashSet::default(),
+                production: FxHashSet::default(),
+            },
+            |mut acc, scan| {
+                acc.all.extend(scan.all);
+                acc.production.extend(scan.production);
+                acc
+            },
+        )
+}
+
+/// Scans Python files within the provided roots and extracts all import names,
+/// including imports nested inside functions, classes, and control flow blocks.
+pub fn extract_imports(roots: &[PathBuf], exclude: &[String], verbose: bool) -> FxHashSet<String> {
+    extract_import_scan(roots, exclude, verbose).all
 }
 
 #[cfg(test)]

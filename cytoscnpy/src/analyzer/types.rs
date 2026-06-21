@@ -188,6 +188,15 @@ pub struct AnalysisResult {
     pub unused_dependencies: Vec<crate::deps::DeclaredDependency>,
     /// List of imports that were used but never declared.
     pub missing_dependencies: Vec<String>,
+    /// Imported dependencies present only through declared transitive packages.
+    #[serde(default)]
+    pub transitive_dependencies: Vec<crate::deps::TransitiveDependency>,
+    /// Development dependencies imported from production files.
+    #[serde(default)]
+    pub dev_dependencies_in_production: Vec<crate::deps::DevDependencyInProduction>,
+    /// Declared dependencies that are part of the standard library.
+    #[serde(default)]
+    pub stdlib_dependencies: Vec<crate::deps::DeclaredDependency>,
     /// List of discovered secrets (e.g., API keys).
     pub secrets: Vec<SecretFinding>,
     /// List of security vulnerabilities found.

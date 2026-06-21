@@ -58,7 +58,7 @@ public_host = "0.0.0.0" # unsafe
 app.run(host="0.0.0.0") # unsafe
 socket.bind(("0.0.0.0", 80)) # unsafe
 s = socket.socket()
-s.bind(("::1", 443)) # safe
+s.bind(("::", 443)) # unsafe
 
 # Safe bind
 local_host = "127.0.0.1" # safe

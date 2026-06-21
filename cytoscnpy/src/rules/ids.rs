@@ -155,6 +155,17 @@ pub const RULE_ID_COMPREHENSION: &str = "CSP-P013";
 /// Performance: Pandas `read_csv` used without `chunksize`
 pub const RULE_ID_PANDAS_CHUNK_RISK: &str = "CSP-P015";
 
+/// Dependency: Imported package missing from direct dependency declarations
+pub const RULE_ID_MISSING_DEPENDENCY: &str = "CSP-R001";
+/// Dependency: Declared production dependency not imported in scanned files
+pub const RULE_ID_UNUSED_DEPENDENCY: &str = "CSP-R002";
+/// Dependency: Imported package available only as a transitive dependency
+pub const RULE_ID_TRANSITIVE_DEPENDENCY: &str = "CSP-R003";
+/// Dependency: Development dependency imported from production code
+pub const RULE_ID_DEV_DEPENDENCY_IN_PROD: &str = "CSP-R004";
+/// Dependency: Python standard-library module declared as a package dependency
+pub const RULE_ID_STDLIB_DEPENDENCY: &str = "CSP-R005";
+
 /// MCP: `StdioServerParameters(command=<non-literal>)` enables arbitrary OS command execution
 pub const RULE_ID_MCP_STDIO: &str = "CSP-D412";
 

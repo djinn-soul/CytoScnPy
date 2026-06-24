@@ -389,7 +389,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 | ------------------------ | ------------------------------- |
 | `--exclude-folders <DIRS>` | Exclude specific folders.       |
 | `--include-folders <DIRS>` | Force include folders.          |
-| `--include-tests`        | Include test files in analysis. |
+| `--include-tests`        | Include test files in analysis, metrics, statistics, and clone detection. |
 | `--include-ipynb`        | Include Jupyter notebooks.      |
 
 ### CI/CD Failure Gates

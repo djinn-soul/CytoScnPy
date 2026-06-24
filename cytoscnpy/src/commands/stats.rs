@@ -6,7 +6,7 @@ mod model;
 
 pub use model::{Inspections, ScanOptions};
 
-use super::utils::find_python_files;
+use super::utils::find_python_files_with_options;
 use crate::analyzer::CytoScnPy;
 use crate::config::Config;
 use crate::raw_metrics::analyze_raw;
@@ -205,9 +205,21 @@ pub fn run_files<W: Write>(
     json: bool,
     exclude: &[String],
     verbose: bool,
+    writer: W,
+) -> Result<()> {
+    run_files_with_tests(roots, json, exclude, false, verbose, writer)
+}
+
+/// Executes the files command with explicit test-file inclusion behavior.
+pub fn run_files_with_tests<W: Write>(
+    roots: &[PathBuf],
+    json: bool,
+    exclude: &[String],
+    include_tests: bool,
+    verbose: bool,
     mut writer: W,
 ) -> Result<()> {
-    let files = find_python_files(roots, exclude, verbose);
+    let files = find_python_files_with_options(roots, exclude, &[], include_tests, verbose);
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()
         .filter(|p| p.is_file())

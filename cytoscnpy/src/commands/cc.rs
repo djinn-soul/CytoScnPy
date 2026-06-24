@@ -1,6 +1,8 @@
 //! Cyclomatic Complexity analysis command.
 
-use super::utils::{filter_by_rank, find_python_files, merge_excludes, write_output, HasRank};
+use super::utils::{
+    filter_by_rank, find_python_files_with_options, merge_excludes, write_output, HasRank,
+};
 use crate::complexity::analyze_complexity;
 
 use anyhow::Result;
@@ -70,8 +72,19 @@ impl HasRank for CcResult {
 /// Returns an error if file I/O fails or JSON/XML serialization fails.
 #[allow(clippy::cast_precision_loss)]
 pub fn run_cc<W: Write>(roots: &[PathBuf], options: CcOptions, mut writer: W) -> Result<()> {
+    run_cc_with_tests(roots, options, false, &mut writer)
+}
+
+/// Executes cyclomatic complexity analysis with explicit test-file behavior.
+pub fn run_cc_with_tests<W: Write>(
+    roots: &[PathBuf],
+    options: CcOptions,
+    include_tests: bool,
+    mut writer: W,
+) -> Result<()> {
     let all_exclude = merge_excludes(options.exclude, options.ignore);
-    let files = find_python_files(roots, &all_exclude, options.verbose);
+    let files =
+        find_python_files_with_options(roots, &all_exclude, &[], include_tests, options.verbose);
 
     let results: Vec<CcResult> = files
         .par_iter()

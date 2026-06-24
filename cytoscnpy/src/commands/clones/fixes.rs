@@ -13,6 +13,7 @@ pub(super) fn apply_clone_fixes_internal<W: Write>(
     all_files: &[(PathBuf, String)],
     dry_run: bool,
     with_cst: bool,
+    auto_fix_threshold: u8,
 ) -> Result<()> {
     #[cfg(not(feature = "cst"))]
     let _ = with_cst;
@@ -34,7 +35,7 @@ pub(super) fn apply_clone_fixes_internal<W: Write>(
     let mut seen_ranges: HashSet<(PathBuf, usize, usize)> = HashSet::new();
 
     for finding in findings {
-        if finding.is_duplicate && finding.fix_confidence >= 90 {
+        if finding.is_duplicate && finding.fix_confidence >= auto_fix_threshold {
             let (start_byte, end_byte) = {
                 #[cfg(feature = "cst")]
                 {

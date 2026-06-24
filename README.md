@@ -118,7 +118,7 @@ cytoscnpy . --confidence 80
 # Path filtering
 cytoscnpy . --exclude-folder venv --exclude-folder build
 cytoscnpy . --include-folder specific_venv      # Override defaults
-cytoscnpy . --include-tests
+cytoscnpy . --include-tests                       # Include tests in all scans/metrics/clones
 
 # Jupyter notebooks
 cytoscnpy . --include-ipynb --ipynb-cells

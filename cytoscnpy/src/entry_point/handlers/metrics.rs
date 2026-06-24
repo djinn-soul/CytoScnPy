@@ -21,6 +21,7 @@ pub(crate) fn handle_raw<W: std::io::Write>(
     summary: bool,
     exclude_folders: &[String],
     analysis_root: &std::path::Path,
+    include_tests: bool,
     verbose: bool,
     writer: &mut W,
 ) -> Result<i32> {
@@ -33,13 +34,14 @@ pub(crate) fn handle_raw<W: std::io::Write>(
     };
     let exclude = merge_excludes(common.exclude, exclude_folders);
     let output_file = prepare_output_path(common.output_file, analysis_root)?;
-    crate::commands::run_raw(
+    crate::commands::run_raw_with_tests(
         &paths,
         common.json,
         exclude,
         common.ignore,
         summary,
         output_file,
+        include_tests,
         verbose,
         writer,
     )?;
@@ -52,6 +54,7 @@ pub(crate) fn handle_cc<W: std::io::Write>(
     flags: CcFlags,
     exclude_folders: &[String],
     analysis_root: &std::path::Path,
+    include_tests: bool,
     verbose: bool,
     writer: &mut W,
 ) -> Result<i32> {
@@ -64,7 +67,7 @@ pub(crate) fn handle_cc<W: std::io::Write>(
     };
     let exclude = merge_excludes(common.exclude, exclude_folders);
     let output_file = prepare_output_path(common.output_file, analysis_root)?;
-    crate::commands::run_cc(
+    crate::commands::run_cc_with_tests(
         &paths,
         crate::commands::CcOptions {
             json: common.json,
@@ -82,6 +85,7 @@ pub(crate) fn handle_cc<W: std::io::Write>(
             output_file,
             verbose,
         },
+        include_tests,
         writer,
     )?;
     Ok(0)
@@ -92,6 +96,7 @@ pub(crate) fn handle_hal<W: std::io::Write>(
     functions: bool,
     exclude_folders: &[String],
     analysis_root: &std::path::Path,
+    include_tests: bool,
     verbose: bool,
     writer: &mut W,
 ) -> Result<i32> {
@@ -104,13 +109,14 @@ pub(crate) fn handle_hal<W: std::io::Write>(
     };
     let exclude = merge_excludes(common.exclude, exclude_folders);
     let output_file = prepare_output_path(common.output_file, analysis_root)?;
-    crate::commands::run_hal(
+    crate::commands::run_hal_with_tests(
         &paths,
         common.json,
         exclude,
         common.ignore,
         functions,
         output_file,
+        include_tests,
         verbose,
         writer,
     )?;
@@ -131,6 +137,7 @@ pub(crate) fn handle_mi<W: std::io::Write>(
     flags: MiFlags,
     exclude_folders: &[String],
     analysis_root: &std::path::Path,
+    include_tests: bool,
     verbose: bool,
     writer: &mut W,
 ) -> Result<i32> {
@@ -143,7 +150,7 @@ pub(crate) fn handle_mi<W: std::io::Write>(
     };
     let exclude = merge_excludes(common.exclude, exclude_folders);
     let output_file = prepare_output_path(common.output_file, analysis_root)?;
-    crate::commands::run_mi(
+    crate::commands::run_mi_with_tests(
         &paths,
         crate::commands::MiOptions {
             json: common.json,
@@ -158,6 +165,7 @@ pub(crate) fn handle_mi<W: std::io::Write>(
             output_file,
             verbose,
         },
+        include_tests,
         writer,
     )?;
     Ok(0)

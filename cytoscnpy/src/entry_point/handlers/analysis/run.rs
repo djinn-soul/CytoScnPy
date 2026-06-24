@@ -141,6 +141,8 @@ pub(crate) fn run_analysis<W: std::io::Write>(
             fix: false, // Clones are report-only, never auto-fixed
             dry_run: !cli_var.apply,
             exclude: context.exclude_folders.clone().into_iter().collect(),
+            include_tests: context.include_tests,
+            include_folders: context.include_folders.clone(),
             verbose: cli_var.output.verbose,
             with_cst: true, // CST is always enabled by default
             progress_bar: progress.as_ref().map(|pb| std::sync::Arc::new(pb.clone())),

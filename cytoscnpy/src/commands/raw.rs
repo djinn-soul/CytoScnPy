@@ -1,6 +1,6 @@
 //! Raw metrics analysis command (LOC, SLOC, etc.).
 
-use super::utils::{find_python_files, merge_excludes, write_output};
+use super::utils::{find_python_files_with_options, merge_excludes, write_output};
 use crate::raw_metrics::analyze_raw;
 
 use anyhow::Result;
@@ -35,10 +35,36 @@ pub fn run_raw<W: Write>(
     summary: bool,
     output_file: Option<String>,
     verbose: bool,
+    writer: W,
+) -> Result<()> {
+    run_raw_with_tests(
+        roots,
+        json,
+        exclude,
+        ignore,
+        summary,
+        output_file,
+        false,
+        verbose,
+        writer,
+    )
+}
+
+/// Executes raw metrics with explicit test-file inclusion behavior.
+#[allow(clippy::fn_params_excessive_bools)]
+pub fn run_raw_with_tests<W: Write>(
+    roots: &[PathBuf],
+    json: bool,
+    exclude: Vec<String>,
+    ignore: Vec<String>,
+    summary: bool,
+    output_file: Option<String>,
+    include_tests: bool,
+    verbose: bool,
     mut writer: W,
 ) -> Result<()> {
     let all_exclude = merge_excludes(exclude, ignore);
-    let files = find_python_files(roots, &all_exclude, verbose);
+    let files = find_python_files_with_options(roots, &all_exclude, &[], include_tests, verbose);
 
     let results: Vec<RawResult> = files
         .par_iter()

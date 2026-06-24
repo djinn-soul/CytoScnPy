@@ -62,6 +62,7 @@ pub(crate) fn handle_stats<W: std::io::Write>(
 pub(crate) fn handle_files<W: std::io::Write>(
     args: crate::cli::FilesArgs,
     exclude_folders: &[String],
+    include_tests: bool,
     verbose: bool,
     writer: &mut W,
 ) -> Result<i32> {
@@ -73,6 +74,13 @@ pub(crate) fn handle_files<W: std::io::Write>(
         Err(code) => return Ok(code),
     };
     let exclude = merge_excludes(args.exclude, exclude_folders);
-    crate::commands::run_files(&paths, args.json, &exclude, verbose, writer)?;
+    crate::commands::run_files_with_tests(
+        &paths,
+        args.json,
+        &exclude,
+        include_tests,
+        verbose,
+        writer,
+    )?;
     Ok(0)
 }

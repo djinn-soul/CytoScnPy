@@ -131,6 +131,17 @@ pub fn is_test_path(p: &str) -> bool {
     TEST_FILE_RE().is_match(p)
 }
 
+/// Checks whether a path is a test path relative to an analysis root.
+#[must_use]
+pub fn is_test_path_relative_to(path: &std::path::Path, root: &std::path::Path) -> bool {
+    let relative = if root.is_file() {
+        path.file_name().map(std::path::Path::new).unwrap_or(path)
+    } else {
+        path.strip_prefix(root).unwrap_or(path)
+    };
+    is_test_path(&relative.to_string_lossy())
+}
+
 /// Checks if a path is a framework path.
 #[must_use]
 pub fn is_framework_path(p: &str) -> bool {

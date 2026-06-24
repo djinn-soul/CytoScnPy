@@ -148,15 +148,18 @@ impl CytoScnPy {
         paths
             .iter()
             .map(|path| {
-                crate::utils::collect_python_files_gitignore(
+                let mut files = crate::utils::collect_python_files_gitignore(
                     path,
                     &self.exclude_folders,
                     &self.include_folders,
                     self.include_ipynb,
                     self.verbose,
                 )
-                .0
-                .len()
+                .0;
+                if !self.include_tests {
+                    files.retain(|file| !crate::utils::is_test_path_relative_to(file, path));
+                }
+                files.len()
             })
             .sum()
     }

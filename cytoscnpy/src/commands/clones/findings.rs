@@ -1,5 +1,5 @@
 use super::suggestions::generate_clone_suggestion;
-use crate::clones::{CloneFinding, ClonePair, ConfidenceScorer, FixContext};
+use crate::clones::{CloneFinding, ClonePair, ConfidenceScorer, FixContext, FixDecision};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -10,6 +10,18 @@ pub fn generate_clone_findings(
     pairs: &[ClonePair],
     all_files: &[(PathBuf, String)],
     with_cst: bool,
+) -> Vec<CloneFinding> {
+    generate_clone_findings_with_thresholds(pairs, all_files, with_cst, 90, 60)
+}
+
+/// Generates clone findings with explicit confidence thresholds.
+#[must_use]
+pub fn generate_clone_findings_with_thresholds(
+    pairs: &[ClonePair],
+    all_files: &[(PathBuf, String)],
+    with_cst: bool,
+    auto_fix_threshold: u8,
+    suggest_threshold: u8,
 ) -> Vec<CloneFinding> {
     #[cfg(not(feature = "cst"))]
     let _ = with_cst;
@@ -32,12 +44,17 @@ pub fn generate_clone_findings(
         HashMap::new()
     };
 
-    let scorer = ConfidenceScorer::default();
+    let scorer = ConfidenceScorer::new(auto_fix_threshold, suggest_threshold);
     let mut findings: Vec<CloneFinding> = pairs
         .par_iter()
         .flat_map(|pair| {
-            let calc_conf = |inst: &crate::clones::CloneInstance| -> u8 {
+            let calc_conf = |inst: &crate::clones::CloneInstance| {
                 let ctx = FixContext {
+                    is_test_file: crate::utils::is_test_path(
+                        &pair.instance_a.file.to_string_lossy(),
+                    ) || crate::utils::is_test_path(
+                        &pair.instance_b.file.to_string_lossy(),
+                    ),
                     same_file: pair.is_same_file(),
                     ..FixContext::default()
                 };
@@ -62,13 +79,20 @@ pub fn generate_clone_findings(
                 #[cfg(not(feature = "cst"))]
                 let ctx = ctx;
 
-                scorer.score(pair, &ctx).score
+                let confidence = scorer.score(pair, &ctx);
+                (confidence.score, confidence.decision)
             };
 
-            vec![
-                CloneFinding::from_pair(pair, false, calc_conf(&pair.instance_a)),
-                CloneFinding::from_pair(pair, true, calc_conf(&pair.instance_b)),
+            let (canonical_score, canonical_decision) = calc_conf(&pair.instance_a);
+            let (duplicate_score, duplicate_decision) = calc_conf(&pair.instance_b);
+            [
+                (false, canonical_score, canonical_decision),
+                (true, duplicate_score, duplicate_decision),
             ]
+            .into_iter()
+            .filter(|(_, _, decision)| *decision != FixDecision::Suppress)
+            .map(|(duplicate, score, _)| CloneFinding::from_pair(pair, duplicate, score))
+            .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
 

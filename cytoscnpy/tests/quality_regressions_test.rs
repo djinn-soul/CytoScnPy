@@ -159,11 +159,13 @@ def load_config(value, password, path):
     let (_exit_code, test_json) = run_json(vec![
         "--json".to_owned(),
         "--danger".to_owned(),
+        "--include-tests".to_owned(),
         test_path.to_string_lossy().to_string(),
     ]);
     let (_exit_code, nox_json) = run_json(vec![
         "--json".to_owned(),
         "--danger".to_owned(),
+        "--include-tests".to_owned(),
         nox_path.to_string_lossy().to_string(),
     ]);
 
@@ -202,7 +204,7 @@ def load_config(value, password, path):
 }
 
 #[test]
-fn test_quality_rules_still_report_in_test_files() {
+fn test_quality_rules_report_when_tests_are_included() {
     let dir = project_tempdir();
     let tests_dir = dir.path().join("tests");
     fs::create_dir(&tests_dir).expect("Failed to create tests dir");
@@ -223,6 +225,7 @@ def bad(values=[]):
     let (_exit_code, json) = run_json(vec![
         "--json".to_owned(),
         "--quality".to_owned(),
+        "--include-tests".to_owned(),
         file_path.to_string_lossy().to_string(),
     ]);
 

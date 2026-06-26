@@ -16,7 +16,7 @@
 
 ### Behavioral Changes
 
-- **Test Exclusion**: Starting from v1.2.2, tests are **excluded by default** in both the CLI and library API to reduce noise. Use the `--include-tests` flag if you want to scan your test files.
+- **Test Exclusion**: Starting from v1.2.2, tests are **excluded by default** in the CLI and library API to reduce noise. This applies consistently to main analysis, standalone metrics, file statistics, and clone detection. Use `--include-tests` to scan test files. Dependency analysis remains test-aware by design and scans test/dev imports separately from production imports.
 
 ## Upgrading to v1.2.0
 

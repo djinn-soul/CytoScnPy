@@ -8,10 +8,24 @@ use std::path::PathBuf;
 /// Finds all Python files under the given roots, excluding specified patterns.
 /// Respects .gitignore files in addition to hardcoded defaults.
 pub fn find_python_files(roots: &[PathBuf], exclude: &[String], verbose: bool) -> Vec<PathBuf> {
+    find_python_files_with_options(roots, exclude, &[], true, verbose)
+}
+
+/// Finds Python files with explicit include-folder and test-file behavior.
+pub fn find_python_files_with_options(
+    roots: &[PathBuf],
+    exclude: &[String],
+    include: &[String],
+    include_tests: bool,
+    verbose: bool,
+) -> Vec<PathBuf> {
     let mut all_files = Vec::new();
     for root in roots {
-        let (files, _) =
-            crate::utils::collect_python_files_gitignore(root, exclude, &[], false, verbose);
+        let (mut files, _) =
+            crate::utils::collect_python_files_gitignore(root, exclude, include, false, verbose);
+        if !include_tests {
+            files.retain(|path| !crate::utils::is_test_path_relative_to(path, root));
+        }
         all_files.extend(files);
     }
     all_files

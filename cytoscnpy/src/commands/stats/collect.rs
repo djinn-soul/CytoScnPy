@@ -41,19 +41,18 @@ pub(super) fn collect_project_stats(
     let mut files = Vec::new();
     let mut num_directories = 0;
     for path in roots {
-        let (f, d) = crate::utils::collect_python_files_gitignore(
+        let (mut root_files, d) = crate::utils::collect_python_files_gitignore(
             path,
             exclude,
             include_folders,
             false,
             verbose,
         );
-        files.extend(f);
+        if !include_tests {
+            root_files.retain(|file| !crate::utils::is_test_path_relative_to(file, path));
+        }
+        files.extend(root_files);
         num_directories += d;
-    }
-
-    if !include_tests {
-        files.retain(|p| !crate::utils::is_test_path(&p.to_string_lossy()));
     }
 
     let file_metrics: Vec<FileMetrics> = files

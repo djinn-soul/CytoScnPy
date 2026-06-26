@@ -46,6 +46,9 @@ fn extract_fingerprints(
                 if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
                     return None;
                 }
+                if !detector.should_process_path(path) {
+                    return None;
+                }
                 let source = std::fs::read_to_string(path).ok()?;
                 let subtrees = parser::extract_subtrees(&source, path).ok()?;
 
@@ -204,17 +207,7 @@ fn build_pair(
         return None;
     }
 
-    let t1 = detector.config.type1_threshold;
-    let t2_raw = detector.config.type2_raw_max;
-    let clone_type = if raw_sim >= t1 && id_sim >= t1 {
-        CloneType::Type1
-    } else if id_sim >= t1 && raw_sim < t2_raw {
-        CloneType::Type2
-    } else if id_sim >= t1 {
-        CloneType::Type1
-    } else {
-        CloneType::Type3
-    };
+    let clone_type = detector.classify_clone(raw_sim, id_sim);
 
     if !detector.is_type_enabled(clone_type) {
         return None;

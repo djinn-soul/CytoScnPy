@@ -14,12 +14,16 @@ pub(super) fn detect_from_memory(
     let max_lines = detector.config.max_lines;
 
     for (path, source) in files {
+        if !detector.should_process_path(path) {
+            continue;
+        }
         if let Ok(subtrees) = parser::extract_subtrees(source, path) {
             all_subtrees.extend(subtrees);
         }
     }
 
     let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
+    let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1);
     let hasher = hasher::LshHasher::new(detector.config.lsh_bands, detector.config.lsh_rows);
 
     let filtered_subtrees: Vec<&parser::Subtree> = all_subtrees
@@ -60,10 +64,13 @@ pub(super) fn detect_from_memory(
     for (i, j) in candidates {
         let id_a = id_normalizer.normalize(filtered_subtrees[i]);
         let id_b = id_normalizer.normalize(filtered_subtrees[j]);
+        let raw_a = raw_normalizer.normalize(filtered_subtrees[i]);
+        let raw_b = raw_normalizer.normalize(filtered_subtrees[j]);
         let id_sim = similarity_calc.similarity(&id_a, &id_b);
+        let raw_sim = similarity_calc.similarity(&raw_a, &raw_b);
 
         if id_sim >= detector.config.min_similarity {
-            let clone_type = TreeSimilarity::classify_by_similarity(id_sim);
+            let clone_type = detector.classify_clone(raw_sim, id_sim);
             if !detector.is_type_enabled(clone_type) {
                 continue;
             }

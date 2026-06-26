@@ -258,7 +258,7 @@ fn test_exclude_folders_flag() {
 #[test]
 fn test_fail_on_quality_flag() {
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("quality_fail_test.py");
+    let file_path = dir.path().join("quality_fail.py");
     // Create a deeply nested function that triggers quality issues (max nesting exceeded)
     fs::write(
         &file_path,
@@ -279,7 +279,7 @@ fn test_fail_on_quality_flag() {
 #[test]
 fn test_fail_on_quality_enables_quality_scan() {
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("quality_fail_test.py");
+    let file_path = dir.path().join("quality_fail.py");
     fs::write(
         &file_path,
         "def foo():\n    if True:\n        if True:\n            if True:\n                if True:\n                    pass\n",
@@ -298,7 +298,7 @@ fn test_fail_on_quality_enables_quality_scan() {
 #[test]
 fn test_fail_on_quality_no_issues() {
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("quality_pass_test.py");
+    let file_path = dir.path().join("quality_pass.py");
     // Simple function with no quality issues
     fs::write(&file_path, "def foo():\n    pass\n").unwrap();
 
@@ -316,7 +316,7 @@ fn test_fail_on_quality_no_issues() {
 #[test]
 fn test_fail_on_danger_flag() {
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("danger_fail_test.py");
+    let file_path = dir.path().join("danger_fail.py");
     fs::write(&file_path, "import os\nos.system(user_input)\n").unwrap();
 
     let result = run_with_captured_output(vec![

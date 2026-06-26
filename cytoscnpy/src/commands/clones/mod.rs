@@ -16,7 +16,7 @@ use fixes::apply_clone_fixes_internal;
 use stats::{load_matched_files, print_clone_stats_simple};
 use suggestions::generate_clone_suggestion;
 
-pub use findings::generate_clone_findings;
+pub use findings::{generate_clone_findings, generate_clone_findings_with_thresholds};
 
 /// Options for clone detection
 #[derive(Debug, Default, Clone)]
@@ -32,6 +32,10 @@ pub struct CloneOptions {
     pub dry_run: bool,
     /// List of paths to exclude
     pub exclude: Vec<String>,
+    /// Include test files in clone detection
+    pub include_tests: bool,
+    /// Folders to force-include during file discovery
+    pub include_folders: Vec<String>,
     /// Verbose output
     pub verbose: bool,
     /// Use CST for precise fixing (comment preservation)
@@ -41,7 +45,10 @@ pub struct CloneOptions {
 }
 
 fn create_detector(options: &CloneOptions) -> CloneDetector {
-    let config = CloneConfig::default().with_min_similarity(options.similarity);
+    let config = CloneConfig::default()
+        .with_min_similarity(options.similarity)
+        // Command-level discovery already applies root-relative test filtering.
+        .with_tests(true);
     let mut detector = CloneDetector::with_config(config);
     if let Some(ref pb) = options.progress_bar {
         detector.progress_bar = Some(std::sync::Arc::clone(pb));
@@ -144,16 +151,26 @@ pub fn run_clones<W: Write>(
     options: &CloneOptions,
     mut writer: W,
 ) -> Result<(usize, Vec<CloneFinding>)> {
-    let file_paths: Vec<PathBuf> =
-        super::utils::find_python_files(paths, &options.exclude, options.verbose);
+    let file_paths: Vec<PathBuf> = super::utils::find_python_files_with_options(
+        paths,
+        &options.exclude,
+        &options.include_folders,
+        options.include_tests,
+        options.verbose,
+    );
 
     if file_paths.is_empty() {
-        writeln!(writer, "No Python files found.")?;
+        if options.json {
+            writeln!(writer, "[]")?;
+        } else {
+            writeln!(writer, "No Python files found.")?;
+        }
         return Ok((0, Vec::new()));
     }
 
     let file_count = file_paths.len();
     let detector = create_detector(options);
+    let (auto_fix_threshold, suggest_threshold) = detector.confidence_thresholds();
     let result = detector.detect_from_paths(&file_paths);
 
     if !options.json && options.verbose {
@@ -170,7 +187,13 @@ pub fn run_clones<W: Write>(
     }
 
     let matched_files = load_matched_files(&result.pairs);
-    let findings = generate_clone_findings(&result.pairs, &matched_files, options.with_cst);
+    let findings = generate_clone_findings_with_thresholds(
+        &result.pairs,
+        &matched_files,
+        options.with_cst,
+        auto_fix_threshold,
+        suggest_threshold,
+    );
 
     if let Some(ref pb) = options.progress_bar {
         pb.finish_and_clear();
@@ -185,6 +208,7 @@ pub fn run_clones<W: Write>(
             &matched_files,
             options.dry_run,
             options.with_cst,
+            auto_fix_threshold,
         )?;
     }
 

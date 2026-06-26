@@ -32,6 +32,45 @@ fn test_clone_detector_with_custom_config() {
 }
 
 #[test]
+fn test_clone_detector_excludes_test_files_by_default() {
+    let source = r"
+def duplicate(x):
+    a = 1
+    b = 2
+    c = a + b
+    return x
+";
+    let files = vec![
+        (PathBuf::from("tests/test_one.py"), source.to_string()),
+        (PathBuf::from("tests/test_two.py"), source.to_string()),
+    ];
+
+    let result = CloneDetector::new().detect(&files);
+
+    assert!(result.pairs.is_empty());
+}
+
+#[test]
+fn test_clone_detector_includes_test_files_when_configured() {
+    let source = r"
+def duplicate(x):
+    a = 1
+    b = 2
+    c = a + b
+    return x
+";
+    let files = vec![
+        (PathBuf::from("tests/test_one.py"), source.to_string()),
+        (PathBuf::from("tests/test_two.py"), source.to_string()),
+    ];
+    let detector = CloneDetector::with_config(CloneConfig::default().with_tests(true));
+
+    let result = detector.detect(&files);
+
+    assert!(!result.pairs.is_empty());
+}
+
+#[test]
 fn test_extract_subtrees_simple() {
     let source = r#"
 def calculate_area(radius):

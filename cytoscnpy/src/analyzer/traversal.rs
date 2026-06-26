@@ -64,6 +64,7 @@ impl CytoScnPy {
                 if path
                     .extension()
                     .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
+                    && (self.include_tests || !crate::utils::is_test_path_relative_to(path, path))
                 {
                     all_files.push(path.clone());
                 }
@@ -86,13 +87,17 @@ impl CytoScnPy {
     /// Collects all Python files from a directory, respecting exclusion rules.
     /// Uses gitignore-aware walking (respects .gitignore files) IN ADDITION to hardcoded defaults.
     fn collect_python_files(&self, root_path: &Path) -> (Vec<std::path::PathBuf>, usize) {
-        crate::utils::collect_python_files_gitignore(
+        let (mut files, directory_count) = crate::utils::collect_python_files_gitignore(
             root_path,
             &self.exclude_folders,
             &self.include_folders,
             self.include_ipynb,
             self.verbose,
-        )
+        );
+        if !self.include_tests {
+            files.retain(|path| !crate::utils::is_test_path_relative_to(path, root_path));
+        }
+        (files, directory_count)
     }
 
     /// Analyzes a specific list of files.

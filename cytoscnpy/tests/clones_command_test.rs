@@ -22,6 +22,8 @@ fn run_clones_api(paths: &[PathBuf], args: &CloneArgs) -> serde_json::Value {
         fix: false,
         dry_run: true,
         exclude: args.exclude.clone(),
+        include_tests: false,
+        include_folders: vec![],
         verbose: false,
         with_cst: true,
         progress_bar: None,
@@ -189,6 +191,8 @@ def exact_copy(x):
         fix: false,
         dry_run: true,
         exclude: vec![],
+        include_tests: false,
+        include_folders: vec![],
         verbose: true,
         with_cst: true,
         progress_bar: None,
@@ -240,6 +244,8 @@ def exact_copy(x):
         fix: true,
         dry_run: false, // Actually apply fixes
         exclude: vec![],
+        include_tests: false,
+        include_folders: vec![],
         verbose: false,
         with_cst: false, // Byte-based for simplicity
         progress_bar: None,
@@ -290,6 +296,8 @@ def exact_copy(x):
         fix: true,
         dry_run: true, // Should NOT modify files
         exclude: vec![],
+        include_tests: false,
+        include_folders: vec![],
         verbose: true,
         with_cst: false,
         progress_bar: None,

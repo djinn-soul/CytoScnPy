@@ -256,8 +256,28 @@ fn test_is_sanitizer_bool() {
 }
 
 #[test]
-fn test_is_sanitizer_escape() {
+fn test_bare_escape_is_not_trusted() {
     let expr = parse_expr("escape(x)");
+    if let ast::Expr::Call(call) = expr {
+        assert!(!is_sanitizer_call(&call));
+    } else {
+        panic!("Expected call expression");
+    }
+}
+
+#[test]
+fn test_bare_quote_is_not_trusted() {
+    let expr = parse_expr("quote(x)");
+    if let ast::Expr::Call(call) = expr {
+        assert!(!is_sanitizer_call(&call));
+    } else {
+        panic!("Expected call expression");
+    }
+}
+
+#[test]
+fn test_qualified_html_escape_is_sanitizer() {
+    let expr = parse_expr("html.escape(x)");
     if let ast::Expr::Call(call) = expr {
         assert!(is_sanitizer_call(&call));
     } else {
@@ -266,8 +286,8 @@ fn test_is_sanitizer_escape() {
 }
 
 #[test]
-fn test_is_sanitizer_quote() {
-    let expr = parse_expr("quote(x)");
+fn test_qualified_shlex_quote_is_sanitizer() {
+    let expr = parse_expr("shlex.quote(x)");
     if let ast::Expr::Call(call) = expr {
         assert!(is_sanitizer_call(&call));
     } else {

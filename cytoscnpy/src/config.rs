@@ -6,7 +6,9 @@ mod whitelist;
 use std::path::Path;
 
 pub use models::{Config, CytoScnPyConfig, ProjectType};
-pub use security::{CustomSecretPattern, DangerConfig, SecretsConfig};
+pub use security::{
+    CustomSecretPattern, DangerConfig, SanitizerConfig, SanitizerGroup, SecretsConfig,
+};
 pub use whitelist::{get_builtin_whitelists, WhitelistEntry, WhitelistPattern};
 
 impl Config {

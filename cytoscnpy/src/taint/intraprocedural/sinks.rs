@@ -18,6 +18,9 @@ fn handle_call_sink(
         if sink_info.dangerous_args.is_empty() {
             for arg in &call.arguments.args {
                 if let Some(taint_info) = is_expr_tainted(arg, state) {
+                    if taint_info.is_sanitized_for(&sink_info.vuln_type) {
+                        continue;
+                    }
                     if sink_info.vuln_type == VulnType::SqlInjection && is_parameterized_query(call)
                     {
                         continue;
@@ -36,6 +39,9 @@ fn handle_call_sink(
             for arg_idx in &sink_info.dangerous_args {
                 if let Some(arg) = call.arguments.args.get(*arg_idx) {
                     if let Some(taint_info) = is_expr_tainted(arg, state) {
+                        if taint_info.is_sanitized_for(&sink_info.vuln_type) {
+                            continue;
+                        }
                         if sink_info.vuln_type == VulnType::SqlInjection
                             && is_parameterized_query(call)
                         {
@@ -56,13 +62,15 @@ fn handle_call_sink(
 
         if let Expr::Attribute(attr) = &*call.func {
             if let Some(taint_info) = is_expr_tainted(&attr.value, state) {
-                let finding = create_finding(
-                    &taint_info,
-                    &sink_info,
-                    line_index.line_index(call.range().start()),
-                    file_path,
-                );
-                findings.push(finding);
+                if !taint_info.is_sanitized_for(&sink_info.vuln_type) {
+                    let finding = create_finding(
+                        &taint_info,
+                        &sink_info,
+                        line_index.line_index(call.range().start()),
+                        file_path,
+                    );
+                    findings.push(finding);
+                }
             }
         }
 
@@ -70,6 +78,9 @@ fn handle_call_sink(
             if let Some(arg_name) = &keyword.arg {
                 if sink_info.dangerous_keywords.contains(&arg_name.to_string()) {
                     if let Some(taint_info) = is_expr_tainted(&keyword.value, state) {
+                        if taint_info.is_sanitized_for(&sink_info.vuln_type) {
+                            continue;
+                        }
                         let finding = create_finding(
                             &taint_info,
                             &sink_info,

@@ -50,6 +50,8 @@ jobs:
 
       - name: Build all crates
         run: cargo build --all-features --verbose
+        env:
+          PYO3_PYTHON: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
 
       - name: Run extended Rust tests with nextest
         run: cargo nextest run --all-features --verbose --no-fail-fast
@@ -67,6 +69,8 @@ jobs:
 
       - name: Run integration tests
         run: cargo test --all-features --tests -- --include-ignored
+        env:
+          PYO3_PYTHON: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
 
   nightly-build-artifacts:
     name: Build Nightly Artifacts

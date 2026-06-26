@@ -86,6 +86,8 @@ pub struct DangerConfig {
     pub custom_sources: Option<Vec<String>>,
     /// Custom taint sinks.
     pub custom_sinks: Option<Vec<String>>,
+    /// Legacy custom sanitizer functions that clear taint for all taint-aware danger sinks.
+    pub custom_sanitizers: Option<Vec<String>>,
     /// Custom sanitizer functions that clear taint.
     #[serde(default)]
     pub sanitizers: SanitizerConfig,
@@ -106,6 +108,9 @@ pub struct SanitizerConfig {
     /// Sanitizers that mitigate command injection.
     #[serde(default)]
     pub command_injection: SanitizerGroup,
+    /// Sanitizers that mitigate custom code-injection sinks.
+    #[serde(default)]
+    pub code_injection: SanitizerGroup,
 }
 
 /// Defines different types of sanitizers.

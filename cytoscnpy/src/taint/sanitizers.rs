@@ -61,6 +61,22 @@ impl SanitizerConfig {
             &config.command_injection.guard,
             &config.command_injection.side_effect,
         );
+        sanitizers.add_group(
+            &VulnType::CodeInjection,
+            &config.code_injection.return_value,
+            &config.code_injection.guard,
+            &config.code_injection.side_effect,
+        );
+        sanitizers
+    }
+
+    /// Converts danger configuration into taint sanitizer specifications.
+    #[must_use]
+    pub fn from_danger_config(config: &crate::config::DangerConfig) -> Self {
+        let mut sanitizers = Self::from_project_config(&config.sanitizers);
+        if let Some(legacy) = &config.custom_sanitizers {
+            sanitizers.add_legacy_global(legacy);
+        }
         sanitizers
     }
 
@@ -75,6 +91,12 @@ impl SanitizerConfig {
         extend_specs(&mut self.return_value, return_value, vuln_type);
         extend_specs(&mut self.guard, guard, vuln_type);
         extend_specs(&mut self.side_effect, side_effect, vuln_type);
+    }
+
+    fn add_legacy_global(&mut self, patterns: &[String]) {
+        for vuln_type in legacy_global_vuln_types() {
+            extend_specs(&mut self.return_value, patterns, &vuln_type);
+        }
     }
 
     /// Returns the vulnerability classes matched by a call in the requested mode.
@@ -107,12 +129,14 @@ pub fn builtin_return_types(call: &ast::ExprCall) -> Vec<VulnType> {
 
     match name.as_str() {
         "html.escape"
+        | "escape"
         | "cgi.escape"
         | "markupsafe.escape"
         | "flask.escape"
         | "django.utils.html.escape"
         | "bleach.clean" => vec![VulnType::Xss],
-        "shlex.quote" => vec![VulnType::CommandInjection],
+        "shlex.quote" | "shlex.split" => vec![VulnType::CommandInjection],
+        "urllib.parse.quote" | "quote" => vec![VulnType::Ssrf],
         "int" | "float" | "bool" => vec![
             VulnType::SqlInjection,
             VulnType::CommandInjection,
@@ -176,4 +200,18 @@ pub(crate) fn unique_types(types: impl IntoIterator<Item = VulnType>) -> Vec<Vul
         }
     }
     unique
+}
+
+pub(crate) fn legacy_global_vuln_types() -> Vec<VulnType> {
+    vec![
+        VulnType::Ssrf,
+        VulnType::PathTraversal,
+        VulnType::SqlInjection,
+        VulnType::CommandInjection,
+        VulnType::CodeInjection,
+    ]
+}
+
+pub(crate) fn has_builtin_command_sanitizer(source: &str) -> bool {
+    source.contains("shlex.quote(") || source.contains("shlex.split(")
 }

@@ -24,6 +24,7 @@ pub(super) fn handle_assign(
         file_path,
         line_index,
     );
+    apply_side_effect_sanitizer(&assign.value, analyzer, state);
 
     if let Some(taint_info) = analyzer.plugins.check_sources(&assign.value, line_index) {
         for target in &assign.targets {
@@ -64,6 +65,7 @@ pub(super) fn handle_ann_assign(
     line_index: &LineIndex,
 ) {
     if let Some(value) = &assign.value {
+        apply_side_effect_sanitizer(value, analyzer, state);
         if let Some(taint_info) = analyzer.plugins.check_sources(value, line_index) {
             if let Expr::Name(name) = &*assign.target {
                 state.mark_tainted(name.id.as_str(), taint_info);
@@ -98,6 +100,7 @@ pub(super) fn handle_aug_assign(
     file_path: &Path,
     line_index: &LineIndex,
 ) {
+    apply_side_effect_sanitizer(&assign.value, analyzer, state);
     if let Some(taint_info) = is_expr_tainted(&assign.value, state) {
         if let Expr::Name(name) = &*assign.target {
             state.mark_tainted(name.id.as_str(), taint_info.extend_path(name.id.as_str()));
@@ -186,11 +189,18 @@ pub(super) fn apply_side_effect_sanitizer(
 }
 
 fn apply_guard_sanitizer(expr: &Expr, analyzer: &TaintAnalyzer, state: &mut TaintState) {
-    let Expr::Call(call) = expr else {
-        return;
-    };
-    let sanitized_types = analyzer.sanitizer_types(call, SanitizerKind::Guard);
-    sanitize_call_arguments(call, state, &sanitized_types);
+    match expr {
+        Expr::Call(call) => {
+            let sanitized_types = analyzer.sanitizer_types(call, SanitizerKind::Guard);
+            sanitize_call_arguments(call, state, &sanitized_types);
+        }
+        Expr::BoolOp(bool_op) => {
+            for value in &bool_op.values {
+                apply_guard_sanitizer(value, analyzer, state);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn sanitize_call_arguments(

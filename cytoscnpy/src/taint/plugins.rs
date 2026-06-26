@@ -45,7 +45,7 @@ pub trait SanitizerPlugin: Send + Sync {
 
     /// Returns which vulnerability types this sanitizer addresses.
     fn sanitizes_vuln_types(&self) -> Vec<VulnType> {
-        Vec::new()
+        crate::taint::sanitizers::legacy_global_vuln_types()
     }
 }
 

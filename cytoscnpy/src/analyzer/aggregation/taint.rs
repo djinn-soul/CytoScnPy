@@ -29,8 +29,8 @@ pub(super) fn run_taint_analysis(
         .custom_sinks
         .clone()
         .unwrap_or_default();
-    let sanitizers = crate::taint::sanitizers::SanitizerConfig::from_project_config(
-        &analyzer.config.cytoscnpy.danger_config.sanitizers,
+    let sanitizers = crate::taint::sanitizers::SanitizerConfig::from_danger_config(
+        &analyzer.config.cytoscnpy.danger_config,
     );
     let taint_config =
         crate::taint::analyzer::TaintConfig::with_custom(custom_sources, custom_sinks, sanitizers);

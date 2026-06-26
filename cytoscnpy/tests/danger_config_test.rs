@@ -126,6 +126,51 @@ def run(cmd):
 }
 
 #[test]
+fn test_builtin_command_sanitizer_filters_command_rule() {
+    let code = r"
+import os
+import shlex
+
+def run(cmd):
+    quoted = shlex.quote(cmd)
+    os.system(quoted)
+";
+    let mut config = Config::default();
+    config.cytoscnpy.danger = Some(true);
+    config.cytoscnpy.danger_config.enable_taint = Some(true);
+
+    let result = CytoScnPy::default()
+        .with_danger(true)
+        .with_config(config)
+        .analyze_code(code, Path::new("app.py"));
+
+    assert!(result.danger.iter().all(|f| f.rule_id != "CSP-D003"));
+}
+
+#[test]
+fn test_legacy_custom_sanitizers_still_filter_taint() {
+    let code = r"
+import os
+
+def run(cmd):
+    quoted = quote_shell_argument(cmd)
+    os.system(quoted)
+";
+    let mut config = Config::default();
+    config.cytoscnpy.danger = Some(true);
+    config.cytoscnpy.danger_config.enable_taint = Some(true);
+    config.cytoscnpy.danger_config.custom_sanitizers =
+        Some(vec!["quote_shell_argument".to_owned()]);
+
+    let result = CytoScnPy::default()
+        .with_danger(true)
+        .with_config(config)
+        .analyze_code(code, Path::new("app.py"));
+
+    assert!(result.danger.iter().all(|f| f.rule_id != "CSP-D003"));
+}
+
+#[test]
 fn test_mitigated_dynamic_url_is_suppressed() {
     let code = r#"
 from urllib.parse import urlparse

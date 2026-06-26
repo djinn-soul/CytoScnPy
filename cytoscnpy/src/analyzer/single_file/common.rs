@@ -75,8 +75,8 @@ pub(super) fn apply_taint_filters(
         .custom_sinks
         .clone()
         .unwrap_or_default();
-    let sanitizers = crate::taint::sanitizers::SanitizerConfig::from_project_config(
-        &analyzer.config.cytoscnpy.danger_config.sanitizers,
+    let sanitizers = crate::taint::sanitizers::SanitizerConfig::from_danger_config(
+        &analyzer.config.cytoscnpy.danger_config,
     );
     let taint_analyzer =
         TaintAwareDangerAnalyzer::with_custom(custom_sources, custom_sinks, sanitizers);
@@ -84,7 +84,16 @@ pub(super) fn apply_taint_filters(
 
     let mut taint_sensitive_rules = crate::constants::get_taint_sensitive_rules().to_vec();
     let sanitizer_config = &analyzer.config.cytoscnpy.danger_config.sanitizers;
-    if has_configured_sanitizer(&sanitizer_config.command_injection) {
+    if crate::taint::sanitizers::has_builtin_command_sanitizer(source)
+        || has_configured_sanitizer(&sanitizer_config.command_injection)
+        || analyzer
+            .config
+            .cytoscnpy
+            .danger_config
+            .custom_sanitizers
+            .as_ref()
+            .is_some_and(|items| !items.is_empty())
+    {
         taint_sensitive_rules.push(crate::rules::ids::RULE_ID_SUBPROCESS);
     }
     if has_configured_sanitizer(&sanitizer_config.ssrf) {

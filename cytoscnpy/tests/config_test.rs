@@ -143,6 +143,9 @@ side_effect = ["validate_url_or_raise"]
 
 [cytoscnpy.danger_config.sanitizers.sql_injection]
 return_value = ["build_parameterized_query"]
+
+[cytoscnpy.danger_config.sanitizers.code_injection]
+return_value = ["clean_custom_sink"]
 "#,
     )
     .unwrap();
@@ -160,5 +163,25 @@ return_value = ["build_parameterized_query"]
     assert_eq!(
         sanitizers.sql_injection.return_value,
         vec!["build_parameterized_query".to_owned()]
+    );
+    assert_eq!(
+        sanitizers.code_injection.return_value,
+        vec!["clean_custom_sink".to_owned()]
+    );
+}
+
+#[test]
+fn test_legacy_custom_sanitizers_config() {
+    let config: Config = toml::from_str(
+        r#"
+[cytoscnpy.danger_config]
+custom_sanitizers = ["legacy_clean"]
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        config.cytoscnpy.danger_config.custom_sanitizers,
+        Some(vec!["legacy_clean".to_owned()])
     );
 }

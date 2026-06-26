@@ -58,6 +58,34 @@ impl CloneDetector {
             CloneType::Type3 => self.config.detect_type3,
         }
     }
+
+    pub(super) fn should_process_path(&self, path: &std::path::Path) -> bool {
+        self.config.include_tests || !crate::utils::is_test_path(&path.to_string_lossy())
+    }
+
+    pub(super) fn classify_clone(
+        &self,
+        raw_similarity: f64,
+        normalized_similarity: f64,
+    ) -> CloneType {
+        let exact = self.config.type1_threshold;
+        if raw_similarity >= exact && normalized_similarity >= exact {
+            CloneType::Type1
+        } else if normalized_similarity >= exact && raw_similarity < self.config.type2_raw_max {
+            CloneType::Type2
+        } else if normalized_similarity >= exact {
+            CloneType::Type1
+        } else {
+            CloneType::Type3
+        }
+    }
+
+    pub(crate) const fn confidence_thresholds(&self) -> (u8, u8) {
+        (
+            self.config.auto_fix_threshold,
+            self.config.suggest_threshold,
+        )
+    }
 }
 
 impl Default for CloneDetector {

@@ -1,13 +1,10 @@
-use crate::cli::{Cli, Commands};
+use crate::cli::Cli;
 use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
 
-use crate::entry_point::config::{is_vscode_client, resolve_scan_flag, setup_configuration};
-use crate::entry_point::handlers::{
-    handle_analysis, handle_cc, handle_files, handle_hal, handle_mi, handle_raw, handle_stats,
-    CcFlags, DepsCliArgs, DepsFlags, MiFlags,
-};
+use crate::entry_point::config::{is_vscode_client, setup_configuration};
+use crate::entry_point::handlers::handle_analysis;
 use crate::entry_point::paths::{
     collect_all_target_paths, resolve_analysis_context, validate_path_args,
 };
@@ -51,7 +48,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
     print_runtime_messages(&cli_var, &context);
 
     if let Some(command) = cli_var.command {
-        run_subcommand(
+        super::subcommands::run_subcommand(
             command,
             cli_var.output.verbose,
             cli_var.output.fail_on_quality,
@@ -94,14 +91,14 @@ fn parse_cli_or_exit<W: std::io::Write>(
     }
 }
 
-struct RuntimeContext {
-    effective_paths: Vec<PathBuf>,
-    analysis_root: PathBuf,
-    config: crate::config::Config,
-    exclude_folders: Vec<String>,
-    include_folders: Vec<String>,
-    include_tests: bool,
-    is_vscode_client: bool,
+pub(super) struct RuntimeContext {
+    pub(super) effective_paths: Vec<PathBuf>,
+    pub(super) analysis_root: PathBuf,
+    pub(super) config: crate::config::Config,
+    pub(super) exclude_folders: Vec<String>,
+    pub(super) include_folders: Vec<String>,
+    pub(super) include_tests: bool,
+    pub(super) is_vscode_client: bool,
 }
 
 fn build_runtime_context(cli_var: &Cli) -> RuntimeContext {
@@ -138,181 +135,5 @@ fn print_runtime_messages(cli_var: &Cli, context: &RuntimeContext) {
         }
         eprintln!("[VERBOSE] Global Excludes: {:?}", context.exclude_folders);
         eprintln!();
-    }
-}
-
-fn run_subcommand<W: std::io::Write>(
-    command: Commands,
-    verbose: bool,
-    fail_on_quality: bool,
-    root_fail_on_any: bool,
-    context: &RuntimeContext,
-    writer: &mut W,
-) -> Result<i32> {
-    match command {
-        Commands::Raw { common, summary } => handle_raw(
-            common,
-            summary,
-            &context.exclude_folders,
-            &context.analysis_root,
-            verbose,
-            writer,
-        ),
-        Commands::Cc {
-            common,
-            rank,
-            average,
-            total_average,
-            show_complexity,
-            order,
-            no_assert,
-            xml,
-            fail_threshold,
-        } => handle_cc(
-            common,
-            rank,
-            CcFlags {
-                average,
-                total_average,
-                show_complexity,
-                order,
-                no_assert,
-                xml,
-                fail_threshold,
-            },
-            &context.exclude_folders,
-            &context.analysis_root,
-            verbose,
-            writer,
-        ),
-        Commands::Hal { common, functions } => handle_hal(
-            common,
-            functions,
-            &context.exclude_folders,
-            &context.analysis_root,
-            verbose,
-            writer,
-        ),
-        Commands::Mi {
-            common,
-            rank,
-            multi,
-            show,
-            average,
-            fail_threshold,
-        } => handle_mi(
-            common,
-            rank,
-            MiFlags {
-                multi,
-                show_hooks: show,
-                average,
-                fail_threshold,
-            },
-            &context.exclude_folders,
-            &context.analysis_root,
-            verbose,
-            writer,
-        ),
-        Commands::McpServer => {
-            eprintln!("Error: mcp-server command should be handled by cytoscnpy-cli directly.");
-            eprintln!("If you're seeing this, please use the cytoscnpy-cli binary.");
-            Ok(1)
-        }
-        Commands::Stats {
-            paths,
-            all,
-            secrets,
-            danger,
-            quality,
-            json,
-            output,
-            exclude,
-        } => handle_stats(
-            &paths,
-            crate::commands::ScanOptions {
-                all,
-                inspections: crate::commands::Inspections {
-                    secrets: resolve_scan_flag(
-                        secrets,
-                        context.config.cytoscnpy.secrets,
-                        context.is_vscode_client,
-                    ),
-                    danger: resolve_scan_flag(
-                        danger,
-                        context.config.cytoscnpy.danger,
-                        context.is_vscode_client,
-                    ),
-                    quality: resolve_scan_flag(
-                        quality,
-                        context.config.cytoscnpy.quality,
-                        context.is_vscode_client,
-                    ),
-                },
-                json,
-            },
-            output,
-            exclude,
-            &context.exclude_folders,
-            &context.include_folders,
-            &context.analysis_root,
-            context.include_tests,
-            verbose,
-            fail_on_quality,
-            context.config.clone(),
-            writer,
-        ),
-        Commands::Files { args } => handle_files(args, &context.exclude_folders, verbose, writer),
-        Commands::Deps {
-            paths: _,
-            json,
-            requirements,
-            ignore_unused,
-            ignore_missing,
-            exclude,
-            output_file,
-            extra_installed,
-            orphans,
-            include_dev_unused,
-            fail_on_any,
-            fail_on_unused,
-            fail_on_missing,
-            fail_on_extra_installed,
-            fail_on_orphans,
-            impact,
-            venv,
-            lockfile,
-        } => crate::entry_point::handlers::handle_deps(
-            DepsCliArgs {
-                effective_paths: context.effective_paths.clone(),
-                flags: DepsFlags {
-                    json,
-                    verbose,
-                    show_extra: extra_installed,
-                    show_orphans: orphans,
-                    fail_on_any: root_fail_on_any || fail_on_any,
-                    fail_on_unused,
-                    fail_on_missing,
-                    fail_on_extra_installed,
-                    fail_on_orphans,
-                    include_dev_unused,
-                },
-                requirements,
-                ignore_unused,
-                ignore_missing,
-                exclude,
-                output_file,
-                cli_exclude_folders: context.exclude_folders.clone(),
-                impact_package: impact,
-                venv,
-                lockfile,
-            },
-            &context.config,
-            writer,
-        ),
-        Commands::Init => {
-            crate::commands::run_init_in(&context.analysis_root, writer)?;
-            Ok(0)
-        }
     }
 }

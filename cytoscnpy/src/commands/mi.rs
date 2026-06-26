@@ -1,6 +1,8 @@
 //! Maintainability Index (MI) analysis command.
 
-use super::utils::{filter_by_rank, find_python_files, merge_excludes, write_output, HasRank};
+use super::utils::{
+    filter_by_rank, find_python_files_with_options, merge_excludes, write_output, HasRank,
+};
 use crate::halstead::analyze_halstead;
 use crate::metrics::{mi_compute, mi_rank};
 use crate::raw_metrics::analyze_raw;
@@ -62,8 +64,19 @@ impl HasRank for MiResult {
 /// Returns an error if file I/O fails or JSON serialization fails.
 #[allow(clippy::cast_precision_loss)]
 pub fn run_mi<W: Write>(roots: &[PathBuf], options: MiOptions, mut writer: W) -> Result<()> {
+    run_mi_with_tests(roots, options, false, &mut writer)
+}
+
+/// Executes maintainability analysis with explicit test-file behavior.
+pub fn run_mi_with_tests<W: Write>(
+    roots: &[PathBuf],
+    options: MiOptions,
+    include_tests: bool,
+    mut writer: W,
+) -> Result<()> {
     let all_exclude = merge_excludes(options.exclude, options.ignore);
-    let files = find_python_files(roots, &all_exclude, options.verbose);
+    let files =
+        find_python_files_with_options(roots, &all_exclude, &[], include_tests, options.verbose);
 
     let results: Vec<MiResult> = files
         .par_iter()

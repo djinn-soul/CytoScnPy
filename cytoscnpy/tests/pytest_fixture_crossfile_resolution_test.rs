@@ -27,7 +27,7 @@ fn write_file(path: &Path, content: &str) {
 }
 
 fn analyze(dir: &Path) -> cytoscnpy::analyzer::AnalysisResult {
-    let mut analyzer = CytoScnPy::default().with_confidence(1).with_tests(false);
+    let mut analyzer = CytoScnPy::default().with_confidence(1).with_tests(true);
     analyzer.analyze(dir)
 }
 

@@ -42,8 +42,8 @@ pub struct CloneConfig {
     /// Threshold for Type-1 (Exact): both raw and normalized must be >= this (0.0-1.0)
     pub type1_threshold: f64,
 
-    /// Threshold for Type-2 (Renamed): raw similarity must be < this (0.0-1.0)
-    /// If normalized >= `type1_threshold` but raw < `type2_raw_max`, it's Type-2
+    /// Legacy Type-2 raw threshold kept for config compatibility.
+    /// Type-2 is classified when normalized similarity is exact but raw is not.
     pub type2_raw_max: f64,
 
     /// Enable CFG-based behavioral validation for clone pairs.
@@ -68,7 +68,7 @@ impl Default for CloneConfig {
             detect_type2: true,
             detect_type3: true,
             type1_threshold: 0.95, // Both raw and normalized >= 95% for exact
-            type2_raw_max: 0.90,   // Raw < 90% indicates renamed identifiers
+            type2_raw_max: 0.90,   // Kept for config compatibility
             cfg_validation: false, // Disabled by default (requires `cfg` feature)
         }
     }

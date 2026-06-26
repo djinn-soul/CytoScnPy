@@ -140,7 +140,10 @@ const DEFAULT_CONFIG: &str = r#"
 # # Fully-qualified function names treated as taint sinks.
 # custom_sinks = ["mylib.exec_query"]
 # # Functions that sanitize / clear taint on their return value.
-# custom_sanitizers = ["mylib.escape"]
+# [cytoscnpy.danger_config.sanitizers.ssrf]
+# return_value = ["validate_allowed_url"]
+# guard = ["is_allowed_url"]
+# side_effect = ["validate_url_or_raise"]
 "#;
 
 pub const DEFAULT_PYPROJECT_CONFIG: &str = r#"
@@ -279,7 +282,10 @@ pub const DEFAULT_PYPROJECT_CONFIG: &str = r#"
 # # Fully-qualified function names treated as taint sinks.
 # custom_sinks = ["mylib.exec_query"]
 # # Functions that sanitize / clear taint on their return value.
-# custom_sanitizers = ["mylib.escape"]
+# [tool.cytoscnpy.danger_config.sanitizers.ssrf]
+# return_value = ["validate_allowed_url"]
+# guard = ["is_allowed_url"]
+# side_effect = ["validate_url_or_raise"]
 "#;
 
 /// Run the init command to initialize CytoScnPy configuration.

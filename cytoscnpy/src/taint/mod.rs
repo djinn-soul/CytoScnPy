@@ -24,6 +24,8 @@ pub mod intraprocedural;
 pub mod plugins;
 /// Taint propagation logic.
 pub mod propagation;
+/// Sanitizer models and rule-scoped matching.
+pub mod sanitizers;
 /// Taint sink detection and classification.
 pub mod sinks;
 /// Taint source detection and management.

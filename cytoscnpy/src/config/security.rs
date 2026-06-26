@@ -86,10 +86,41 @@ pub struct DangerConfig {
     pub custom_sources: Option<Vec<String>>,
     /// Custom taint sinks.
     pub custom_sinks: Option<Vec<String>>,
-    /// Custom sanitizer functions that clear taint (e.g. URL validators, input cleaners).
-    pub custom_sanitizers: Option<Vec<String>>,
+    /// Custom sanitizer functions that clear taint.
+    #[serde(default)]
+    pub sanitizers: SanitizerConfig,
 }
 
+/// A collection of sanitizers for different vulnerability types.
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct SanitizerConfig {
+    /// Sanitizers that mitigate server-side request forgery.
+    #[serde(default)]
+    pub ssrf: SanitizerGroup,
+    /// Sanitizers that mitigate path traversal.
+    #[serde(default)]
+    pub path_traversal: SanitizerGroup,
+    /// Sanitizers that mitigate SQL injection.
+    #[serde(default)]
+    pub sql_injection: SanitizerGroup,
+    /// Sanitizers that mitigate command injection.
+    #[serde(default)]
+    pub command_injection: SanitizerGroup,
+}
+
+/// Defines different types of sanitizers.
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct SanitizerGroup {
+    /// Functions whose returned value is sanitized.
+    #[serde(default)]
+    pub return_value: Vec<String>,
+    /// Predicates whose truthy branch sanitizes their arguments.
+    #[serde(default)]
+    pub guard: Vec<String>,
+    /// Functions that validate arguments or raise before returning.
+    #[serde(default)]
+    pub side_effect: Vec<String>,
+}
 /// A custom secret pattern defined in TOML configuration.
 #[derive(Debug, Deserialize, Clone)]
 pub struct CustomSecretPattern {

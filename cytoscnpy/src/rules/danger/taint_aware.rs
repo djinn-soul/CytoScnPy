@@ -71,7 +71,11 @@ impl TaintAwareDangerAnalyzer {
 
     /// Creates a taint-aware analyzer with custom patterns.
     #[must_use]
-    pub fn with_custom(sources: Vec<String>, sinks: Vec<String>, sanitizers: Vec<String>) -> Self {
+    pub fn with_custom(
+        sources: Vec<String>,
+        sinks: Vec<String>,
+        sanitizers: crate::taint::sanitizers::SanitizerConfig,
+    ) -> Self {
         let config = crate::taint::analyzer::TaintConfig::with_custom(sources, sinks, sanitizers);
         Self {
             taint_analyzer: TaintAnalyzer::new(config),
@@ -119,12 +123,25 @@ impl TaintAwareDangerAnalyzer {
         findings: Vec<Finding>,
         taint_context: &TaintContext,
     ) -> Vec<Finding> {
+        Self::filter_findings_with_taint_rules(
+            findings,
+            taint_context,
+            crate::constants::get_taint_sensitive_rules(),
+        )
+    }
+
+    /// Filters findings using an explicit set of taint-sensitive rule IDs.
+    #[must_use]
+    pub fn filter_findings_with_taint_rules(
+        findings: Vec<Finding>,
+        taint_context: &TaintContext,
+        taint_sensitive_rules: &[&str],
+    ) -> Vec<Finding> {
         findings
             .into_iter()
             .filter(|finding| {
                 // These rules should only flag when data is tainted
-                if crate::constants::get_taint_sensitive_rules().contains(&finding.rule_id.as_str())
-                {
+                if taint_sensitive_rules.contains(&finding.rule_id.as_str()) {
                     if !taint_context.analysis_ran {
                         // Taint analysis didn't run - keep as fallback
                         true

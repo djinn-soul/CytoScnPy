@@ -1,6 +1,6 @@
 use super::handlers::{
-    handle_ann_assign, handle_assign, handle_aug_assign, handle_for, handle_function_def,
-    handle_if, handle_try, handle_while,
+    apply_side_effect_sanitizer, handle_ann_assign, handle_assign, handle_aug_assign, handle_for,
+    handle_function_def, handle_if, handle_try, handle_while,
 };
 use super::sinks::check_expr_for_sinks;
 use crate::taint::analyzer::TaintAnalyzer;
@@ -143,6 +143,7 @@ fn analyze_data_flow_stmt(
                 file_path,
                 line_index,
             );
+            apply_side_effect_sanitizer(&expr_stmt.value, analyzer, state);
             true
         }
         Stmt::Return(ret) => {

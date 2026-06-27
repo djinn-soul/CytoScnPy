@@ -1,7 +1,8 @@
 use super::entry::{analyze_function, analyze_stmt};
 use super::sinks::check_expr_for_sinks;
 use crate::taint::analyzer::TaintAnalyzer;
-use crate::taint::propagation::{is_expr_tainted, is_sanitizer_call, TaintState};
+use crate::taint::propagation::{is_expr_tainted, TaintState};
+use crate::taint::sanitizers::{call_argument_names, SanitizerKind};
 use crate::taint::types::TaintFinding;
 use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Expr};
@@ -23,6 +24,7 @@ pub(super) fn handle_assign(
         file_path,
         line_index,
     );
+    apply_side_effect_sanitizer(&assign.value, analyzer, state);
 
     if let Some(taint_info) = analyzer.plugins.check_sources(&assign.value, line_index) {
         for target in &assign.targets {
@@ -32,10 +34,16 @@ pub(super) fn handle_assign(
         }
     } else if let Some(taint_info) = is_expr_tainted(&assign.value, state) {
         if let Expr::Call(call) = &*assign.value {
-            if is_sanitizer_call(call) || analyzer.plugins.is_sanitizer(call) {
+            let sanitized_types = analyzer.sanitizer_types(call, SanitizerKind::ReturnValue);
+            if !sanitized_types.is_empty() {
                 for target in &assign.targets {
                     if let Expr::Name(name) = target {
-                        state.sanitize(name.id.as_str());
+                        state.mark_tainted(
+                            name.id.as_str(),
+                            taint_info
+                                .extend_path(name.id.as_str())
+                                .with_sanitized_for(&sanitized_types),
+                        );
                     }
                 }
                 return;
@@ -57,15 +65,22 @@ pub(super) fn handle_ann_assign(
     line_index: &LineIndex,
 ) {
     if let Some(value) = &assign.value {
+        apply_side_effect_sanitizer(value, analyzer, state);
         if let Some(taint_info) = analyzer.plugins.check_sources(value, line_index) {
             if let Expr::Name(name) = &*assign.target {
                 state.mark_tainted(name.id.as_str(), taint_info);
             }
         } else if let Some(taint_info) = is_expr_tainted(value, state) {
             if let Expr::Call(call) = &**value {
-                if is_sanitizer_call(call) || analyzer.plugins.is_sanitizer(call) {
+                let sanitized_types = analyzer.sanitizer_types(call, SanitizerKind::ReturnValue);
+                if !sanitized_types.is_empty() {
                     if let Expr::Name(name) = &*assign.target {
-                        state.sanitize(name.id.as_str());
+                        state.mark_tainted(
+                            name.id.as_str(),
+                            taint_info
+                                .extend_path(name.id.as_str())
+                                .with_sanitized_for(&sanitized_types),
+                        );
                     }
                     return;
                 }
@@ -85,6 +100,7 @@ pub(super) fn handle_aug_assign(
     file_path: &Path,
     line_index: &LineIndex,
 ) {
+    apply_side_effect_sanitizer(&assign.value, analyzer, state);
     if let Some(taint_info) = is_expr_tainted(&assign.value, state) {
         if let Expr::Name(name) = &*assign.target {
             state.mark_tainted(name.id.as_str(), taint_info.extend_path(name.id.as_str()));
@@ -119,6 +135,7 @@ pub(super) fn handle_if(
     );
 
     let mut then_state = state.clone();
+    apply_guard_sanitizer(&if_stmt.test, analyzer, &mut then_state);
     for nested in &if_stmt.body {
         analyze_stmt(
             nested,
@@ -131,10 +148,14 @@ pub(super) fn handle_if(
     }
 
     let mut combined_state = then_state;
+    let mut has_else = false;
     for clause in &if_stmt.elif_else_clauses {
         let mut clause_state = state.clone();
         if let Some(test) = &clause.test {
             check_expr_for_sinks(test, analyzer, state, findings, file_path, line_index);
+            apply_guard_sanitizer(test, analyzer, &mut clause_state);
+        } else {
+            has_else = true;
         }
         for nested in &clause.body {
             analyze_stmt(
@@ -148,8 +169,51 @@ pub(super) fn handle_if(
         }
         combined_state.merge(&clause_state);
     }
+    if !has_else {
+        combined_state.merge(state);
+    }
 
     *state = combined_state;
+}
+
+pub(super) fn apply_side_effect_sanitizer(
+    expr: &Expr,
+    analyzer: &TaintAnalyzer,
+    state: &mut TaintState,
+) {
+    let Expr::Call(call) = expr else {
+        return;
+    };
+    let sanitized_types = analyzer.sanitizer_types(call, SanitizerKind::SideEffect);
+    sanitize_call_arguments(call, state, &sanitized_types);
+}
+
+fn apply_guard_sanitizer(expr: &Expr, analyzer: &TaintAnalyzer, state: &mut TaintState) {
+    match expr {
+        Expr::Call(call) => {
+            let sanitized_types = analyzer.sanitizer_types(call, SanitizerKind::Guard);
+            sanitize_call_arguments(call, state, &sanitized_types);
+        }
+        Expr::BoolOp(bool_op) => {
+            for value in &bool_op.values {
+                apply_guard_sanitizer(value, analyzer, state);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn sanitize_call_arguments(
+    call: &ast::ExprCall,
+    state: &mut TaintState,
+    sanitized_types: &[crate::taint::types::VulnType],
+) {
+    if sanitized_types.is_empty() {
+        return;
+    }
+    for name in call_argument_names(call) {
+        state.sanitize_for(&name, sanitized_types);
+    }
 }
 
 pub(super) fn handle_for(

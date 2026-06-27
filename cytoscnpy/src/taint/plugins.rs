@@ -45,7 +45,7 @@ pub trait SanitizerPlugin: Send + Sync {
 
     /// Returns which vulnerability types this sanitizer addresses.
     fn sanitizes_vuln_types(&self) -> Vec<VulnType> {
-        Vec::new()
+        crate::taint::sanitizers::legacy_global_vuln_types()
     }
 }
 
@@ -102,14 +102,22 @@ impl PluginRegistry {
         None
     }
 
-    /// Checks if any sanitizer plugin matches.
+    /// Returns vulnerability classes sanitized by matching return-value plugins.
+    pub fn sanitizer_types(&self, call: &ExprCall) -> Vec<VulnType> {
+        crate::taint::sanitizers::unique_types(
+            self.sanitizers
+                .iter()
+                .filter(|plugin| plugin.is_sanitizer(call))
+                .flat_map(|plugin| plugin.sanitizes_vuln_types()),
+        )
+    }
+
+    /// Checks whether any sanitizer plugin recognizes the call.
+    #[must_use]
     pub fn is_sanitizer(&self, call: &ExprCall) -> bool {
-        for plugin in &self.sanitizers {
-            if plugin.is_sanitizer(call) {
-                return true;
-            }
-        }
-        false
+        self.sanitizers
+            .iter()
+            .any(|plugin| plugin.is_sanitizer(call))
     }
 }
 
@@ -317,6 +325,8 @@ impl TaintSinkPlugin for DynamicPatternPlugin {
 pub struct DynamicSanitizerPlugin {
     /// List of function name patterns that sanitize taint (e.g. `"validate_url"`, `"myapp.security.clean"`).
     pub sanitizers: Vec<String>,
+    /// Vulnerability classes neutralized by these sanitizer functions.
+    pub vuln_types: Vec<VulnType>,
 }
 
 impl SanitizerPlugin for DynamicSanitizerPlugin {
@@ -329,5 +339,9 @@ impl SanitizerPlugin for DynamicSanitizerPlugin {
             return self.sanitizers.iter().any(|p| p == &call_name);
         }
         false
+    }
+
+    fn sanitizes_vuln_types(&self) -> Vec<VulnType> {
+        self.vuln_types.clone()
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! Defines how taint flows through expressions and statements.
 
-use crate::taint::types::TaintInfo;
+use crate::taint::types::{TaintInfo, VulnType};
 use ruff_python_ast::{self as ast, Expr};
 use rustc_hash::FxHashMap;
 
@@ -42,11 +42,21 @@ impl TaintState {
         self.tainted.remove(var);
     }
 
+    /// Marks a variable safe only for the specified vulnerability classes.
+    pub fn sanitize_for(&mut self, var: &str, vuln_types: &[VulnType]) {
+        if let Some(info) = self.tainted.get_mut(var) {
+            info.mark_sanitized_for(vuln_types);
+        }
+    }
+
     /// Merges another taint state (for control flow join).
     pub fn merge(&mut self, other: &TaintState) {
-        for (var, info) in &other.tainted {
-            if !self.tainted.contains_key(var) {
-                self.tainted.insert(var.clone(), info.clone());
+        for (var, other_info) in &other.tainted {
+            if let Some(info) = self.tainted.get_mut(var) {
+                info.sanitized_for
+                    .retain(|vuln_type| other_info.sanitized_for.contains(vuln_type));
+            } else {
+                self.tainted.insert(var.clone(), other_info.clone());
             }
         }
     }
@@ -159,53 +169,7 @@ pub fn is_expr_tainted(expr: &Expr, state: &TaintState) -> Option<TaintInfo> {
 
 /// Checks if a call is a sanitizer that removes taint.
 pub fn is_sanitizer_call(call: &ast::ExprCall) -> bool {
-    if let Some(name) = get_call_name(&call.func) {
-        if matches!(
-            name.as_str(),
-            "int"
-                | "float"
-                | "bool"
-                | "html.escape"
-                | "escape"
-                | "cgi.escape"
-                | "markupsafe.escape"
-                | "flask.escape"
-                | "django.utils.html.escape"
-                | "shlex.quote"
-                | "shlex.split"
-                | "urllib.parse.quote"
-                | "quote"
-                | "bleach.clean"
-        ) {
-            return true;
-        }
-
-        // Conservative fallback heuristic for user-defined sanitizers.
-        // Keep this narrow to avoid suppressing real vulnerabilities.
-        let local = name.rsplit('.').next().unwrap_or(name.as_str());
-        is_conservative_sanitizer_name(local)
-    } else {
-        false
-    }
-}
-
-/// Returns true for narrowly-scoped sanitizer naming conventions.
-///
-/// Intentionally excludes broad names like `check_*`, `verify_*`, `validate_*`, and `safe_*`
-/// because those often do not sanitize attacker-controlled data.
-fn is_conservative_sanitizer_name(name: &str) -> bool {
-    const SANITIZER_PREFIXES: &[&str] = &["sanitize_", "escape_", "encode_", "clean_"];
-    const SANITIZER_SUFFIXES: &[&str] = &[
-        "_sanitized",
-        "_escaped",
-        "_encoded",
-        "_cleaned",
-        "_escaped_html",
-    ];
-
-    let name = name.strip_prefix('_').unwrap_or(name);
-    SANITIZER_PREFIXES.iter().any(|p| name.starts_with(p))
-        || SANITIZER_SUFFIXES.iter().any(|s| name.ends_with(s))
+    !crate::taint::sanitizers::builtin_return_types(call).is_empty()
 }
 
 /// Checks if a SQL call uses parameterized queries (sanitized).

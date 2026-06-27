@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+mod taint_info;
+
 /// Severity levels for taint findings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Severity {
@@ -120,6 +122,9 @@ pub struct TaintInfo {
     pub source_line: usize,
     /// Propagation path (variable names)
     pub path: Vec<String>,
+    /// Vulnerability classes neutralized by a proven or configured sanitizer.
+    #[serde(default)]
+    pub sanitized_for: Vec<VulnType>,
 }
 
 impl TaintInfo {
@@ -130,6 +135,7 @@ impl TaintInfo {
             source,
             source_line: line,
             path: Vec::new(),
+            sanitized_for: Vec::new(),
         }
     }
 
@@ -142,6 +148,7 @@ impl TaintInfo {
             source: self.source.clone(),
             source_line: self.source_line,
             path: new_path,
+            sanitized_for: self.sanitized_for.clone(),
         }
     }
 }

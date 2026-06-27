@@ -14,11 +14,14 @@ use super::plugins::{
     BuiltinSourcePlugin as AnalyzerBuiltinSourcePlugin,
     DjangoSourcePlugin as AnalyzerDjangoSourcePlugin,
     DynamicPatternPlugin as AnalyzerDynamicPatternPlugin,
-    DynamicSanitizerPlugin as AnalyzerDynamicSanitizerPlugin,
     FlaskSourcePlugin as AnalyzerFlaskSourcePlugin, PluginRegistry as AnalyzerPluginRegistry,
     TaintSinkPlugin as AnalyzerTaintSinkPlugin, TaintSourcePlugin as AnalyzerTaintSourcePlugin,
 };
 use super::types::TaintFinding;
+use super::{
+    sanitizers::{builtin_return_types, SanitizerKind},
+    types::VulnType,
+};
 use crate::utils::LineIndex;
 use ruff_python_ast::Stmt;
 use std::path::PathBuf;
@@ -76,12 +79,6 @@ impl TaintAnalyzer {
                 .push(dynamic as Arc<dyn AnalyzerTaintSinkPlugin>);
         }
 
-        if !config.custom_sanitizers.is_empty() {
-            plugins.register_sanitizer(AnalyzerDynamicSanitizerPlugin {
-                sanitizers: config.custom_sanitizers.clone(),
-            });
-        }
-
         let crossfile_analyzer = if config.crossfile {
             Some(CrossFileAnalyzer::new())
         } else {
@@ -113,6 +110,26 @@ impl TaintAnalyzer {
     /// Registers a custom sink plugin.
     pub fn add_sink<T: AnalyzerTaintSinkPlugin + 'static>(&mut self, plugin: T) {
         self.plugins.register_sink(plugin);
+    }
+
+    /// Returns vulnerability classes neutralized by this sanitizer call.
+    #[must_use]
+    pub fn sanitizer_types(
+        &self,
+        call: &ruff_python_ast::ExprCall,
+        kind: SanitizerKind,
+    ) -> Vec<VulnType> {
+        let configured = self.config.sanitizers.matching_types(call, kind);
+        if kind != SanitizerKind::ReturnValue {
+            return configured;
+        }
+
+        crate::taint::sanitizers::unique_types(
+            configured
+                .into_iter()
+                .chain(builtin_return_types(call))
+                .chain(self.plugins.sanitizer_types(call)),
+        )
     }
 
     /// Analyzes a single file.

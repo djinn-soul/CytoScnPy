@@ -129,14 +129,13 @@ pub fn builtin_return_types(call: &ast::ExprCall) -> Vec<VulnType> {
 
     match name.as_str() {
         "html.escape"
-        | "escape"
         | "cgi.escape"
         | "markupsafe.escape"
         | "flask.escape"
         | "django.utils.html.escape"
         | "bleach.clean" => vec![VulnType::Xss],
         "shlex.quote" | "shlex.split" => vec![VulnType::CommandInjection],
-        "urllib.parse.quote" | "quote" => vec![VulnType::Ssrf],
+        "urllib.parse.quote" => vec![VulnType::Ssrf],
         "int" | "float" | "bool" => vec![
             VulnType::SqlInjection,
             VulnType::CommandInjection,

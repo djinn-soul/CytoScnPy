@@ -1,4 +1,4 @@
-//! Regression tests for validation-aware danger-rule suppression.
+//! Regression tests that prevent name-only danger-rule suppression.
 
 #![allow(clippy::expect_used)]
 
@@ -38,79 +38,40 @@ fn analyze_source(source: &str) -> Value {
     ])
 }
 
-fn assert_mitigation_pair(rule_id: &str, unsafe_source: &str, mitigated_source: &str) {
-    let unsafe_json = analyze_source(unsafe_source);
-    assert!(
-        has_danger_rule(&unsafe_json, rule_id),
-        "Expected unsafe fixture to report {rule_id}"
-    );
-
-    let mitigated_json = analyze_source(mitigated_source);
-    assert!(
-        !has_danger_rule(&mitigated_json, rule_id),
-        "Expected mitigated fixture to suppress {rule_id}"
-    );
-}
-
 #[test]
-fn test_mitigation_aware_command_sql_and_path_rules() {
-    assert_mitigation_pair(
-        cytoscnpy::rules::ids::RULE_ID_SUBPROCESS,
-        r"
-import os
-
-def run(cmd):
-    os.system(cmd)
-",
-        r"
+fn test_security_sounding_names_do_not_suppress_findings() {
+    let cases = [
+        (
+            cytoscnpy::rules::ids::RULE_ID_SUBPROCESS,
+            r"
 import os
 
 def run(cmd):
     sanitized_cmd = cmd
     os.system(sanitized_cmd)
 ",
-    );
-
-    assert_mitigation_pair(
-        cytoscnpy::rules::ids::RULE_ID_SQL_INJECTION,
-        r"
-def lookup(cursor, query):
-    cursor.execute(query)
-",
-        r"
+        ),
+        (
+            cytoscnpy::rules::ids::RULE_ID_SQL_INJECTION,
+            r"
 def lookup(cursor, query):
     sanitized_query = query
     cursor.execute(sanitized_query)
 ",
-    );
-
-    assert_mitigation_pair(
-        cytoscnpy::rules::ids::RULE_ID_SQL_RAW,
-        r"
-import sqlalchemy
-
-def lookup(query):
-    return sqlalchemy.text(query)
-",
-        r"
+        ),
+        (
+            cytoscnpy::rules::ids::RULE_ID_SQL_RAW,
+            r"
 import sqlalchemy
 
 def lookup(query):
     sanitized_query = query
     return sqlalchemy.text(sanitized_query)
 ",
-    );
-
-    assert_mitigation_pair(
-        cytoscnpy::rules::ids::RULE_ID_PATH_TRAVERSAL,
-        r"
-import os
-
-def read():
-    path = input()
-    return os.path.abspath(path)
-",
-        r"
+        ),
+        (
+            cytoscnpy::rules::ids::RULE_ID_PATH_TRAVERSAL,
+            r"
 import os
 
 def read():
@@ -118,42 +79,34 @@ def read():
     sanitized_path = path
     return os.path.abspath(sanitized_path)
 ",
-    );
-}
-
-#[test]
-fn test_mitigation_aware_url_rules() {
-    assert_mitigation_pair(
-        cytoscnpy::rules::ids::RULE_ID_SSRF,
-        r"
-import requests
-
-def fetch(url):
-    return requests.get(url)
-",
-        r"
+        ),
+        (
+            cytoscnpy::rules::ids::RULE_ID_SSRF,
+            r"
 import requests
 
 def fetch(url):
     validated_url = url
     return requests.get(validated_url)
 ",
-    );
-
-    assert_mitigation_pair(
-        cytoscnpy::rules::ids::RULE_ID_URL_OPEN,
-        r"
-import urllib.request
-
-def fetch(url):
-    return urllib.request.urlopen(url)
-",
-        r"
+        ),
+        (
+            cytoscnpy::rules::ids::RULE_ID_URL_OPEN,
+            r"
 import urllib.request
 
 def fetch(url):
     validated_url = url
     return urllib.request.urlopen(validated_url)
 ",
-    );
+        ),
+    ];
+
+    for (rule_id, source) in cases {
+        let json = analyze_source(source);
+        assert!(
+            has_danger_rule(&json, rule_id),
+            "{rule_id} must not trust a variable name as validation evidence"
+        );
+    }
 }

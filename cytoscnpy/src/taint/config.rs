@@ -1,3 +1,4 @@
+use crate::taint::sanitizers::SanitizerConfig;
 use crate::taint::types::{Severity, VulnType};
 
 /// Configuration for taint analysis.
@@ -13,9 +14,8 @@ pub struct TaintConfig {
     pub custom_sources: Vec<CustomSourceConfig>,
     /// Custom sink patterns from config.
     pub custom_sinks: Vec<CustomSinkConfig>,
-    /// Custom sanitizer function patterns from config.
-    /// Functions matching these patterns are treated as sanitizers that clear taint.
-    pub custom_sanitizers: Vec<String>,
+    /// Rule-scoped sanitizer functions from configuration.
+    pub sanitizers: SanitizerConfig,
 }
 
 /// Custom source configuration (from TOML).
@@ -54,13 +54,17 @@ impl TaintConfig {
             crossfile: true,
             custom_sources: Vec::new(),
             custom_sinks: Vec::new(),
-            custom_sanitizers: Vec::new(),
+            sanitizers: SanitizerConfig::default(),
         }
     }
 
     /// Creates a config with all analysis levels and custom patterns.
     #[must_use]
-    pub fn with_custom(sources: Vec<String>, sinks: Vec<String>, sanitizers: Vec<String>) -> Self {
+    pub fn with_custom(
+        sources: Vec<String>,
+        sinks: Vec<String>,
+        sanitizers: SanitizerConfig,
+    ) -> Self {
         let mut config = Self::all_levels();
 
         for pattern in sources {
@@ -81,7 +85,7 @@ impl TaintConfig {
             });
         }
 
-        config.custom_sanitizers = sanitizers;
+        config.sanitizers = sanitizers;
         config
     }
 
@@ -94,7 +98,7 @@ impl TaintConfig {
             crossfile: false,
             custom_sources: Vec::new(),
             custom_sinks: Vec::new(),
-            custom_sanitizers: Vec::new(),
+            sanitizers: SanitizerConfig::default(),
         }
     }
 }

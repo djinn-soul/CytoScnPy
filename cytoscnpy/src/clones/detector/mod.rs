@@ -71,10 +71,8 @@ impl CloneDetector {
         let exact = self.config.type1_threshold;
         if raw_similarity >= exact && normalized_similarity >= exact {
             CloneType::Type1
-        } else if normalized_similarity >= exact && raw_similarity < self.config.type2_raw_max {
-            CloneType::Type2
         } else if normalized_similarity >= exact {
-            CloneType::Type1
+            CloneType::Type2
         } else {
             CloneType::Type3
         }
@@ -195,5 +193,15 @@ mod tests {
         assert_eq!(groups[1].id, 2);
         assert_eq!(groups[0].instances.len(), 2);
         assert_eq!(groups[1].instances.len(), 2);
+    }
+
+    #[test]
+    fn classify_clone_requires_raw_exact_match_for_type1() {
+        let detector = CloneDetector::new();
+
+        assert_eq!(detector.classify_clone(0.96, 0.96), CloneType::Type1);
+        assert_eq!(detector.classify_clone(0.94, 0.96), CloneType::Type2);
+        assert_eq!(detector.classify_clone(0.91, 0.96), CloneType::Type2);
+        assert_eq!(detector.classify_clone(0.96, 0.94), CloneType::Type3);
     }
 }

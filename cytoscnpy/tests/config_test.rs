@@ -131,3 +131,57 @@ fn test_missing_config_files() {
 
     fs::remove_dir_all(test_dir).unwrap();
 }
+
+#[test]
+fn test_structured_sanitizer_config() {
+    let config: Config = toml::from_str(
+        r#"
+[cytoscnpy.danger_config.sanitizers.ssrf]
+return_value = ["validate_allowed_url"]
+guard = ["is_allowed_url"]
+side_effect = ["validate_url_or_raise"]
+
+[cytoscnpy.danger_config.sanitizers.sql_injection]
+return_value = ["build_parameterized_query"]
+
+[cytoscnpy.danger_config.sanitizers.code_injection]
+return_value = ["clean_custom_sink"]
+"#,
+    )
+    .unwrap();
+
+    let sanitizers = &config.cytoscnpy.danger_config.sanitizers;
+    assert_eq!(
+        sanitizers.ssrf.return_value,
+        vec!["validate_allowed_url".to_owned()]
+    );
+    assert_eq!(sanitizers.ssrf.guard, vec!["is_allowed_url".to_owned()]);
+    assert_eq!(
+        sanitizers.ssrf.side_effect,
+        vec!["validate_url_or_raise".to_owned()]
+    );
+    assert_eq!(
+        sanitizers.sql_injection.return_value,
+        vec!["build_parameterized_query".to_owned()]
+    );
+    assert_eq!(
+        sanitizers.code_injection.return_value,
+        vec!["clean_custom_sink".to_owned()]
+    );
+}
+
+#[test]
+fn test_legacy_custom_sanitizers_config() {
+    let config: Config = toml::from_str(
+        r#"
+[cytoscnpy.danger_config]
+custom_sanitizers = ["legacy_clean"]
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        config.cytoscnpy.danger_config.custom_sanitizers,
+        Some(vec!["legacy_clean".to_owned()])
+    );
+}

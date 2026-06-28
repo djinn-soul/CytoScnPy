@@ -9,6 +9,7 @@ pub fn get_stdlib_modules() -> &'static FxHashSet<&'static str> {
     STDLIB_MODULES.get_or_init(|| {
         let mut set = FxHashSet::default();
         set.insert("_thread");
+        set.insert("__future__");
         set.insert("abc");
         set.insert("aifc");
         set.insert("antigravity");

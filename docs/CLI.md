@@ -320,8 +320,26 @@ severity_threshold = "LOW"         # LOW, MEDIUM, HIGH, CRITICAL
 excluded_rules = ["CSP-D101"]
 custom_sources = ["mylib.get_input"]
 custom_sinks = ["mylib.exec"]
-custom_sanitizers = ["mylib.clean"] # Functions that clear taint
+
+# Sanitizers are scoped by vulnerability type and behavior.
+[cytoscnpy.danger_config.sanitizers.ssrf]
+return_value = ["validate_allowed_url"]
+guard = ["is_allowed_url"]
+side_effect = ["validate_url_or_raise"]
+
+[cytoscnpy.danger_config.sanitizers.path_traversal]
+return_value = ["safe_join"]
+
+[cytoscnpy.danger_config.sanitizers.sql_injection]
+return_value = ["build_parameterized_query"]
+
+[cytoscnpy.danger_config.sanitizers.command_injection]
+return_value = ["quote_shell_argument"]
 ```
+
+Sanitizer names are matched explicitly. Security-sounding variable names do not
+suppress findings, and each configured sanitizer affects only its vulnerability
+type.
 
 ## Exit Codes
 

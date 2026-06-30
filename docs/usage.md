@@ -339,8 +339,26 @@ severity_threshold = "LOW"          # LOW, MEDIUM, HIGH, CRITICAL
 excluded_rules = ["CSP-D101"]
 custom_sources = ["mylib.get_input"]
 custom_sinks = ["mylib.exec"]
-custom_sanitizers = ["mylib.clean"] # Functions that clear taint
+
+# Sanitizers are scoped by vulnerability type and behavior.
+[cytoscnpy.danger_config.sanitizers.ssrf]
+return_value = ["validate_allowed_url"]
+guard = ["is_allowed_url"]
+side_effect = ["validate_url_or_raise"]
+
+[cytoscnpy.danger_config.sanitizers.path_traversal]
+return_value = ["safe_join"]
+
+[cytoscnpy.danger_config.sanitizers.sql_injection]
+return_value = ["build_parameterized_query"]
+
+[cytoscnpy.danger_config.sanitizers.command_injection]
+return_value = ["quote_shell_argument"]
 ```
+
+Use `return_value` for functions that return a safe value, `guard` for predicates
+that establish safety only inside their truthy branch, and `side_effect` for
+validators that return normally only when the argument is safe.
 
 `project_type` controls dead-code export assumptions:
 

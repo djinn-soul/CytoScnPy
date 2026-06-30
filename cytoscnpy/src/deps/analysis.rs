@@ -2,7 +2,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use super::declared::{locate_and_parse_declarations, DeclaredDependency};
+use super::declared::{locate_and_parse_declarations, DeclaredDependency, DependencySource};
 use super::imports::extract_import_scan;
 use super::installed::{detect_venv, scan_installed, InstalledPackage};
 use super::lockfile::{load_lockfile_graph, load_lockfile_graph_at};
@@ -142,8 +142,15 @@ fn find_unused_declared(
     options: &DepsOptions<'_>,
     pkg_mapping: &FxHashMap<&'static str, Vec<&'static str>>,
     stdlib_modules: &FxHashSet<&'static str>,
+    lockfile_reachable: Option<&FxHashSet<String>>,
 ) -> Vec<DeclaredDependency> {
     let mut unused = Vec::new();
+    let pyproject_runtime_deps: FxHashSet<&str> = declared
+        .iter()
+        .filter(|dep| matches!(dep.source, DependencySource::Pyproject))
+        .filter(|dep| !dep.is_dev && !dep.is_optional)
+        .map(|dep| dep.normalized_name.as_str())
+        .collect();
     for dep in declared {
         if options
             .ignore_unused
@@ -156,6 +163,14 @@ fn find_unused_declared(
             continue;
         }
         if stdlib_modules.contains(dep.normalized_name.as_str()) {
+            continue;
+        }
+        if should_treat_requirements_dep_as_export_pin(
+            dep,
+            options,
+            &pyproject_runtime_deps,
+            lockfile_reachable,
+        ) {
             continue;
         }
 
@@ -182,6 +197,22 @@ fn find_unused_declared(
     unused
 }
 
+fn should_treat_requirements_dep_as_export_pin(
+    dep: &DeclaredDependency,
+    options: &DepsOptions<'_>,
+    pyproject_runtime_deps: &FxHashSet<&str>,
+    lockfile_reachable: Option<&FxHashSet<String>>,
+) -> bool {
+    options.requirements.is_none()
+        && !pyproject_runtime_deps.is_empty()
+        && !pyproject_runtime_deps.contains(dep.normalized_name.as_str())
+        && lockfile_reachable.is_some_and(|reachable| reachable.contains(&dep.normalized_name))
+        && matches!(
+            &dep.source,
+            DependencySource::Requirements(filename) if filename == "requirements.txt"
+        )
+}
+
 fn package_name_for_import(
     import_name: &str,
     reverse_mapping: &FxHashMap<&'static str, &'static str>,
@@ -204,6 +235,14 @@ fn reachable_lockfile_packages(
         reachable.extend(graph.transitive_deps(&dep.normalized_name));
     }
     reachable
+}
+
+fn declared_namespace_matches(import_name: &str, declared_names: &FxHashSet<String>) -> bool {
+    const KNOWN_NAMESPACE_IMPORTS: &[&str] = &["azure", "google", "zope"];
+    KNOWN_NAMESPACE_IMPORTS.contains(&import_name)
+        && declared_names.iter().any(|name| {
+            name.starts_with(import_name) && name.as_bytes().get(import_name.len()) == Some(&b'_')
+        })
 }
 
 fn find_missing_imports(
@@ -241,8 +280,9 @@ fn find_missing_imports(
             continue;
         }
 
-        let is_declared =
-            declared_names.contains(&pkg_normalized) || declared_names.contains(&import_lower);
+        let is_declared = declared_names.contains(&pkg_normalized)
+            || declared_names.contains(&import_lower)
+            || declared_namespace_matches(&import_lower, &declared_names);
 
         if !is_declared {
             missing_set.insert(import_name.clone());
@@ -517,7 +557,14 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         .as_ref()
         .map(|graph| reachable_lockfile_packages(&declared, graph));
 
-    let unused = find_unused_declared(&declared, imported, options, pkg_mapping, stdlib_modules);
+    let unused = find_unused_declared(
+        &declared,
+        imported,
+        options,
+        pkg_mapping,
+        stdlib_modules,
+        lockfile_reachable.as_ref(),
+    );
     let missing = find_missing_imports(
         imported,
         &declared,

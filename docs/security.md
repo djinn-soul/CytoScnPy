@@ -82,7 +82,27 @@ severity_threshold = "LOW" # LOW, MEDIUM, HIGH, CRITICAL
 excluded_rules = ["CSP-D101"]
 custom_sources = ["mylib.get_input"]
 custom_sinks = ["mylib.exec"]
+
+# Sanitizers are scoped by vulnerability type and behavior.
+[cytoscnpy.danger_config.sanitizers.ssrf]
+return_value = ["validate_allowed_url"]
+guard = ["is_allowed_url"]
+side_effect = ["validate_url_or_raise"]
+
+[cytoscnpy.danger_config.sanitizers.path_traversal]
+return_value = ["safe_join"]
+
+[cytoscnpy.danger_config.sanitizers.sql_injection]
+return_value = ["build_parameterized_query"]
+
+[cytoscnpy.danger_config.sanitizers.command_injection]
+return_value = ["quote_shell_argument"]
 ```
+
+Sanitizers are never inferred from names such as `validated_url`. `return_value`
+applies only to the returned value, `guard` only to the truthy branch, and
+`side_effect` only after the call returns. Each sanitizer affects only its
+configured vulnerability type.
 
 ---
 

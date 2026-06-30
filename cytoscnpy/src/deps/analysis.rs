@@ -142,6 +142,7 @@ fn find_unused_declared(
     options: &DepsOptions<'_>,
     pkg_mapping: &FxHashMap<&'static str, Vec<&'static str>>,
     stdlib_modules: &FxHashSet<&'static str>,
+    lockfile_reachable: Option<&FxHashSet<String>>,
 ) -> Vec<DeclaredDependency> {
     let mut unused = Vec::new();
     let pyproject_runtime_deps: FxHashSet<&str> = declared
@@ -164,7 +165,12 @@ fn find_unused_declared(
         if stdlib_modules.contains(dep.normalized_name.as_str()) {
             continue;
         }
-        if should_treat_requirements_dep_as_export_pin(dep, options, &pyproject_runtime_deps) {
+        if should_treat_requirements_dep_as_export_pin(
+            dep,
+            options,
+            &pyproject_runtime_deps,
+            lockfile_reachable,
+        ) {
             continue;
         }
 
@@ -195,10 +201,12 @@ fn should_treat_requirements_dep_as_export_pin(
     dep: &DeclaredDependency,
     options: &DepsOptions<'_>,
     pyproject_runtime_deps: &FxHashSet<&str>,
+    lockfile_reachable: Option<&FxHashSet<String>>,
 ) -> bool {
     options.requirements.is_none()
         && !pyproject_runtime_deps.is_empty()
         && !pyproject_runtime_deps.contains(dep.normalized_name.as_str())
+        && lockfile_reachable.is_some_and(|reachable| reachable.contains(&dep.normalized_name))
         && matches!(
             &dep.source,
             DependencySource::Requirements(filename) if filename == "requirements.txt"
@@ -230,10 +238,11 @@ fn reachable_lockfile_packages(
 }
 
 fn declared_namespace_matches(import_name: &str, declared_names: &FxHashSet<String>) -> bool {
-    let namespace_prefix = format!("{import_name}_");
-    declared_names
-        .iter()
-        .any(|name| name.starts_with(&namespace_prefix))
+    const KNOWN_NAMESPACE_IMPORTS: &[&str] = &["azure", "google", "zope"];
+    KNOWN_NAMESPACE_IMPORTS.contains(&import_name)
+        && declared_names.iter().any(|name| {
+            name.starts_with(import_name) && name.as_bytes().get(import_name.len()) == Some(&b'_')
+        })
 }
 
 fn find_missing_imports(
@@ -548,7 +557,14 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
         .as_ref()
         .map(|graph| reachable_lockfile_packages(&declared, graph));
 
-    let unused = find_unused_declared(&declared, imported, options, pkg_mapping, stdlib_modules);
+    let unused = find_unused_declared(
+        &declared,
+        imported,
+        options,
+        pkg_mapping,
+        stdlib_modules,
+        lockfile_reachable.as_ref(),
+    );
     let missing = find_missing_imports(
         imported,
         &declared,

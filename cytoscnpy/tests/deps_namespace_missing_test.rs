@@ -49,3 +49,34 @@ from azure.identity import DefaultAzureCredential
     );
     Ok(())
 }
+
+#[test]
+fn plugin_package_does_not_satisfy_namespace_import() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = [
+    "django-environ>=0.12.0",
+]
+"#,
+    )?;
+    fs::write(root.join("main.py"), "import django\n")?;
+
+    let (code, output) = run_deps_command(vec![
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--fail-on-missing".to_owned(),
+    ]);
+
+    assert_ne!(code, 0, "{output}");
+    assert!(
+        output.contains("django"),
+        "django-environ should not satisfy import django: {output}"
+    );
+    Ok(())
+}

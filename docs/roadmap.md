@@ -348,6 +348,12 @@ _Tools to improve the workflow around CytoScnPy._
   - **Rationale:** Enable persistent notebook cell-level reporting without passing flags on every run.
   - **Implementation:** Add `ipynb_cells` config support alongside the existing notebook config fields.
 
+- [ ] **Inline Suppressions**
+  - Allow developers to ignore specific findings on a line of code using comments.
+  - **Syntax:** `# cytoscnpy: ignore[<rule_id>]` (e.g., `# cytoscnpy: ignore[D101]`)
+  - **Compatibility:** Support `# nosec` for general security issues, similar to Bandit.
+  - **Use Case:** Handle edge cases and accepted risks without disabling rules globally.
+
 - [ ] **Git Integration**
   - **Blame Analysis:** Identify who introduced unused code.
   - **Incremental Analysis:** Analyze only files changed in the current PR/commit.
@@ -506,9 +512,32 @@ _Deep data-flow analysis across function boundaries._
 - [ ] **Cross-Function Taint Tracking**
   - Store and propagate "taint state" for function arguments and return values.
   - **Goal:** Catch vulnerabilities like an API request being passed through a helper function into an `eval()` or SQL query.
-- [ ] **Sanitization Recognition**
-  - Detect when tainted data passes through "safe" functions (like `html.escape()` or custom sanitizers).
-  - **Benefit:** Significantly reduces False Positives by knowing when data is no longer dangerous.
+- [x] **Sanitization Recognition**
+  - **Goal:** Reduce false positives by allowing users to define project-specific validation and sanitization functions, inspired by Semgrep and Pysa.
+  - **Configuration:** Users will define sanitizers in `pyproject.toml` or `.cytoscnpy.toml`:
+    ```toml
+    [tool.cytoscnpy.danger_config.sanitizers.ssrf]
+    return_value = ["validate_allowed_url"]
+    guard = ["is_allowed_url"]
+    side_effect = ["validate_url_or_raise"]
+
+    [tool.cytoscnpy.danger_config.sanitizers.path_traversal]
+    return_value = ["safe_join"]
+    ```
+  - **Taint Flow Interruption:** The engine will support two modes of sanitization:
+    1.  **Direct Sanitization:** Taint is removed when a variable is reassigned with the result of a sanitizer function.
+        ```python
+        # Tainted user_url
+        url = validate_allowed_url(user_url)
+        requests.get(url)  # Not tainted
+        ```
+    2.  **Sanitization by Side-Effect (Guard Functions):** Taint is removed from a variable after it has been passed to a sanitizer function that acts as a guard.
+        ```python
+        # Tainted user_url
+        validate_allowed_url(user_url)
+        requests.get(user_url)  # Not tainted
+        ```
+  - **Benefit:** Significantly reduces false positives by understanding project-specific security controls.
 - [ ] **Framework-Specific Entry Points**
   - Add deep support for FastAPI dependencies, Django middleware, and Flask request hooks.
   - **Benefit:** Provides "Premium" level security coverage for modern Python web applications.

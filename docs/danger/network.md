@@ -13,3 +13,4 @@ This section details rules related to insecure network communication practices.
 - [CSP-D409: Insecure Telnet](../rule/CSP-D409.md)
 - [CSP-D410: Insecure URL Opening](../rule/CSP-D410.md)
 - [CSP-D411: `ssl.wrap_socket` Usage](../rule/CSP-D411.md)
+- [CSP-D903: Django `@csrf_exempt`](../rule/CSP-D903.md)

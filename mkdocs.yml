@@ -127,6 +127,8 @@ nav:
                   - "CSP-D003: Command Injection": rule/CSP-D003.md
                   - "CSP-D004: Async Command Injection": rule/CSP-D004.md
                   - "CSP-D005: Unsafe input() in Python 2": rule/CSP-D005.md
+                  - "CSP-D006: Privilege Escalation": rule/CSP-D006.md
+                  - "CSP-D412: MCP StdioServerParameters Command": rule/CSP-D412.md
               - "Injection":
                   - Overview: danger/injection.md
                   - "CSP-D101: SQL Injection": rule/CSP-D101.md
@@ -134,6 +136,8 @@ nav:
                   - "CSP-D103: Cross-Site Scripting (XSS)": rule/CSP-D103.md
                   - "CSP-D104: Insecure XML Parsing (XXE)": rule/CSP-D104.md
                   - "CSP-D105: Use of `mark_safe`": rule/CSP-D105.md
+                  - "CSP-D106: LDAP Injection": rule/CSP-D106.md
+                  - "CSP-D107: XPath Injection": rule/CSP-D107.md
               - "Deserialization":
                   - Overview: danger/deserialization.md
                   - "CSP-D201: Insecure Deserialization with Pickle": rule/CSP-D201.md
@@ -157,6 +161,7 @@ nav:
                   - "CSP-D409: Insecure Telnet": rule/CSP-D409.md
                   - "CSP-D410: Insecure URL Opening": rule/CSP-D410.md
                   - "CSP-D411: `ssl.wrap_socket` Usage": rule/CSP-D411.md
+                  - "CSP-D903: Django `@csrf_exempt`": rule/CSP-D903.md
               - "File Operations":
                   - Overview: danger/filesystem.md
                   - "CSP-D501: Path Traversal": rule/CSP-D501.md
@@ -165,12 +170,14 @@ nav:
                   - "CSP-D504: Insecure Temporary File Creation": rule/CSP-D504.md
                   - "CSP-D505: Bad File Permissions": rule/CSP-D505.md
                   - "CSP-D506: `os.tempnam`/`os.tmpnam`": rule/CSP-D506.md
+                  - "CSP-D507: TOCTOU Race Condition": rule/CSP-D507.md
               - "Cryptography":
                   - Overview: danger/cryptography.md
                   - "CSP-D301: Weak Hashing (MD5)": rule/CSP-D301.md
                   - "CSP-D302: Weak Hashing (SHA1)": rule/CSP-D302.md
                   - "CSP-D304: Insecure Ciphers": rule/CSP-D304.md
                   - "CSP-D305: Insecure Cipher Mode": rule/CSP-D305.md
+                  - "CSP-D306: PyNaCl Low-Level Bindings": rule/CSP-D306.md
                   - "CSP-D311: Weak PRNG": rule/CSP-D311.md
           - "Operational & Privacy":
               - "Best Practices":
@@ -179,10 +186,12 @@ nav:
                   - "CSP-D702: Insecure Module Import": rule/CSP-D702.md
                   - "CSP-D703: Disabled Jinja2 Autoescaping": rule/CSP-D703.md
                   - "CSP-D704: Blacklisted Function Calls": rule/CSP-D704.md
+                  - "CSP-D705: Hardcoded Default Credentials": rule/CSP-D705.md
               - "Privacy":
                   - Overview: danger/privacy.md
                   - "CSP-D901: Logging of Sensitive Data": rule/CSP-D901.md
                   - "CSP-D902: Hardcoded Django `SECRET_KEY`": rule/CSP-D902.md
+                  - "CSP-D904: Log Injection": rule/CSP-D904.md
               - "Type Safety":
                   - Overview: danger/type-safety.md
                   - "CSP-D601: Method Misuse": rule/CSP-D601.md

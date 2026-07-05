@@ -416,7 +416,7 @@ def test_empty_output_shows_fallback_error(pytester):
     _inject_mock(pytester, returncode=0, stdout="", stderr="")
     pytester.makepyfile("def test_ok(): pass\n")
     result = pytester.runpytest("--cytoscnpy")
-    assert "cytoscnpy produced no output" in result.stdout.str()
+    result.stdout.fnmatch_lines(["*ERROR*cytoscnpy produced no output*"])
 
 
 def test_error_does_not_crash_session(pytester):

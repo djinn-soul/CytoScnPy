@@ -2,7 +2,7 @@
 
 **Vulnerability Category:** `Code Execution`
 
-**Severity:** `HIGH`
+**Severity:** `CRITICAL`
 
 ## Description
 

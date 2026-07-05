@@ -14,7 +14,7 @@ These rules identify code that can lead to arbitrary code execution.
 | [CSP-D004](rule/CSP-D004.md) | `asyncio.create_subprocess_shell(...)`       | **CRITICAL** | Async command injection       | Use `create_subprocess_exec` with list args    |
 | [CSP-D005](rule/CSP-D005.md) | `input(...)`                                 | HIGH         | ACE in legacy Python contexts | Validate input; safe in Python 3               |
 | [CSP-D006](rule/CSP-D006.md) | `os.setuid(...)` / credential changes        | **HIGH**     | Privilege escalation          | Use fixed startup-only privilege drops         |
-| [CSP-D412](rule/CSP-D412.md) | `StdioServerParameters(command=<dynamic>)`   | **HIGH**     | Arbitrary command execution   | Keep command literal or strict allowlist       |
+| [CSP-D412](rule/CSP-D412.md) | `StdioServerParameters(command=<dynamic>)`   | **CRITICAL** | Arbitrary command execution   | Keep command literal or strict allowlist       |
 
 ---
 

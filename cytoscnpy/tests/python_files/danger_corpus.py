@@ -96,7 +96,7 @@ self.tar.extractall()
 # Category 9: Modern Python Patterns (CSP-D9xx) - 2025/2026 Security
 # ════════════════════════════════════════════════════════════════════════
 
-# CSP-D901: Async subprocess security
+# CSP-D004: Async subprocess security
 import asyncio
 asyncio.create_subprocess_shell(user_cmd)  # Unsafe - dynamic
 asyncio.create_subprocess_shell("ls -la")  # Safe - static
@@ -123,7 +123,7 @@ keras.models.load_model("model.h5")  # Unsafe
 keras.load_model("model.h5")  # Unsafe - Added for CSP-D902
 keras.load_model("trusted_model.h5", safe_mode=True) # Safe - Added negative case
 
-# CSP-D903: Sensitive data in logs
+# CSP-D901: Sensitive data in logs
 import logging
 password = "secret123"
 token = "abc123"
@@ -142,18 +142,18 @@ logging.info("User logged in")  # Safe
 import ssl
 ssl.wrap_socket(sock)  # Unsafe
 
-# CSP-D004: wsgiref imports (httpoxy vulnerability)
+# CSP-D702: wsgiref imports (httpoxy vulnerability)
 import wsgiref  # Low severity audit
 from wsgiref.handlers import CGIHandler  # High severity (already in imports above)
 
-# CSP-D004: xmlrpclib (Python 2 legacy)
+# CSP-D702: xmlrpclib (Python 2 legacy)
 import xmlrpclib  # Unsafe - Python 2 XML-RPC
 
 # CSP-D504: mktemp direct import
 from tempfile import mktemp
 mktemp()  # Unsafe - race condition
 
-# CSP-D904: Django SECRET_KEY hardcoding
+# CSP-D902: Django SECRET_KEY hardcoding
 # CSP-D501: Modern Path Traversal (pathlib / zipfile)
 import pathlib
 import zipfile

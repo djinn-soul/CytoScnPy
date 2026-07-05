@@ -13,6 +13,8 @@ These rules identify code that can lead to arbitrary code execution.
 | [CSP-D003](rule/CSP-D003.md) | `os.system(...)`, `subprocess.*(shell=True)` | **CRITICAL** | Command injection             | `subprocess.run([cmd, ...])`; strict allowlist |
 | [CSP-D004](rule/CSP-D004.md) | `asyncio.create_subprocess_shell(...)`       | **CRITICAL** | Async command injection       | Use `create_subprocess_exec` with list args    |
 | [CSP-D005](rule/CSP-D005.md) | `input(...)`                                 | HIGH         | ACE in legacy Python contexts | Validate input; safe in Python 3               |
+| [CSP-D006](rule/CSP-D006.md) | `os.setuid(...)` / credential changes        | **HIGH**     | Privilege escalation          | Use fixed startup-only privilege drops         |
+| [CSP-D412](rule/CSP-D412.md) | `StdioServerParameters(command=<dynamic>)`   | **HIGH**     | Arbitrary command execution   | Keep command literal or strict allowlist       |
 
 ---
 
@@ -27,6 +29,8 @@ These rules detect various forms of injection vulnerabilities.
 | [CSP-D103](rule/CSP-D103.md) | Flask/Jinja dynamic templates           | **CRITICAL** | XSS (Cross-site scripting) | Use static templates; escape content     |
 | [CSP-D104](rule/CSP-D104.md) | `xml.etree`, `minidom`, `sax`, `lxml`   | HIGH / MED   | XXE / DoS                  | Use `defusedxml`                         |
 | [CSP-D105](rule/CSP-D105.md) | `django.utils.safestring.mark_safe`     | **MEDIUM**   | XSS bypass                 | Avoid unless content is strictly trusted |
+| [CSP-D106](rule/CSP-D106.md) | LDAP search filters with dynamic input  | **HIGH**     | LDAP injection             | Escape values with LDAP filter escaping  |
+| [CSP-D107](rule/CSP-D107.md) | Dynamic XPath expressions               | **HIGH**     | XPath injection            | Use XPath variables or fixed expressions  |
 
 ---
 
@@ -53,6 +57,7 @@ These rules highlight the misuse of cryptographic primitives.
 | [CSP-D302](rule/CSP-D302.md) | Weak hashing (SHA-1)               | **MEDIUM** | Collision-prone weak hash  | Use SHA-256 or SHA-3          |
 | [CSP-D304](rule/CSP-D304.md) | Insecure ciphers (DES, ARC4, etc.) | **HIGH**   | Process/Data compromise    | Use AES                       |
 | [CSP-D305](rule/CSP-D305.md) | Insecure cipher modes (ECB)        | **MEDIUM** | Pattern leakage in cipher  | Use CBC or GCM                |
+| [CSP-D306](rule/CSP-D306.md) | `nacl.bindings` low-level APIs     | **HIGH**   | Cryptographic misuse       | Use PyNaCl high-level APIs    |
 | [CSP-D311](rule/CSP-D311.md) | `random.*` (Standard PRNG)         | LOW        | Predictable for crypto use | Use `secrets` or `os.urandom` |
 
 ---
@@ -74,6 +79,7 @@ These rules relate to insecure network communication practices.
 | [CSP-D409](rule/CSP-D409.md) | `telnetlib.*`                       | **MEDIUM**   | Cleartext Telnet traffic    | Use SSH (`paramiko`)                  |
 | [CSP-D410](rule/CSP-D410.md) | `urllib.urlopen` (audit schemes)    | **MEDIUM**   | `file://` scheme exploits   | Validate/restrict schemes             |
 | [CSP-D411](rule/CSP-D411.md) | `ssl.wrap_socket` (deprecated)      | **MEDIUM**   | Often insecure/deprecated   | Use `SSLContext.wrap_socket`          |
+| [CSP-D903](rule/CSP-D903.md) | Django `@csrf_exempt`               | **HIGH**     | CSRF protection disabled    | Keep CSRF enabled or use API auth     |
 
 ---
 
@@ -89,6 +95,7 @@ These rules relate to insecure file system operations.
 | [CSP-D504](rule/CSP-D504.md) | `tempfile.mktemp`                   | **HIGH**   | Race condition (TOCTOU)   | Use `tempfile.mkstemp`             |
 | [CSP-D505](rule/CSP-D505.md) | `os.chmod` with `stat.S_IWOTH`      | **HIGH**   | World-writable file       | Use stricter permissions (0o600)   |
 | [CSP-D506](rule/CSP-D506.md) | `os.tempnam`/`tmpnam`               | **MEDIUM** | Symlink attacks           | Use `tempfile` module              |
+| [CSP-D507](rule/CSP-D507.md) | Existence check before `open()`     | **MEDIUM** | TOCTOU race condition     | Open directly and handle exceptions |
 
 ---
 
@@ -112,6 +119,7 @@ These rules highlight deviations from recommended secure coding practices.
 | [CSP-D702](rule/CSP-D702.md) | Insecure Imports (`telnetlib`, `ftplib`, etc)      | HIGH / LOW | Use of deprecated/insecure libraries         | Use modern replacements (`requests`, `ssh`) |
 | [CSP-D703](rule/CSP-D703.md) | `Jinja2 Environment(autoescape=False)`             | HIGH       | Risk of XSS if content is not escaped        | Set `autoescape=True`                       |
 | [CSP-D704](rule/CSP-D704.md) | Blacklisted function calls (e.g., `pdb.set_trace`) | LOW / MED  | Debugging leftovers in production            | Remove debug code                           |
+| [CSP-D705](rule/CSP-D705.md) | Hardcoded default credentials                      | **HIGH**   | Authentication bypass risk                   | Store credentials securely                  |
 
 ---
 
@@ -133,6 +141,7 @@ These rules address potential privacy violations.
 | :--------------------------- | :-------------------------- | :----------- | :--------------------- | :--------------------------------- |
 | [CSP-D901](rule/CSP-D901.md) | Logging sensitive variables | **MEDIUM**   | Data leakage in logs   | Redact passwords, tokens, API keys |
 | [CSP-D902](rule/CSP-D902.md) | Hardcoded `SECRET_KEY`      | **CRITICAL** | Key exposure in Django | Store in environment variables     |
+| [CSP-D904](rule/CSP-D904.md) | Dynamic content in log messages | **MEDIUM** | Log forging / parser confusion | Escape CR/LF before logging |
 
 ---
 

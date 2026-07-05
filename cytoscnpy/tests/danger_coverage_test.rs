@@ -34,7 +34,7 @@ fn test_danger_rules_full_coverage() {
 
     // Verify new modern security pattern rules (CSP-D9xx)
 
-    // CSP-D901: Async subprocess
+    // CSP-D004: Async subprocess
     let async_subprocess_findings: Vec<_> = result
         .danger
         .iter()
@@ -56,7 +56,7 @@ fn test_danger_rules_full_coverage() {
         "Expected model deserialization findings (CSP-D204)"
     );
 
-    // CSP-D903: Sensitive data in logs
+    // CSP-D901: Sensitive data in logs
     let logging_findings: Vec<_> = result
         .danger
         .iter()

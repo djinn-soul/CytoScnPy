@@ -549,6 +549,74 @@ dependencies = ["unused-dep"]
         .unwrap()
         .iter()
         .any(|v| v == "missing_dep"));
+    let detail = json["missing_details"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["import_name"] == "missing_dep");
+    assert!(
+        detail.is_some(),
+        "missing_dep should include source evidence"
+    );
+    let detail = detail.unwrap();
+    let location = detail["locations"][0].as_object().unwrap();
+    assert!(location["file"].as_str().unwrap().ends_with("main.py"));
+    assert_eq!(location["line"], 1);
+    assert_eq!(location["column"], 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_deps_json_output_includes_transitive_and_dev_locations() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["httpx"]
+
+[dependency-groups]
+dev = ["pytest"]
+"#,
+    )?;
+    fs::write(
+        root.join("uv.lock"),
+        r#"
+version = 1
+
+[[package]]
+name = "httpx"
+version = "0.27.0"
+dependencies = [{ name = "certifi" }]
+
+[[package]]
+name = "certifi"
+version = "2024.7.4"
+"#,
+    )?;
+    fs::write(root.join("app.py"), "import certifi\nimport pytest\n")?;
+
+    let (code, output) = run_deps_command(vec![
+        "deps".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--json".to_owned(),
+    ]);
+
+    assert_eq!(code, 0);
+    let json: serde_json::Value = serde_json::from_str(&output)?;
+    assert_eq!(json["transitive"][0]["import_name"], "certifi");
+    assert_eq!(json["transitive"][0]["locations"][0]["line"], 1);
+    assert!(json["transitive"][0]["locations"][0]["file"]
+        .as_str()
+        .unwrap()
+        .ends_with("app.py"));
+    assert_eq!(json["dev_in_production"][0]["import_name"], "pytest");
+    assert_eq!(json["dev_in_production"][0]["locations"][0]["line"], 2);
 
     Ok(())
 }

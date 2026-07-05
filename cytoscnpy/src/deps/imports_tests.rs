@@ -178,3 +178,19 @@ fn test_extract_imports_includes_aliased_literal_dynamic_imports() -> anyhow::Re
     assert!(!imports.contains("console"));
     Ok(())
 }
+
+#[test]
+fn test_extract_imports_skips_type_checking_dynamic_aliases() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let file_path = dir.path().join("type_only_dynamic.py");
+    fs::write(
+        &file_path,
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from importlib import import_module as im\nvalue = im('rich.console')\n",
+    )?;
+
+    let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+    assert!(imports.contains("typing"));
+    assert!(!imports.contains("importlib"));
+    assert!(!imports.contains("rich"));
+    Ok(())
+}

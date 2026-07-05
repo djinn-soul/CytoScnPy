@@ -512,6 +512,40 @@ dev = ["nox"]
 }
 
 #[test]
+fn test_deps_type_checking_imports_do_not_count_as_runtime() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["pydantic"]
+
+[dependency-groups]
+dev = ["pytest"]
+"#,
+    )?;
+    fs::write(
+        root.join("app.py"),
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    import pydantic\n    import pytest\n",
+    )?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(output.contains("Unused Dependencies (CSP-R002)"));
+    assert!(output.contains("pydantic"));
+    assert!(!output.contains("Missing Dependencies (CSP-R001)"));
+    assert!(!output.contains("Development Dependency Used in Production (CSP-R004)"));
+    assert!(!output.contains("pytest"));
+    Ok(())
+}
+
+#[test]
 fn test_deps_json_output() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();

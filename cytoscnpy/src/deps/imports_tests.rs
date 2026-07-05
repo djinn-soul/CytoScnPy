@@ -126,3 +126,19 @@ fn test_extract_imports_nested_in_try_star() -> anyhow::Result<()> {
     assert!(imports.contains("grp_d"));
     Ok(())
 }
+
+#[test]
+fn test_extract_imports_skips_type_checking_blocks() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let file_path = dir.path().join("type_only.py");
+    fs::write(
+        &file_path,
+        "from typing import TYPE_CHECKING\nimport typing as t\nif TYPE_CHECKING:\n    import pydantic\nif t.TYPE_CHECKING:\n    from rich.console import Console\n",
+    )?;
+
+    let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+    assert!(imports.contains("typing"));
+    assert!(!imports.contains("pydantic"));
+    assert!(!imports.contains("rich"));
+    Ok(())
+}

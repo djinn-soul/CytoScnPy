@@ -14,8 +14,8 @@ pub mod mapping;
 pub mod stdlib;
 
 pub use analysis::{
-    analyze_dependencies, DepsOptions, DepsResult, DevDependencyInProduction, RemovableBranch,
-    TransitiveDependency,
+    analyze_dependencies, DependencyImportLocation, DepsOptions, DepsResult,
+    DevDependencyInProduction, MissingDependency, RemovableBranch, TransitiveDependency,
 };
 pub use declared::{DeclaredDependency, DependencySource};
 pub use installed::InstalledPackage;

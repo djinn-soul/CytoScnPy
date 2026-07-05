@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use super::declared::{locate_and_parse_declarations, DeclaredDependency, DependencySource};
-use super::imports::extract_import_scan;
+use super::imports::{extract_import_scan, ImportOccurrence};
 use super::installed::{detect_venv, scan_installed, InstalledPackage};
 use super::lockfile::{load_lockfile_graph, load_lockfile_graph_at};
 use super::mapping::{get_package_mapping, get_reverse_mapping};
@@ -19,6 +19,36 @@ pub struct RemovableBranch {
     pub unique_transitive: Vec<String>,
 }
 
+/// Source location for an import that contributed to a dependency finding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DependencyImportLocation {
+    /// Python file containing the import.
+    pub file: PathBuf,
+    /// 1-indexed source line.
+    pub line: usize,
+    /// 1-indexed source column.
+    pub column: usize,
+}
+
+impl From<&ImportOccurrence> for DependencyImportLocation {
+    fn from(value: &ImportOccurrence) -> Self {
+        Self {
+            file: value.file.clone(),
+            line: value.line,
+            column: value.column,
+        }
+    }
+}
+
+/// Imported package that is not declared directly.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MissingDependency {
+    /// Top-level import name seen in source code.
+    pub import_name: String,
+    /// Source locations where the import appears.
+    pub locations: Vec<DependencyImportLocation>,
+}
+
 /// Imported package that is available only through another dependency.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransitiveDependency {
@@ -26,6 +56,8 @@ pub struct TransitiveDependency {
     pub import_name: String,
     /// Normalized package name found in the lockfile graph.
     pub package_name: String,
+    /// Source locations where the import appears.
+    pub locations: Vec<DependencyImportLocation>,
 }
 
 /// Development dependency imported from production code.
@@ -35,6 +67,8 @@ pub struct DevDependencyInProduction {
     pub import_name: String,
     /// Declared development dependency that provides the import.
     pub dependency: DeclaredDependency,
+    /// Production source locations where the import appears.
+    pub locations: Vec<DependencyImportLocation>,
 }
 
 /// The result of the full v3 dependency analysis.
@@ -43,6 +77,8 @@ pub struct DepsResult {
     pub unused: Vec<DeclaredDependency>,
     /// Imported but not declared in project metadata.
     pub missing: Vec<String>,
+    /// Missing dependency findings with source evidence.
+    pub missing_details: Vec<MissingDependency>,
     /// Installed in the environment but not declared by the project.
     pub extra_installed: Vec<InstalledPackage>,
     /// Installed, not declared, not imported, and not required by any other installed pkg.
@@ -245,21 +281,35 @@ fn declared_namespace_matches(import_name: &str, declared_names: &FxHashSet<Stri
         })
 }
 
+fn locations_for_import(
+    occurrences: &[ImportOccurrence],
+    import_name: &str,
+    production_only: bool,
+) -> Vec<DependencyImportLocation> {
+    occurrences
+        .iter()
+        .filter(|occurrence| occurrence.name == import_name)
+        .filter(|occurrence| !production_only || occurrence.is_production)
+        .map(DependencyImportLocation::from)
+        .collect()
+}
+
 fn find_missing_imports(
     imported: &FxHashSet<String>,
+    occurrences: &[ImportOccurrence],
     declared: &[DeclaredDependency],
     options: &DepsOptions<'_>,
     stdlib_modules: &FxHashSet<&'static str>,
     reverse_mapping: &FxHashMap<&'static str, &'static str>,
     lockfile_reachable: Option<&FxHashSet<String>>,
-) -> Vec<String> {
+) -> Vec<MissingDependency> {
     // Pre-build a set of all declared names (original and normalized) for O(1) lookup.
     let declared_names: FxHashSet<String> = declared
         .iter()
         .flat_map(|dep| [dep.package_name.to_lowercase(), dep.normalized_name.clone()])
         .collect();
 
-    let mut missing_set = FxHashSet::default();
+    let mut missing = Vec::new();
     for import_name in imported {
         if options.ignore_missing.iter().any(|ig| ig == import_name) {
             continue;
@@ -285,17 +335,20 @@ fn find_missing_imports(
             || declared_namespace_matches(&import_lower, &declared_names);
 
         if !is_declared {
-            missing_set.insert(import_name.clone());
+            missing.push(MissingDependency {
+                import_name: import_name.clone(),
+                locations: locations_for_import(occurrences, import_name, false),
+            });
         }
     }
 
-    let mut missing: Vec<String> = missing_set.into_iter().collect();
-    missing.sort();
+    missing.sort_by(|a, b| a.import_name.cmp(&b.import_name));
     missing
 }
 
 fn find_transitive_imports(
     imported: &FxHashSet<String>,
+    occurrences: &[ImportOccurrence],
     declared: &[DeclaredDependency],
     options: &DepsOptions<'_>,
     stdlib_modules: &FxHashSet<&'static str>,
@@ -324,6 +377,7 @@ fn find_transitive_imports(
             transitive.push(TransitiveDependency {
                 import_name: import_name.clone(),
                 package_name,
+                locations: locations_for_import(occurrences, import_name, false),
             });
         }
     }
@@ -345,6 +399,7 @@ fn find_stdlib_declarations(
 fn find_dev_dependencies_in_production(
     declared: &[DeclaredDependency],
     production_imports: &FxHashSet<String>,
+    occurrences: &[ImportOccurrence],
     options: &DepsOptions<'_>,
     pkg_mapping: &FxHashMap<&'static str, Vec<&'static str>>,
 ) -> Vec<DevDependencyInProduction> {
@@ -385,6 +440,7 @@ fn find_dev_dependencies_in_production(
                 findings.push(DevDependencyInProduction {
                     import_name: import_name.to_owned(),
                     dependency: dep.clone(),
+                    locations: locations_for_import(occurrences, import_name, true),
                 });
             }
         }
@@ -567,6 +623,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     );
     let missing = find_missing_imports(
         imported,
+        &import_scan.occurrences,
         &declared,
         options,
         stdlib_modules,
@@ -575,6 +632,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     );
     let transitive = find_transitive_imports(
         imported,
+        &import_scan.occurrences,
         &declared,
         options,
         stdlib_modules,
@@ -584,6 +642,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     let dev_in_production = find_dev_dependencies_in_production(
         &declared,
         &import_scan.production,
+        &import_scan.occurrences,
         options,
         pkg_mapping,
     );
@@ -600,7 +659,11 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
 
     DepsResult {
         unused,
-        missing,
+        missing: missing
+            .iter()
+            .map(|finding| finding.import_name.clone())
+            .collect(),
+        missing_details: missing,
         extra_installed,
         orphan_installed,
         removable_branches,

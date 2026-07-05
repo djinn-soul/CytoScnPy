@@ -1,4 +1,7 @@
-use crate::deps::{analyze_dependencies, DeclaredDependency, DepsOptions, DepsResult};
+use crate::deps::{
+    analyze_dependencies, DeclaredDependency, DependencyImportLocation, DepsOptions, DepsResult,
+    MissingDependency,
+};
 use crate::rules::ids::{
     RULE_ID_DEV_DEPENDENCY_IN_PROD, RULE_ID_MISSING_DEPENDENCY, RULE_ID_STDLIB_DEPENDENCY,
     RULE_ID_TRANSITIVE_DEPENDENCY, RULE_ID_UNUSED_DEPENDENCY,
@@ -30,13 +33,19 @@ fn write_json_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> 
     let out = json!({
         "unused": result.unused.iter().map(|d| d.package_name.clone()).collect::<Vec<_>>(),
         "missing": result.missing,
+        "missing_details": result.missing_details.iter().map(|d| json!({
+            "import_name": d.import_name,
+            "locations": dependency_locations_json(&d.locations),
+        })).collect::<Vec<_>>(),
         "transitive": result.transitive.iter().map(|d| json!({
             "import_name": d.import_name,
             "package_name": d.package_name,
+            "locations": dependency_locations_json(&d.locations),
         })).collect::<Vec<_>>(),
         "dev_in_production": result.dev_in_production.iter().map(|d| json!({
             "import_name": d.import_name,
             "package_name": d.dependency.package_name,
+            "locations": dependency_locations_json(&d.locations),
         })).collect::<Vec<_>>(),
         "stdlib": result.stdlib.iter().map(|d| d.package_name.clone()).collect::<Vec<_>>(),
         "extra_installed": result.extra_installed.iter().map(|p| json!({
@@ -56,9 +65,22 @@ fn write_json_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> 
     Ok(())
 }
 
+fn dependency_locations_json(locations: &[DependencyImportLocation]) -> Vec<serde_json::Value> {
+    locations
+        .iter()
+        .map(|location| {
+            json!({
+                "file": location.file,
+                "line": location.line,
+                "column": location.column,
+            })
+        })
+        .collect()
+}
+
 fn write_text_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
     write_unused_dependencies(&result.unused, writer)?;
-    write_missing_dependencies(&result.missing, writer)?;
+    write_missing_dependencies(&result.missing_details, writer)?;
     write_transitive_dependencies(result, writer)?;
     write_dev_dependency_in_production(result, writer)?;
     write_stdlib_dependencies(result, writer)?;
@@ -115,7 +137,17 @@ fn dependency_kind(dep: &DeclaredDependency) -> &'static str {
     }
 }
 
-fn write_missing_dependencies<W: Write>(missing: &[String], writer: &mut W) -> Result<()> {
+fn first_location(locations: &[DependencyImportLocation]) -> String {
+    locations.first().map_or_else(
+        || "-".to_owned(),
+        |location| format!("{}:{}", location.file.display(), location.line),
+    )
+}
+
+fn write_missing_dependencies<W: Write>(
+    missing: &[MissingDependency],
+    writer: &mut W,
+) -> Result<()> {
     if missing.is_empty() {
         return Ok(());
     }
@@ -128,10 +160,15 @@ fn write_missing_dependencies<W: Write>(missing: &[String], writer: &mut W) -> R
             .bold()
     )?;
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL).set_header(vec!["Import Name"]);
+    table
+        .load_preset(UTF8_FULL)
+        .set_header(vec!["Import Name", "Location"]);
 
     for missing in missing {
-        table.add_row(vec![Cell::new(missing).fg(Color::Yellow)]);
+        table.add_row(vec![
+            Cell::new(&missing.import_name).fg(Color::Yellow),
+            Cell::new(first_location(&missing.locations)),
+        ]);
     }
     writeln!(writer, "{table}")?;
     Ok(())
@@ -152,12 +189,13 @@ fn write_transitive_dependencies<W: Write>(result: &DepsResult, writer: &mut W) 
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
-        .set_header(vec!["Import Name", "Package Name"]);
+        .set_header(vec!["Import Name", "Package Name", "Location"]);
 
     for dep in &result.transitive {
         table.add_row(vec![
             Cell::new(&dep.import_name).fg(Color::Yellow),
             Cell::new(&dep.package_name),
+            Cell::new(first_location(&dep.locations)),
         ]);
     }
     writeln!(writer, "{table}")?;
@@ -177,15 +215,19 @@ fn write_dev_dependency_in_production<W: Write>(result: &DepsResult, writer: &mu
             .bold()
     )?;
     let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .set_header(vec!["Import Name", "Package Name", "Declared In"]);
+    table.load_preset(UTF8_FULL).set_header(vec![
+        "Import Name",
+        "Package Name",
+        "Declared In",
+        "Location",
+    ]);
 
     for dep in &result.dev_in_production {
         table.add_row(vec![
             Cell::new(&dep.import_name).fg(Color::Yellow),
             Cell::new(&dep.dependency.package_name),
             Cell::new(dependency_source_name(&dep.dependency)),
+            Cell::new(first_location(&dep.locations)),
         ]);
     }
     writeln!(writer, "{table}")?;

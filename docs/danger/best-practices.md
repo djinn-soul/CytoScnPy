@@ -6,3 +6,4 @@ This section highlights deviations from recommended secure coding practices.
 - [CSP-D702: Insecure Module Import](../rule/CSP-D702.md)
 - [CSP-D703: Disabled Jinja2 Autoescaping](../rule/CSP-D703.md)
 - [CSP-D704: Blacklisted Function Calls](../rule/CSP-D704.md)
+- [CSP-D705: Hardcoded Default Credentials](../rule/CSP-D705.md)

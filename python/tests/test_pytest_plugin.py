@@ -408,7 +408,7 @@ def test_stderr_used_as_error_fallback(pytester):
     )
     pytester.makepyfile("def test_ok(): pass\n")
     result = pytester.runpytest("--cytoscnpy")
-    assert "fatal: could not read config" in result.stdout.str()
+    result.stdout.fnmatch_lines(["*ERROR*fatal: could not read config*"])
 
 
 def test_empty_output_shows_fallback_error(pytester):

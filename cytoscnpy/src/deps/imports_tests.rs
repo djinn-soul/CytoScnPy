@@ -160,3 +160,21 @@ fn test_extract_imports_includes_literal_dynamic_imports() -> anyhow::Result<()>
     assert!(!imports.contains("console"));
     Ok(())
 }
+
+#[test]
+fn test_extract_imports_includes_aliased_literal_dynamic_imports() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let file_path = dir.path().join("dynamic_aliases.py");
+    fs::write(
+        &file_path,
+        "import importlib as il\nfrom importlib import import_module as im\nplugin = il.import_module('requests.sessions')\nother = im('rich.console')\n",
+    )?;
+
+    let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+    assert!(imports.contains("importlib"));
+    assert!(imports.contains("requests"));
+    assert!(imports.contains("rich"));
+    assert!(!imports.contains("sessions"));
+    assert!(!imports.contains("console"));
+    Ok(())
+}

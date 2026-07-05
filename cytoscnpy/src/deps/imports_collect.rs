@@ -1,4 +1,4 @@
-use super::imports_dynamic::collect_dynamic_imports_from_stmt;
+use super::imports_dynamic::{collect_dynamic_imports_from_stmt, DynamicImportAliases};
 use super::imports_type_checking::{is_type_checking_test, TypeCheckingAliases};
 use super::{ImportOccurrence, ImportScan};
 use crate::utils::LineIndex;
@@ -17,10 +17,12 @@ pub(super) fn extract_imports_from_file(file: &std::path::Path, is_production: b
         if let Ok(parsed) = parse_module(&content) {
             let line_index = LineIndex::new(&content);
             let mut aliases = TypeCheckingAliases::default();
+            let mut dynamic_aliases = DynamicImportAliases::default();
             collect_imports(
                 &parsed.into_syntax().body,
                 &mut scan,
                 &mut aliases,
+                &mut dynamic_aliases,
                 file,
                 &line_index,
                 is_production,
@@ -38,6 +40,7 @@ fn collect_imports(
     stmts: &[Stmt],
     scan: &mut ImportScan,
     aliases: &mut TypeCheckingAliases,
+    dynamic_aliases: &mut DynamicImportAliases,
     file: &std::path::Path,
     line_index: &LineIndex,
     is_production: bool,
@@ -45,11 +48,19 @@ fn collect_imports(
 ) {
     for stmt in stmts {
         if !in_type_checking_block {
-            collect_dynamic_imports_from_stmt(stmt, scan, file, line_index, is_production);
+            collect_dynamic_imports_from_stmt(
+                stmt,
+                scan,
+                dynamic_aliases,
+                file,
+                line_index,
+                is_production,
+            );
         }
         match stmt {
             Stmt::Import(import_stmt) => {
                 aliases.record_import(import_stmt);
+                dynamic_aliases.record_import(import_stmt);
                 if !in_type_checking_block {
                     for alias in &import_stmt.names {
                         if let Some(top_level) = alias.name.split('.').next() {
@@ -67,6 +78,7 @@ fn collect_imports(
             }
             Stmt::ImportFrom(import_from) => {
                 aliases.record_import_from(import_from);
+                dynamic_aliases.record_import_from(import_from);
                 if !in_type_checking_block && import_from.level == 0 {
                     if let Some(module) = &import_from.module {
                         if let Some(top_level) = module.as_ref().split('.').next() {
@@ -87,6 +99,7 @@ fn collect_imports(
                     &f.body,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -98,6 +111,7 @@ fn collect_imports(
                     &c.body,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -110,6 +124,7 @@ fn collect_imports(
                     &i.body,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -120,6 +135,7 @@ fn collect_imports(
                         &clause.body,
                         scan,
                         aliases,
+                        dynamic_aliases,
                         file,
                         line_index,
                         is_production,
@@ -132,6 +148,7 @@ fn collect_imports(
                     &f.body,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -141,6 +158,7 @@ fn collect_imports(
                     &f.orelse,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -152,6 +170,7 @@ fn collect_imports(
                     &w.body,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -161,6 +180,7 @@ fn collect_imports(
                     &w.orelse,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -172,6 +192,7 @@ fn collect_imports(
                     &w.body,
                     scan,
                     aliases,
+                    dynamic_aliases,
                     file,
                     line_index,
                     is_production,
@@ -182,6 +203,7 @@ fn collect_imports(
                 t,
                 scan,
                 aliases,
+                dynamic_aliases,
                 file,
                 line_index,
                 is_production,
@@ -193,6 +215,7 @@ fn collect_imports(
                         &case.body,
                         scan,
                         aliases,
+                        dynamic_aliases,
                         file,
                         line_index,
                         is_production,
@@ -209,6 +232,7 @@ fn collect_try_imports(
     node: &ast::StmtTry,
     scan: &mut ImportScan,
     aliases: &mut TypeCheckingAliases,
+    dynamic_aliases: &mut DynamicImportAliases,
     file: &std::path::Path,
     line_index: &LineIndex,
     is_production: bool,
@@ -218,6 +242,7 @@ fn collect_try_imports(
         &node.body,
         scan,
         aliases,
+        dynamic_aliases,
         file,
         line_index,
         is_production,
@@ -229,6 +254,7 @@ fn collect_try_imports(
             &handler.body,
             scan,
             aliases,
+            dynamic_aliases,
             file,
             line_index,
             is_production,
@@ -239,6 +265,7 @@ fn collect_try_imports(
         &node.orelse,
         scan,
         aliases,
+        dynamic_aliases,
         file,
         line_index,
         is_production,
@@ -248,6 +275,7 @@ fn collect_try_imports(
         &node.finalbody,
         scan,
         aliases,
+        dynamic_aliases,
         file,
         line_index,
         is_production,

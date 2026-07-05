@@ -32,7 +32,7 @@ fn test_danger_rules_full_coverage() {
         "Expected Tarfile extraction findings"
     );
 
-    // Verify new modern security pattern rules (CSP-D9xx)
+    // Verify corrected and modern danger rule IDs.
 
     // CSP-D004: Async subprocess
     let async_subprocess_findings: Vec<_> = result
@@ -45,7 +45,7 @@ fn test_danger_rules_full_coverage() {
         "Expected async subprocess findings (CSP-D004)"
     );
 
-    // CSP-D902: ML model deserialization
+    // CSP-D204: ML model deserialization
     let model_deser_findings: Vec<_> = result
         .danger
         .iter()
@@ -54,6 +54,17 @@ fn test_danger_rules_full_coverage() {
     assert!(
         !model_deser_findings.is_empty(),
         "Expected model deserialization findings (CSP-D204)"
+    );
+
+    // CSP-D902: Django SECRET_KEY hardcoding
+    let django_secret_findings: Vec<_> = result
+        .danger
+        .iter()
+        .filter(|f| f.rule_id == "CSP-D902")
+        .collect();
+    assert!(
+        !django_secret_findings.is_empty(),
+        "Expected Django SECRET_KEY findings (CSP-D902)"
     );
 
     // CSP-D901: Sensitive data in logs

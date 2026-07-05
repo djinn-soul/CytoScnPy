@@ -60,8 +60,8 @@ fn collect_imports(
         match stmt {
             Stmt::Import(import_stmt) => {
                 aliases.record_import(import_stmt);
-                dynamic_aliases.record_import(import_stmt);
                 if !in_type_checking_block {
+                    dynamic_aliases.record_import(import_stmt);
                     for alias in &import_stmt.names {
                         if let Some(top_level) = alias.name.split('.').next() {
                             add_import_occurrence(
@@ -78,8 +78,8 @@ fn collect_imports(
             }
             Stmt::ImportFrom(import_from) => {
                 aliases.record_import_from(import_from);
-                dynamic_aliases.record_import_from(import_from);
                 if !in_type_checking_block && import_from.level == 0 {
+                    dynamic_aliases.record_import_from(import_from);
                     if let Some(module) = &import_from.module {
                         if let Some(top_level) = module.as_ref().split('.').next() {
                             add_import_occurrence(

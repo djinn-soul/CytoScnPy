@@ -546,6 +546,36 @@ dev = ["pytest"]
 }
 
 #[test]
+fn test_deps_literal_dynamic_imports_count_as_runtime_usage() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+
+    fs::write(
+        root.join("pyproject.toml"),
+        r#"
+[project]
+name = "test-pkg"
+version = "0.1.0"
+dependencies = ["requests"]
+"#,
+    )?;
+    fs::write(
+        root.join("app.py"),
+        "import importlib\nplugin = importlib.import_module('requests.sessions')\nother = __import__('rich.console')\n",
+    )?;
+
+    let (code, output) =
+        run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
+
+    assert_eq!(code, 0);
+    assert!(!output.contains("Unused Dependencies (CSP-R002)"));
+    assert!(!output.contains("requests"));
+    assert!(output.contains("Missing Dependencies (CSP-R001)"));
+    assert!(output.contains("rich"));
+    Ok(())
+}
+
+#[test]
 fn test_deps_json_output() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();

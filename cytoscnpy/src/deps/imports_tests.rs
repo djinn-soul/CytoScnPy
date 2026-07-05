@@ -142,3 +142,21 @@ fn test_extract_imports_skips_type_checking_blocks() -> anyhow::Result<()> {
     assert!(!imports.contains("rich"));
     Ok(())
 }
+
+#[test]
+fn test_extract_imports_includes_literal_dynamic_imports() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let file_path = dir.path().join("dynamic.py");
+    fs::write(
+        &file_path,
+        "import importlib\nplugin = importlib.import_module('requests.sessions')\nother = __import__('rich.console')\n",
+    )?;
+
+    let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
+    assert!(imports.contains("importlib"));
+    assert!(imports.contains("requests"));
+    assert!(imports.contains("rich"));
+    assert!(!imports.contains("sessions"));
+    assert!(!imports.contains("console"));
+    Ok(())
+}

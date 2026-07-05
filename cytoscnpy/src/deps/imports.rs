@@ -5,6 +5,8 @@ use std::path::PathBuf;
 
 #[path = "imports_collect.rs"]
 mod imports_collect;
+#[path = "imports_dynamic.rs"]
+mod imports_dynamic;
 #[path = "imports_type_checking.rs"]
 mod imports_type_checking;
 use imports_collect::extract_imports_from_file;

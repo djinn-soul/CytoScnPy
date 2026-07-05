@@ -1,3 +1,4 @@
+use super::imports_dynamic::collect_dynamic_imports_from_stmt;
 use super::imports_type_checking::{is_type_checking_test, TypeCheckingAliases};
 use super::{ImportOccurrence, ImportScan};
 use crate::utils::LineIndex;
@@ -43,6 +44,9 @@ fn collect_imports(
     in_type_checking_block: bool,
 ) {
     for stmt in stmts {
+        if !in_type_checking_block {
+            collect_dynamic_imports_from_stmt(stmt, scan, file, line_index, is_production);
+        }
         match stmt {
             Stmt::Import(import_stmt) => {
                 aliases.record_import(import_stmt);

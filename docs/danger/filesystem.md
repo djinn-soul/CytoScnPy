@@ -8,3 +8,4 @@ This section details rules related to insecure file system operations.
 - [CSP-D504: Insecure Temporary File Creation](../rule/CSP-D504.md)
 - [CSP-D505: Bad File Permissions](../rule/CSP-D505.md)
 - [CSP-D506: `os.tempnam`/`os.tmpnam`](../rule/CSP-D506.md)
+- [CSP-D507: TOCTOU Race Condition](../rule/CSP-D507.md)

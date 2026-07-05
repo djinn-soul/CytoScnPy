@@ -93,7 +93,7 @@ tf.extractall()
 self.tar.extractall()
 
 # ════════════════════════════════════════════════════════════════════════
-# Category 9: Modern Python Patterns (CSP-D9xx) - 2025/2026 Security
+# Additional corrected and modern danger rule coverage
 # ════════════════════════════════════════════════════════════════════════
 
 # CSP-D004: Async subprocess security
@@ -107,7 +107,7 @@ os.popen("ls")  # Safe
 import pty
 pty.spawn(user_shell)  # Unsafe
 
-# CSP-D902: ML model deserialization
+# CSP-D204: ML model deserialization
 import torch
 torch.load("model.pt")  # Unsafe - no weights_only
 torch.load("model.pt", weights_only=True)  # Safe
@@ -154,6 +154,8 @@ from tempfile import mktemp
 mktemp()  # Unsafe - race condition
 
 # CSP-D902: Django SECRET_KEY hardcoding
+SECRET_KEY = "django-insecure-hardcoded-test-key"
+
 # CSP-D501: Modern Path Traversal (pathlib / zipfile)
 import pathlib
 import zipfile

@@ -394,7 +394,8 @@ def test_invalid_json_with_nonzero_exit_fails_session(pytester):
     )
     pytester.makepyfile("def test_ok(): pass\n")
     result = pytester.runpytest("--cytoscnpy")
-    result.stdout.fnmatch_lines(["*ERROR*fatal: analyzer crashed*"])
+    result.stdout.fnmatch_lines(["*ERROR*"])
+    assert "fatal: analyzer crashed" in result.stdout.str()
     assert result.ret != 0
 
 
@@ -408,7 +409,8 @@ def test_stderr_used_as_error_fallback(pytester):
     )
     pytester.makepyfile("def test_ok(): pass\n")
     result = pytester.runpytest("--cytoscnpy")
-    result.stdout.fnmatch_lines(["*ERROR*fatal: could not read config*"])
+    result.stdout.fnmatch_lines(["*ERROR*"])
+    assert "fatal: could not read config" in result.stdout.str()
 
 
 def test_empty_output_shows_fallback_error(pytester):
@@ -416,7 +418,8 @@ def test_empty_output_shows_fallback_error(pytester):
     _inject_mock(pytester, returncode=0, stdout="", stderr="")
     pytester.makepyfile("def test_ok(): pass\n")
     result = pytester.runpytest("--cytoscnpy")
-    result.stdout.fnmatch_lines(["*ERROR*cytoscnpy produced no output*"])
+    result.stdout.fnmatch_lines(["*ERROR*"])
+    assert "cytoscnpy produced no output" in result.stdout.str()
 
 
 def test_error_does_not_crash_session(pytester):

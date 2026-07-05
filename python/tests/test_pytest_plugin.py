@@ -394,7 +394,7 @@ def test_invalid_json_with_nonzero_exit_fails_session(pytester):
     )
     pytester.makepyfile("def test_ok(): pass\n")
     result = pytester.runpytest("--cytoscnpy")
-    assert "fatal: analyzer crashed" in result.stdout.str()
+    result.stdout.fnmatch_lines(["*ERROR*fatal: analyzer crashed*"])
     assert result.ret != 0
 
 

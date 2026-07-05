@@ -35,7 +35,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-          cache: "pip"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Set up Rust environment
         uses: ./.github/actions/setup-rust
@@ -59,13 +61,13 @@ jobs:
           PYO3_PYTHON: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
 
       - name: Install Python dependencies
-        run: pip install -r requirements-dev.txt
+        run: uv sync --group dev
 
       - name: Build Python extension
-        run: maturin develop --manifest-path cytoscnpy/Cargo.toml --features python-bindings
+        run: uv run maturin develop --manifest-path cytoscnpy/Cargo.toml --features python-bindings
 
       - name: Run Python tests
-        run: pytest python/tests/ -v --tb=long
+        run: uv run pytest python/tests/ -v --tb=long
 
       - name: Run integration tests
         run: cargo test --all-features --tests -- --include-ignored

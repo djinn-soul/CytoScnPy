@@ -61,45 +61,7 @@ pub(super) fn collect_dynamic_imports_from_stmt(
         line_index,
         is_production,
     };
-    match stmt {
-        Stmt::Assign(node) => collector.visit_expr(&node.value),
-        Stmt::AnnAssign(node) => {
-            if let Some(value) = &node.value {
-                collector.visit_expr(value);
-            }
-        }
-        Stmt::AugAssign(node) => collector.visit_expr(&node.value),
-        Stmt::Expr(node) => collector.visit_expr(&node.value),
-        Stmt::Return(node) => {
-            if let Some(value) = &node.value {
-                collector.visit_expr(value);
-            }
-        }
-        Stmt::If(node) => collector.visit_expr(&node.test),
-        Stmt::While(node) => collector.visit_expr(&node.test),
-        Stmt::For(node) => collector.visit_expr(&node.iter),
-        Stmt::With(node) => {
-            for item in &node.items {
-                collector.visit_expr(&item.context_expr);
-            }
-        }
-        Stmt::Match(node) => collector.visit_expr(&node.subject),
-        Stmt::Raise(node) => {
-            if let Some(exc) = &node.exc {
-                collector.visit_expr(exc);
-            }
-            if let Some(cause) = &node.cause {
-                collector.visit_expr(cause);
-            }
-        }
-        Stmt::Assert(node) => {
-            collector.visit_expr(&node.test);
-            if let Some(msg) = &node.msg {
-                collector.visit_expr(msg);
-            }
-        }
-        _ => {}
-    }
+    collector.visit_stmt(stmt);
 }
 
 struct DynamicImportCollector<'a> {
@@ -111,6 +73,8 @@ struct DynamicImportCollector<'a> {
 }
 
 impl<'a> Visitor<'a> for DynamicImportCollector<'_> {
+    fn visit_body(&mut self, _body: &'a [Stmt]) {}
+
     fn visit_expr(&mut self, expr: &'a Expr) {
         if let Expr::Call(call) = expr {
             self.collect_from_call(call);
@@ -124,7 +88,14 @@ impl DynamicImportCollector<'_> {
         let Some(module_name) = dynamic_import_module_name(call, self.aliases) else {
             return;
         };
-        let Some(top_level) = module_name.split('.').next() else {
+        if module_name.starts_with('.') {
+            return;
+        }
+        let Some(top_level) = module_name
+            .split('.')
+            .next()
+            .filter(|name| !name.is_empty())
+        else {
             return;
         };
         self.scan.all.insert(top_level.to_owned());
@@ -142,15 +113,26 @@ fn dynamic_import_module_name(
     call: &ast::ExprCall,
     aliases: &DynamicImportAliases,
 ) -> Option<String> {
-    let first_arg = call.arguments.args.first()?;
+    let module_arg = call.arguments.args.first().or_else(|| {
+        call.arguments
+            .keywords
+            .iter()
+            .find(|keyword| {
+                keyword
+                    .arg
+                    .as_ref()
+                    .is_some_and(|name| name.as_str() == "name")
+            })
+            .map(|keyword| &keyword.value)
+    })?;
     match &*call.func {
-        Expr::Name(name) if name.id.as_str() == "__import__" => string_literal_value(first_arg),
+        Expr::Name(name) if name.id.as_str() == "__import__" => string_literal_value(module_arg),
         Expr::Name(name) if aliases.is_import_module_name(name.id.as_str()) => {
-            string_literal_value(first_arg)
+            string_literal_value(module_arg)
         }
         Expr::Attribute(attr) if attr.attr.as_str() == "import_module" => match &*attr.value {
             Expr::Name(name) if aliases.is_importlib_module_name(name.id.as_str()) => {
-                string_literal_value(first_arg)
+                string_literal_value(module_arg)
             }
             _ => None,
         },

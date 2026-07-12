@@ -73,5 +73,8 @@ pub fn extract_imports(roots: &[PathBuf], exclude: &[String], verbose: bool) -> 
 }
 
 #[cfg(test)]
+#[path = "imports_regression_tests.rs"]
+mod regression_tests;
+#[cfg(test)]
 #[path = "imports_tests.rs"]
 mod tests;

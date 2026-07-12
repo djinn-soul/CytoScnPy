@@ -12,6 +12,35 @@ fn run_deps_command(args: Vec<String>) -> (i32, String) {
 }
 
 #[test]
+fn test_dependency_findings_deserialize_without_location_evidence() -> anyhow::Result<()> {
+    let missing: cytoscnpy::deps::MissingDependency = serde_json::from_value(serde_json::json!({
+        "import_name": "missing_dep",
+    }))?;
+    let transitive: cytoscnpy::deps::TransitiveDependency =
+        serde_json::from_value(serde_json::json!({
+            "import_name": "transitive_dep",
+            "package_name": "transitive-dep",
+        }))?;
+    let dev: cytoscnpy::deps::DevDependencyInProduction =
+        serde_json::from_value(serde_json::json!({
+            "import_name": "dev_dep",
+            "dependency": {
+                "package_name": "dev-dep",
+                "normalized_name": "dev_dep",
+                "is_dev": true,
+                "is_optional": false,
+                "marker": null,
+                "source": "Pyproject",
+            },
+        }))?;
+
+    assert!(missing.locations.is_empty());
+    assert!(transitive.locations.is_empty());
+    assert!(dev.locations.is_empty());
+    Ok(())
+}
+
+#[test]
 fn test_deps_unused_and_missing() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let root = dir.path();

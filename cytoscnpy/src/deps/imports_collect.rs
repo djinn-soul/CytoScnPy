@@ -62,16 +62,19 @@ fn collect_imports(
                 aliases.record_import(import_stmt);
                 if !in_type_checking_block {
                     dynamic_aliases.record_import(import_stmt);
+                    let mut recorded = FxHashSet::default();
                     for alias in &import_stmt.names {
                         if let Some(top_level) = alias.name.split('.').next() {
-                            add_import_occurrence(
-                                scan,
-                                top_level,
-                                stmt,
-                                file,
-                                line_index,
-                                is_production,
-                            );
+                            if recorded.insert(top_level) {
+                                add_import_occurrence(
+                                    scan,
+                                    top_level,
+                                    stmt,
+                                    file,
+                                    line_index,
+                                    is_production,
+                                );
+                            }
                         }
                     }
                 }
@@ -131,6 +134,10 @@ fn collect_imports(
                     in_type_checking_block || guarded,
                 );
                 for clause in &i.elif_else_clauses {
+                    let guarded = clause
+                        .test
+                        .as_ref()
+                        .is_some_and(|test| is_type_checking_test(test, aliases));
                     collect_imports(
                         &clause.body,
                         scan,
@@ -139,7 +146,7 @@ fn collect_imports(
                         file,
                         line_index,
                         is_production,
-                        in_type_checking_block,
+                        in_type_checking_block || guarded,
                     );
                 }
             }

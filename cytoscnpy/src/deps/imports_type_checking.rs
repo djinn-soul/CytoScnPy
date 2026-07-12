@@ -39,7 +39,7 @@ impl TypeCheckingAliases {
     }
 
     fn is_type_checking_name(&self, name: &str) -> bool {
-        name == "TYPE_CHECKING" || self.type_checking_names.contains(name)
+        self.type_checking_names.contains(name)
     }
 
     fn is_typing_module_name(&self, name: &str) -> bool {

@@ -46,6 +46,7 @@ pub struct MissingDependency {
     /// Top-level import name seen in source code.
     pub import_name: String,
     /// Source locations where the import appears.
+    #[serde(default)]
     pub locations: Vec<DependencyImportLocation>,
 }
 
@@ -57,6 +58,7 @@ pub struct TransitiveDependency {
     /// Normalized package name found in the lockfile graph.
     pub package_name: String,
     /// Source locations where the import appears.
+    #[serde(default)]
     pub locations: Vec<DependencyImportLocation>,
 }
 
@@ -68,6 +70,7 @@ pub struct DevDependencyInProduction {
     /// Declared development dependency that provides the import.
     pub dependency: DeclaredDependency,
     /// Production source locations where the import appears.
+    #[serde(default)]
     pub locations: Vec<DependencyImportLocation>,
 }
 
@@ -281,22 +284,36 @@ fn declared_namespace_matches(import_name: &str, declared_names: &FxHashSet<Stri
         })
 }
 
+type OccurrenceIndex<'a> = FxHashMap<&'a str, Vec<&'a ImportOccurrence>>;
+
+fn index_occurrences(occurrences: &[ImportOccurrence]) -> OccurrenceIndex<'_> {
+    let mut index = OccurrenceIndex::default();
+    for occurrence in occurrences {
+        index
+            .entry(occurrence.name.as_str())
+            .or_default()
+            .push(occurrence);
+    }
+    index
+}
+
 fn locations_for_import(
-    occurrences: &[ImportOccurrence],
+    occurrences: &OccurrenceIndex<'_>,
     import_name: &str,
     production_only: bool,
 ) -> Vec<DependencyImportLocation> {
     occurrences
-        .iter()
-        .filter(|occurrence| occurrence.name == import_name)
+        .get(import_name)
+        .into_iter()
+        .flatten()
         .filter(|occurrence| !production_only || occurrence.is_production)
-        .map(DependencyImportLocation::from)
+        .map(|occurrence| DependencyImportLocation::from(*occurrence))
         .collect()
 }
 
 fn find_missing_imports(
     imported: &FxHashSet<String>,
-    occurrences: &[ImportOccurrence],
+    occurrences: &OccurrenceIndex<'_>,
     declared: &[DeclaredDependency],
     options: &DepsOptions<'_>,
     stdlib_modules: &FxHashSet<&'static str>,
@@ -348,7 +365,7 @@ fn find_missing_imports(
 
 fn find_transitive_imports(
     imported: &FxHashSet<String>,
-    occurrences: &[ImportOccurrence],
+    occurrences: &OccurrenceIndex<'_>,
     declared: &[DeclaredDependency],
     options: &DepsOptions<'_>,
     stdlib_modules: &FxHashSet<&'static str>,
@@ -399,7 +416,7 @@ fn find_stdlib_declarations(
 fn find_dev_dependencies_in_production(
     declared: &[DeclaredDependency],
     production_imports: &FxHashSet<String>,
-    occurrences: &[ImportOccurrence],
+    occurrences: &OccurrenceIndex<'_>,
     options: &DepsOptions<'_>,
     pkg_mapping: &FxHashMap<&'static str, Vec<&'static str>>,
 ) -> Vec<DevDependencyInProduction> {
@@ -601,6 +618,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     let declared = locate_and_parse_declarations(primary_root, options.requirements.as_ref());
     let import_scan = extract_import_scan(options.roots, options.exclude, options.verbose);
     let imported = &import_scan.all;
+    let occurrence_index = index_occurrences(&import_scan.occurrences);
 
     let pkg_mapping = get_package_mapping();
     let stdlib_modules = get_stdlib_modules();
@@ -623,7 +641,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     );
     let missing = find_missing_imports(
         imported,
-        &import_scan.occurrences,
+        &occurrence_index,
         &declared,
         options,
         stdlib_modules,
@@ -632,7 +650,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     );
     let transitive = find_transitive_imports(
         imported,
-        &import_scan.occurrences,
+        &occurrence_index,
         &declared,
         options,
         stdlib_modules,
@@ -642,7 +660,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     let dev_in_production = find_dev_dependencies_in_production(
         &declared,
         &import_scan.production,
-        &import_scan.occurrences,
+        &occurrence_index,
         options,
         pkg_mapping,
     );

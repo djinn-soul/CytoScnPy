@@ -20,6 +20,10 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// but we want to report findings with line numbers which are more human-readable.
 #[derive(Debug, Clone)]
 pub struct LineIndex {
+    /// Source text, retained only for non-ASCII files, where a byte offset and a
+    /// character column diverge. `None` for ASCII sources, so the common case does
+    /// not pay for a second copy of the file.
+    source: Option<String>,
     /// Stores the byte index of the start of each line.
     line_starts: Vec<usize>,
 }
@@ -37,7 +41,10 @@ impl LineIndex {
                 line_starts.push(i + 1);
             }
         }
-        Self { line_starts }
+        Self {
+            source: (!source.is_ascii()).then(|| source.to_owned()),
+            line_starts,
+        }
     }
 
     /// Converts a `TextSize` (byte offset) to a 1-indexed line number.
@@ -50,7 +57,7 @@ impl LineIndex {
         }
     }
 
-    /// Converts a `TextSize` (byte offset) to a 1-indexed column number.
+    /// Converts a `TextSize` (byte offset) to a 1-indexed character column.
     #[must_use]
     pub fn column_index(&self, offset: TextSize) -> usize {
         let offset_usize = offset.to_usize();
@@ -59,7 +66,10 @@ impl LineIndex {
             return 1;
         }
         let line_start = self.line_starts[line - 1];
-        offset_usize - line_start + 1
+        match &self.source {
+            Some(source) => source[line_start..offset_usize].chars().count() + 1,
+            None => offset_usize - line_start + 1,
+        }
     }
 }
 
@@ -199,4 +209,26 @@ pub fn is_line_suppressed(
         }
     }
     false
+}
+
+#[cfg(test)]
+mod line_index_tests {
+    use super::LineIndex;
+    use ruff_text_size::TextSize;
+
+    #[test]
+    fn column_index_counts_characters_not_bytes() {
+        let ascii = "x = 1\nimport os\n";
+        let index = LineIndex::new(ascii);
+        let offset = TextSize::from(u32::try_from(ascii.find("os").unwrap()).unwrap());
+        assert_eq!(index.line_index(offset), 2);
+        assert_eq!(index.column_index(offset), 8);
+
+        // 'é' is two bytes in UTF-8, so a byte column would report 13 here.
+        let unicode = "x = 1\nrésultat = os\n";
+        let index = LineIndex::new(unicode);
+        let offset = TextSize::from(u32::try_from(unicode.find("os").unwrap()).unwrap());
+        assert_eq!(index.line_index(offset), 2);
+        assert_eq!(index.column_index(offset), 12);
+    }
 }

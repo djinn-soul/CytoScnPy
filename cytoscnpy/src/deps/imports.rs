@@ -1,9 +1,30 @@
 use crate::commands::utils::find_python_files;
 use rayon::prelude::*;
-use ruff_python_ast::{self as ast, Stmt};
-use ruff_python_parser::parse_module;
 use rustc_hash::FxHashSet;
 use std::path::PathBuf;
+
+#[path = "imports_collect.rs"]
+mod imports_collect;
+#[path = "imports_dynamic.rs"]
+mod imports_dynamic;
+#[path = "imports_type_checking.rs"]
+mod imports_type_checking;
+use imports_collect::extract_imports_from_file;
+
+/// Concrete source location for a top-level import name.
+#[derive(Debug, Clone)]
+pub struct ImportOccurrence {
+    /// Top-level import name seen in source code.
+    pub name: String,
+    /// Python file containing the import.
+    pub file: PathBuf,
+    /// 1-indexed source line.
+    pub line: usize,
+    /// 1-indexed source column.
+    pub column: usize,
+    /// Whether the file is classified as production code.
+    pub is_production: bool,
+}
 
 /// Import names split by all files and production files.
 pub struct ImportScan {
@@ -11,78 +32,12 @@ pub struct ImportScan {
     pub all: FxHashSet<String>,
     /// Imports found in files classified as production code.
     pub production: FxHashSet<String>,
-}
-
-fn collect_imports(stmts: &[Stmt], imports: &mut FxHashSet<String>) {
-    for stmt in stmts {
-        match stmt {
-            Stmt::Import(import_stmt) => {
-                for alias in &import_stmt.names {
-                    if let Some(top_level) = alias.name.split('.').next() {
-                        imports.insert(top_level.to_owned());
-                    }
-                }
-            }
-            Stmt::ImportFrom(import_from) => {
-                if import_from.level > 0 {
-                    continue;
-                }
-                if let Some(module) = &import_from.module {
-                    if let Some(top_level) = module.as_ref().split('.').next() {
-                        imports.insert(top_level.to_owned());
-                    }
-                }
-            }
-            Stmt::FunctionDef(f) => collect_imports(&f.body, imports),
-            Stmt::ClassDef(c) => collect_imports(&c.body, imports),
-            Stmt::If(i) => {
-                collect_imports(&i.body, imports);
-                for clause in &i.elif_else_clauses {
-                    collect_imports(&clause.body, imports);
-                }
-            }
-            Stmt::For(f) => {
-                collect_imports(&f.body, imports);
-                collect_imports(&f.orelse, imports);
-            }
-            Stmt::While(w) => {
-                collect_imports(&w.body, imports);
-                collect_imports(&w.orelse, imports);
-            }
-            Stmt::With(w) => collect_imports(&w.body, imports),
-            Stmt::Try(t) => {
-                // Ruff's StmtTry covers both `try` and `try*` (StmtTry { is_star, .. }).
-                collect_imports(&t.body, imports);
-                for handler in &t.handlers {
-                    let ast::ExceptHandler::ExceptHandler(h) = handler;
-                    collect_imports(&h.body, imports);
-                }
-                collect_imports(&t.orelse, imports);
-                collect_imports(&t.finalbody, imports);
-            }
-            Stmt::Match(m) => {
-                for case in &m.cases {
-                    collect_imports(&case.body, imports);
-                }
-            }
-            _ => {}
-        }
-    }
+    /// Source evidence for every import occurrence.
+    pub occurrences: Vec<ImportOccurrence>,
 }
 
 fn is_test_or_dev_file(file: &std::path::Path) -> bool {
     crate::utils::is_test_path(&file.to_string_lossy())
-}
-
-fn extract_imports_from_file(file: &std::path::Path) -> FxHashSet<String> {
-    if let Ok(content) = std::fs::read_to_string(file) {
-        if let Ok(parsed) = parse_module(&content) {
-            let mut imports = FxHashSet::default();
-            collect_imports(&parsed.into_syntax().body, &mut imports);
-            return imports;
-        }
-    }
-    FxHashSet::default()
 }
 
 /// Scans Python files and returns import names split by all files and
@@ -94,24 +49,18 @@ pub fn extract_import_scan(roots: &[PathBuf], exclude: &[String], verbose: bool)
         .into_par_iter()
         .map(|file| {
             let is_production = !is_test_or_dev_file(&file);
-            let imports = extract_imports_from_file(&file);
-            let mut scan = ImportScan {
-                all: imports,
-                production: FxHashSet::default(),
-            };
-            if is_production {
-                scan.production.extend(scan.all.iter().cloned());
-            }
-            scan
+            extract_imports_from_file(&file, is_production)
         })
         .reduce(
             || ImportScan {
                 all: FxHashSet::default(),
                 production: FxHashSet::default(),
+                occurrences: Vec::new(),
             },
             |mut acc, scan| {
                 acc.all.extend(scan.all);
                 acc.production.extend(scan.production);
+                acc.occurrences.extend(scan.occurrences);
                 acc
             },
         )
@@ -124,133 +73,8 @@ pub fn extract_imports(roots: &[PathBuf], exclude: &[String], verbose: bool) -> 
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_extract_imports_simple() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "import os\nfrom sys import path\nimport requests.sessions\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.contains("os"));
-        assert!(imports.contains("sys"));
-        assert!(imports.contains("requests"));
-        assert_eq!(imports.len(), 3);
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_imports_skips_relative() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "from . import local\nfrom ..parent import other\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_imports_nested_in_function() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "def foo():\n    import json\n    from pathlib import Path\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.contains("json"));
-        assert!(imports.contains("pathlib"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_imports_nested_in_try_except() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "try:\n    import ujson as json\nexcept ImportError:\n    import json\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.contains("ujson"));
-        assert!(imports.contains("json"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_imports_nested_in_if() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "import sys\nif sys.platform == 'win32':\n    import winreg\nelse:\n    import fcntl\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.contains("sys"));
-        assert!(imports.contains("winreg"));
-        assert!(imports.contains("fcntl"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_imports_nested_in_class() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "class Foo:\n    import dataclasses\n    def method(self):\n        import typing\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.contains("dataclasses"));
-        assert!(imports.contains("typing"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_imports_nested_in_async_blocks() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "async def worker(items):\n    import aiohttp\n    async for item in items:\n        import yarl\n    async with aiohttp.ClientSession() as s:\n        import async_timeout\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.contains("aiohttp"));
-        assert!(imports.contains("yarl"));
-        assert!(imports.contains("async_timeout"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_extract_imports_nested_in_try_star() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let file_path = dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "try:\n    import grp_a\nexcept* Exception:\n    import grp_b\nelse:\n    import grp_c\nfinally:\n    import grp_d\n",
-        )?;
-
-        let imports = extract_imports(&[dir.path().to_path_buf()], &[], false);
-        assert!(imports.contains("grp_a"));
-        assert!(imports.contains("grp_b"));
-        assert!(imports.contains("grp_c"));
-        assert!(imports.contains("grp_d"));
-        Ok(())
-    }
-}
+#[path = "imports_regression_tests.rs"]
+mod regression_tests;
+#[cfg(test)]
+#[path = "imports_tests.rs"]
+mod tests;

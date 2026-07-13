@@ -232,9 +232,36 @@ fn is_local_package(roots: &[PathBuf], module_name: &str) -> bool {
 /// itself.
 struct ImportResolver<'a> {
     custom: Option<&'a FxHashMap<String, Vec<String>>>,
+    /// Import name → normalized distribution name, derived from `custom`.
+    custom_reverse: FxHashMap<String, String>,
     environment: &'a EnvironmentMapping,
     builtin: &'static FxHashMap<&'static str, Vec<&'static str>>,
     builtin_reverse: &'static FxHashMap<&'static str, &'static str>,
+}
+
+/// Inverts the `package_mapping` config so an import can be traced back to the
+/// distribution the user mapped it to. Without this, a configured mapping makes
+/// the declared dependency look used but still leaves the import looking
+/// undeclared. Entries are visited in sorted order so that two distributions
+/// claiming one import name resolve to the same winner on every run.
+fn custom_reverse_mapping(
+    custom: Option<&FxHashMap<String, Vec<String>>>,
+) -> FxHashMap<String, String> {
+    let mut reverse = FxHashMap::default();
+    let Some(custom) = custom else {
+        return reverse;
+    };
+    let mut entries: Vec<(&String, &Vec<String>)> = custom.iter().collect();
+    entries.sort_unstable_by_key(|(dist, _)| *dist);
+    for (dist, import_names) in entries {
+        let normalized = super::declared::normalize_package_name(dist);
+        for import_name in import_names {
+            reverse
+                .entry(import_name.clone())
+                .or_insert_with(|| normalized.clone());
+        }
+    }
+    reverse
 }
 
 /// Import names derived from the packages installed in the virtual environment.
@@ -296,6 +323,13 @@ impl ImportResolver<'_> {
     /// The normalized distribution name an import most likely comes from.
     fn distribution_for(&self, import_name: &str) -> String {
         let import_lower = import_name.to_lowercase();
+        if let Some(dist) = self
+            .custom_reverse
+            .get(import_name)
+            .or_else(|| self.custom_reverse.get(&import_lower))
+        {
+            return dist.clone();
+        }
         if let Some(dist) = self
             .environment
             .reverse
@@ -505,6 +539,12 @@ fn find_transitive_imports(
         if stdlib_modules.contains(import_name.as_str())
             || is_local_package(options.roots, import_name)
         {
+            continue;
+        }
+        // A namespace root (`google`) can resolve to whichever provider the venv
+        // recorded, so it may name a reachable-but-undeclared distribution even
+        // though a declared one publishes into that same namespace.
+        if declared_namespace_matches(&import_name.to_lowercase(), &declared_norm) {
             continue;
         }
         let package_name = resolver.distribution_for(import_name);
@@ -745,6 +785,7 @@ pub fn analyze_dependencies(options: &DepsOptions<'_>) -> DepsResult {
     let environment = environment_mapping(&installed);
     let resolver = ImportResolver {
         custom: options.package_mapping,
+        custom_reverse: custom_reverse_mapping(options.package_mapping),
         environment: &environment,
         builtin: get_package_mapping(),
         builtin_reverse: get_reverse_mapping(),

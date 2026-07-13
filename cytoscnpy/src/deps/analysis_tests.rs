@@ -595,6 +595,73 @@ fn a_user_package_mapping_overrides_the_environment() {
 }
 
 #[test]
+fn a_user_mapped_import_resolves_back_to_the_declared_distribution() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    write(
+        dir.path(),
+        "pyproject.toml",
+        &pyproject("\"my-internal-lib\""),
+    );
+    write(dir.path(), "app.py", "import mylib\n");
+
+    let mut mapping = rustc_hash::FxHashMap::default();
+    mapping.insert("my-internal-lib".to_owned(), vec!["mylib".to_owned()]);
+
+    let roots = vec![dir.path().to_path_buf()];
+    let mut opts = options(&roots);
+    opts.package_mapping = Some(&mapping);
+    let result = analyze_dependencies(&opts);
+
+    assert!(
+        result.missing.is_empty(),
+        "the mapping says `mylib` comes from the declared `my-internal-lib`: {:?}",
+        result.missing
+    );
+    assert!(result.unused.is_empty(), "my-internal-lib is imported");
+}
+
+#[test]
+fn a_namespace_import_is_not_transitive_when_a_declared_dist_publishes_into_it() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    write(
+        dir.path(),
+        "pyproject.toml",
+        &pyproject("\"google-cloud-storage\""),
+    );
+    write(dir.path(), "app.py", "from google.cloud import storage\n");
+    write(
+        dir.path(),
+        "uv.lock",
+        "version = 1\n\n\
+         [[package]]\n\
+         name = \"google-cloud-storage\"\n\
+         version = \"2.0.0\"\n\
+         dependencies = [\n  { name = \"google-api-core\" },\n]\n\n\
+         [[package]]\n\
+         name = \"google-api-core\"\n\
+         version = \"2.0.0\"\n",
+    );
+    // Both distributions record `google` as their import root, and the reverse
+    // map can pick either one for the shared namespace.
+    install(dir.path(), "google_api_core", &["google"], &[]);
+    install(dir.path(), "google_cloud_storage", &["google"], &[]);
+
+    let roots = vec![dir.path().to_path_buf()];
+    let result = analyze_dependencies(&options(&roots));
+
+    assert!(
+        result.transitive.is_empty(),
+        "`google` is published by the declared google-cloud-storage: {:?}",
+        result
+            .transitive
+            .iter()
+            .map(|dep| dep.package_name.as_str())
+            .collect::<Vec<_>>()
+    );
+    assert!(result.missing.is_empty(), "google is declared");
+}
+
+#[test]
 fn an_imported_undeclared_package_is_missing_with_source_evidence() {
     let (_dir, result) = analyze(&[
         ("pyproject.toml", &pyproject("")),

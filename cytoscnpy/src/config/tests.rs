@@ -112,3 +112,56 @@ min_mi = 65.0
     let config = Config::load_from_path(&py_file);
     assert_eq!(config.cytoscnpy.min_mi, Some(65.0));
 }
+
+#[test]
+fn test_per_file_ignores_multiline_table_and_multiple_whitelist_blocks() {
+    let dir = TempDir::new().unwrap();
+    let mut file = std::fs::File::create(dir.path().join(".cytoscnpy.toml")).unwrap();
+    writeln!(
+        file,
+        r#"[cytoscnpy]
+confidence = 60
+
+[cytoscnpy.per-file-ignores]
+"tests/*" = ["CSP-D701"]
+"**/__init__.py" = ["CSP-L001"]
+
+[[cytoscnpy.whitelist]]
+name = "my_unused_fn"
+
+[[cytoscnpy.whitelist]]
+name = "another_fn"
+pattern = "wildcard"
+"#
+    )
+    .unwrap();
+
+    let config = Config::load_from_path(dir.path());
+    let ignores = config.cytoscnpy.per_file_ignores.unwrap();
+    assert_eq!(ignores.get("tests/*").unwrap(), &vec!["CSP-D701".to_string()]);
+    assert_eq!(
+        ignores.get("**/__init__.py").unwrap(),
+        &vec!["CSP-L001".to_string()]
+    );
+
+    assert_eq!(config.cytoscnpy.whitelist.len(), 2);
+    assert_eq!(config.cytoscnpy.whitelist[0].name, "my_unused_fn");
+    assert_eq!(config.cytoscnpy.whitelist[1].name, "another_fn");
+}
+
+#[test]
+fn test_whitelist_compact_array_of_inline_tables() {
+    let content = r#"
+[cytoscnpy]
+whitelist = [
+  { name = "fn_one" },
+  { name = "fn_two", pattern = "wildcard" },
+  { name = "fn_three", file = "src/api/*.py" },
+]
+"#;
+    let config = toml::from_str::<Config>(content).unwrap();
+    assert_eq!(config.cytoscnpy.whitelist.len(), 3);
+    assert_eq!(config.cytoscnpy.whitelist[0].name, "fn_one");
+    assert_eq!(config.cytoscnpy.whitelist[1].name, "fn_two");
+    assert_eq!(config.cytoscnpy.whitelist[2].file.as_deref(), Some("src/api/*.py"));
+}

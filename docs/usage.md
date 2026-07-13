@@ -273,7 +273,6 @@ quality = true
 include_ipynb = false
 project_type = "library"   # "library" (default) or "application"
 ignore = ["CSP-P003"]      # Global rule suppressions
-per-file-ignores = { "tests/*" = ["CSP-D701"] }
 
 # Clone detection
 clones = false             # Enable duplicate code detection
@@ -285,6 +284,13 @@ max_complexity = 15    # Function CC > 15
 min_mi = 40.0          # MI < 40
 fail_on_secrets = true # Any secret finding
 fail_on_danger = true  # Any danger or taint finding
+
+# Per-file rule suppressions (glob -> rule IDs). Must be its own table
+# (not an inline `{ ... }`) so entries can span multiple lines without
+# TOML syntax errors.
+[cytoscnpy.per-file-ignores]
+"tests/*" = ["CSP-D701"]
+"**/__init__.py" = ["CSP-L001"]
 ```
 
 ### Option 2: `pyproject.toml`
@@ -300,7 +306,6 @@ danger = true
 quality = true
 project_type = "library"
 ignore = ["CSP-P003"]
-per-file-ignores = { "tests/*" = ["CSP-D701"] }
 
 # Clone detection
 clones = false
@@ -312,6 +317,13 @@ max_complexity = 15
 min_mi = 40.0
 fail_on_secrets = true
 fail_on_danger = true
+
+# Per-file rule suppressions (glob -> rule IDs). Must be its own table
+# (not an inline `{ ... }`) so entries can span multiple lines without
+# TOML syntax errors.
+[tool.cytoscnpy.per-file-ignores]
+"tests/*" = ["CSP-D701"]
+"**/__init__.py" = ["CSP-L001"]
 ```
 
 ### Advanced Config (Security)

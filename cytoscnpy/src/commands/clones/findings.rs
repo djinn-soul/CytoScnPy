@@ -76,9 +76,6 @@ pub fn generate_clone_findings_with_thresholds(
                 #[cfg(not(feature = "cst"))]
                 let _ = inst;
 
-                #[cfg(not(feature = "cst"))]
-                let ctx = ctx;
-
                 let confidence = scorer.score(pair, &ctx);
                 (confidence.score, confidence.decision)
             };

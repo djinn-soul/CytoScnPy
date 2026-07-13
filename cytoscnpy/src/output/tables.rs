@@ -217,7 +217,8 @@ pub fn print_unused_dependencies(
     for dep in dependencies {
         let source_str = match &dep.source {
             crate::deps::DependencySource::Pyproject => "pyproject.toml".to_owned(),
-            crate::deps::DependencySource::Requirements(f) => f.clone(),
+            crate::deps::DependencySource::Requirements(f)
+            | crate::deps::DependencySource::Setup(f) => f.clone(),
         };
         let dev_str = if dep.is_dev { "dev" } else { "prod" };
         table.add_row(vec![

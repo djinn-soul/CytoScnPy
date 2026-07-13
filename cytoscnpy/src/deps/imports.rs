@@ -32,18 +32,44 @@ pub struct ImportScan {
     pub all: FxHashSet<String>,
     /// Imports found in files classified as production code.
     pub production: FxHashSet<String>,
+    /// Imports that appear only inside `if TYPE_CHECKING:` blocks. These are not
+    /// runtime imports, so they must not create "missing dependency" findings, but
+    /// they do keep a declared dependency from being reported as unused.
+    pub type_checking: FxHashSet<String>,
     /// Source evidence for every import occurrence.
     pub occurrences: Vec<ImportOccurrence>,
+}
+
+impl ImportScan {
+    fn empty() -> Self {
+        Self {
+            all: FxHashSet::default(),
+            production: FxHashSet::default(),
+            type_checking: FxHashSet::default(),
+            occurrences: Vec::new(),
+        }
+    }
 }
 
 fn is_test_or_dev_file(file: &std::path::Path) -> bool {
     crate::utils::is_test_path(&file.to_string_lossy())
 }
 
+/// A top-level `setup.py` is a build script, not importable source: what it
+/// imports (`setuptools`, `distutils`) are build requirements rather than
+/// dependencies of the project, so it must not drive dependency findings.
+fn is_build_script(file: &std::path::Path, roots: &[PathBuf]) -> bool {
+    file.file_name().is_some_and(|name| name == "setup.py")
+        && file
+            .parent()
+            .is_some_and(|parent| roots.iter().any(|root| root == parent))
+}
+
 /// Scans Python files and returns import names split by all files and
 /// production files. Test/dev files are excluded only from the production set.
 pub fn extract_import_scan(roots: &[PathBuf], exclude: &[String], verbose: bool) -> ImportScan {
-    let files = find_python_files(roots, exclude, verbose);
+    let mut files = find_python_files(roots, exclude, verbose);
+    files.retain(|file| !is_build_script(file, roots));
 
     files
         .into_par_iter()
@@ -51,19 +77,13 @@ pub fn extract_import_scan(roots: &[PathBuf], exclude: &[String], verbose: bool)
             let is_production = !is_test_or_dev_file(&file);
             extract_imports_from_file(&file, is_production)
         })
-        .reduce(
-            || ImportScan {
-                all: FxHashSet::default(),
-                production: FxHashSet::default(),
-                occurrences: Vec::new(),
-            },
-            |mut acc, scan| {
-                acc.all.extend(scan.all);
-                acc.production.extend(scan.production);
-                acc.occurrences.extend(scan.occurrences);
-                acc
-            },
-        )
+        .reduce(ImportScan::empty, |mut acc, scan| {
+            acc.all.extend(scan.all);
+            acc.production.extend(scan.production);
+            acc.type_checking.extend(scan.type_checking);
+            acc.occurrences.extend(scan.occurrences);
+            acc
+        })
 }
 
 /// Scans Python files within the provided roots and extracts all import names,

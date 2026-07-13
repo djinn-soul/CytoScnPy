@@ -138,10 +138,13 @@ pattern = "wildcard"
 
     let config = Config::load_from_path(dir.path());
     let ignores = config.cytoscnpy.per_file_ignores.unwrap();
-    assert_eq!(ignores.get("tests/*").unwrap(), &vec!["CSP-D701".to_string()]);
+    assert_eq!(
+        ignores.get("tests/*").unwrap(),
+        &vec!["CSP-D701".to_owned()]
+    );
     assert_eq!(
         ignores.get("**/__init__.py").unwrap(),
-        &vec!["CSP-L001".to_string()]
+        &vec!["CSP-L001".to_owned()]
     );
 
     assert_eq!(config.cytoscnpy.whitelist.len(), 2);
@@ -163,5 +166,8 @@ whitelist = [
     assert_eq!(config.cytoscnpy.whitelist.len(), 3);
     assert_eq!(config.cytoscnpy.whitelist[0].name, "fn_one");
     assert_eq!(config.cytoscnpy.whitelist[1].name, "fn_two");
-    assert_eq!(config.cytoscnpy.whitelist[2].file.as_deref(), Some("src/api/*.py"));
+    assert_eq!(
+        config.cytoscnpy.whitelist[2].file.as_deref(),
+        Some("src/api/*.py")
+    );
 }

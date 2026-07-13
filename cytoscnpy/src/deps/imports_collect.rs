@@ -85,7 +85,8 @@ fn collect_imports(
                     }
                 }
             }
-            // Relative imports (`from . import x`) never name a distribution.
+            // Only absolute imports (level 0) can name a distribution; relative
+            // imports (`from . import x`) are handled by the arm below.
             Stmt::ImportFrom(import_from) if import_from.level == 0 => {
                 aliases.record_import_from(import_from);
                 let Some(top_level) = import_from

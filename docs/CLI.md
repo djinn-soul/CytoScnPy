@@ -253,8 +253,6 @@ include_folders = ["src"]
 
 # Rule suppression
 ignore = ["CSP-P003"]      # Globally ignore specific rule IDs
-per-file-ignores = { "tests/*" = ["CSP-D701"], "**/__init__.py" = ["CSP-L001"] }
-# Glob behavior: "*" matches a single path segment, "**" matches recursively.
 
 # Clone detection
 clones = false             # Enable duplicate code detection
@@ -265,11 +263,34 @@ fail_threshold = 5.0
 fail_on_secrets = true
 fail_on_danger = true
 
-# Inline whitelist (suppress specific dead-code symbols)
+# Per-file rule suppressions (glob -> rule IDs).
+# Use a real table (not an inline `{ ... }`) so entries can span multiple
+# lines without tripping TOML/editor syntax errors.
+# Glob behavior: "*" matches a single path segment, "**" matches recursively.
+[cytoscnpy.per-file-ignores]
+"tests/*" = ["CSP-D701"]
+"**/__init__.py" = ["CSP-L001"]
+
+# Inline whitelist (suppress specific dead-code symbols).
+# One array, one entry per line — no repeated headers needed.
+whitelist = [
+  { name = "my_handler" },                              # "exact" match (default)
+  { name = "another_symbol", pattern = "wildcard" },     # "exact", "wildcard", or "regex"
+  { name = "legacy_fn", file = "src/api/*.py" },         # optional: restrict to a file glob
+]
+```
+
+Prefer `[[cytoscnpy.whitelist]]` blocks instead if you want to attach a comment
+above each entry:
+
+```toml
 [[cytoscnpy.whitelist]]
 name = "my_handler"
-pattern = "exact"          # "exact" (default), "wildcard", or "regex"
-# file = "src/api/*.py"    # Optional: restrict to a specific file glob
+pattern = "exact"
+
+[[cytoscnpy.whitelist]]
+name = "another_symbol"
+pattern = "wildcard"
 ```
 
 ### Advanced Configuration

@@ -67,7 +67,11 @@ const DEFAULT_CONFIG: &str = r#"
 # ignore = ["CSP-P003"]
 
 # Silence specific rules only for files matching a glob pattern.
-# per-file-ignores = { "tests/*" = ["CSP-D701"], "**/__init__.py" = ["CSP-L001"] }
+# Use a real table (not an inline `{ ... }`) so it can span multiple lines
+# and hold as many glob -> rule-list entries as you need:
+# [cytoscnpy.per-file-ignores]
+# "tests/*" = ["CSP-D701"]
+# "**/__init__.py" = ["CSP-L001"]
 
 
 # ── Clone detection ───────────────────────────────────────────────────────────
@@ -88,14 +92,13 @@ const DEFAULT_CONFIG: &str = r#"
 # ── Inline whitelist ──────────────────────────────────────────────────────────
 # Suppress specific dead-code symbols without a separate whitelist file.
 # Each entry can target a single name, a wildcard pattern, or a regex.
-
-# [[cytoscnpy.whitelist]]
-# # The symbol name (or pattern) to suppress.
-# name = "my_unused_fn"
-# # Match mode: "exact" (default), "wildcard" (glob-style), or "regex".
-# pattern = "exact"
-# # Optional: restrict this entry to files matching a glob.
-# # file = "src/api/*.py"
+# Add as many entries as you need in one array (each entry stays on its own
+# line; only add commas between entries, not inside one):
+# whitelist = [
+#   { name = "my_unused_fn" },
+#   { name = "test_*", pattern = "wildcard" },
+#   { name = "legacy_handler", file = "src/api/*.py" },
+# ]
 
 
 # ── Secrets scanning (advanced) ───────────────────────────────────────────────
@@ -209,7 +212,11 @@ pub const DEFAULT_PYPROJECT_CONFIG: &str = r#"
 # ignore = ["CSP-P003"]
 
 # Silence specific rules only for files matching a glob pattern.
-# per-file-ignores = { "tests/*" = ["CSP-D701"], "**/__init__.py" = ["CSP-L001"] }
+# Use a real table (not an inline `{ ... }`) so it can span multiple lines
+# and hold as many glob -> rule-list entries as you need:
+# [tool.cytoscnpy.per-file-ignores]
+# "tests/*" = ["CSP-D701"]
+# "**/__init__.py" = ["CSP-L001"]
 
 
 # ── Clone detection ───────────────────────────────────────────────────────────
@@ -230,14 +237,13 @@ pub const DEFAULT_PYPROJECT_CONFIG: &str = r#"
 # ── Inline whitelist ──────────────────────────────────────────────────────────
 # Suppress specific dead-code symbols without a separate whitelist file.
 # Each entry can target a single name, a wildcard pattern, or a regex.
-
-# [[tool.cytoscnpy.whitelist]]
-# # The symbol name (or pattern) to suppress.
-# name = "my_unused_fn"
-# # Match mode: "exact" (default), "wildcard" (glob-style), or "regex".
-# pattern = "exact"
-# # Optional: restrict this entry to files matching a glob.
-# # file = "src/api/*.py"
+# Add as many entries as you need in one array (each entry stays on its own
+# line; only add commas between entries, not inside one):
+# whitelist = [
+#   { name = "my_unused_fn" },
+#   { name = "test_*", pattern = "wildcard" },
+#   { name = "legacy_handler", file = "src/api/*.py" },
+# ]
 
 
 # ── Secrets scanning (advanced) ───────────────────────────────────────────────

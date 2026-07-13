@@ -1,5 +1,7 @@
 use super::CloneDetector;
+#[cfg(feature = "cfg")]
 use crate::clones::{parser, ClonePair};
+#[cfg(feature = "cfg")]
 use std::path::PathBuf;
 
 impl CloneDetector {

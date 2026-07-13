@@ -68,7 +68,9 @@ CONFIGURATION FILE
   # ignore = [\"CSP-P003\"]
 
   # Silence specific rules only for files matching a glob pattern.
-  # per-file-ignores = { \"tests/*\" = [\"CSP-D701\"] }
+  # Use a table (not inline `{ ... }`) so it can span multiple lines:
+  # [cytoscnpy.per-file-ignores]
+  # \"tests/*\" = [\"CSP-D701\"]
 
   # Detect Type-1/2/3 duplicate code blocks across the project.
   # clones = false
@@ -82,7 +84,7 @@ CONFIGURATION FILE
   Advanced subsections (run `cytoscnpy init` or see docs/CLI.md for full options):
     [cytoscnpy.secrets_config]   entropy tuning, custom patterns
     [cytoscnpy.danger_config]    taint sources/sinks/sanitizers
-    [[cytoscnpy.whitelist]]      inline dead-code suppressions
+    whitelist = [ { name = ... } ]   inline dead-code suppressions (array, one entry per line)
 ";
 
 /// Command line interface configuration using `clap`.

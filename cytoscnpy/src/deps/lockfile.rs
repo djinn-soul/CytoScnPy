@@ -320,6 +320,48 @@ mod tests {
     }
 
     #[test]
+    fn test_load_lockfile_graph_at_explicit_path() {
+        let tmp = tempdir().unwrap();
+
+        let uv = tmp.path().join("uv.lock");
+        fs::write(&uv, uv_lock_sample()).unwrap();
+        let graph = load_lockfile_graph_at(&uv).expect("uv.lock parses");
+        assert!(graph.forward.contains_key("requests"));
+
+        // Recognized by file name, not by content.
+        let unknown = tmp.path().join("Pipfile.lock");
+        fs::write(&unknown, uv_lock_sample()).unwrap();
+        assert!(load_lockfile_graph_at(&unknown).is_none());
+
+        // A lockfile with no packages yields no graph.
+        let empty = tmp.path().join("empty").join("poetry.lock");
+        fs::create_dir_all(empty.parent().unwrap()).unwrap();
+        fs::write(&empty, "").unwrap();
+        assert!(load_lockfile_graph_at(&empty).is_none());
+
+        assert!(load_lockfile_graph_at(&tmp.path().join("absent.lock")).is_none());
+    }
+
+    #[test]
+    fn test_load_lockfile_graph_prefers_uv_then_poetry() {
+        let tmp = tempdir().unwrap();
+        assert!(load_lockfile_graph(tmp.path()).is_none());
+
+        fs::write(
+            tmp.path().join("poetry.lock"),
+            "[[package]]\nname = \"certifi\"\nversion = \"1.0\"\n",
+        )
+        .unwrap();
+        let graph =
+            load_lockfile_graph(tmp.path()).expect("poetry.lock is used when uv.lock is absent");
+        assert!(graph.forward.contains_key("certifi"));
+
+        fs::write(tmp.path().join("uv.lock"), uv_lock_sample()).unwrap();
+        let graph = load_lockfile_graph(tmp.path()).expect("uv.lock wins");
+        assert!(graph.forward.contains_key("requests"));
+    }
+
+    #[test]
     fn test_load_lockfile_graph_from_temp_dir() {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("uv.lock"), uv_lock_sample()).unwrap();

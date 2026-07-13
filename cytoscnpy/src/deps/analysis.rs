@@ -248,7 +248,12 @@ struct EnvironmentMapping {
 
 fn environment_mapping(installed: &FxHashMap<String, InstalledPackage>) -> EnvironmentMapping {
     let mut mapping = EnvironmentMapping::default();
-    for (normalized, pkg) in installed {
+    // Several distributions can share one import name (namespace packages like
+    // `google`), and the reverse map keeps the first writer. Iterate in sorted
+    // order so the winner does not depend on hash iteration order.
+    let mut packages: Vec<(&String, &InstalledPackage)> = installed.iter().collect();
+    packages.sort_unstable_by_key(|(normalized, _)| *normalized);
+    for (normalized, pkg) in packages {
         if pkg.top_level.is_empty() {
             continue;
         }

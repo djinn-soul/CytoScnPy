@@ -62,7 +62,20 @@ fn is_build_script(file: &std::path::Path, roots: &[PathBuf]) -> bool {
     file.file_name().is_some_and(|name| name == "setup.py")
         && file
             .parent()
-            .is_some_and(|parent| roots.iter().any(|root| root == parent))
+            .is_some_and(|parent| roots.iter().any(|root| same_dir(root, parent)))
+}
+
+/// Compares two directory paths without touching the filesystem. An empty path
+/// and `.` both mean the current directory but are not equal as `Path` values.
+fn same_dir(a: &std::path::Path, b: &std::path::Path) -> bool {
+    fn as_current_dir(path: &std::path::Path) -> &std::path::Path {
+        if path.as_os_str().is_empty() {
+            std::path::Path::new(".")
+        } else {
+            path
+        }
+    }
+    as_current_dir(a) == as_current_dir(b)
 }
 
 /// Scans Python files and returns import names split by all files and

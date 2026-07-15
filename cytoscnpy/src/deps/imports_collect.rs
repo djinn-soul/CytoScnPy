@@ -11,6 +11,7 @@ pub(super) fn extract_imports_from_file(file: &std::path::Path, is_production: b
     let mut scan = ImportScan {
         all: FxHashSet::default(),
         production: FxHashSet::default(),
+        type_checking: FxHashSet::default(),
         occurrences: Vec::new(),
     };
     if let Ok(content) = std::fs::read_to_string(file) {
@@ -60,31 +61,18 @@ fn collect_imports(
         match stmt {
             Stmt::Import(import_stmt) => {
                 aliases.record_import(import_stmt);
-                if !in_type_checking_block {
+                let names = import_stmt
+                    .names
+                    .iter()
+                    .filter_map(|alias| alias.name.split('.').next());
+                if in_type_checking_block {
+                    scan.type_checking
+                        .extend(names.map(std::borrow::ToOwned::to_owned));
+                } else {
                     dynamic_aliases.record_import(import_stmt);
                     let mut recorded = FxHashSet::default();
-                    for alias in &import_stmt.names {
-                        if let Some(top_level) = alias.name.split('.').next() {
-                            if recorded.insert(top_level) {
-                                add_import_occurrence(
-                                    scan,
-                                    top_level,
-                                    stmt,
-                                    file,
-                                    line_index,
-                                    is_production,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            Stmt::ImportFrom(import_from) => {
-                aliases.record_import_from(import_from);
-                if !in_type_checking_block && import_from.level == 0 {
-                    dynamic_aliases.record_import_from(import_from);
-                    if let Some(module) = &import_from.module {
-                        if let Some(top_level) = module.as_ref().split('.').next() {
+                    for top_level in names {
+                        if recorded.insert(top_level) {
                             add_import_occurrence(
                                 scan,
                                 top_level,
@@ -97,6 +85,25 @@ fn collect_imports(
                     }
                 }
             }
+            // Only absolute imports (level 0) can name a distribution; relative
+            // imports (`from . import x`) are handled by the arm below.
+            Stmt::ImportFrom(import_from) if import_from.level == 0 => {
+                aliases.record_import_from(import_from);
+                let Some(top_level) = import_from
+                    .module
+                    .as_ref()
+                    .and_then(|module| module.as_ref().split('.').next())
+                else {
+                    continue;
+                };
+                if in_type_checking_block {
+                    scan.type_checking.insert(top_level.to_owned());
+                } else {
+                    dynamic_aliases.record_import_from(import_from);
+                    add_import_occurrence(scan, top_level, stmt, file, line_index, is_production);
+                }
+            }
+            Stmt::ImportFrom(import_from) => aliases.record_import_from(import_from),
             Stmt::FunctionDef(f) => {
                 collect_imports(
                     &f.body,

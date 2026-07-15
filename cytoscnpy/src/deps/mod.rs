@@ -10,8 +10,14 @@ pub mod installed;
 pub mod lockfile;
 /// Package-to-import mapping definitions.
 pub mod mapping;
+/// Parsers for the setuptools declaration files (setup.py / setup.cfg).
+pub mod setup;
 /// Standard library reference list.
 pub mod stdlib;
+
+#[cfg(test)]
+#[path = "analysis_tests.rs"]
+mod analysis_tests;
 
 pub use analysis::{
     analyze_dependencies, DependencyImportLocation, DepsOptions, DepsResult,

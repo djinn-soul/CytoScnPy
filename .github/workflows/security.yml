@@ -9,9 +9,12 @@ on:
       - "cytoscnpy-mcp/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "deny.toml"
       - ".github/workflows/security.yml"
   push:
     branches: ["main"]
+  schedule:
+    - cron: "37 3 * * 1"
   workflow_dispatch:
 
 concurrency:

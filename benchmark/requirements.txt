@@ -7,4 +7,3 @@ ruff==0.15.6
 dead==2.1.0
 skylos==4.0.0
 deadcode==2.4.1
-pylint==4.0.4

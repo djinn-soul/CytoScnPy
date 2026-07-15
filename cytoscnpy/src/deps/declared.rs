@@ -1,14 +1,16 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use toml::Value;
 
 /// Origin of a declared dependency.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DependencySource {
     /// Declared in pyproject.toml.
     Pyproject,
     /// Declared in a requirements.txt file.
     Requirements(String),
+    /// Declared in a setuptools file (`setup.py` or `setup.cfg`).
+    Setup(String),
 }
 
 /// Represents a dependency declared in the project configuration.
@@ -38,7 +40,7 @@ pub fn extract_package_name_from_pep508(spec: &str) -> Option<String> {
     extract_pep508_parts(spec).map(|(name, _)| name)
 }
 
-fn extract_pep508_parts(spec: &str) -> Option<(String, Option<String>)> {
+pub(super) fn extract_pep508_parts(spec: &str) -> Option<(String, Option<String>)> {
     let spec = spec.trim();
     if spec.is_empty() || spec.starts_with('#') {
         return None;
@@ -184,35 +186,94 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
 }
 
 /// Parses a requirements.txt file and extracts declared dependencies.
+///
+/// `-r other.txt` / `--requirement other.txt` include directives are followed
+/// relative to the including file, as pip does.
 pub fn parse_requirements(path: &Path) -> Vec<DeclaredDependency> {
+    let mut visited = Vec::new();
+    parse_requirements_inner(path, &mut visited)
+}
+
+/// Extracts the target of an `-r` / `--requirement` include directive.
+fn requirement_include_target(line: &str) -> Option<&str> {
+    let rest = line
+        .strip_prefix("--requirement")
+        .or_else(|| line.strip_prefix("-r"))?;
+    let rest = rest.trim_start_matches(['=', ' ', '\t']).trim();
+    (!rest.is_empty() && !rest.starts_with('-')).then_some(rest)
+}
+
+fn parse_requirements_inner(path: &Path, visited: &mut Vec<PathBuf>) -> Vec<DeclaredDependency> {
     let mut deps = Vec::new();
+
+    // Guard against `-r` include cycles.
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    if visited.contains(&canonical) {
+        return deps;
+    }
+    visited.push(canonical);
+
     let filename = path
         .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .to_string();
+    let is_dev = filename.contains("dev") || filename.contains("test");
 
-    if let Ok(content) = std::fs::read_to_string(path) {
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') || line.starts_with('-') {
-                continue;
-            }
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return deps;
+    };
 
-            if let Some((pkg, marker)) = extract_pep508_parts(line) {
-                deps.push(DeclaredDependency {
-                    package_name: pkg.clone(),
-                    normalized_name: normalize_package_name(&pkg),
-                    is_dev: filename.contains("dev") || filename.contains("test"),
-                    is_optional: false,
-                    marker,
-                    source: DependencySource::Requirements(filename.clone()),
-                });
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('-') {
+            if let Some(target) = requirement_include_target(line) {
+                let base = path.parent().unwrap_or_else(|| Path::new("."));
+                deps.extend(parse_requirements_inner(&base.join(target), visited));
             }
+            continue;
+        }
+
+        if let Some((pkg, marker)) = extract_pep508_parts(line) {
+            deps.push(DeclaredDependency {
+                package_name: pkg.clone(),
+                normalized_name: normalize_package_name(&pkg),
+                is_dev,
+                is_optional: false,
+                marker,
+                source: DependencySource::Requirements(filename.clone()),
+            });
         }
     }
 
     deps
+}
+
+/// Walks up from `start` to find the directory holding the project's dependency
+/// manifest, so that analyzing a subdirectory (`cytoscnpy deps src/`) still sees
+/// the declarations. Stops at a `.git` boundary and falls back to `start`.
+pub fn find_project_root(start: &Path) -> PathBuf {
+    const MANIFESTS: &[&str] = &[
+        "pyproject.toml",
+        "requirements.txt",
+        "setup.cfg",
+        "setup.py",
+    ];
+
+    let mut current = Some(start);
+    while let Some(dir) = current {
+        if MANIFESTS.iter().any(|name| dir.join(name).exists()) {
+            return dir.to_path_buf();
+        }
+        if dir != start && dir.join(".git").exists() {
+            break;
+        }
+        current = dir.parent();
+    }
+    start.to_path_buf()
 }
 
 /// Locates and parses dependency declarations from pyproject.toml or a provided requirements file.
@@ -226,6 +287,18 @@ pub fn locate_and_parse_declarations(
     let pyproject = root.join("pyproject.toml");
     if pyproject.exists() {
         all_deps.extend(parse_pyproject(&pyproject));
+    }
+
+    // Pre-PEP-621 setuptools projects declare their dependencies in setup.cfg or
+    // setup.py. Both can coexist with a pyproject.toml that only carries build
+    // configuration, so they are read regardless of whether pyproject.toml exists.
+    let setup_cfg = root.join("setup.cfg");
+    if setup_cfg.exists() {
+        all_deps.extend(super::setup::parse_setup_cfg(&setup_cfg));
+    }
+    let setup_py = root.join("setup.py");
+    if setup_py.exists() {
+        all_deps.extend(super::setup::parse_setup_py(&setup_py));
     }
 
     // Then optionally explicit requirements file, or fallback to auto-discover
@@ -245,6 +318,18 @@ pub fn locate_and_parse_declarations(
             all_deps.extend(parse_requirements(&dev_req_txt));
         }
     }
+
+    // `-r` includes and overlapping auto-discovered files can yield the same
+    // declaration twice; keep the first occurrence of each.
+    let mut seen = std::collections::HashSet::new();
+    all_deps.retain(|dep| {
+        seen.insert((
+            dep.normalized_name.clone(),
+            dep.is_dev,
+            dep.is_optional,
+            dep.source.clone(),
+        ))
+    });
 
     all_deps
 }

@@ -133,7 +133,12 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         .clone_similarity
         .or(config.cytoscnpy.clone_similarity)
         .unwrap_or(0.8);
-    if cli_var.clones || clones_from_config || cli_var.output.html {
+    #[cfg(feature = "html_report")]
+    let html_output_requested = cli_var.output.html;
+    #[cfg(not(feature = "html_report"))]
+    let html_output_requested = false;
+
+    if cli_var.clones || clones_from_config || html_output_requested {
         clone_similarity_used = Some(clone_similarity);
         let clone_options = crate::commands::CloneOptions {
             similarity: clone_similarity,

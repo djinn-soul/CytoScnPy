@@ -14,6 +14,10 @@ pub struct InstalledPackage {
     pub version: String,
     /// Direct runtime dependencies as normalized names.
     pub requires: Vec<String>,
+    /// Top-level import names the distribution provides, read from the
+    /// `top_level.txt` of its `.dist-info`. Empty when the file is absent.
+    #[serde(default)]
+    pub top_level: Vec<String>,
 }
 
 /// Parses a single `METADATA` file and extracts the package name, version,
@@ -48,7 +52,25 @@ fn parse_metadata(content: &str) -> Option<InstalledPackage> {
         normalized_name,
         version,
         requires,
+        top_level: Vec::new(),
     })
+}
+
+/// Reads the top-level import names a distribution provides from its
+/// `top_level.txt`. This is authoritative: it is what the installer recorded,
+/// not a guess from the distribution name.
+fn parse_top_level(dist_info: &Path) -> Vec<String> {
+    let Ok(content) = std::fs::read_to_string(dist_info.join("top_level.txt")) else {
+        return Vec::new();
+    };
+    content
+        .lines()
+        .map(str::trim)
+        // Namespace dists record `google/cloud`-style paths; only the root is an import.
+        .filter_map(|line| line.split(['/', '\\']).next())
+        .filter(|name| !name.is_empty())
+        .map(std::borrow::ToOwned::to_owned)
+        .collect()
 }
 
 /// Finds the `site-packages` directory inside a `.venv`.
@@ -113,7 +135,8 @@ pub fn scan_installed(venv_root: &Path) -> FxHashMap<String, InstalledPackage> {
             continue;
         };
 
-        if let Some(pkg) = parse_metadata(&content) {
+        if let Some(mut pkg) = parse_metadata(&content) {
+            pkg.top_level = parse_top_level(&path);
             result.insert(pkg.normalized_name.clone(), pkg);
         }
     }
@@ -166,6 +189,34 @@ mod tests {
             .requires
             .contains(&"urllib3".to_owned()));
         assert!(installed.contains_key("urllib3"));
+    }
+
+    #[test]
+    fn test_scan_installed_reads_top_level_import_names() {
+        let tmp = tempdir().unwrap();
+        let venv = tmp.path().join(".venv");
+        let site_pkg = venv.join("Lib").join("site-packages");
+        fs::create_dir_all(&site_pkg).unwrap();
+
+        make_dist_info(&site_pkg, "pyyaml", "6.0", &[]);
+        make_dist_info(&site_pkg, "plain", "1.0", &[]);
+        fs::write(
+            site_pkg.join("pyyaml-6.0.dist-info").join("top_level.txt"),
+            // Namespace dists record paths; blank lines are common.
+            "yaml\n_yaml\ngoogle/cloud\n\n",
+        )
+        .unwrap();
+
+        let installed = scan_installed(&venv);
+        assert_eq!(
+            installed["pyyaml"].top_level,
+            vec!["yaml".to_owned(), "_yaml".to_owned(), "google".to_owned()],
+            "only the import root of a namespace path is an import name"
+        );
+        assert!(
+            installed["plain"].top_level.is_empty(),
+            "a distribution without top_level.txt records no import names"
+        );
     }
 
     #[test]

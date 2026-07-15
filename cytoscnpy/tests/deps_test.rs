@@ -540,6 +540,10 @@ dev = ["nox"]
     Ok(())
 }
 
+/// A `TYPE_CHECKING` import is not a runtime import, so it never makes a
+/// dependency missing, and a dev dependency used only for typing is not a dev
+/// dependency used in production. It is still a *use* of the package though:
+/// deleting `pydantic` here would break type checking, so it is not unused.
 #[test]
 fn test_deps_type_checking_imports_do_not_count_as_runtime() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -566,11 +570,9 @@ dev = ["pytest"]
         run_deps_command(vec!["deps".to_owned(), root.to_string_lossy().into_owned()]);
 
     assert_eq!(code, 0);
-    assert!(output.contains("Unused Dependencies (CSP-R002)"));
-    assert!(output.contains("pydantic"));
+    assert!(!output.contains("Unused Dependencies (CSP-R002)"));
     assert!(!output.contains("Missing Dependencies (CSP-R001)"));
     assert!(!output.contains("Development Dependency Used in Production (CSP-R004)"));
-    assert!(!output.contains("pytest"));
     Ok(())
 }
 

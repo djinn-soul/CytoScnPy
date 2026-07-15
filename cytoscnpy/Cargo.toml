@@ -54,6 +54,7 @@ serde_json = { version = "1.0", features = [
 nbformat = "1.2"
 regex = { version = "1.10", default-features = false, features = [
     "std",
+    "unicode-case",
     "unicode-perl",
     "perf",
 ] }

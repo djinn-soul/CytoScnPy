@@ -125,7 +125,8 @@ fn write_unused_dependencies<W: Write>(
 fn dependency_source_name(dep: &DeclaredDependency) -> String {
     match &dep.source {
         crate::deps::DependencySource::Pyproject => "pyproject.toml".to_owned(),
-        crate::deps::DependencySource::Requirements(file) => file.clone(),
+        crate::deps::DependencySource::Requirements(file)
+        | crate::deps::DependencySource::Setup(file) => file.clone(),
     }
 }
 

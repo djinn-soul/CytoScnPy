@@ -132,6 +132,105 @@ dev = [
 }
 
 #[test]
+fn test_parse_pyproject_poetry_and_pdm_layouts() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let pyproject_path = dir.path().join("pyproject.toml");
+    fs::write(
+        &pyproject_path,
+        r#"
+[tool.poetry.dependencies]
+python = "^3.10"
+requests = "^2.28"
+
+[tool.poetry.dev-dependencies]
+black = "^24.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.0"
+
+[tool.pdm.dev-dependencies]
+lint = ["ruff"]
+"#,
+    )?;
+
+    let deps = parse_pyproject(&pyproject_path);
+    let dep = |name: &str| deps.iter().find(|d| d.package_name == name);
+
+    assert!(
+        dep("python").is_none(),
+        "the python constraint is not a dependency"
+    );
+    assert!(!dep("requests").expect("poetry runtime dep").is_dev);
+    assert!(dep("black").expect("poetry dev-dependencies").is_dev);
+    assert!(dep("pytest").expect("poetry group dependencies").is_dev);
+    assert!(dep("lint").expect("pdm dev-dependency group").is_dev);
+    Ok(())
+}
+
+#[test]
+fn test_parse_pyproject_ignores_malformed_and_missing_files() {
+    let dir = tempdir().expect("tempdir");
+    let missing = dir.path().join("nope.toml");
+    assert!(parse_pyproject(&missing).is_empty());
+
+    let broken = dir.path().join("pyproject.toml");
+    fs::write(&broken, "[project\ndependencies = [").expect("write");
+    assert!(parse_pyproject(&broken).is_empty());
+}
+
+#[test]
+fn test_find_project_root_walks_up_to_the_manifest() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let root = dir.path();
+    fs::write(root.join("pyproject.toml"), "[project]\n")?;
+    let nested = root.join("src").join("pkg");
+    fs::create_dir_all(&nested)?;
+
+    assert_eq!(
+        find_project_root(&nested).canonicalize()?,
+        root.canonicalize()?
+    );
+    assert_eq!(
+        find_project_root(root).canonicalize()?,
+        root.canonicalize()?
+    );
+    Ok(())
+}
+
+#[test]
+fn test_find_project_root_falls_back_to_the_start_directory() -> anyhow::Result<()> {
+    // No manifest anywhere, and a `.git` boundary stops the upward walk.
+    let dir = tempdir()?;
+    fs::create_dir_all(dir.path().join(".git"))?;
+    let nested = dir.path().join("a").join("b");
+    fs::create_dir_all(&nested)?;
+
+    assert_eq!(find_project_root(&nested), nested);
+    Ok(())
+}
+
+#[test]
+fn test_parse_requirements_follows_includes() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    fs::create_dir_all(dir.path().join("reqs"))?;
+    fs::write(dir.path().join("reqs").join("base.txt"), "requests\n")?;
+    fs::write(
+        dir.path().join("requirements.txt"),
+        "--requirement reqs/base.txt\n-r reqs/base.txt\n-e .\n--index-url https://example.invalid\nnumpy\n",
+    )?;
+
+    let deps = parse_requirements(&dir.path().join("requirements.txt"));
+    let names: Vec<&str> = deps.iter().map(|d| d.package_name.as_str()).collect();
+
+    assert_eq!(
+        names,
+        vec!["requests", "numpy"],
+        "includes are followed once; -e and option flags are skipped"
+    );
+    Ok(())
+}
+
+#[test]
 fn test_parse_requirements_basics() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let req_path = dir.path().join("requirements.txt");

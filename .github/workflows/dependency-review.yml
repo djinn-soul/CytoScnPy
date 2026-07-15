@@ -30,18 +30,6 @@ jobs:
           fail-on-scopes: runtime
           # Comment on PR with vulnerability summary
           comment-summary-in-pr: always
-          # Allow known unavailable vulnerabilities for Python 3.8 support:
-          # setuptools path traversal, urllib3 redirect/proxy/decompression/streaming DoS,
-          # filelock TOCTOU, pip path traversal (all require Py 3.9+ to fix)
-          allow-ghsas: >-
-            GHSA-5rjg-fvgr-3xxf,
-            GHSA-g4mx-q9vg-27p4,
-            GHSA-34jh-p97f-mpxf,
-            GHSA-gm62-xv2j-4w53,
-            GHSA-2xpw-w6gg-jr37,
-            GHSA-pw2r-r8wx-5mcc,
-            GHSA-4xh5-x5gv-qwph
-
           # License check - allow common permissive licenses
           allow-licenses: >-
             MIT,

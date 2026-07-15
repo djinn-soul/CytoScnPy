@@ -23,9 +23,3 @@ pub mod junit;
 pub mod markdown;
 /// SARIF report generator.
 pub mod sarif;
-
-// Public API re-exports or stubs if needed when feature is disabled
-#[cfg(not(feature = "html_report"))]
-pub mod generator {
-    // Stub or empty module
-}

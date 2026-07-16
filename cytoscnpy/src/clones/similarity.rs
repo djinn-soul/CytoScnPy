@@ -101,15 +101,23 @@ impl TreeSimilarity {
         seq_a: &[(&str, Option<&str>)],
         seq_b: &[(&str, Option<&str>)],
     ) -> usize {
-        let mut previous: Vec<usize> = (0..=seq_b.len()).map(|j| j * self.insert).collect();
-        let mut current = vec![0usize; seq_b.len() + 1];
+        // Keep the DP row as short as possible. When the inputs are swapped,
+        // swap the insertion/deletion boundary costs as well so customized
+        // asymmetric costs preserve the original edit-distance semantics.
+        let (rows, columns, row_cost, column_cost) = if seq_a.len() < seq_b.len() {
+            (seq_b, seq_a, self.insert, self.delete)
+        } else {
+            (seq_a, seq_b, self.delete, self.insert)
+        };
+        let mut previous: Vec<usize> = (0..=columns.len()).map(|j| j * column_cost).collect();
+        let mut current = vec![0usize; columns.len() + 1];
 
         // Fill DP table
-        for i in 1..=seq_a.len() {
-            current[0] = i * self.delete;
-            for j in 1..=seq_b.len() {
-                let node_a = &seq_a[i - 1];
-                let node_b = &seq_b[j - 1];
+        for i in 1..=rows.len() {
+            current[0] = i * row_cost;
+            for j in 1..=columns.len() {
+                let node_a = &rows[i - 1];
+                let node_b = &columns[j - 1];
 
                 let cost = if node_a.0 == node_b.0 && node_a.1 == node_b.1 {
                     0 // Identical nodes
@@ -120,12 +128,12 @@ impl TreeSimilarity {
                 };
 
                 current[j] = (previous[j - 1] + cost)
-                    .min(previous[j] + self.delete)
-                    .min(current[j - 1] + self.insert);
+                    .min(previous[j] + row_cost)
+                    .min(current[j - 1] + column_cost);
             }
             std::mem::swap(&mut previous, &mut current);
         }
-        previous[seq_b.len()]
+        previous[columns.len()]
     }
 }
 
@@ -186,6 +194,20 @@ mod tests {
         let similarity = calc.similarity(&tree_a, &tree_b);
         assert!(similarity > 0.7);
         assert!(similarity < 1.0);
+    }
+
+    #[test]
+    fn test_shorter_dp_row_preserves_asymmetric_edit_costs() {
+        let calc = TreeSimilarity {
+            insert: 2,
+            delete: 3,
+            update: 1,
+        };
+        let short = make_tree(vec![node("pass", None)]);
+        let long = make_tree(vec![node("pass", None), node("pass", None)]);
+
+        assert_eq!(calc.edit_distance(&short, &long), 2);
+        assert_eq!(calc.edit_distance(&long, &short), 3);
     }
 
     #[test]

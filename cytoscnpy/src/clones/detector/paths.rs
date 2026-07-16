@@ -196,21 +196,22 @@ fn ensure_subtrees_loaded(
     if cache.contains_key(file) {
         return;
     }
-    if let Ok(source) = std::fs::read_to_string(file) {
-        if let Ok(subtrees) = parser::extract_subtrees_with_min_lines(&source, file, min_lines) {
+    let prepared = std::fs::read_to_string(file)
+        .ok()
+        .and_then(|source| parser::extract_subtrees_with_min_lines(&source, file, min_lines).ok())
+        .map_or_else(Vec::new, |subtrees| {
             let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1);
             let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
-            let prepared = subtrees
+            subtrees
                 .into_iter()
                 .map(|subtree| PreparedSubtree {
                     raw_tree: raw_normalizer.normalize(&subtree),
                     id_tree: id_normalizer.normalize(&subtree),
                     subtree,
                 })
-                .collect();
-            cache.insert(file.clone(), prepared);
-        }
-    }
+                .collect()
+        });
+    cache.insert(file.clone(), prepared);
 }
 
 fn build_pair(
@@ -241,4 +242,23 @@ fn build_pair(
         clone_type,
         edit_distance,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_subtree_load_is_cached_as_empty() {
+        let file = std::env::temp_dir().join(format!(
+            "cytoscnpy-missing-clone-source-{}",
+            std::process::id()
+        ));
+        assert!(!file.exists());
+
+        let mut cache = std::collections::HashMap::new();
+        ensure_subtrees_loaded(&mut cache, &file, 1);
+
+        assert!(cache.get(&file).is_some_and(Vec::is_empty));
+    }
 }

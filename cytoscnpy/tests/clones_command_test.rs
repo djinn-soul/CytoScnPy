@@ -213,11 +213,8 @@ def exact_copy(x):
 
 #[test]
 fn test_clones_command_fix_execution() {
-    // This test verifies that the 'fix' option actually modifies the file.
-    // Since we can't easily run full refactoring in this unit test environment without
-    // potentially more setup, we will basic removal logic which is the default for duplication.
-
-    // Using Type 1 clones which default to "Remove duplicate"
+    // Removing a definition without rewriting callers is unsafe, so clone fixes
+    // must fail before changing either file.
     let source1 = "
 def exact_copy(x):
     a = 1
@@ -251,21 +248,17 @@ def exact_copy(x):
         progress_bar: None,
     };
 
-    let _ = run_clones(std::slice::from_ref(&path_str), &options, &mut buffer)
-        .expect("Clones command failed");
+    let error = run_clones(std::slice::from_ref(&path_str), &options, &mut buffer)
+        .expect_err("clone auto-fix must be rejected");
+    assert!(error.to_string().contains("clone auto-fix is disabled"));
 
     // After fix, one of the files should be modified (content removed)
     // or both if it decides to remove both (depends on logic, but usually keeps canonical)
     let content1 = fs::read_to_string(&path1).unwrap();
     let content2 = fs::read_to_string(&path2).unwrap();
 
-    // clone removal replaces with empty string or similar in byte-rewriter?
-    // ByteRangeRewriter::delete removes the range.
-    // One file should be smaller than original (original len approx 35 bytes)
-    assert!(
-        content1.len() < 10 || content2.len() < 10,
-        "One file should have been reduced (duplicate removed)"
-    );
+    assert!(content1.contains("def exact_copy"));
+    assert!(content2.contains("def exact_copy"));
 }
 
 #[test]
@@ -303,14 +296,9 @@ def exact_copy(x):
         progress_bar: None,
     };
 
-    let _ = run_clones(std::slice::from_ref(&path_str), &options, &mut buffer)
-        .expect("Clones command failed");
-
-    let output = String::from_utf8(buffer).expect("Invalid UTF-8 output");
-
-    // Verify dry run message
-    assert!(output.contains("[DRY-RUN]"));
-    assert!(output.contains("Would remove"));
+    let error = run_clones(std::slice::from_ref(&path_str), &options, &mut buffer)
+        .expect_err("unsafe clone preview must be rejected");
+    assert!(error.to_string().contains("clone auto-fix is disabled"));
 
     // Verify files are UNCHANGED
     let content1 = fs::read_to_string(&path1).unwrap();

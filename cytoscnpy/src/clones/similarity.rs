@@ -41,18 +41,29 @@ impl TreeSimilarity {
         self.sequence_edit_distance(&nodes_a, &nodes_b)
     }
 
+    /// Calculate edit distance and similarity in one traversal.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn distance_and_similarity(
+        &self,
+        tree_a: &NormalizedTree,
+        tree_b: &NormalizedTree,
+    ) -> (usize, f64) {
+        let distance = self.edit_distance(tree_a, tree_b);
+        let max_size = tree_a.size().max(tree_b.size());
+        let similarity = if max_size == 0 {
+            1.0
+        } else {
+            1.0 - (distance as f64 / max_size as f64)
+        };
+        (distance, similarity)
+    }
+
     /// Calculate similarity score (0.0 - 1.0)
     #[must_use]
     #[allow(clippy::cast_precision_loss)] // Intentional: tree sizes won't exceed f64 precision
     pub fn similarity(&self, tree_a: &NormalizedTree, tree_b: &NormalizedTree) -> f64 {
-        let distance = self.edit_distance(tree_a, tree_b);
-        let max_size = tree_a.size().max(tree_b.size());
-
-        if max_size == 0 {
-            return 1.0;
-        }
-
-        1.0 - (distance as f64 / max_size as f64)
+        self.distance_and_similarity(tree_a, tree_b).1
     }
 
     /// Classify clone type based on similarity
@@ -61,18 +72,6 @@ impl TreeSimilarity {
         if similarity >= 0.99 {
             CloneType::Type1
         } else if similarity >= 0.90 {
-            CloneType::Type2
-        } else {
-            CloneType::Type3
-        }
-    }
-
-    /// Classify clone type by comparing raw vs normalized trees
-    #[must_use]
-    pub fn classify(raw_similarity: f64, normalized_similarity: f64) -> CloneType {
-        if raw_similarity >= 0.99 {
-            CloneType::Type1
-        } else if normalized_similarity >= 0.95 {
             CloneType::Type2
         } else {
             CloneType::Type3
@@ -102,23 +101,13 @@ impl TreeSimilarity {
         seq_a: &[(&str, Option<&str>)],
         seq_b: &[(&str, Option<&str>)],
     ) -> usize {
-        let m = seq_a.len();
-        let n = seq_b.len();
-
-        // DP table
-        let mut dp = vec![vec![0usize; n + 1]; m + 1];
-
-        // Base cases
-        for (i, row) in dp.iter_mut().enumerate() {
-            row[0] = i * self.delete;
-        }
-        for (j, cell) in dp[0].iter_mut().enumerate() {
-            *cell = j * self.insert;
-        }
+        let mut previous: Vec<usize> = (0..=seq_b.len()).map(|j| j * self.insert).collect();
+        let mut current = vec![0usize; seq_b.len() + 1];
 
         // Fill DP table
-        for i in 1..=m {
-            for j in 1..=n {
+        for i in 1..=seq_a.len() {
+            current[0] = i * self.delete;
+            for j in 1..=seq_b.len() {
                 let node_a = &seq_a[i - 1];
                 let node_b = &seq_b[j - 1];
 
@@ -130,13 +119,13 @@ impl TreeSimilarity {
                     self.update * 2 // Different kind
                 };
 
-                dp[i][j] = (dp[i - 1][j - 1] + cost)
-                    .min(dp[i - 1][j] + self.delete)
-                    .min(dp[i][j - 1] + self.insert);
+                current[j] = (previous[j - 1] + cost)
+                    .min(previous[j] + self.delete)
+                    .min(current[j - 1] + self.insert);
             }
+            std::mem::swap(&mut previous, &mut current);
         }
-
-        dp[m][n]
+        previous[seq_b.len()]
     }
 }
 

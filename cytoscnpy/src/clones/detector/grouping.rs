@@ -3,6 +3,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
 use std::path::Path;
 
+mod split;
+use split::split_dense_component;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct InstanceKey<'a> {
     file: &'a Path,
@@ -148,11 +151,17 @@ fn build_groups(
     roots.sort_unstable();
 
     for root in roots {
-        let mut member_indices = members_by_root.remove(&root).unwrap_or_default();
+        let member_indices = members_by_root.remove(&root).unwrap_or_default();
         if member_indices.len() < 2 {
             continue;
         }
-        groups.push(build_group(member_indices.as_mut_slice(), instances, edges));
+
+        for mut cluster in split_dense_component(&member_indices, edges) {
+            if cluster.len() < 2 {
+                continue;
+            }
+            groups.push(build_group(cluster.as_mut_slice(), instances, edges));
+        }
     }
     groups
 }

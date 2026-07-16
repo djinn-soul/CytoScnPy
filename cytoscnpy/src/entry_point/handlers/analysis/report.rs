@@ -21,6 +21,9 @@ pub(crate) fn report_results<W: std::io::Write>(
     output_results(cli_var, analysis_root, result, run, writer)?;
 
     if !context.is_structured {
+        if cli_var.clones {
+            crate::commands::print_clone_results(writer, &result.clones)?;
+        }
         print_summary(cli_var, result, run, writer)?;
     }
 
@@ -319,10 +322,15 @@ fn print_summary<W: std::io::Write>(
     let security = result.danger.len() + result.secrets.len() + result.quality.len();
 
     if run.clone_pairs_found > 0 {
+        let pair_label = if run.clone_pairs_found == 1 {
+            "clone pair"
+        } else {
+            "clone pairs"
+        };
         writeln!(
             writer,
-            "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {} clone pairs",
-            run.clone_pairs_found
+            "\n[SUMMARY] {total} unused code issues, {security} security/quality issues, {} {pair_label}",
+            run.clone_pairs_found,
         )?;
     } else if !cli_var.output.quiet {
         writeln!(

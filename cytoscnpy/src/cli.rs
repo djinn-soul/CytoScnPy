@@ -1,5 +1,6 @@
 mod commands;
 mod options;
+pub(crate) mod validators;
 
 pub use commands::Commands;
 pub use options::{
@@ -174,7 +175,7 @@ pub struct Cli {
 
     /// Minimum similarity threshold for clone detection (0.0-1.0).
     /// Default is 0.8 (80% similarity). Overrides the config file value.
-    #[arg(long)]
+    #[arg(long, value_parser = validators::parse_similarity)]
     pub clone_similarity: Option<f64>,
 
     /// Auto-fix detected dead code (removes unused functions, classes, imports,

@@ -111,7 +111,11 @@ pub fn generate_clone_findings_with_thresholds(
                 e.insert(finding);
             }
             std::collections::hash_map::Entry::Occupied(mut e) => {
-                if finding.similarity > e.get().similarity {
+                let existing = e.get();
+                let prefer_reportable_duplicate = finding.is_duplicate && !existing.is_duplicate;
+                let same_role_with_better_match = finding.is_duplicate == existing.is_duplicate
+                    && finding.similarity > existing.similarity;
+                if prefer_reportable_duplicate || same_role_with_better_match {
                     e.insert(finding);
                 }
             }
@@ -119,7 +123,7 @@ pub fn generate_clone_findings_with_thresholds(
     }
 
     let file_contents: HashMap<_, _> = all_files.iter().map(|(p, c)| (p, c)).collect();
-    best_by_location
+    let mut findings: Vec<_> = best_by_location
         .into_values()
         .filter(|finding| {
             if let Some(content) = file_contents.get(&finding.file) {
@@ -131,5 +135,13 @@ pub fn generate_clone_findings_with_thresholds(
             }
             true
         })
-        .collect()
+        .collect();
+    findings.sort_unstable_by(|left, right| {
+        left.file
+            .cmp(&right.file)
+            .then_with(|| left.line.cmp(&right.line))
+            .then_with(|| left.related_clone.file.cmp(&right.related_clone.file))
+            .then_with(|| left.related_clone.line.cmp(&right.related_clone.line))
+    });
+    findings
 }

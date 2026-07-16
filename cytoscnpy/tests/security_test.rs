@@ -860,13 +860,13 @@ etree.check_docinfo(doc)
     // 6 calls (CSP-D104) + 1 import (CSP-D004) = 7 findings
     assert_eq!(linter.findings.len(), 7);
     assert!(linter.findings.iter().any(|f| f.rule_id == "CSP-D702")); // import
-    assert!(
+    assert_eq!(
         linter
             .findings
             .iter()
             .filter(|f| f.rule_id == "CSP-D104")
-            .count()
-            == 6
+            .count(),
+        6
     ); // calls
 }
 

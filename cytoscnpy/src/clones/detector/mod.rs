@@ -26,7 +26,11 @@ impl CloneDetector {
 
     /// Create with custom configuration
     #[must_use]
-    pub const fn with_config(config: CloneConfig) -> Self {
+    pub fn with_config(config: CloneConfig) -> Self {
+        assert!(
+            config.validate().is_ok(),
+            "invalid clone detection configuration"
+        );
         Self {
             config,
             progress_bar: None,
@@ -106,7 +110,7 @@ pub struct CloneDetectionResult {
 #[cfg(test)]
 mod tests {
     use super::CloneDetector;
-    use crate::clones::{CloneInstance, ClonePair, CloneType, NodeKind};
+    use crate::clones::{CloneConfig, CloneInstance, ClonePair, CloneType, NodeKind};
     use std::path::PathBuf;
 
     fn inst(file: &str, start: usize) -> CloneInstance {
@@ -196,6 +200,33 @@ mod tests {
     }
 
     #[test]
+    fn group_clones_splits_sparse_star_component_instead_of_chaining() {
+        // Hub `b` is similar to a, c, d, e, but a/c/d/e are NOT similar to
+        // each other. Union-find alone would merge all 5 into one group,
+        // falsely reporting a~c, a~d, c~e, etc. as clones. Density-based
+        // splitting should refuse to report the full 5-way chain.
+        let first = inst("a.py", 1);
+        let hub = inst("b.py", 2);
+        let third = inst("c.py", 3);
+        let fourth = inst("d.py", 4);
+        let fifth = inst("e.py", 5);
+
+        let pairs = vec![
+            pair(hub.clone(), first, 0.91, CloneType::Type2),
+            pair(hub.clone(), third, 0.91, CloneType::Type2),
+            pair(hub.clone(), fourth, 0.91, CloneType::Type2),
+            pair(hub, fifth, 0.91, CloneType::Type2),
+        ];
+
+        let groups = CloneDetector::group_clones(&pairs);
+
+        // No group should contain the full sparse 5-member chain.
+        assert!(groups.iter().all(|g| g.instances.len() < 5));
+        assert_eq!(groups.len(), pairs.len());
+        assert!(groups.iter().all(|group| group.instances.len() == 2));
+    }
+
+    #[test]
     fn classify_clone_requires_raw_exact_match_for_type1() {
         let detector = CloneDetector::new();
 
@@ -203,5 +234,46 @@ mod tests {
         assert_eq!(detector.classify_clone(0.94, 0.96), CloneType::Type2);
         assert_eq!(detector.classify_clone(0.91, 0.96), CloneType::Type2);
         assert_eq!(detector.classify_clone(0.96, 0.94), CloneType::Type3);
+    }
+
+    #[test]
+    fn semantic_operator_changes_are_not_exact_type2_clones() {
+        let files = vec![
+            (
+                PathBuf::from("add.py"),
+                "def calculate(value):\n    first = value + 1\n    second = first + 2\n    third = second + 3\n    return third\n".to_owned(),
+            ),
+            (
+                PathBuf::from("subtract.py"),
+                "def calculate(value):\n    first = value - 1\n    second = first - 2\n    third = second - 3\n    return third\n".to_owned(),
+            ),
+        ];
+        let config = CloneConfig::default()
+            .with_min_similarity(1.0)
+            .with_tests(true);
+        assert!(CloneDetector::with_config(config)
+            .detect(&files)
+            .pairs
+            .is_empty());
+    }
+
+    #[test]
+    fn renamed_comprehension_and_fstring_clone_is_recalled() {
+        let files = vec![
+            (
+                PathBuf::from("left.py"),
+                "def render(values):\n    selected = [value * 2 for value in values if value > 0]\n    total = sum(selected)\n    message = f\"total={total}\"\n    return message\n".to_owned(),
+            ),
+            (
+                PathBuf::from("right.py"),
+                "def display(items):\n    chosen = [item * 2 for item in items if item > 0]\n    amount = sum(chosen)\n    text = f\"total={amount}\"\n    return text\n".to_owned(),
+            ),
+        ];
+        let config = CloneConfig::default()
+            .with_min_similarity(1.0)
+            .with_tests(true);
+        let result = CloneDetector::with_config(config).detect(&files);
+        assert_eq!(result.pairs.len(), 1);
+        assert_eq!(result.pairs[0].clone_type, CloneType::Type2);
     }
 }

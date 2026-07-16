@@ -337,6 +337,20 @@ fn test_clone_config_default() {
 }
 
 #[test]
+fn test_clone_config_rejects_invalid_similarity() {
+    let nan_config = CloneConfig {
+        min_similarity: f64::NAN,
+        ..CloneConfig::default()
+    };
+    assert!(nan_config.validate().is_err());
+    let high_config = CloneConfig {
+        min_similarity: 1.1,
+        ..CloneConfig::default()
+    };
+    assert!(high_config.validate().is_err());
+}
+
+#[test]
 fn test_clone_config_builder() {
     let config = CloneConfig::default()
         .with_min_similarity(0.9)

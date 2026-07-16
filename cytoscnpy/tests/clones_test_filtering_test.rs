@@ -144,6 +144,42 @@ fn clone_test_context_lowers_confidence() {
 }
 
 #[test]
+fn location_deduplication_prefers_the_reportable_duplicate() {
+    use cytoscnpy::clones::{CloneInstance, ClonePair, CloneType, NodeKind};
+
+    let instance = |file: &str| CloneInstance {
+        file: PathBuf::from(file),
+        start_line: 1,
+        end_line: 5,
+        start_byte: 0,
+        end_byte: 50,
+        normalized_hash: 1,
+        name: Some("copy".to_owned()),
+        node_kind: NodeKind::Function,
+    };
+    let pair = |first: &str, second: &str| ClonePair {
+        instance_a: instance(first),
+        instance_b: instance(second),
+        similarity: 1.0,
+        clone_type: CloneType::Type1,
+        edit_distance: 0,
+    };
+    let findings = generate_clone_findings_with_thresholds(
+        &[pair("one.py", "two.py"), pair("three.py", "one.py")],
+        &[],
+        false,
+        100,
+        0,
+    );
+
+    let one = findings
+        .iter()
+        .find(|finding| finding.file == std::path::Path::new("one.py"))
+        .unwrap();
+    assert!(one.is_duplicate);
+}
+
+#[test]
 fn clone_suggestion_threshold_can_suppress_findings() {
     let files = vec![
         (PathBuf::from("one.py"), CLONE_SOURCE.to_owned()),

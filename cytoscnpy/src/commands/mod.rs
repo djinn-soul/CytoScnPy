@@ -16,6 +16,7 @@ pub(crate) mod utils;
 
 // Re-export all public items
 pub use cc::{run_cc, run_cc_with_tests, CcOptions};
+pub(crate) use clones::print_clone_results;
 pub use clones::{
     generate_clone_findings, generate_clone_findings_with_thresholds, run_clones, CloneOptions,
 };

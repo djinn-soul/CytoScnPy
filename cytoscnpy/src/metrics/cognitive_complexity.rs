@@ -54,7 +54,6 @@ impl CognitiveComplexityVisitor {
                 test,
                 body,
                 elif_else_clauses,
-                range: _,
                 ..
             }) => {
                 self.increment(true);

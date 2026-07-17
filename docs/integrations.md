@@ -76,11 +76,13 @@ cytoscnpy mcp-server
   "mcpServers": {
     "cytoscnpy": {
       "command": "cytoscnpy",
-      "args": ["mcp-server"]
+      "args": ["mcp-server", "--root", "/absolute/path/to/project"]
     }
   }
 }
 ```
+
+Replace `/absolute/path/to/project` with the directory the server may analyze. Omit `--root` only when the client starts the server from that project directory.
 
 ### Available Tools
 

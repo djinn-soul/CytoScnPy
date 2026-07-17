@@ -34,8 +34,11 @@ bash install.sh
 ```powershell
 # Install
 Invoke-WebRequest https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 -OutFile install.ps1
-& .\install.ps1
+Unblock-File .\install.ps1
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\install.ps1
 ```
+
+This applies `RemoteSigned` only to the installer child process and does not override organization-enforced execution policy.
 
 **Via Pip:**
 

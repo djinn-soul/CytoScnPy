@@ -3,32 +3,53 @@ $Repo = "djinn-soul/CytoScnPy"
 $BinaryName = "cytoscnpy.exe"
 $AssetName = "cytoscnpy-windows-x64.exe"
 $InstallDir = "$env:LOCALAPPDATA\Programs\CytoScnPy"
+$ReleaseBase = "https://github.com/$Repo/releases/latest/download"
 
-Write-Host "Fetching latest release from $Repo..."
-
-# Get Latest Release URL
-try {
-    $LatestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
-    $AssetUrl = $LatestRelease.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -ExpandProperty browser_download_url
-} catch {
-    Write-Error "Failed to fetch release info. Ensure the repository is public or you have access."
-    exit 1
-}
-
-if (-not $AssetUrl) {
-    Write-Error "Could not find asset '$AssetName' in the latest release."
-    exit 1
-}
-
-# Create Install Directory
-if (-not (Test-Path -Path $InstallDir)) {
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-}
-
+$TempDir = Join-Path ([IO.Path]::GetTempPath()) ("cytoscnpy-" + [guid]::NewGuid())
+$DownloadPath = Join-Path $TempDir $AssetName
+$ChecksumPath = Join-Path $TempDir "SHA256SUMS.txt"
 $OutputPath = Join-Path -Path $InstallDir -ChildPath $BinaryName
 
-Write-Host "Downloading to $OutputPath..."
-Invoke-WebRequest -Uri $AssetUrl -OutFile $OutputPath
+New-Item -ItemType Directory -Path $TempDir | Out-Null
+try {
+    # WARNING: Never install the downloaded executable before this release
+    # checksum verification succeeds.
+    Write-Host "Downloading the latest release from $Repo..."
+    Invoke-WebRequest -Uri "$ReleaseBase/$AssetName" -OutFile $DownloadPath -MaximumRedirection 5
+    Invoke-WebRequest -Uri "$ReleaseBase/SHA256SUMS.txt" -OutFile $ChecksumPath -MaximumRedirection 5
+
+    $AssetPattern = [regex]::Escape($AssetName)
+    $ExpectedHash = $null
+    foreach ($Line in Get-Content -LiteralPath $ChecksumPath) {
+        if ($Line -match "^([0-9a-fA-F]{64})\s+\*?$AssetPattern$") {
+            $ExpectedHash = $Matches[1]
+            break
+        }
+    }
+
+    if (-not $ExpectedHash) {
+        throw "Release checksum is missing or malformed for $AssetName."
+    }
+
+    $ActualHash = (Get-FileHash -LiteralPath $DownloadPath -Algorithm SHA256).Hash
+    if (-not $ActualHash.Equals($ExpectedHash, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "SHA-256 verification failed for $AssetName."
+    }
+
+    if (-not (Test-Path -LiteralPath $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    }
+
+    Write-Host "Installing to $OutputPath..."
+    Move-Item -LiteralPath $DownloadPath -Destination $OutputPath -Force
+} catch {
+    Write-Error "Installation failed: $($_.Exception.Message)"
+    exit 1
+} finally {
+    Remove-Item -LiteralPath $DownloadPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $ChecksumPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $TempDir -Force -ErrorAction SilentlyContinue
+}
 
 # Add to PATH if not present
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")

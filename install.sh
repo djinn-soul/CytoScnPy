@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Configuration
 REPO="djinn-soul/CytoScnPy"
@@ -12,13 +12,20 @@ ARCH="$(uname -m)"
 
 case "$OS" in
     Linux)
+        if [ "$ARCH" != "x86_64" ]; then
+            echo "Unsupported Linux architecture: $ARCH"
+            exit 1
+        fi
         ASSET_NAME="${BINARY_NAME}-linux-x64"
         ;;
     Darwin)
         if [ "$ARCH" == "arm64" ]; then
             ASSET_NAME="${BINARY_NAME}-macos-arm64"
-        else
+        elif [ "$ARCH" == "x86_64" ]; then
             ASSET_NAME="${BINARY_NAME}-macos-x64"
+        else
+            echo "Unsupported macOS architecture: $ARCH"
+            exit 1
         fi
         ;;
     *)
@@ -30,20 +37,48 @@ esac
 echo "Detected platform: $OS $ARCH"
 echo "Downloading $ASSET_NAME..."
 
-# Get the latest release URL
-LATEST_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep "browser_download_url.*$ASSET_NAME" | cut -d : -f 2,3 | tr -d \")
+# Download to a private temporary directory so failed verification cannot
+# replace an existing installation.
+TEMP_DIR=$(mktemp -d)
+DOWNLOAD_PATH="$TEMP_DIR/$ASSET_NAME"
+CHECKSUM_PATH="$TEMP_DIR/SHA256SUMS.txt"
+RELEASE_BASE="https://github.com/$REPO/releases/latest/download"
+cleanup() {
+    rm -f -- "$DOWNLOAD_PATH" "$CHECKSUM_PATH"
+    rmdir -- "$TEMP_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
 
-if [ -z "$LATEST_URL" ]; then
-    echo "Error: Could not find release asset for your platform."
+# WARNING: Never install the downloaded executable before this release checksum
+# verification succeeds.
+curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    --output "$DOWNLOAD_PATH" "$RELEASE_BASE/$ASSET_NAME"
+curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    --output "$CHECKSUM_PATH" "$RELEASE_BASE/SHA256SUMS.txt"
+
+EXPECTED_HASH=$(awk -v asset="$ASSET_NAME" '$2 == asset { print $1 }' "$CHECKSUM_PATH")
+if [[ ! "$EXPECTED_HASH" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "Error: Release checksum is missing or malformed for $ASSET_NAME."
     exit 1
 fi
 
-# Download and Install
-curl -L -o "$BINARY_NAME" "$LATEST_URL"
-chmod +x "$BINARY_NAME"
+if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL_HASH=$(sha256sum "$DOWNLOAD_PATH" | awk '{ print $1 }')
+elif command -v shasum >/dev/null 2>&1; then
+    ACTUAL_HASH=$(shasum -a 256 "$DOWNLOAD_PATH" | awk '{ print $1 }')
+else
+    echo "Error: No SHA-256 utility is available."
+    exit 1
+fi
+ACTUAL_HASH=$(printf '%s' "$ACTUAL_HASH" | tr '[:upper:]' '[:lower:]')
+EXPECTED_HASH=$(printf '%s' "$EXPECTED_HASH" | tr '[:upper:]' '[:lower:]')
+if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
+    echo "Error: SHA-256 verification failed for $ASSET_NAME."
+    exit 1
+fi
 
 echo "Installing to $INSTALL_DIR (requires sudo)..."
-sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
+sudo install -m 0755 "$DOWNLOAD_PATH" "$INSTALL_DIR/$BINARY_NAME"
 
 echo ""
 echo "Success! CytoScnPy CLI installed."

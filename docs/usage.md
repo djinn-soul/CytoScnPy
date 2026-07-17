@@ -29,15 +29,20 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
+curl -fsSLO https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh
+bash install.sh
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 -OutFile install.ps1
+Unblock-File .\install.ps1
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\install.ps1
 ```
+
+This applies `RemoteSigned` only to the installer child process and does not override organization-enforced execution policy.
 
 **Framework Support**: Automatically detects usage in Flask routes, Django views, FastAPI endpoints, and Pydantic models.
 

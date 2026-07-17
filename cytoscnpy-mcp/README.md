@@ -50,7 +50,8 @@ cytoscnpy mcp-server
 ```powershell
 # Install
 Invoke-WebRequest https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 -OutFile install.ps1
-& .\install.ps1
+Unblock-File .\install.ps1
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\install.ps1
 
 # Start MCP server (after restarting terminal)
 cytoscnpy mcp-server
@@ -76,11 +77,13 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "cytoscnpy": {
       "command": "cytoscnpy",
-      "args": ["mcp-server"]
+      "args": ["mcp-server", "--root", "/absolute/path/to/project"]
     }
   }
 }
 ```
+
+For manual clients, replace `/absolute/path/to/project` with the directory the server may analyze. Omit `--root` only when the client starts the server from that project directory.
 
 ### Cursor IDE
 
@@ -90,10 +93,12 @@ Add to Cursor's MCP settings:
 {
   "cytoscnpy": {
     "command": "cytoscnpy",
-    "args": ["mcp-server"]
+    "args": ["mcp-server", "--root", "/absolute/path/to/project"]
   }
 }
 ```
+
+For manual clients, replace `/absolute/path/to/project` with the directory the server may analyze. Omit `--root` only when the client starts the server from that project directory.
 
 ### GitHub Copilot (VS Code)
 

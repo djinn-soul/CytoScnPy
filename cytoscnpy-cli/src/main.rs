@@ -1,6 +1,9 @@
 //! Command-line interface entry point for `CytoScnPy`.
 
-use anyhow::Result;
+mod mcp_args;
+
+use anyhow::{Context, Result};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use cytoscnpy::entry_point;
@@ -15,7 +18,7 @@ fn main() -> ExitCode {
     // Check if mcp-server subcommand is being invoked
     if args.len() > 1 && args[1] == "mcp-server" {
         // Start MCP server with tokio runtime
-        match run_mcp() {
+        match run_mcp(&args[2..]) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("MCP server error: {e}");
@@ -35,14 +38,19 @@ fn main() -> ExitCode {
     }
 }
 
-fn run_mcp() -> Result<()> {
+fn run_mcp(args: &[String]) -> Result<()> {
+    let root = mcp_args::parse_root(args)?;
     let runtime = tokio::runtime::Runtime::new()?;
-    runtime.block_on(run_mcp_server())
+    runtime.block_on(run_mcp_server(root))
 }
 
 /// Run the MCP server for LLM integration.
-async fn run_mcp_server() -> Result<()> {
-    let server = CytoScnPyServer::new();
+async fn run_mcp_server(root: Option<PathBuf>) -> Result<()> {
+    let server = match root {
+        Some(root) => CytoScnPyServer::with_root(&root)
+            .with_context(|| format!("Failed to use MCP root {}", root.display()))?,
+        None => CytoScnPyServer::new(),
+    };
     let transport = (stdin(), stdout());
     let service = server.serve(transport).await?;
     service.waiting().await?;

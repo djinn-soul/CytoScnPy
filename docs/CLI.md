@@ -209,8 +209,10 @@ cytoscnpy deps [OPTIONS] [PATHS]...
 Start MCP server for LLM integration.
 
 ```bash
-cytoscnpy mcp-server
+cytoscnpy mcp-server [--root <PATH>]
 ```
+
+- `--root <PATH>`: Confine MCP path-based tools to this project directory. If omitted, the server uses its launch working directory.
 
 > Note: The `mcp-server` subcommand is handled by the `cytoscnpy-cli` binary. If you installed the Python package, `cytoscnpy mcp-server` will print an error. Use the standalone CLI build for MCP.
 

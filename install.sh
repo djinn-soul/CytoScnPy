@@ -70,7 +70,9 @@ else
     echo "Error: No SHA-256 utility is available."
     exit 1
 fi
-if [ "${ACTUAL_HASH,,}" != "${EXPECTED_HASH,,}" ]; then
+ACTUAL_HASH=$(printf '%s' "$ACTUAL_HASH" | tr '[:upper:]' '[:lower:]')
+EXPECTED_HASH=$(printf '%s' "$EXPECTED_HASH" | tr '[:upper:]' '[:lower:]')
+if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
     echo "Error: SHA-256 verification failed for $ASSET_NAME."
     exit 1
 fi

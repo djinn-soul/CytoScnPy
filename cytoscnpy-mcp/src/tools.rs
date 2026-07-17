@@ -11,62 +11,15 @@ use rmcp::{
     model::{CallToolResult, Implementation, ServerCapabilities, ServerInfo},
     tool, tool_router, ErrorData as McpError, ServerHandler,
 };
-use schemars::JsonSchema;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-/// Request parameters for `analyze_path` tool.
-#[derive(Debug, serde::Deserialize, JsonSchema)]
-#[allow(clippy::struct_excessive_bools)]
-pub struct AnalyzePathRequest {
-    /// Path to the Python file or directory to analyze.
-    #[schemars(description = "Path to the Python file or directory to analyze")]
-    pub path: String,
-    /// Whether to scan for hardcoded secrets (default: true).
-    #[schemars(description = "Whether to scan for hardcoded secrets")]
-    #[serde(default = "default_true")]
-    pub scan_secrets: bool,
-    /// Whether to scan for dangerous code patterns (default: true).
-    #[schemars(description = "Whether to scan for dangerous code patterns like eval/exec")]
-    #[serde(default = "default_true")]
-    pub scan_danger: bool,
-    /// Whether to check code quality metrics (default: true).
-    #[schemars(description = "Whether to check code quality metrics")]
-    #[serde(default = "default_true")]
-    pub check_quality: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-/// Request parameters for `analyze_code` tool.
-#[derive(Debug, serde::Deserialize, JsonSchema)]
-pub struct AnalyzeCodeRequest {
-    /// The Python code to analyze.
-    #[schemars(description = "The Python code to analyze")]
-    pub code: String,
-    /// Virtual filename for the code (default: "snippet.py").
-    #[schemars(description = "Virtual filename for the code snippet")]
-    #[serde(default = "default_filename")]
-    pub filename: String,
-}
-
-fn default_filename() -> String {
-    "snippet.py".to_owned()
-}
-
-/// Request parameters for metrics tools.
-#[derive(Debug, serde::Deserialize, JsonSchema)]
-pub struct MetricsRequest {
-    /// Path to the Python file or directory to analyze.
-    #[schemars(description = "Path to the Python file or directory to analyze")]
-    pub path: String,
-}
+pub use crate::requests::{AnalyzeCodeRequest, AnalyzePathRequest, MetricsRequest};
 
 /// The main MCP server struct for CytoScnPy.
 #[derive(Debug, Clone)]
 pub struct CytoScnPyServer {
     tool_router: ToolRouter<Self>,
+    allowed_root: Result<PathBuf, String>,
 }
 
 impl CytoScnPyServer {
@@ -75,7 +28,25 @@ impl CytoScnPyServer {
     pub fn new() -> Self {
         Self {
             tool_router: Self::tool_router(),
+            allowed_root: crate::path_scope::canonical_current_dir(),
         }
+    }
+
+    /// Creates a server restricted to an explicit filesystem root.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the root does not exist or cannot be canonicalized.
+    pub fn with_root(root: impl AsRef<Path>) -> std::io::Result<Self> {
+        Ok(Self {
+            tool_router: Self::tool_router(),
+            allowed_root: Ok(root.as_ref().canonicalize()?),
+        })
+    }
+
+    fn resolve_path(&self, request_path: &str) -> Result<PathBuf, CallToolResult> {
+        crate::path_scope::resolve_request_path(request_path, &self.allowed_root)
+            .map_err(|message| CallToolResult::error(vec![Content::text(message)]))
     }
 }
 
@@ -106,14 +77,10 @@ impl CytoScnPyServer {
         params: Parameters<AnalyzePathRequest>,
     ) -> Result<CallToolResult, McpError> {
         let req = params.0;
-        let path_buf = PathBuf::from(&req.path);
-
-        if !path_buf.exists() {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "Path does not exist: {}",
-                req.path
-            ))]));
-        }
+        let path_buf = match self.resolve_path(&req.path) {
+            Ok(path) => path,
+            Err(error) => return Ok(error),
+        };
 
         let mut analyzer = CytoScnPy::default()
             .with_secrets(req.scan_secrets)
@@ -167,14 +134,10 @@ impl CytoScnPyServer {
         params: Parameters<MetricsRequest>,
     ) -> Result<CallToolResult, McpError> {
         let req = params.0;
-        let path_buf = PathBuf::from(&req.path);
-
-        if !path_buf.exists() {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "Path does not exist: {}",
-                req.path
-            ))]));
-        }
+        let path_buf = match self.resolve_path(&req.path) {
+            Ok(path) => path,
+            Err(error) => return Ok(error),
+        };
 
         // Security-only scan - no unused code detection
         let mut analyzer = CytoScnPy::default()
@@ -222,14 +185,10 @@ impl CytoScnPyServer {
         params: Parameters<MetricsRequest>,
     ) -> Result<CallToolResult, McpError> {
         let req = params.0;
-        let path_buf = PathBuf::from(&req.path);
-
-        if !path_buf.exists() {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "Path does not exist: {}",
-                req.path
-            ))]));
-        }
+        let path_buf = match self.resolve_path(&req.path) {
+            Ok(path) => path,
+            Err(error) => return Ok(error),
+        };
 
         let mut output = Vec::new();
         match run_cc(
@@ -267,14 +226,10 @@ impl CytoScnPyServer {
         params: Parameters<MetricsRequest>,
     ) -> Result<CallToolResult, McpError> {
         let req = params.0;
-        let path_buf = PathBuf::from(&req.path);
-
-        if !path_buf.exists() {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "Path does not exist: {}",
-                req.path
-            ))]));
-        }
+        let path_buf = match self.resolve_path(&req.path) {
+            Ok(path) => path,
+            Err(error) => return Ok(error),
+        };
 
         let mut output = Vec::new();
         match run_mi(

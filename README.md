@@ -25,14 +25,16 @@ A fast, lightweight static analyzer for Python codebase. It’s built in Rust wi
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
+curl -fsSLO https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh
+bash install.sh
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 -OutFile install.ps1
+& .\install.ps1
 ```
 
 **Via Pip:**

@@ -19,7 +19,8 @@ The MCP server is available in the standalone CLI binary:
 
 ```bash
 # Install (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
+curl -fsSLO https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh
+bash install.sh
 
 # Run MCP server (standalone CLI)
 cytoscnpy mcp-server
@@ -37,7 +38,8 @@ Install the [CytoScnPy VS Code extension](../editors/vscode/cytoscnpy/README.md)
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
+curl -fsSLO https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh
+bash install.sh
 
 # Start MCP server
 cytoscnpy mcp-server
@@ -47,7 +49,8 @@ cytoscnpy mcp-server
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 -OutFile install.ps1
+& .\install.ps1
 
 # Start MCP server (after restarting terminal)
 cytoscnpy mcp-server

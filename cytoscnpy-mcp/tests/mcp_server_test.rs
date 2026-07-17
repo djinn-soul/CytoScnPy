@@ -7,7 +7,11 @@ use cytoscnpy::analyzer::types::AnalysisResult;
 use serde_json::json;
 use std::fs::File;
 use std::io::Write;
-use tempfile::tempdir;
+use tempfile::{Builder, TempDir};
+
+fn tempdir() -> std::io::Result<TempDir> {
+    Builder::new().prefix("cytoscnpy-mcp-test-").tempdir_in(".")
+}
 
 // Helper to call tools directly
 fn call_tool(
@@ -92,6 +96,30 @@ fn test_analyze_path_invalid() {
             // OK
         }
     }
+}
+
+#[test]
+fn test_analyze_path_rejects_paths_outside_server_root() {
+    let root = tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let outside_file = outside.path().join("outside.py");
+    std::fs::write(&outside_file, "print('private')\n").unwrap();
+    let server = cytoscnpy_mcp::tools::CytoScnPyServer::with_root(root.path()).unwrap();
+    let params = cytoscnpy_mcp::tools::AnalyzePathRequest {
+        path: outside_file.to_string_lossy().into_owned(),
+        scan_secrets: true,
+        scan_danger: true,
+        check_quality: true,
+    };
+
+    let result = server
+        .analyze_path(rmcp::handler::server::wrapper::Parameters(params))
+        .unwrap();
+    let content = serde_json::to_value(&result.content[0]).unwrap();
+    let text = content["text"].as_str().unwrap();
+
+    assert!(text.contains("Access denied"));
+    assert!(!text.contains("outside.py"));
 }
 
 #[test]

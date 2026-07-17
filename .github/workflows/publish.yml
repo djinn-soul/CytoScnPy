@@ -5,8 +5,9 @@ on:
     tags:
       - "v*"
 
+# WARNING: Keep the workflow token read-only; only release jobs may grant write.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -227,6 +228,8 @@ jobs:
   # =============================================================================
   github-release-prod:
     name: Create GitHub Release (Production)
+    permissions:
+      contents: write
     needs:
       [
         build-cli,
@@ -318,6 +321,8 @@ jobs:
   # =============================================================================
   github-release-test:
     name: Create GitHub Release (Test)
+    permissions:
+      contents: write
     needs: [build-cli, publish-testpypi, validate-sbom]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-test')

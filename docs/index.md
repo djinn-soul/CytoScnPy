@@ -31,14 +31,16 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh | bash
+curl -fsSLO https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.sh
+bash install.sh
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 # Install
-irm https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/djinn-soul/CytoScnPy/main/install.ps1 -OutFile install.ps1
+& .\install.ps1
 ```
 
 **Via Pip:**

@@ -51,6 +51,22 @@ pub struct CloneConfig {
     /// filter to verify clone pairs have similar behavioral structure.
     /// Only available with the `cfg` feature.
     pub cfg_validation: bool,
+
+    /// Minimum CFG similarity score (0.0-1.0) required to keep a pair when
+    /// `cfg_validation` is enabled and both control flow graphs build
+    /// successfully.
+    pub cfg_similarity_threshold: f64,
+
+    /// LSH bucket size at/above which a bucket is treated as boilerplate
+    /// and skipped (avoids O(n^2) blowups on very common patterns).
+    /// Raising this trades more comparisons for fewer missed clones in
+    /// buckets of widely-duplicated code.
+    pub lsh_boilerplate_threshold: usize,
+
+    /// Hard cap on candidate pairs produced by LSH bucketing. Candidates
+    /// beyond this cap are silently dropped. Raising this trades memory
+    /// and comparison time for fewer missed clones on very large inputs.
+    pub lsh_max_candidates: usize,
 }
 
 impl Default for CloneConfig {
@@ -70,11 +86,44 @@ impl Default for CloneConfig {
             type1_threshold: 0.95, // Both raw and normalized >= 95% for exact
             type2_raw_max: 0.90,   // Kept for config compatibility
             cfg_validation: false, // Disabled by default (requires `cfg` feature)
+            cfg_similarity_threshold: 0.7,
+            lsh_boilerplate_threshold: crate::constants::BOILERPLATE_THRESHOLD,
+            lsh_max_candidates: 500_000,
         }
     }
 }
 
 impl CloneConfig {
+    /// Validate configuration invariants before detection starts.
+    pub fn validate(&self) -> Result<(), String> {
+        for (name, value) in [
+            ("min_similarity", self.min_similarity),
+            ("type1_threshold", self.type1_threshold),
+            ("type2_raw_max", self.type2_raw_max),
+            ("cfg_similarity_threshold", self.cfg_similarity_threshold),
+        ] {
+            if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+                return Err(format!("{name} must be a finite value between 0.0 and 1.0"));
+            }
+        }
+        if self.min_lines == 0 || self.min_lines > self.max_lines {
+            return Err("min_lines must be positive and no greater than max_lines".to_owned());
+        }
+        if self.lsh_bands == 0 || self.lsh_rows == 0 {
+            return Err("LSH bands and rows must be positive".to_owned());
+        }
+        if self.lsh_bands.checked_mul(self.lsh_rows).is_none() {
+            return Err("LSH signature size is too large".to_owned());
+        }
+        if self.lsh_boilerplate_threshold < 2 || self.lsh_max_candidates == 0 {
+            return Err("LSH limits must allow at least one candidate pair".to_owned());
+        }
+        if self.auto_fix_threshold > 100 || self.suggest_threshold > 100 {
+            return Err("confidence thresholds must be between 0 and 100".to_owned());
+        }
+        Ok(())
+    }
+
     /// Builder: set minimum similarity
     #[must_use]
     pub const fn with_min_similarity(mut self, threshold: f64) -> Self {

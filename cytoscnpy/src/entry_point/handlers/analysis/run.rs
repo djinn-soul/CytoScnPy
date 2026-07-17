@@ -133,6 +133,8 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         .clone_similarity
         .or(config.cytoscnpy.clone_similarity)
         .unwrap_or(0.8);
+    let clone_similarity = crate::cli::validators::validate_similarity(clone_similarity)
+        .map_err(anyhow::Error::msg)?;
     #[cfg(feature = "html_report")]
     let html_output_requested = cli_var.output.html;
     #[cfg(not(feature = "html_report"))]
@@ -166,17 +168,18 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         }
 
         // Run detection
-        let (count, findings) = if context.is_structured || (!cli_var.clones && !clones_from_config)
-        {
-            // Suppress clone table unless explicitly requested (or for structured output)
-            let mut sink = std::io::sink();
-            crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?
-        } else {
-            // Text output: print findings to stdout (writer)
-            crate::commands::run_clones(effective_paths, &clone_options, &mut *writer)?
-        };
+        // Clone findings are collected here and rendered later with the rest of
+        // the report so the main analysis heading always appears first.
+        let mut sink = std::io::sink();
+        let (_, findings) =
+            crate::commands::run_clones(effective_paths, &clone_options, &mut sink)?;
 
-        clone_pairs_found = count;
+        // The text table shows one row per deduplicated, reportable duplicate,
+        // not every internal detector edge. Keep the summary aligned with it.
+        clone_pairs_found = findings
+            .iter()
+            .filter(|finding| finding.is_duplicate)
+            .count();
         result.clones = findings;
     }
 

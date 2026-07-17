@@ -3,6 +3,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
 use std::path::Path;
 
+mod split;
+use split::split_dense_component;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct InstanceKey<'a> {
     file: &'a Path,
@@ -146,15 +149,51 @@ fn build_groups(
     let mut groups = Vec::with_capacity(members_by_root.len());
     let mut roots: Vec<usize> = members_by_root.keys().copied().collect();
     roots.sort_unstable();
+    let mut edges_by_root = partition_edges_by_root(&members_by_root, instances.len(), edges);
 
     for root in roots {
-        let mut member_indices = members_by_root.remove(&root).unwrap_or_default();
+        let member_indices = members_by_root.remove(&root).unwrap_or_default();
         if member_indices.len() < 2 {
             continue;
         }
-        groups.push(build_group(member_indices.as_mut_slice(), instances, edges));
+        let component_edges = edges_by_root.remove(&root).unwrap_or_default();
+
+        for mut cluster in split_dense_component(&member_indices, &component_edges) {
+            if cluster.len() < 2 {
+                continue;
+            }
+            groups.push(build_group(
+                cluster.as_mut_slice(),
+                instances,
+                &component_edges,
+            ));
+        }
     }
     groups
+}
+
+fn partition_edges_by_root(
+    members_by_root: &FxHashMap<usize, Vec<usize>>,
+    instance_count: usize,
+    edges: &[CloneEdge],
+) -> FxHashMap<usize, Vec<CloneEdge>> {
+    let mut root_by_member = vec![0; instance_count];
+    for (&root, members) in members_by_root {
+        for &member in members {
+            root_by_member[member] = root;
+        }
+    }
+
+    let mut edges_by_root = FxHashMap::default();
+    for &edge in edges {
+        let root = root_by_member[edge.idx_a];
+        debug_assert_eq!(root, root_by_member[edge.idx_b]);
+        edges_by_root
+            .entry(root)
+            .or_insert_with(Vec::new)
+            .push(edge);
+    }
+    edges_by_root
 }
 
 fn build_group(

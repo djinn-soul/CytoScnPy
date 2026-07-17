@@ -11,11 +11,14 @@ impl CloneDetector {
     /// Only applies to function-level clones (functions have meaningful CFG).
     #[cfg(feature = "cfg")]
     pub(super) fn validate_with_cfg(
+        &self,
         pairs: Vec<ClonePair>,
         subtrees: &[parser::Subtree],
     ) -> Vec<ClonePair> {
         use crate::cfg::Cfg;
         use parser::SubtreeType;
+
+        let threshold = self.config.cfg_similarity_threshold;
 
         let subtree_map: std::collections::HashMap<(PathBuf, usize), usize> = subtrees
             .iter()
@@ -32,7 +35,7 @@ impl CloneDetector {
                 let (Some(&idx_a), Some(&idx_b)) =
                     (subtree_map.get(&key_a), subtree_map.get(&key_b))
                 else {
-                    return true;
+                    return false;
                 };
 
                 let subtree_a = &subtrees[idx_a];
@@ -53,14 +56,74 @@ impl CloneDetector {
                 let name_a = subtree_a.name.as_deref().unwrap_or("func");
                 let name_b = subtree_b.name.as_deref().unwrap_or("func");
 
-                let cfg_a = Cfg::from_source(&subtree_a.source_slice, name_a);
-                let cfg_b = Cfg::from_source(&subtree_b.source_slice, name_b);
+                let source_a = dedent_definition(&subtree_a.source_slice);
+                let source_b = dedent_definition(&subtree_b.source_slice);
+                let cfg_a = Cfg::from_source(&source_a, name_a);
+                let cfg_b = Cfg::from_source(&source_b, name_b);
 
                 match (cfg_a, cfg_b) {
-                    (Some(a), Some(b)) => a.similarity_score(&b) >= 0.7,
-                    _ => true,
+                    (Some(a), Some(b)) => a.similarity_score(&b) >= threshold,
+                    // Fail closed: if either CFG can't be built, don't let an
+                    // unverifiable pair through as a false positive.
+                    _ => false,
                 }
             })
             .collect()
+    }
+}
+
+#[cfg(feature = "cfg")]
+fn dedent_definition(source: &str) -> String {
+    let indent = source
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(|line| &line[..line.len() - line.trim_start().len()])
+        .unwrap_or_default();
+    if indent.is_empty() {
+        return source.to_owned();
+    }
+    source
+        .lines()
+        .map(|line| line.strip_prefix(indent).unwrap_or(line))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[cfg(all(test, feature = "cfg"))]
+mod tests {
+    use super::{dedent_definition, CloneDetector};
+    use crate::clones::{CloneConfig, CloneInstance, ClonePair, CloneType, NodeKind};
+    use std::path::PathBuf;
+
+    #[test]
+    fn dedents_class_method_slice() {
+        let source = "    @decorator\n    def method(self):\n        return 1";
+        assert_eq!(
+            dedent_definition(source),
+            "@decorator\ndef method(self):\n    return 1"
+        );
+    }
+
+    #[test]
+    fn cfg_validation_rejects_pairs_without_subtree_metadata() {
+        let instance = |file| CloneInstance {
+            file: PathBuf::from(file),
+            start_line: 1,
+            end_line: 5,
+            start_byte: 0,
+            end_byte: 50,
+            normalized_hash: 1,
+            name: Some("function".to_owned()),
+            node_kind: NodeKind::Function,
+        };
+        let pair = ClonePair {
+            instance_a: instance("left.py"),
+            instance_b: instance("right.py"),
+            similarity: 1.0,
+            clone_type: CloneType::Type1,
+            edit_distance: 0,
+        };
+        let detector = CloneDetector::with_config(CloneConfig::default().with_cfg_validation(true));
+        assert!(detector.validate_with_cfg(vec![pair], &[]).is_empty());
     }
 }

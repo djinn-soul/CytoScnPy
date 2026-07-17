@@ -16,6 +16,15 @@ pub struct LshHasher {
     rows_per_band: usize,
     /// Total signature size = `num_bands` * `rows_per_band`
     signature_size: usize,
+    /// Buckets with at least this many members are treated as boilerplate
+    /// and skipped entirely to avoid O(n^2) blowups on common patterns.
+    /// Raising this catches more real widespread duplication at the cost
+    /// of more pairwise similarity comparisons downstream.
+    boilerplate_threshold: usize,
+    /// Hard cap on the number of candidate pairs returned. Prevents
+    /// unbounded memory/time on pathological inputs; candidates beyond
+    /// this cap are silently dropped.
+    max_candidates: usize,
 }
 
 impl LshHasher {
@@ -25,11 +34,34 @@ impl LshHasher {
     /// - `rows_per_band`: More rows = higher precision (fewer false positives)
     #[must_use]
     pub fn new(num_bands: usize, rows_per_band: usize) -> Self {
+        assert!(num_bands > 0, "LSH bands must be positive");
+        assert!(rows_per_band > 0, "LSH rows must be positive");
+        assert!(
+            num_bands.checked_mul(rows_per_band).is_some(),
+            "LSH signature size overflow"
+        );
         Self {
             num_bands,
             rows_per_band,
             signature_size: num_bands * rows_per_band,
+            boilerplate_threshold: crate::constants::BOILERPLATE_THRESHOLD,
+            max_candidates: 500_000,
         }
+    }
+
+    /// Override the boilerplate-bucket skip threshold and candidate pair
+    /// cap. Both raise recall (fewer missed clones) at the cost of more
+    /// downstream similarity comparisons.
+    #[must_use]
+    pub fn with_limits(mut self, boilerplate_threshold: usize, max_candidates: usize) -> Self {
+        assert!(
+            boilerplate_threshold >= 2,
+            "LSH bucket limit must be at least 2"
+        );
+        assert!(max_candidates > 0, "LSH candidate limit must be positive");
+        self.boilerplate_threshold = boilerplate_threshold;
+        self.max_candidates = max_candidates;
+        self
     }
 
     /// Generate `MinHash` signature for a normalized tree
@@ -63,7 +95,7 @@ impl LshHasher {
             }
         }
 
-        Self::collect_pairs_from_buckets(&buckets)
+        self.collect_pairs_from_buckets(&buckets)
     }
 
     /// Internal helper to find candidates from signatures.
@@ -78,35 +110,47 @@ impl LshHasher {
             }
         }
 
-        Self::collect_pairs_from_buckets(&buckets)
+        self.collect_pairs_from_buckets(&buckets)
     }
 
     /// Collect unique pairs from buckets
     fn collect_pairs_from_buckets(
+        &self,
         buckets: &FxHashMap<(usize, u64), Vec<usize>>,
     ) -> Vec<(usize, usize)> {
         let mut candidates: FxHashSet<(usize, usize)> = FxHashSet::default();
-        for indices in buckets.values() {
-            // If a bucket is too large, it's likely a trivial or
-            // boilerplate pattern that would cross-match everywhere, causing
-            // O(n^2) explosions. We skip these as they are likely noise.
-            if indices.len() > 1 && indices.len() < crate::constants::BOILERPLATE_THRESHOLD {
-                for i in 0..indices.len() {
-                    for j in (i + 1)..indices.len() {
-                        if candidates.len() >= 500_000 {
-                            return candidates.into_iter().collect();
-                        }
-                        let pair = if indices[i] < indices[j] {
-                            (indices[i], indices[j])
-                        } else {
-                            (indices[j], indices[i])
-                        };
-                        candidates.insert(pair);
+        let mut ordered_buckets: Vec<_> = buckets.iter().collect();
+        ordered_buckets.sort_unstable_by_key(|(key, indices)| (indices.len(), **key));
+
+        // Give every member of every bucket at least one comparison before
+        // spending the remaining budget on dense pair expansion. This keeps
+        // large clone families visible instead of dropping the tail members.
+        for (_, indices) in &ordered_buckets {
+            for adjacent in indices.windows(2) {
+                candidates.insert((adjacent[0].min(adjacent[1]), adjacent[0].max(adjacent[1])));
+                if candidates.len() >= self.max_candidates {
+                    return sorted_pairs(candidates);
+                }
+            }
+        }
+
+        for (_, indices) in ordered_buckets {
+            // Very large boilerplate buckets are sampled deterministically
+            // instead of disappearing completely at an arbitrary size cliff.
+            let usable = indices
+                .len()
+                .min(self.boilerplate_threshold.saturating_sub(1));
+            for i in 0..usable {
+                for j in (i + 1)..usable {
+                    let pair = (indices[i].min(indices[j]), indices[i].max(indices[j]));
+                    candidates.insert(pair);
+                    if candidates.len() >= self.max_candidates {
+                        return sorted_pairs(candidates);
                     }
                 }
             }
         }
-        candidates.into_iter().collect()
+        sorted_pairs(candidates)
     }
 
     /// Generate shingles (n-grams) from the tree structure
@@ -118,13 +162,7 @@ impl LshHasher {
         }
 
         // Generate 3-grams
-        kinds
-            .windows(3)
-            .map(|window| {
-                let combined = format!("{}-{}-{}", window[0], window[1], window[2]);
-                hash_string(&combined)
-            })
-            .collect()
+        kinds.windows(3).map(hash_kind_window).collect()
     }
 
     /// Compute `MinHash` signature
@@ -159,6 +197,20 @@ impl LshHasher {
         }
         hasher.finish()
     }
+}
+
+fn sorted_pairs(candidates: FxHashSet<(usize, usize)>) -> Vec<(usize, usize)> {
+    let mut pairs: Vec<_> = candidates.into_iter().collect();
+    pairs.sort_unstable();
+    pairs
+}
+
+fn hash_kind_window(window: &[&str]) -> u64 {
+    let mut hasher = rustc_hash::FxHasher::default();
+    for kind in window {
+        kind.hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 /// Hash a string
@@ -225,5 +277,19 @@ mod tests {
         let candidates = hasher.find_candidates(&trees);
         // May or may not match depending on hash functions, but shouldn't crash
         assert!(candidates.len() <= 1);
+    }
+
+    #[test]
+    fn large_bucket_is_sampled_deterministically_instead_of_dropped() {
+        let hasher = LshHasher::new(1, 1).with_limits(3, 10);
+        let trees = vec![
+            make_tree(&["if", "assign", "return"]),
+            make_tree(&["if", "assign", "return"]),
+            make_tree(&["if", "assign", "return"]),
+        ];
+        let first = hasher.find_candidates(&trees);
+        let second = hasher.find_candidates(&trees);
+        assert_eq!(first, second);
+        assert_eq!(first, vec![(0, 1), (1, 2)]);
     }
 }

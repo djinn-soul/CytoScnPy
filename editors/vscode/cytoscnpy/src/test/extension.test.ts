@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import * as myExtension from "../../src/extension"; // Import the extension's main module
+import * as myExtension from "../extension";
 import { before } from "mocha";
 
 const EXTENSION_ID = "djinn09.cytoscnpy";
@@ -51,7 +51,20 @@ suite("CytoScnPy Extension Test Suite", function () {
     }
   });
 
-  // A more advanced test would involve mocking `runCytoScnPyAnalysis`,
-  // opening a dummy document, saving it, and checking `vscode.languages.getDiagnostics`.
-  // This requires more complex test setup not suitable for this context.
+  test("Manual analysis runs and awaits the fresh diagnostic path", async () => {
+    const calls: string[] = [];
+    const runFile = async () => {
+      await Promise.resolve();
+      calls.push("file");
+    };
+    const runWorkspace = async () => {
+      await Promise.resolve();
+      calls.push("workspace");
+    };
+
+    await myExtension.runManualAnalysis("file", runFile, runWorkspace);
+    await myExtension.runManualAnalysis("workspace", runFile, runWorkspace);
+
+    assert.deepStrictEqual(calls, ["file", "workspace"]);
+  });
 });

@@ -1,4 +1,4 @@
-import { execFile, spawn } from "child_process";
+import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -491,64 +491,25 @@ export function buildAnalyzerArgs(
   return args;
 }
 
-export function runCytoScnPyAnalysis(
+export async function runCytoScnPyAnalysis(
   filePath: string,
   config: CytoScnPyConfig,
 ): Promise<CytoScnPyAnalysisResult> {
-  return new Promise((resolve, reject) => {
-    const args = buildAnalyzerArgs(filePath, config);
-
-    execFile(
-      config.path,
-      args,
-      (error: Error | null, stdout: string, stderr: string) => {
-        if (error) {
-          // CLI exited with non-zero code, but might still have valid JSON
-          // (e.g., gate thresholds failed but analysis succeeded)
-          try {
-            const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
-            const result = transformRawResult(
-              rawResult,
-              dependencyAnchorPath(filePath),
-            );
-            resolve(result);
-          } catch (parseError) {
-            // JSON parsing failed - this is a real error
-            console.error(
-              `CytoScnPy analysis failed for ${filePath}: ${error.message}`,
-            );
-            if (stderr) {
-              console.error(`Stderr: ${stderr}`);
-            }
-            reject(
-              new Error(
-                `Failed to run CytoScnPy analysis: ${error.message}. Stderr: ${stderr}`,
-              ),
-            );
-          }
-          return;
-        }
-
-        if (stderr) {
-          console.warn(
-            `CytoScnPy analysis for ${filePath} produced stderr: ${stderr}`,
-          );
-        }
-
-        try {
-          const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
-          const result = transformRawResult(rawResult, dependencyAnchorPath(filePath));
-          resolve(result);
-        } catch (parseError: any) {
-          reject(
-            new Error(
-              `Failed to parse CytoScnPy JSON output for ${filePath}: ${parseError.message}. Output: ${stdout}`,
-            ),
-          );
-        }
-      },
+  const args = buildAnalyzerArgs(filePath, config);
+  const { stdout, stderr, code } = await runAnalyzerStreaming(config.path, args);
+  if (stderr) {
+    console.warn(
+      `CytoScnPy analysis for ${filePath} produced stderr: ${stderr}`,
     );
-  });
+  }
+  try {
+    const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
+    return transformRawResult(rawResult, dependencyAnchorPath(filePath));
+  } catch (parseError: any) {
+    throw new Error(
+      `CytoScnPy analysis failed for ${filePath} (exit ${code}): ${parseError.message}. Stderr: ${stderr}`,
+    );
+  }
 }
 
 /**

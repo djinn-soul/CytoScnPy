@@ -1,3 +1,4 @@
+use super::definitions::{class_nodes, function_nodes};
 use super::statements::extract_stmt_nodes;
 use super::types::{AstParser, Subtree, SubtreeType};
 use crate::clones::CloneError;
@@ -10,9 +11,17 @@ use std::path::PathBuf;
 /// # Errors
 /// Returns error if parsing fails
 pub fn extract_subtrees(source: &str, path: &PathBuf) -> Result<Vec<Subtree>, CloneError> {
+    extract_subtrees_with_min_lines(source, path, crate::constants::MIN_CLONE_LINES)
+}
+
+pub(crate) fn extract_subtrees_with_min_lines(
+    source: &str,
+    path: &PathBuf,
+    min_lines: usize,
+) -> Result<Vec<Subtree>, CloneError> {
     let module = AstParser::parse(source)?;
     let mut subtrees = Vec::new();
-    extract_from_body(&module.body, path, source, &mut subtrees, false);
+    extract_from_body(&module.body, path, source, &mut subtrees, false, min_lines);
     Ok(subtrees)
 }
 
@@ -23,6 +32,7 @@ fn extract_from_body(
     source: &str,
     subtrees: &mut Vec<Subtree>,
     in_class: bool,
+    min_lines: usize,
 ) {
     for stmt in body {
         match stmt {
@@ -39,7 +49,9 @@ fn extract_from_body(
                     SubtreeType::Function
                 };
 
-                if (end_line - start_line + 1) >= crate::constants::MIN_CLONE_LINES {
+                let mut children = function_nodes(f);
+                children.extend(extract_stmt_nodes(&f.body));
+                if end_line - start_line + 1 >= min_lines {
                     subtrees.push(Subtree {
                         node_type,
                         name: Some(f.name.to_string()),
@@ -49,18 +61,20 @@ fn extract_from_body(
                         end_line,
                         file: path.clone(),
                         source_slice: source[start_byte..end_byte].to_string(),
-                        children: extract_stmt_nodes(&f.body),
+                        children,
                     });
                 }
 
-                extract_from_body(&f.body, path, source, subtrees, false);
+                extract_from_body(&f.body, path, source, subtrees, false, min_lines);
             }
             Stmt::ClassDef(c) => {
                 let start_byte = c.range().start().to_usize();
                 let end_byte = c.range().end().to_usize();
                 let (start_line, end_line) = byte_to_lines(start_byte, end_byte, source);
 
-                if (end_line - start_line + 1) >= crate::constants::MIN_CLONE_LINES {
+                let mut children = class_nodes(c);
+                children.extend(extract_stmt_nodes(&c.body));
+                if end_line - start_line + 1 >= min_lines {
                     subtrees.push(Subtree {
                         node_type: SubtreeType::Class,
                         name: Some(c.name.to_string()),
@@ -70,11 +84,11 @@ fn extract_from_body(
                         end_line,
                         file: path.clone(),
                         source_slice: source[start_byte..end_byte].to_string(),
-                        children: extract_stmt_nodes(&c.body),
+                        children,
                     });
                 }
 
-                extract_from_body(&c.body, path, source, subtrees, true);
+                extract_from_body(&c.body, path, source, subtrees, true, min_lines);
             }
             _ => {}
         }

@@ -151,8 +151,11 @@ impl ConfidenceScorer {
         }
 
         if context.same_file {
-            score += 10;
-            factors.push(ConfidenceFactor::new("same_file", 10, "same file"));
+            // Small bonus only: same-file duplicates are often intentional
+            // (overloads, dispatch tables) rather than accidental copy-paste,
+            // so this shouldn't swing a borderline pair into auto-fix alone.
+            score += 5;
+            factors.push(ConfidenceFactor::new("same_file", 5, "same file"));
         }
 
         if context.canonical_has_docstring {
@@ -260,67 +263,4 @@ impl ConfidenceScorer {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::clones::types::{CloneInstance, CloneType};
-    use std::path::PathBuf;
-
-    fn make_pair(similarity: f64, clone_type: CloneType, edit_distance: usize) -> ClonePair {
-        use crate::clones::types::NodeKind;
-
-        ClonePair {
-            instance_a: CloneInstance {
-                file: PathBuf::from("a.py"),
-                start_line: 1,
-                end_line: 10,
-                start_byte: 0,
-                end_byte: 100,
-                normalized_hash: 0,
-                name: None,
-                node_kind: NodeKind::Function,
-            },
-            instance_b: CloneInstance {
-                file: PathBuf::from("b.py"),
-                start_line: 1,
-                end_line: 10,
-                start_byte: 0,
-                end_byte: 100,
-                normalized_hash: 0,
-                name: None,
-                node_kind: NodeKind::Function,
-            },
-            similarity,
-            clone_type,
-            edit_distance,
-        }
-    }
-
-    #[test]
-    fn test_high_confidence_auto_fix() {
-        let scorer = ConfidenceScorer::default();
-        let pair = make_pair(0.98, CloneType::Type1, 0);
-        let context = FixContext {
-            structural_match_verified: true,
-            is_idempotent: true,
-            ..Default::default()
-        };
-
-        let result = scorer.score(&pair, &context);
-        assert_eq!(result.decision, FixDecision::AutoFix);
-        assert!(result.score >= 90);
-    }
-
-    #[test]
-    fn test_low_confidence_suppress() {
-        let scorer = ConfidenceScorer::default();
-        let pair = make_pair(0.65, CloneType::Type3, 15);
-        let context = FixContext {
-            is_test_file: true,
-            control_flow_differs: true,
-            ..Default::default()
-        };
-
-        let result = scorer.score(&pair, &context);
-        assert_eq!(result.decision, FixDecision::Suppress);
-    }
-}
+mod tests;

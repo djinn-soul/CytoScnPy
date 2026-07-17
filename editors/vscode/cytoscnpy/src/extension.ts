@@ -1,18 +1,21 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
-import * as os from "os";
 import * as path from "path";
-import * as fs from "fs";
 import * as crypto from "crypto";
 import {
   runCytoScnPyAnalysis,
   runWorkspaceAnalysis,
-  CytoScnPyConfig,
   CytoScnPyFinding,
   ParseError,
 } from "./analyzer";
 import { execFile } from "child_process"; // Import execFile for safer metric commands
+import {
+  getCytoScnPyConfiguration,
+  getExecutablePath,
+} from "./configuration";
+import { resolveFinding } from "./findingResolver";
+import { CoalescingTaskQueue, DebouncedTaskMap } from "./scanScheduler";
 
 // Cache for file content hashes to skip re-analyzing unchanged files
 // We keep a history of entries to support instant Undo/Redo operations
@@ -29,11 +32,8 @@ export const fileCache = new Map<string, CacheEntry[]>();
 let workspaceCache: Map<string, CytoScnPyFinding[]> | null = null;
 let workspaceParseErrorsCache: Map<string, ParseError[]> | null = null;
 let workspaceCacheTimestamp: number = 0;
-let isWorkspaceAnalysisRunning = false;
-
-// Debounce timer for save-triggered analysis (prevents multiple scans on rapid saves)
-let analysisDebounceTimer: NodeJS.Timeout | null = null;
-const ANALYSIS_DEBOUNCE_MS = 1000; // Wait 1 second after last save before re-analyzing
+const workspaceScanQueue = new CoalescingTaskQueue();
+const saveScanDebouncer = new DebouncedTaskMap();
 
 // Helper function to compute content hash
 export function computeHash(content: string): string {
@@ -54,6 +54,18 @@ export function hashForDocument(document: vscode.TextDocument): string {
   const hash = computeHash(document.getText());
   documentHashCache.set(key, { version: document.version, hash });
   return hash;
+}
+
+export async function runManualAnalysis(
+  analysisMode: "file" | "workspace",
+  runFileAnalysis: () => Promise<void>,
+  runWorkspaceAnalysis: () => Promise<void>,
+): Promise<void> {
+  if (analysisMode === "workspace") {
+    await runWorkspaceAnalysis();
+    return;
+  }
+  await runFileAnalysis();
 }
 
 // Single source of truth for translating CytoScnPy severity strings to VS Code
@@ -168,87 +180,6 @@ let errorDecorationType: vscode.TextEditorDecorationType;
 let warningDecorationType: vscode.TextEditorDecorationType;
 let infoDecorationType: vscode.TextEditorDecorationType;
 
-function getExecutablePath(context: vscode.ExtensionContext): string {
-  const platform = os.platform();
-  let executableName: string;
-
-  switch (platform) {
-    case "win32":
-      executableName = "cytoscnpy-cli-win32.exe";
-      break;
-    case "linux":
-      executableName = "cytoscnpy-cli-linux";
-      break;
-    case "darwin":
-      executableName = "cytoscnpy-cli-darwin";
-      break;
-    default:
-      // Fall back to pip-installed version
-      return "cytoscnpy";
-  }
-
-  // `executableName` comes from a hardcoded switch on `os.platform()`, so it
-  // cannot contain `..` segments; no separate path-traversal check needed.
-  const bundledPath = path.join(context.extensionPath, "bin", executableName);
-
-  // Check if bundled binary exists, otherwise fall back to pip-installed version
-  try {
-    if (fs.existsSync(bundledPath)) {
-      return bundledPath;
-    }
-  } catch {
-    // Ignore errors, fall through to pip fallback
-  }
-
-  // Fall back to pip-installed cytoscnpy (assumes it's in PATH)
-  return "cytoscnpy";
-}
-
-// Helper function to get configuration
-function getCytoScnPyConfiguration(
-  context: vscode.ExtensionContext,
-): CytoScnPyConfig {
-  const config = vscode.workspace.getConfiguration("cytoscnpy");
-  const pathSetting = config.inspect<string>("path");
-
-  const userSetPath = pathSetting?.globalValue || pathSetting?.workspaceValue;
-
-  // Helper to get value only if explicitly set (Global, Workspace, or Folder)
-  // If not set, return undefined so the analyzer uses values from pyproject.toml/.cytoscnpy.toml
-  const getIfSet = <T>(key: string): T | undefined => {
-    const inspect = config.inspect<T>(key);
-    if (
-      inspect &&
-      (inspect.globalValue !== undefined ||
-        inspect.workspaceValue !== undefined ||
-        inspect.workspaceFolderValue !== undefined)
-    ) {
-      return config.get<T>(key);
-    }
-    return undefined;
-  };
-
-  return {
-    path: userSetPath || getExecutablePath(context),
-    analysisMode:
-      config.get<string>("analysisMode") === "file" ? "file" : "workspace",
-    enableSecretsScan: config.get<boolean>("enableSecretsScan") || false,
-    enableDangerScan: config.get<boolean>("enableDangerScan") || false,
-    enableQualityScan: config.get<boolean>("enableQualityScan") || false,
-    enableCloneScan: config.get<boolean>("enableCloneScan") || false,
-    confidenceThreshold: getIfSet<number>("confidenceThreshold"),
-    excludeFolders: getIfSet<string[]>("excludeFolders"),
-    includeFolders: getIfSet<string[]>("includeFolders"),
-    includeTests: getIfSet<boolean>("includeTests"),
-    includeIpynb: getIfSet<boolean>("includeIpynb"),
-    maxComplexity: getIfSet<number>("maxComplexity"),
-    minMaintainabilityIndex: getIfSet<number>("minMaintainabilityIndex"),
-    maxNesting: getIfSet<number>("maxNesting"),
-    maxArguments: getIfSet<number>("maxArguments"),
-    maxLines: getIfSet<number>("maxLines"),
-  };
-}
-
 export function activate(context: vscode.ExtensionContext) {
   const config = getCytoScnPyConfiguration(context);
   const isDevBuild =
@@ -269,28 +200,38 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         const mcpDidChangeEmitter = new vscode.EventEmitter<void>();
         context.subscriptions.push(
+          mcpDidChangeEmitter,
+          vscode.workspace.onDidChangeWorkspaceFolders(() =>
+            mcpDidChangeEmitter.fire(),
+          ),
+        );
+        context.subscriptions.push(
           vscode.lm.registerMcpServerDefinitionProvider("cytoscnpy-mcp", {
             onDidChangeMcpServerDefinitions: mcpDidChangeEmitter.event,
             provideMcpServerDefinitions: async () => {
-              const executablePath = getExecutablePath(context);
               const workspaceFolders = vscode.workspace.workspaceFolders;
-              const cwd = workspaceFolders?.[0]?.uri.fsPath ?? null;
-
               const extension =
                 vscode.extensions.getExtension("djinn09.cytoscnpy");
               const version = extension?.packageJSON?.version || "0.1.0";
-
-              return [
+              if (!workspaceFolders || workspaceFolders.length === 0) {
+                return [
+                  new vscode.McpStdioServerDefinition(
+                    "CytoScnPy",
+                    getExecutablePath(context),
+                    ["mcp-server"],
+                    { cwd: null, version },
+                  ),
+                ];
+              }
+              return workspaceFolders.map(
+                (folder) =>
                 new vscode.McpStdioServerDefinition(
-                  "CytoScnPy",
-                  executablePath,
+                  `CytoScnPy (${folder.name})`,
+                  getExecutablePath(context, folder.uri),
                   ["mcp-server"],
-                  {
-                    cwd: cwd,
-                    version: version,
-                  },
+                  { cwd: folder.uri.fsPath, version },
                 ),
-              ];
+              );
             },
             resolveMcpServerDefinition: async (server) => server,
           }),
@@ -344,7 +285,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Function to apply gutter decorations based on diagnostics
     function applyGutterDecorations(
       editor: vscode.TextEditor,
-      diagnostics: vscode.Diagnostic[],
+      diagnostics: readonly vscode.Diagnostic[],
     ) {
       const errorRanges: vscode.DecorationOptions[] = [];
       const warningRanges: vscode.DecorationOptions[] = [];
@@ -481,23 +422,52 @@ export function activate(context: vscode.ExtensionContext) {
       });
     }
 
+    function cacheDocumentAnalysis(
+      document: vscode.TextDocument,
+      diagnostics: vscode.Diagnostic[],
+      findings: CytoScnPyFinding[],
+    ): void {
+      if (document.isDirty) {
+        return;
+      }
+      const cacheKey = getCacheKey(document.uri.fsPath);
+      const cacheEntry: CacheEntry = {
+        hash: computeHash(document.getText()),
+        diagnostics,
+        findings,
+        timestamp: Date.now(),
+      };
+      const history = fileCache.get(cacheKey) || [];
+      history.unshift(cacheEntry);
+      if (history.length > MAX_CACHE_HISTORY) {
+        history.pop();
+      }
+      fileCache.set(cacheKey, history);
+    }
+
+    function clearDocumentAnalysis(document: vscode.TextDocument): void {
+      cytoscnpyDiagnostics.delete(document.uri);
+      fileCache.delete(getCacheKey(document.uri.fsPath));
+      documentHashCache.delete(document.uri.toString());
+      const editor = vscode.window.activeTextEditor;
+      if (editor?.document.uri.toString() === document.uri.toString()) {
+        applyGutterDecorations(editor, []);
+      }
+    }
+
     // Function to run workspace analysis and populate cache
     async function runFullWorkspaceAnalysis() {
+      return workspaceScanQueue.run(performFullWorkspaceAnalysis);
+    }
+
+    async function performFullWorkspaceAnalysis() {
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
         return;
       }
 
-      if (isWorkspaceAnalysisRunning) {
-        return; // Don't run multiple analyses at once
-      }
-
-      isWorkspaceAnalysisRunning = true;
       setStatus("running", "scanning workspace");
-      const workspacePath = workspaceFolders[0].uri.fsPath;
-      const config = getCytoScnPyConfiguration(context);
 
-      // Show progress notification during analysis
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
@@ -506,15 +476,24 @@ export function activate(context: vscode.ExtensionContext) {
         },
         async (progress) => {
           try {
-            progress.report({ message: "Scanning Python files..." });
             const startTime = Date.now();
-
-            const workspaceResult = await runWorkspaceAnalysis(
-              workspacePath,
-              config,
-            );
-            workspaceCache = workspaceResult.findingsByFile;
-            workspaceParseErrorsCache = workspaceResult.parseErrorsByFile;
+            const findingsByFile = new Map<string, CytoScnPyFinding[]>();
+            const parseErrorsByFile = new Map<string, ParseError[]>();
+            for (const folder of workspaceFolders) {
+              progress.report({ message: `Scanning ${folder.name}...` });
+              const result = await runWorkspaceAnalysis(
+                folder.uri.fsPath,
+                getCytoScnPyConfiguration(context, folder.uri),
+              );
+              for (const [filePath, findings] of result.findingsByFile) {
+                findingsByFile.set(getCacheKey(filePath), findings);
+              }
+              for (const [filePath, errors] of result.parseErrorsByFile) {
+                parseErrorsByFile.set(getCacheKey(filePath), errors);
+              }
+            }
+            workspaceCache = findingsByFile;
+            workspaceParseErrorsCache = parseErrorsByFile;
             workspaceCacheTimestamp = Date.now();
 
             const duration = (Date.now() - startTime) / 1000;
@@ -532,19 +511,21 @@ export function activate(context: vscode.ExtensionContext) {
 
             progress.report({ message: `Updating diagnostics...` });
 
-            // Clear previous workspace diagnostics first; the analyzer output only
-            // contains files with active findings, so this prevents stale entries
-            // from lingering after a user fixes an issue.
             cytoscnpyDiagnostics.clear();
-
-            // Set diagnostics for ALL files in workspace findings + parse errors
-            // so the Problems view includes both categories.
+            const openDocuments = new Map(
+              vscode.workspace.textDocuments
+                .filter((document) => document.languageId === "python")
+                .map((document) => [getCacheKey(document.uri.fsPath), document]),
+            );
             const filesWithDiagnostics = new Set<string>([
               ...workspaceCache.keys(),
               ...(workspaceParseErrorsCache?.keys() ?? []),
             ]);
 
             for (const filePath of filesWithDiagnostics) {
+              if (openDocuments.has(filePath)) {
+                continue;
+              }
               const uri = vscode.Uri.file(filePath);
               const findings = workspaceCache.get(filePath) || [];
               const parseErrors =
@@ -556,23 +537,29 @@ export function activate(context: vscode.ExtensionContext) {
               cytoscnpyDiagnostics.set(uri, diagnostics);
             }
 
-            // Update sidebar for active document
-            if (vscode.window.activeTextEditor) {
-              const activeDoc = vscode.window.activeTextEditor.document;
-              if (activeDoc.languageId === "python") {
-                const findings = workspaceCache.get(activeDoc.uri.fsPath) || [];
-                const parseErrors =
-                  workspaceParseErrorsCache?.get(activeDoc.uri.fsPath) || [];
-                const diagnostics = [
-                  ...findingsToDiagnostics(activeDoc, findings),
-                  ...parseErrorsToDiagnostics(activeDoc, parseErrors),
-                ];
-
-                applyGutterDecorations(
-                  vscode.window.activeTextEditor,
-                  diagnostics,
-                );
+            for (const [filePath, document] of openDocuments) {
+              if (document.isDirty) {
+                fileCache.delete(filePath);
+                continue;
               }
+              const findings = workspaceCache.get(filePath) || [];
+              const parseErrors = workspaceParseErrorsCache?.get(filePath) || [];
+              const diagnostics = [
+                ...findingsToDiagnostics(document, findings),
+                ...parseErrorsToDiagnostics(document, parseErrors),
+              ];
+              cytoscnpyDiagnostics.set(document.uri, diagnostics);
+              cacheDocumentAnalysis(document, diagnostics, findings);
+            }
+
+            const activeEditor = vscode.window.activeTextEditor;
+            if (activeEditor?.document.languageId === "python") {
+              applyGutterDecorations(
+                activeEditor,
+                activeEditor.document.isDirty
+                  ? []
+                  : cytoscnpyDiagnostics.get(activeEditor.document.uri) || [],
+              );
             }
 
             const findingsCount = Array.from(workspaceCache.values()).reduce(
@@ -593,8 +580,10 @@ export function activate(context: vscode.ExtensionContext) {
             setStatus("error", "analysis failed");
             workspaceCache = null;
             workspaceParseErrorsCache = null;
-          } finally {
-            isWorkspaceAnalysisRunning = false;
+            workspaceCacheTimestamp = 0;
+            fileCache.clear();
+            documentHashCache.clear();
+            cytoscnpyDiagnostics.clear();
           }
         },
       );
@@ -617,12 +606,21 @@ export function activate(context: vscode.ExtensionContext) {
     // This is much faster than full workspace re-analysis for single file saves
     async function runIncrementalAnalysis(document: vscode.TextDocument) {
       const filePath = document.uri.fsPath;
-      const config = getCytoScnPyConfiguration(context);
+      if (document.isDirty) {
+        clearDocumentAnalysis(document);
+        return;
+      }
+      const documentVersion = document.version;
+      const config = getCytoScnPyConfiguration(context, document.uri);
       setStatus("running", `scanning ${path.basename(filePath)}`);
 
       try {
         // Run single-file analysis
         const result = await runCytoScnPyAnalysis(filePath, config);
+        if (document.isDirty || document.version !== documentVersion) {
+          clearDocumentAnalysis(document);
+          return;
+        }
         const diagnostics = [
           ...findingsToDiagnostics(document, result.findings),
           ...parseErrorsToDiagnostics(document, result.parseErrors),
@@ -631,27 +629,16 @@ export function activate(context: vscode.ExtensionContext) {
         // Update diagnostics for this file
         cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
-        // Update file cache
-        const cacheKey = getCacheKey(filePath);
-        const contentHash = computeHash(document.getText());
-        const cacheEntry: CacheEntry = {
-          hash: contentHash,
-          diagnostics: diagnostics,
-          findings: result.findings,
-          timestamp: Date.now(),
-        };
-        const history = fileCache.get(cacheKey) || [];
-        history.unshift(cacheEntry);
-        if (history.length > MAX_CACHE_HISTORY) {
-          history.pop();
-        }
-        fileCache.set(cacheKey, history);
+        cacheDocumentAnalysis(document, diagnostics, result.findings);
 
         // Merge into workspace cache if it exists
         if (workspaceCache) {
-          workspaceCache.set(filePath, result.findings);
+          workspaceCache.set(getCacheKey(filePath), result.findings);
           if (workspaceParseErrorsCache) {
-            workspaceParseErrorsCache.set(filePath, result.parseErrors);
+            workspaceParseErrorsCache.set(
+              getCacheKey(filePath),
+              result.parseErrors,
+            );
           }
           workspaceCacheTimestamp = Date.now();
         }
@@ -681,11 +668,11 @@ export function activate(context: vscode.ExtensionContext) {
         console.error(
           `[CytoScnPy] Incremental analysis failed for ${filePath}: ${error.message}`,
         );
-        setStatus("error", "incremental failed");
-        // On failure, fall back to full workspace analysis
-        if (!isWorkspaceAnalysisRunning) {
-          await runFullWorkspaceAnalysis();
-        }
+        clearDocumentAnalysis(document);
+        setStatus("error", "file analysis failed");
+        vscode.window.showErrorMessage(
+          `CytoScnPy analysis failed: ${error.message}`,
+        );
       }
     }
 
@@ -694,38 +681,33 @@ export function activate(context: vscode.ExtensionContext) {
       if (document.languageId !== "python") {
         return; // Only analyze Python files
       }
+      if (document.isDirty) {
+        clearDocumentAnalysis(document);
+        setStatus("idle", "save file to analyze");
+        return;
+      }
 
       const fsPath = document.uri.fsPath;
       const filePath =
         process.platform === "win32" ? fsPath.toLowerCase() : fsPath;
-      const config = getCytoScnPyConfiguration(context);
+      const config = getCytoScnPyConfiguration(context, document.uri);
 
       // FILE MODE: Single file analysis (faster, but may have false positives)
       if (config.analysisMode === "file") {
         try {
+          const documentVersion = document.version;
           const result = await runCytoScnPyAnalysis(fsPath, config);
+          if (document.isDirty || document.version !== documentVersion) {
+            clearDocumentAnalysis(document);
+            return;
+          }
           const diagnostics = [
             ...findingsToDiagnostics(document, result.findings),
             ...parseErrorsToDiagnostics(document, result.parseErrors),
           ];
           cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
-          // Populate fileCache for CST-precise quick-fixes and diagnostics reuse
-          const cacheKey = getCacheKey(fsPath);
-          const contentHash = computeHash(document.getText());
-          const cacheEntry: CacheEntry = {
-            hash: contentHash,
-            diagnostics: diagnostics,
-            findings: result.findings,
-            timestamp: Date.now(),
-          };
-          const history = fileCache.get(cacheKey) || [];
-          // Prepend new entry, cap at MAX_CACHE_HISTORY
-          history.unshift(cacheEntry);
-          if (history.length > MAX_CACHE_HISTORY) {
-            history.pop();
-          }
-          fileCache.set(cacheKey, history);
+          cacheDocumentAnalysis(document, diagnostics, result.findings);
 
           const editor = vscode.window.activeTextEditor;
           if (
@@ -736,6 +718,11 @@ export function activate(context: vscode.ExtensionContext) {
           }
         } catch (error: any) {
           console.error(`[CytoScnPy] File analysis failed: ${error.message}`);
+          clearDocumentAnalysis(document);
+          setStatus("error", "file analysis failed");
+          vscode.window.showErrorMessage(
+            `CytoScnPy analysis failed: ${error.message}`,
+          );
         }
         return;
       }
@@ -751,21 +738,7 @@ export function activate(context: vscode.ExtensionContext) {
         ];
         cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
-        const contentHash = computeHash(document.getText());
-        const cacheKey = getCacheKey(filePath);
-        const cacheEntry: CacheEntry = {
-          hash: contentHash,
-          diagnostics: diagnostics,
-          findings: findings,
-          timestamp: Date.now(),
-        };
-        const history = fileCache.get(cacheKey) || [];
-        // Prepend new entry, cap at MAX_CACHE_HISTORY
-        history.unshift(cacheEntry);
-        if (history.length > MAX_CACHE_HISTORY) {
-          history.pop();
-        }
-        fileCache.set(cacheKey, history);
+        cacheDocumentAnalysis(document, diagnostics, findings);
 
         const editor = vscode.window.activeTextEditor;
         if (
@@ -812,6 +785,15 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push({
       dispose: () => clearInterval(periodicScanInterval),
     });
+    context.subscriptions.push(saveScanDebouncer);
+
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeTextDocument((event) => {
+        if (event.document.languageId === "python" && event.document.isDirty) {
+          clearDocumentAnalysis(event.document);
+        }
+      }),
+    );
 
     // Analyze document on save - debounced incremental analysis (much faster than full workspace scan)
     context.subscriptions.push(
@@ -820,19 +802,17 @@ export function activate(context: vscode.ExtensionContext) {
           // Update last change time
           lastFileChangeTime = Date.now();
 
-          // Clear previous debounce timer
-          if (analysisDebounceTimer) {
-            clearTimeout(analysisDebounceTimer);
-          }
-
-          const config = getCytoScnPyConfiguration(context);
-          // Use longer debounce for workspace mode to prevent frequent expensive scans
+          const config = getCytoScnPyConfiguration(context, document.uri);
           const debounceMs = config.analysisMode === "workspace" ? 3000 : 500;
-
-          // Debounce: wait based on mode
-          analysisDebounceTimer = setTimeout(() => {
-            // Re-fetch config to ensure we use the latest settings
-            const currentConfig = getCytoScnPyConfiguration(context);
+          const debounceKey =
+            config.analysisMode === "workspace"
+              ? "workspace"
+              : document.uri.toString();
+          saveScanDebouncer.schedule(debounceKey, debounceMs, () => {
+            const currentConfig = getCytoScnPyConfiguration(
+              context,
+              document.uri,
+            );
 
             if (currentConfig.analysisMode === "workspace") {
               // In workspace mode, run full analysis to maintain cross-file context correctness
@@ -849,7 +829,7 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error("[CytoScnPy] Incremental analysis failed:", err);
               });
             }
-          }, debounceMs);
+          });
         }
       }),
     );
@@ -860,14 +840,29 @@ export function activate(context: vscode.ExtensionContext) {
         if (event.affectsConfiguration("cytoscnpy")) {
           // Clear caches to force re-analysis with new settings
           invalidateWorkspaceCache();
-
-          // Re-analyze all open Python documents
-          vscode.workspace.textDocuments.forEach((doc) => {
-            if (doc.languageId === "python") {
-              refreshDiagnostics(doc);
-            }
-          });
+          const pythonDocuments = vscode.workspace.textDocuments.filter(
+            (doc) => doc.languageId === "python",
+          );
+          if (
+            vscode.workspace.workspaceFolders?.length &&
+            pythonDocuments.some(
+              (doc) =>
+                getCytoScnPyConfiguration(context, doc.uri).analysisMode ===
+                "workspace",
+            )
+          ) {
+            void runFullWorkspaceAnalysis();
+          } else {
+            pythonDocuments.forEach((doc) => void refreshDiagnostics(doc));
+          }
         }
+      }),
+    );
+
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        invalidateWorkspaceCache();
+        void runFullWorkspaceAnalysis();
       }),
     );
 
@@ -883,7 +878,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Clear diagnostics and cache when a document is closed
     context.subscriptions.push(
       vscode.workspace.onDidCloseTextDocument((document) => {
-        const mode = getCytoScnPyConfiguration(context).analysisMode;
+        const mode = getCytoScnPyConfiguration(
+          context,
+          document.uri,
+        ).analysisMode;
         // In workspace mode we intentionally keep diagnostics for closed files
         // so the Problems view remains complete across the whole project.
         if (mode === "file") {
@@ -897,13 +895,29 @@ export function activate(context: vscode.ExtensionContext) {
     // Register a command to manually trigger analysis (e.g., from command palette)
     const disposableAnalyze = vscode.commands.registerCommand(
       "cytoscnpy.analyzeCurrentFile",
-      () => {
-        if (vscode.window.activeTextEditor) {
-          refreshDiagnostics(vscode.window.activeTextEditor.document);
-          vscode.window.showInformationMessage("CytoScnPy analysis triggered.");
-        } else {
+      async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== "python") {
           vscode.window.showWarningMessage("No active text editor to analyze.");
+          return;
         }
+        if (editor.document.isDirty) {
+          clearDocumentAnalysis(editor.document);
+          vscode.window.showWarningMessage(
+            "Save the Python file before running CytoScnPy analysis.",
+          );
+          return;
+        }
+
+        const config = getCytoScnPyConfiguration(context, editor.document.uri);
+        // A current-file refresh cannot safely reuse the workspace cache: that
+        // is exactly what made manual rescans leave stale Problems entries.
+        // Rebuild the cross-file result so dead-code findings remain accurate.
+        await runManualAnalysis(
+          config.analysisMode,
+          () => refreshDiagnostics(editor.document),
+          runFullWorkspaceAnalysis,
+        );
       },
     );
 
@@ -926,7 +940,10 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       const filePath = vscode.window.activeTextEditor.document.uri.fsPath;
-      const config = getCytoScnPyConfiguration(context);
+      const config = getCytoScnPyConfiguration(
+        context,
+        vscode.window.activeTextEditor.document.uri,
+      );
 
       // Use execFile with argument array to prevent command injection
       const args = ["--client", "vscode", commandType, filePath];
@@ -996,44 +1013,9 @@ export function activate(context: vscode.ExtensionContext) {
             return;
           }
 
-          const workspacePath = workspaceFolders[0].uri.fsPath;
-          const config = getCytoScnPyConfiguration(context);
-
-          cytoscnpyOutputChannel.clear();
-          cytoscnpyOutputChannel.show();
-          cytoscnpyOutputChannel.appendLine(
-            `Analyzing workspace: ${workspacePath}\n`,
-          );
-
-          const args = ["--client", "vscode", workspacePath, "--json"];
-          if (config.enableSecretsScan) {
-            args.push("--secrets");
-          }
-          if (config.enableDangerScan) {
-            args.push("--danger");
-          }
-          if (config.enableQualityScan) {
-            args.push("--quality");
-          }
-
-          execFile(
-            config.path,
-            args,
-            (error: Error | null, stdout: string, stderr: string) => {
-              if (error) {
-                cytoscnpyOutputChannel.appendLine(`Error: ${error.message}`);
-                if (stderr) {
-                  cytoscnpyOutputChannel.appendLine(`Stderr: ${stderr}`);
-                }
-              }
-              if (stdout) {
-                cytoscnpyOutputChannel.appendLine(`Results:\n${stdout}`);
-              }
-              vscode.window.showInformationMessage(
-                "Workspace analysis complete. See output channel.",
-              );
-            },
-          );
+          // Use the canonical workspace path: it refreshes the cache and
+          // replaces the DiagnosticCollection that powers the Problems tab.
+          await runFullWorkspaceAnalysis();
         },
       ),
     );
@@ -1169,42 +1151,14 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       diagnostic: vscode.Diagnostic,
       ruleId: string | undefined,
     ): CytoScnPyFinding | undefined => {
-      if (!ruleId) {
+      if (!cachedEntry) {
         return undefined;
       }
-      const diagnosticLine = diagnostic.range.start.line + 1;
-      const pickClosest = (
-        findings: CytoScnPyFinding[],
-      ): CytoScnPyFinding | undefined => {
-        let best: CytoScnPyFinding | undefined;
-        let bestDiff = Number.POSITIVE_INFINITY;
-        for (const finding of findings) {
-          if (finding.rule_id !== ruleId) {
-            continue;
-          }
-          const diff = Math.abs(finding.line_number - diagnosticLine);
-          if (diff > 2) {
-            continue;
-          }
-          if (diff < bestDiff) {
-            best = finding;
-            bestDiff = diff;
-            if (diff === 0) {
-              break;
-            }
-          }
-        }
-        return best;
-      };
-
-      const fromCache = cachedEntry
-        ? pickClosest(cachedEntry.findings)
-        : undefined;
-      if (fromCache) {
-        return fromCache;
-      }
-
-      return undefined;
+      return resolveFinding(cachedEntry.findings, {
+        ruleId,
+        line: diagnostic.range.start.line + 1,
+        message: diagnostic.message,
+      });
     };
 
     // Resolve file diagnostics for file-wide "Fix All" actions. Context

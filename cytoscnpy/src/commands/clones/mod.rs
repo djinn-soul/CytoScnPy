@@ -1,7 +1,6 @@
 //! Clone detection command.
 
 mod findings;
-mod fixes;
 mod stats;
 mod suggestions;
 
@@ -12,7 +11,6 @@ use comfy_table::{Cell, Color, Table};
 use std::io::Write;
 use std::path::PathBuf;
 
-use fixes::apply_clone_fixes_internal;
 use stats::{load_matched_files, print_clone_stats_simple};
 use suggestions::generate_clone_suggestion;
 
@@ -56,14 +54,12 @@ fn create_detector(options: &CloneOptions) -> CloneDetector {
     detector
 }
 
-fn write_clone_results<W: Write>(
+pub(crate) fn print_clone_results<W: Write>(
     writer: &mut W,
     findings: &[CloneFinding],
-    options: &CloneOptions,
 ) -> Result<()> {
-    if options.json {
-        let output = serde_json::to_string_pretty(findings)?;
-        writeln!(writer, "{output}")?;
+    if findings.is_empty() {
+        writeln!(writer, "{}", "No clones detected.".green())?;
         return Ok(());
     }
 
@@ -86,6 +82,7 @@ fn write_clone_table<W: Write>(writer: &mut W, findings: &[CloneFinding]) -> Res
             "Suggestion",
         ]);
 
+    let duplicate_count = findings.iter().filter(|f| f.is_duplicate).count();
     let display_limit = 100;
     for finding in findings
         .iter()
@@ -126,13 +123,13 @@ fn write_clone_table<W: Write>(writer: &mut W, findings: &[CloneFinding]) -> Res
     }
 
     writeln!(writer, "{table}")?;
-    if findings.len() / 2 > display_limit {
+    if duplicate_count > display_limit {
         writeln!(
             writer,
-            "\n{} Showing first {} results. Use --json to see all {} clone pairs.",
+            "\n{} Showing first {} results. Use --json to see all {} clone findings.",
             "Note:".yellow().bold(),
             display_limit,
-            findings.len() / 2
+            duplicate_count
         )?;
     }
 
@@ -151,6 +148,14 @@ pub fn run_clones<W: Write>(
     options: &CloneOptions,
     mut writer: W,
 ) -> Result<(usize, Vec<CloneFinding>)> {
+    anyhow::ensure!(
+        options.similarity.is_finite() && (0.0..=1.0).contains(&options.similarity),
+        "clone similarity must be a finite value between 0.0 and 1.0"
+    );
+    anyhow::ensure!(
+        !options.fix,
+        "clone auto-fix is disabled because deleting a duplicate definition cannot safely rewrite its callers"
+    );
     let file_paths: Vec<PathBuf> = super::utils::find_python_files_with_options(
         paths,
         &options.exclude,
@@ -199,17 +204,11 @@ pub fn run_clones<W: Write>(
         pb.finish_and_clear();
     }
 
-    write_clone_results(&mut writer, &findings, options)?;
-
-    if options.fix {
-        apply_clone_fixes_internal(
-            &mut writer,
-            &findings,
-            &matched_files,
-            options.dry_run,
-            options.with_cst,
-            auto_fix_threshold,
-        )?;
+    if options.json {
+        let output = serde_json::to_string_pretty(&findings)?;
+        writeln!(writer, "{output}")?;
+    } else {
+        print_clone_results(&mut writer, &findings)?;
     }
 
     Ok((result.pairs.len(), findings))

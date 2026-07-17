@@ -1,4 +1,6 @@
+use super::definitions::{class_nodes, function_nodes};
 use super::expressions::extract_expr_nodes;
+use super::statement_misc::{misc_stmt_node, scoped_stmt_node};
 use super::types::SubtreeNode;
 use ruff_python_ast::{self as ast, Stmt};
 
@@ -29,22 +31,31 @@ fn compound_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
             } else {
                 "function"
             };
+            let mut children = function_nodes(f);
+            children.extend(extract_stmt_nodes(&f.body));
             Some(SubtreeNode {
                 kind: kind.into(),
                 label: Some(f.name.to_string()),
-                children: extract_stmt_nodes(&f.body),
+                children,
             })
         }
-        Stmt::ClassDef(c) => Some(SubtreeNode {
-            kind: "class".into(),
-            label: Some(c.name.to_string()),
-            children: extract_stmt_nodes(&c.body),
-        }),
+        Stmt::ClassDef(c) => {
+            let mut children = class_nodes(c);
+            children.extend(extract_stmt_nodes(&c.body));
+            Some(SubtreeNode {
+                kind: "class".into(),
+                label: Some(c.name.to_string()),
+                children,
+            })
+        }
         Stmt::For(f) => {
             let kind = if f.is_async { "async_for" } else { "for" };
             let mut children = extract_expr_nodes(&f.target);
             children.extend(extract_expr_nodes(&f.iter));
             children.extend(extract_stmt_nodes(&f.body));
+            if !f.orelse.is_empty() {
+                children.push(branch_node("for_else", &f.orelse));
+            }
             Some(SubtreeNode {
                 kind: kind.into(),
                 label: None,
@@ -54,6 +65,9 @@ fn compound_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
         Stmt::While(w) => {
             let mut children = extract_expr_nodes(&w.test);
             children.extend(extract_stmt_nodes(&w.body));
+            if !w.orelse.is_empty() {
+                children.push(branch_node("while_else", &w.orelse));
+            }
             Some(SubtreeNode {
                 kind: "while".into(),
                 label: None,
@@ -64,10 +78,21 @@ fn compound_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
             let mut children = extract_expr_nodes(&i.test);
             children.extend(extract_stmt_nodes(&i.body));
             for clause in &i.elif_else_clauses {
+                let kind = if clause.test.is_some() {
+                    "elif"
+                } else {
+                    "else"
+                };
+                let mut branch_children = Vec::new();
                 if let Some(test) = &clause.test {
-                    children.extend(extract_expr_nodes(test));
+                    branch_children.extend(extract_expr_nodes(test));
                 }
-                children.extend(extract_stmt_nodes(&clause.body));
+                branch_children.extend(extract_stmt_nodes(&clause.body));
+                children.push(SubtreeNode {
+                    kind: kind.into(),
+                    label: None,
+                    children: branch_children,
+                });
             }
             Some(SubtreeNode {
                 kind: "if".into(),
@@ -99,12 +124,16 @@ fn compound_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
                         if let Some(type_) = &h.type_ {
                             children.extend(extract_expr_nodes(type_));
                         }
-                        children.extend(extract_stmt_nodes(&h.body));
+                        children.push(branch_node("except", &h.body));
                     }
                 }
             }
-            children.extend(extract_stmt_nodes(&t.orelse));
-            children.extend(extract_stmt_nodes(&t.finalbody));
+            if !t.orelse.is_empty() {
+                children.push(branch_node("try_else", &t.orelse));
+            }
+            if !t.finalbody.is_empty() {
+                children.push(branch_node("finally", &t.finalbody));
+            }
             Some(SubtreeNode {
                 kind: "try".into(),
                 label: None,
@@ -112,6 +141,14 @@ fn compound_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
             })
         }
         _ => None,
+    }
+}
+
+fn branch_node(kind: &str, body: &[Stmt]) -> SubtreeNode {
+    SubtreeNode {
+        kind: kind.into(),
+        label: None,
+        children: extract_stmt_nodes(body),
     }
 }
 
@@ -145,12 +182,13 @@ fn flow_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
             children.extend(extract_expr_nodes(&a.value));
             Some(SubtreeNode {
                 kind: "aug_assign".into(),
-                label: None,
+                label: Some(format!("{:?}", a.op)),
                 children,
             })
         }
         Stmt::AnnAssign(a) => {
             let mut children = extract_expr_nodes(&a.target);
+            children.extend(extract_expr_nodes(&a.annotation));
             if let Some(value) = &a.value {
                 children.extend(extract_expr_nodes(value));
             }
@@ -199,101 +237,5 @@ fn flow_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
             })
         }
         _ => None,
-    }
-}
-
-fn scoped_stmt_node(stmt: &Stmt) -> Option<SubtreeNode> {
-    match stmt {
-        Stmt::Pass(_) => Some(SubtreeNode {
-            kind: "pass".into(),
-            label: None,
-            children: vec![],
-        }),
-        Stmt::Break(_) => Some(SubtreeNode {
-            kind: "break".into(),
-            label: None,
-            children: vec![],
-        }),
-        Stmt::Continue(_) => Some(SubtreeNode {
-            kind: "continue".into(),
-            label: None,
-            children: vec![],
-        }),
-        Stmt::Import(i) => {
-            let labels: Vec<String> = i.names.iter().map(|n| n.name.as_str().to_owned()).collect();
-            Some(SubtreeNode {
-                kind: "import".into(),
-                label: Some(labels.join(",")),
-                children: vec![],
-            })
-        }
-        Stmt::ImportFrom(i) => {
-            let module = i
-                .module
-                .as_ref()
-                .map_or("", ruff_python_ast::Identifier::as_str)
-                .to_owned();
-            let labels: Vec<String> = i.names.iter().map(|n| n.name.as_str().to_owned()).collect();
-            Some(SubtreeNode {
-                kind: "import_from".into(),
-                label: Some(format!("{}::{}", module, labels.join(","))),
-                children: vec![],
-            })
-        }
-        Stmt::Global(g) => Some(SubtreeNode {
-            kind: "global".into(),
-            label: Some(
-                g.names
-                    .iter()
-                    .map(ruff_python_ast::Identifier::as_str)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            ),
-            children: vec![],
-        }),
-        Stmt::Nonlocal(n) => Some(SubtreeNode {
-            kind: "nonlocal".into(),
-            label: Some(
-                n.names
-                    .iter()
-                    .map(ruff_python_ast::Identifier::as_str)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            ),
-            children: vec![],
-        }),
-        Stmt::Match(m) => Some(SubtreeNode {
-            kind: "match".into(),
-            label: None,
-            children: {
-                let mut children = extract_expr_nodes(&m.subject);
-                children.extend(m.cases.iter().flat_map(|c| extract_stmt_nodes(&c.body)));
-                children
-            },
-        }),
-        Stmt::TypeAlias(t) => {
-            let mut children = extract_expr_nodes(&t.name);
-            children.extend(extract_expr_nodes(&t.value));
-            Some(SubtreeNode {
-                kind: "type_alias".into(),
-                label: None,
-                children,
-            })
-        }
-        Stmt::IpyEscapeCommand(_) => Some(SubtreeNode {
-            kind: "ipy_escape".into(),
-            label: None,
-            children: vec![],
-        }),
-        _ => None,
-    }
-}
-
-fn misc_stmt_node(stmt: &Stmt) -> SubtreeNode {
-    // Fallback for statements that are syntactically valid but not yet modeled.
-    SubtreeNode {
-        kind: format!("{stmt:?}"),
-        label: None,
-        children: vec![],
     }
 }

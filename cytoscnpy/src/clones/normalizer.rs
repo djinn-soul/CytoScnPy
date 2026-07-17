@@ -84,15 +84,10 @@ impl Normalizer {
                 normalize_literals: false,
                 canonical_ordering: false,
             },
-            CloneType::Type2 => Self {
+            CloneType::Type2 | CloneType::Type3 => Self {
                 normalize_identifiers: true,
                 normalize_literals: true,
                 canonical_ordering: false,
-            },
-            CloneType::Type3 => Self {
-                normalize_identifiers: true,
-                normalize_literals: true,
-                canonical_ordering: true,
             },
         }
     }
@@ -151,7 +146,7 @@ impl Normalizer {
         var_counter: &mut usize,
     ) -> NormalizedNode {
         let is_literal_kind = self.normalize_literals && is_literal_kind(&node.kind);
-        let label = if self.normalize_identifiers {
+        let label = if self.normalize_identifiers && !is_semantic_label_kind(&node.kind) {
             node.label.as_ref().map(|name| {
                 // Normalize literals by kind (preferred) or pattern (fallback).
                 if is_literal_kind || (self.normalize_literals && is_literal_pattern(name)) {
@@ -194,7 +189,32 @@ fn is_literal_pattern(name: &str) -> bool {
 }
 
 fn is_literal_kind(kind: &str) -> bool {
-    matches!(kind, "str" | "num" | "bool" | "none" | "bytes")
+    matches!(
+        kind,
+        "str" | "num" | "bool" | "none" | "bytes" | "interpolated_literal"
+    )
+}
+
+fn is_semantic_label_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "bin_op"
+            | "bool_op"
+            | "unary_op"
+            | "compare_op"
+            | "aug_assign"
+            | "keyword"
+            | "attr"
+            | "decorator"
+            | "annotation"
+            | "returns"
+            | "base"
+            | "class_keyword"
+            | "pattern_keyword"
+            | "match_singleton"
+            | "interpolation"
+            | "ipy_escape_expr"
+    )
 }
 
 #[cfg(test)]

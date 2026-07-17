@@ -76,3 +76,63 @@ class API:
         .unwrap();
     assert_eq!(method.node_type, SubtreeType::Method);
 }
+
+#[test]
+fn parser_preserves_signature_decorator_and_operator_semantics() {
+    let source = "
+@cache
+def calculate(value: int, *, scale=2) -> int:
+    first = value + scale
+    second = first > scale
+    return helper(first, mode=second)
+";
+    let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
+    let nodes = &subtrees[0].children;
+    assert!(contains_kind(nodes, "decorator"));
+    assert!(contains_kind(nodes, "kwonly_param"));
+    assert!(contains_kind(nodes, "returns"));
+    assert!(contains_label(nodes, "Add"));
+    assert!(contains_label(nodes, "Gt"));
+    assert!(contains_label(nodes, "mode"));
+}
+
+#[test]
+fn parser_models_comprehensions_strings_lambdas_and_match_patterns() {
+    let source = r#"
+def transform(values):
+    convert = lambda item: f"value={item!r}"
+    selected = [convert(item) for item in values if item > 0]
+    stream = (item * 2 for item in selected)
+    match selected:
+        case [first, *rest] if first:
+            return {first: rest}
+        case _:
+            return dict(stream)
+"#;
+    let subtrees = extract_subtrees(source, &PathBuf::from("test.py")).unwrap();
+    let nodes = &subtrees[0].children;
+    for kind in [
+        "lambda",
+        "f_string",
+        "interpolation",
+        "list_comp",
+        "generator",
+        "match_sequence",
+        "match_star",
+        "match_guard",
+    ] {
+        assert!(contains_kind(nodes, kind), "missing {kind}");
+    }
+}
+
+fn contains_kind(nodes: &[super::super::SubtreeNode], kind: &str) -> bool {
+    nodes
+        .iter()
+        .any(|node| node.kind == kind || contains_kind(&node.children, kind))
+}
+
+fn contains_label(nodes: &[super::super::SubtreeNode], label: &str) -> bool {
+    nodes
+        .iter()
+        .any(|node| node.label.as_deref() == Some(label) || contains_label(&node.children, label))
+}

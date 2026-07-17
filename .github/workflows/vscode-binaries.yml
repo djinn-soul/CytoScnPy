@@ -31,7 +31,7 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            binary_name: cytoscnpy-cli-linux
+            binary_name: cytoscnpy-cli-linux-x64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             binary_name: cytoscnpy-cli-win32.exe
@@ -134,11 +134,8 @@ jobs:
       - name: Download Linux binary
         uses: actions/download-artifact@v4
         with:
-          name: cytoscnpy-cli-linux
+          name: cytoscnpy-cli-linux-x64
           path: editors/vscode/cytoscnpy/bin/
-
-      - name: Rename binary for consistency
-        run: mv editors/vscode/cytoscnpy/bin/cytoscnpy-cli-linux editors/vscode/cytoscnpy/bin/cytoscnpy-cli-linux-x64
 
       - name: Make binary executable
         run: chmod +x editors/vscode/cytoscnpy/bin/*
@@ -174,7 +171,7 @@ jobs:
       - name: Download Linux binary
         uses: actions/download-artifact@v4
         with:
-          name: cytoscnpy-cli-linux
+          name: cytoscnpy-cli-linux-x64
           path: editors/vscode/cytoscnpy/bin/
 
       - name: Download Windows binary

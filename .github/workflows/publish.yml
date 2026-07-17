@@ -361,7 +361,7 @@ jobs:
   build-vscode-extension:
     name: Build VS Code Extension
     runs-on: ubuntu-latest
-    needs: [] # Runs in parallel with other jobs
+    needs: build-vscode-cli-macos
     steps:
       - uses: actions/checkout@v4
 
@@ -404,10 +404,25 @@ jobs:
       - name: Create bin directory
         run: mkdir -p editors/vscode/cytoscnpy/bin
 
+      - name: Download macOS x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-macos-x64
+          path: vscode-macos-x64/
+
+      - name: Download macOS ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-macos-arm64
+          path: vscode-macos-arm64/
+
       - name: Copy binaries to extension
         run: |
           cp target/x86_64-unknown-linux-gnu/release/cytoscnpy-cli editors/vscode/cytoscnpy/bin/cytoscnpy-cli-linux-x64
           cp target/x86_64-pc-windows-gnu/release/cytoscnpy-cli.exe editors/vscode/cytoscnpy/bin/cytoscnpy-cli-win32.exe
+          cp vscode-macos-x64/cytoscnpy-cli editors/vscode/cytoscnpy/bin/cytoscnpy-cli-darwin
+          cp vscode-macos-arm64/cytoscnpy-cli editors/vscode/cytoscnpy/bin/cytoscnpy-cli-darwin-arm64
+          chmod +x editors/vscode/cytoscnpy/bin/*
 
       - name: Install extension dependencies
         working-directory: editors/vscode/cytoscnpy

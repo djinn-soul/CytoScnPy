@@ -80,13 +80,9 @@ pub fn run_mi_with_tests<W: Write>(
 
     let results: Vec<MiResult> = files
         .par_iter()
-        .map(|file_path| {
+        .filter_map(|file_path| {
             if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
-                return MiResult {
-                    file: String::new(),
-                    mi: 0.0,
-                    rank: 'F',
-                };
+                return None;
             }
             let code = fs::read_to_string(file_path).unwrap_or_default();
 
@@ -111,11 +107,11 @@ pub fn run_mi_with_tests<W: Write>(
             let mi = mi_compute(volume, complexity, raw.sloc, comments);
             let rank = mi_rank(mi);
 
-            MiResult {
+            Some(MiResult {
                 file: file_path.to_string_lossy().to_string(),
                 mi,
                 rank,
-            }
+            })
         })
         .collect();
 
@@ -132,19 +128,20 @@ pub fn run_mi_with_tests<W: Write>(
         write_output(&mut writer, &msg, options.output_file.clone())?;
     }
 
-    // Check failure threshold
-    if let Some(threshold) = options.fail_threshold {
-        let violations: Vec<&MiResult> = results.iter().filter(|r| r.mi < threshold).collect();
-        if !violations.is_empty() {
-            eprintln!(
-                "\n[Error] The following files have a Maintainability Index below {threshold}:"
-            );
-            for v in violations {
-                eprintln!("  {} - MI: {:.2}", v.file, v.mi);
-            }
-            std::process::exit(1);
-        }
-    }
+    let threshold_error = options.fail_threshold.and_then(|threshold| {
+        let violations: Vec<_> = results
+            .iter()
+            .filter(|result| result.mi < threshold)
+            .collect();
+        (!violations.is_empty()).then(|| {
+            let files = violations
+                .iter()
+                .map(|result| format!("{} ({:.2})", result.file, result.mi))
+                .collect::<Vec<_>>()
+                .join(", ");
+            anyhow::anyhow!("Maintainability Index below {threshold}: {files}")
+        })
+    });
 
     // Filter by rank using shared utility
     let results = filter_by_rank(results, options.min_rank, options.max_rank);
@@ -180,5 +177,5 @@ pub fn run_mi_with_tests<W: Write>(
         }
         write_output(&mut writer, &table.to_string(), options.output_file)?;
     }
-    Ok(())
+    threshold_error.map_or(Ok(()), Err)
 }

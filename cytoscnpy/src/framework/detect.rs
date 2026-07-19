@@ -15,11 +15,11 @@ pub fn detect_framework_usage(
     if !visitor.is_framework_file {
         return None;
     }
-    if simple_name.starts_with('_') && !simple_name.starts_with("__") {
-        return None;
-    }
     if visitor.framework_decorated_lines.contains(&line) {
         return Some(100);
+    }
+    if simple_name.starts_with('_') && !simple_name.starts_with("__") {
+        return None;
     }
     None
 }

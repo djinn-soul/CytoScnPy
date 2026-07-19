@@ -42,11 +42,11 @@ impl HalsteadVisitor {
 
         let vocabulary = n1 + n2;
         let length = n1_total + n2_total;
-        let calculated_length = if n1 > 0.0 && n2 > 0.0 {
-            n1 * n1.log2() + n2 * n2.log2()
-        } else {
-            0.0
-        };
+        let calculated_length = [n1, n2]
+            .into_iter()
+            .filter(|count| *count > 0.0)
+            .map(|count| count * count.log2())
+            .sum();
         let volume = if vocabulary > 0.0 {
             length * vocabulary.log2()
         } else {
@@ -62,10 +62,10 @@ impl HalsteadVisitor {
         let bugs = volume / 3000.0;
 
         HalsteadMetrics {
-            h1: self.total_operators,
-            h2: self.total_operands,
-            n1: self.operators.len(),
-            n2: self.operands.len(),
+            h1: self.operators.len(),
+            h2: self.operands.len(),
+            n1: self.total_operators,
+            n2: self.total_operands,
             vocabulary,
             length,
             calculated_length,

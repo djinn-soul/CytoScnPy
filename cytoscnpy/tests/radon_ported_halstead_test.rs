@@ -1,6 +1,6 @@
 //! Specific Radon ported Halstead tests.
 
-use cytoscnpy::halstead::analyze_halstead;
+use cytoscnpy::halstead::{analyze_halstead, analyze_halstead_functions};
 use ruff_python_parser::{parse, Mode};
 
 #[test]
@@ -61,4 +61,38 @@ b = +x
             }
         }
     }
+}
+
+#[test]
+fn match_and_elif_function_bodies_are_counted_once() -> Result<(), Box<dyn std::error::Error>> {
+    let code = r"
+def outer(value):
+    match value:
+        case 1:
+            return 1
+        case _ if value:
+            return 2
+    if value:
+        pass
+    else:
+        def nested():
+            return 3
+";
+    let parsed = parse(code, Mode::Module.into())?;
+    let module = parsed.into_syntax();
+    let metrics = analyze_halstead(&module);
+    let functions = analyze_halstead_functions(&module);
+
+    assert!(metrics.volume > 0.0);
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|(name, _)| name == "nested")
+            .count(),
+        1
+    );
+    assert!(functions
+        .iter()
+        .any(|(name, metrics)| name == "outer" && metrics.h1 > 0));
+    Ok(())
 }

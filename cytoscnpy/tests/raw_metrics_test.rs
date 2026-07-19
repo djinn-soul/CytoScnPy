@@ -53,18 +53,19 @@ def foo():
     // 4.     This is a docstring.
     // 5.     """
     // 6.     pass
-    // 7. (blank)
+    // A trailing newline does not create an additional source line.
 
-    // LOC: 7
-    // Blank: 2 (lines 1 and 7)
+    // LOC: 6
+    // Blank: 1 (line 1)
     // Multi: 3 (lines 3, 4, 5)
-    // SLOC: 5 (code + multiline string lines)
+    // SLOC: 2 (docstring lines excluded)
     // Comments: 0
 
-    assert_eq!(metrics.loc, 7);
-    assert_eq!(metrics.blank, 2);
+    assert_eq!(metrics.loc, 6);
+    assert_eq!(metrics.blank, 1);
     assert_eq!(metrics.multi, 3);
-    assert_eq!(metrics.sloc, 5);
+    assert_eq!(metrics.sloc, 2);
+    assert_eq!(metrics.lloc, 2);
 }
 
 #[test]
@@ -94,18 +95,31 @@ def main():
     // 10.    String
     // 11.    """
     // 12.    x = 1
-    // 13. (blank)
+    // A trailing newline does not create an additional source line.
 
-    // LOC: 13
-    // Blank: 4 (1, 3, 7, 13)
+    // LOC: 12
+    // Blank: 3 (1, 3, 7)
     // Comments: 1 (5)
-    // Multi: 4 (8, 9, 10, 11)
-    // SLOC: 8 (code lines + multiline string lines)
+    // Multi: 0 (this is a data string, not a docstring)
+    // SLOC: 8 (data-string lines are code)
 
     let metrics = analyze_raw(code);
-    assert_eq!(metrics.loc, 13);
-    assert_eq!(metrics.blank, 4);
+    assert_eq!(metrics.loc, 12);
+    assert_eq!(metrics.blank, 3);
     assert_eq!(metrics.comments, 1);
-    assert_eq!(metrics.multi, 4);
+    assert_eq!(metrics.multi, 0);
     assert_eq!(metrics.sloc, 8);
+    assert_eq!(metrics.lloc, 4);
+}
+
+#[test]
+fn test_inline_comments_and_trailing_newline() {
+    let metrics = analyze_raw("first = 1  # inline\nsecond = 2\n");
+
+    assert_eq!(metrics.loc, 2);
+    assert_eq!(metrics.blank, 0);
+    assert_eq!(metrics.comments, 1);
+    assert_eq!(metrics.single_comments, 0);
+    assert_eq!(metrics.sloc, 2);
+    assert_eq!(metrics.lloc, 2);
 }

@@ -24,6 +24,12 @@ fn test_mi_compute_zeros() {
 }
 
 #[test]
+fn test_module_complexity_includes_function_bodies() {
+    let code = "def branch(value):\n    if value:\n        return 1\n    return 0\n";
+    assert_eq!(calculate_module_complexity(code), Some(2));
+}
+
+#[test]
 fn test_mi_compute_minimal() {
     // Radon: ((0, 1, 2, 0), 100.0)
     // volume=0, complexity=1, sloc=2, comments=0

@@ -17,7 +17,7 @@ use cytoscnpy::rules::Finding;
 use cytoscnpy::taint::types::{Severity as TaintSeverity, TaintFinding, VulnType};
 use cytoscnpy::visitor::{Definition, DefinitionType};
 use smallvec::smallvec;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -250,10 +250,32 @@ fn test_gitlab_report_coverage() {
     gitlab::print_gitlab(&mut buffer, &result).unwrap();
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains(r#""description": "Dangerous function call (test.py:10)""#));
-    // Implementation uses: danger-{rule_id}-{normalized_path}-{index}
-    // Result has rule_id="CSP-D001", file="test.py", index=0 (first danger finding)
-    // "fingerprint": "danger-CSP-D001-test.py-0"
-    assert!(output.contains(r#""fingerprint": "danger-CSP-D001-test.py-0""#));
+    assert!(output.contains(r#""fingerprint": "danger-CSP-D001-test.py-10-5""#));
+    assert!(output.contains(r#""check_name": "CSP-D001""#));
+    assert!(output.contains(r#""description": "High complexity (test.py:5)""#));
+    assert!(output.contains(r#""fingerprint": "quality-CSP-Q001-test.py-5-0""#));
+    assert!(output.contains(r#""check_name": "CSP-Q001""#));
+    assert!(output.contains(r#""fingerprint": "taint-CSP-T001-test.py-12-15-10""#));
+    assert!(output.contains(r#""check_name": "CSP-T001""#));
+    assert!(output.contains(r#""fingerprint": "secret-CSP-S001-test.py-20""#));
+    assert!(output.contains(r#""check_name": "CSP-S001""#));
+    assert!(output.contains(r#""fingerprint": "parse-error-test.py-Syntax error at line 40""#));
+    assert!(output.contains(r#""check_name": "ParseError""#));
+
+    let mut reordered_result = create_mock_result();
+    let mut preceding_finding = reordered_result.danger[0].clone();
+    preceding_finding.rule_id = "CSP-D002".to_owned();
+    preceding_finding.line = 1;
+    reordered_result.danger.insert(0, preceding_finding);
+    let mut reordered_buffer = Vec::new();
+    gitlab::print_gitlab(&mut reordered_buffer, &reordered_result).unwrap();
+    let reordered_output = String::from_utf8(reordered_buffer).unwrap();
+    assert!(reordered_output.contains(r#""fingerprint": "danger-CSP-D001-test.py-10-5""#));
+
+    let mut root_buffer = Vec::new();
+    gitlab::print_gitlab_with_root(&mut root_buffer, &result, Some(Path::new("."))).unwrap();
+    let root_output = String::from_utf8(root_buffer).unwrap();
+    assert!(root_output.contains(r#""path": "test.py""#));
 }
 
 #[test]

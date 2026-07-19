@@ -1,16 +1,10 @@
+use super::cache::{PairSubtreeCache, PreparedSubtree};
 use super::{CloneDetectionResult, CloneDetector};
 use crate::clones::hasher;
-use crate::clones::normalizer::NormalizedTree;
 use crate::clones::parser;
 use crate::clones::{ClonePair, CloneSummary, CloneType, Normalizer, TreeSimilarity};
 use std::hash::Hasher;
 use std::path::PathBuf;
-
-struct PreparedSubtree {
-    subtree: parser::Subtree,
-    raw_tree: NormalizedTree,
-    id_tree: NormalizedTree,
-}
 
 pub(super) fn detect_from_paths(
     detector: &CloneDetector,
@@ -64,13 +58,12 @@ fn extract_fingerprints(
                 if !detector.should_process_path(path) {
                     return None;
                 }
-                let source = std::fs::read_to_string(path).ok()?;
-                let subtrees =
-                    parser::extract_subtrees_with_min_lines(&source, path, min_lines).ok()?;
-
                 if let Some(ref pb) = detector.progress_bar {
                     pb.inc(1);
                 }
+                let source = std::fs::read_to_string(path).ok()?;
+                let subtrees =
+                    parser::extract_subtrees_with_min_lines(&source, path, min_lines).ok()?;
 
                 Some(
                     subtrees
@@ -120,8 +113,7 @@ fn find_and_group_clones(
 ) -> CloneDetectionResult {
     let similarity_calc = TreeSimilarity::default();
     let mut pairs = Vec::new();
-    let mut subtree_cache: std::collections::HashMap<PathBuf, Vec<PreparedSubtree>> =
-        std::collections::HashMap::new();
+    let mut subtree_cache = PairSubtreeCache::default();
     let total_candidates = candidates.len();
 
     if let Some(ref pb) = detector.progress_bar {
@@ -139,23 +131,22 @@ fn find_and_group_clones(
     }
 
     for (idx, (i, j)) in candidates.into_iter().enumerate() {
+        if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
         if let Some(ref pb) = detector.progress_bar {
             if idx % 100 == 0 || idx == total_candidates.saturating_sub(1) {
-                pb.set_position(idx as u64);
+                pb.set_position((idx + 1) as u64);
             }
         }
 
         let fp_a = &fingerprints[i];
         let fp_b = &fingerprints[j];
-        ensure_subtrees_loaded(&mut subtree_cache, &fp_a.file, detector.config.min_lines);
-        ensure_subtrees_loaded(&mut subtree_cache, &fp_b.file, detector.config.min_lines);
+        subtree_cache.load(&fp_a.file, detector.config.min_lines);
+        subtree_cache.load(&fp_b.file, detector.config.min_lines);
 
-        let sub_a = subtree_cache
-            .get(&fp_a.file)
-            .and_then(|st| st.iter().find(|s| s.subtree.start_byte == fp_a.start_byte));
-        let sub_b = subtree_cache
-            .get(&fp_b.file)
-            .and_then(|st| st.iter().find(|s| s.subtree.start_byte == fp_b.start_byte));
+        let sub_a = subtree_cache.find(&fp_a.file, fp_a.start_byte);
+        let sub_b = subtree_cache.find(&fp_b.file, fp_b.start_byte);
 
         let (Some(sub_a), Some(sub_b)) = (sub_a, sub_b) else {
             continue;
@@ -172,11 +163,7 @@ fn find_and_group_clones(
 
     #[cfg(feature = "cfg")]
     if detector.config.cfg_validation {
-        let cfg_subtrees: Vec<parser::Subtree> = subtree_cache
-            .values()
-            .flat_map(|subtrees| subtrees.iter().map(|prepared| prepared.subtree.clone()))
-            .collect();
-        pairs = detector.validate_with_cfg(pairs, &cfg_subtrees);
+        pairs = detector.validate_with_cfg_from_paths(pairs, detector.config.min_lines);
     }
 
     let groups = CloneDetector::group_clones(&pairs);
@@ -186,32 +173,6 @@ fn find_and_group_clones(
         groups,
         summary,
     }
-}
-
-fn ensure_subtrees_loaded(
-    cache: &mut std::collections::HashMap<PathBuf, Vec<PreparedSubtree>>,
-    file: &PathBuf,
-    min_lines: usize,
-) {
-    if cache.contains_key(file) {
-        return;
-    }
-    let prepared = std::fs::read_to_string(file)
-        .ok()
-        .and_then(|source| parser::extract_subtrees_with_min_lines(&source, file, min_lines).ok())
-        .map_or_else(Vec::new, |subtrees| {
-            let raw_normalizer = Normalizer::for_clone_type(CloneType::Type1);
-            let id_normalizer = Normalizer::for_clone_type(CloneType::Type2);
-            subtrees
-                .into_iter()
-                .map(|subtree| PreparedSubtree {
-                    raw_tree: raw_normalizer.normalize(&subtree),
-                    id_tree: id_normalizer.normalize(&subtree),
-                    subtree,
-                })
-                .collect()
-        });
-    cache.insert(file.clone(), prepared);
 }
 
 fn build_pair(
@@ -242,23 +203,4 @@ fn build_pair(
         clone_type,
         edit_distance,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn failed_subtree_load_is_cached_as_empty() {
-        let file = std::env::temp_dir().join(format!(
-            "cytoscnpy-missing-clone-source-{}",
-            std::process::id()
-        ));
-        assert!(!file.exists());
-
-        let mut cache = std::collections::HashMap::new();
-        ensure_subtrees_loaded(&mut cache, &file, 1);
-
-        assert!(cache.get(&file).is_some_and(Vec::is_empty));
-    }
 }

@@ -14,7 +14,7 @@ pub fn get_framework_imports() -> &'static FxHashSet<&'static str> {
         imports.insert("celery");
         imports.insert("starlette");
         imports.insert("uvicorn");
-        imports.insert("azure.functions");
+        imports.insert("azure");
         imports.insert("azure_functions");
         imports
     })

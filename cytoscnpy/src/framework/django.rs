@@ -47,6 +47,14 @@ pub(super) fn check_django_call_patterns(visitor: &mut FrameworkAwareVisitor, ex
         let is_django_registration = (function_name == "register" && is_admin_register(&call.func))
             || (function_name == "connect" && is_signal_connect(&call.func));
 
+        if function_name == "add_url_rule" {
+            visitor.is_framework_file = true;
+            visitor.detected_frameworks.insert("flask".to_owned());
+            if let Some(view) = call.arguments.args.get(2) {
+                extract_view_reference(visitor, view);
+            }
+        }
+
         if is_django_registration {
             visitor.is_framework_file = true;
             visitor.detected_frameworks.insert("django".to_owned());

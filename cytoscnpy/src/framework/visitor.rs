@@ -42,7 +42,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 for alias in &node.names {
                     let name = alias.name.as_str();
                     for framework in get_framework_imports() {
-                        if name.contains(framework) {
+                        if name == *framework || name.starts_with(&format!("{framework}.")) {
                             self.is_framework_file = true;
                             self.detected_frameworks.insert((*framework).to_owned());
                         }
@@ -51,10 +51,13 @@ impl<'a> FrameworkAwareVisitor<'a> {
             }
             Stmt::ImportFrom(node) => {
                 if let Some(module) = &node.module {
-                    let module_name = module.split('.').next().unwrap_or("");
-                    if get_framework_imports().contains(module_name) {
+                    let module_name = module.as_str();
+                    if let Some(framework) = get_framework_imports().iter().find(|framework| {
+                        module_name == **framework
+                            || module_name.starts_with(&format!("{framework}."))
+                    }) {
                         self.is_framework_file = true;
-                        self.detected_frameworks.insert(module_name.to_owned());
+                        self.detected_frameworks.insert((*framework).to_owned());
                     }
                 }
             }
@@ -79,9 +82,10 @@ impl<'a> FrameworkAwareVisitor<'a> {
                     if let Some(id) = &id {
                         let id_lower = id.to_lowercase();
                         if self.is_framework_file
-                            && (id_lower.contains("view")
-                                || id_lower.contains("schema")
-                                || id == "Model")
+                            && matches!(
+                                id_lower.as_str(),
+                                "view" | "apiview" | "schema" | "basemodel" | "model"
+                            )
                         {
                             is_framework_class = true;
                             let line = self.line_index.line_index(node.name.range().start());
@@ -121,6 +125,13 @@ impl<'a> FrameworkAwareVisitor<'a> {
                             extract_urlpatterns_views(self, &node.value);
                         }
                     }
+                }
+            }
+            Stmt::AugAssign(node) => {
+                if matches!(&*node.target, Expr::Name(name) if name.id.as_str() == "urlpatterns") {
+                    self.is_framework_file = true;
+                    self.detected_frameworks.insert("django".to_owned());
+                    extract_urlpatterns_views(self, &node.value);
                 }
             }
             Stmt::Expr(node) => {

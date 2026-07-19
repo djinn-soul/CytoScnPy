@@ -13,7 +13,7 @@ pub(super) struct PreparedSubtree {
     pub(super) id_tree: NormalizedTree,
 }
 
-/// Bounded FIFO cache for parsed and normalized candidate files.
+/// Bounded LRU cache for parsed and normalized candidate files.
 #[derive(Default)]
 pub(super) struct PairSubtreeCache {
     entries: HashMap<PathBuf, Vec<PreparedSubtree>>,
@@ -23,6 +23,10 @@ pub(super) struct PairSubtreeCache {
 impl PairSubtreeCache {
     pub(super) fn load(&mut self, file: &PathBuf, min_lines: usize) {
         if self.entries.contains_key(file) {
+            if let Some(position) = self.insertion_order.iter().position(|path| path == file) {
+                let _ = self.insertion_order.remove(position);
+                self.insertion_order.push_back(file.clone());
+            }
             return;
         }
         if self.entries.len() == MAX_PAIR_CACHE_FILES {
@@ -46,6 +50,11 @@ impl PairSubtreeCache {
     #[cfg(test)]
     pub(super) fn len(&self) -> usize {
         self.entries.len()
+    }
+
+    #[cfg(test)]
+    fn contains(&self, file: &PathBuf) -> bool {
+        self.entries.contains_key(file)
     }
 }
 
@@ -93,5 +102,23 @@ mod tests {
         }
         assert_eq!(cache.len(), MAX_PAIR_CACHE_FILES);
         assert!(cache.find(&PathBuf::from("missing-0.py"), 0).is_none());
+    }
+
+    #[test]
+    fn cache_hit_keeps_active_file_resident() {
+        let mut cache = PairSubtreeCache::default();
+        for index in 0..MAX_PAIR_CACHE_FILES {
+            cache.load(&PathBuf::from(format!("missing-{index}.py")), 1);
+        }
+
+        let active = PathBuf::from("missing-0.py");
+        cache.load(&active, 1);
+        cache.load(
+            &PathBuf::from(format!("missing-{MAX_PAIR_CACHE_FILES}.py")),
+            1,
+        );
+
+        assert!(cache.contains(&active));
+        assert!(!cache.contains(&PathBuf::from("missing-1.py")));
     }
 }

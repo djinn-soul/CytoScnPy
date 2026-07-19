@@ -8,6 +8,8 @@ pub struct CytoScnPyVisitor<'a> {
     pub references: FxHashMap<String, usize>,
     /// Names explicitly exported via `__all__`.
     pub exports: Vec<String>,
+    /// Whether this module declares `__all__`, including an explicitly empty list.
+    pub exports_declared: bool,
     /// Dynamic imports detected.
     pub dynamic_imports: Vec<String>,
     /// Project type controls public API export assumptions.

@@ -3,6 +3,7 @@
 mod classify;
 mod reachability;
 mod sorting;
+mod star_imports;
 mod state;
 mod taint;
 
@@ -37,6 +38,7 @@ impl CytoScnPy {
         state.apply_export_reference_increments();
         state.apply_star_import_bindings();
         state.apply_import_binding_reference_increments();
+        state.apply_test_referenced_init_reexports(self.include_tests);
         state.apply_prod_import_binding_reference_increments();
         let total_definitions = state.all_defs.len();
         let functions_count = state

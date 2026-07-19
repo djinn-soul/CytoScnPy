@@ -257,7 +257,9 @@ fn test_gitlab_report_coverage() {
     assert!(output.contains(r#""check_name": "CSP-Q001""#));
     assert!(output.contains(r#""fingerprint": "taint-CSP-T001-test.py-12-15-10""#));
     assert!(output.contains(r#""check_name": "CSP-T001""#));
-    assert!(output.contains(r#""fingerprint": "secret-CSP-S001-test.py-20""#));
+    assert!(
+        output.contains(r#""fingerprint": "secret-CSP-S001-test.py-20-100-Hardcoded password-"#)
+    );
     assert!(output.contains(r#""check_name": "CSP-S001""#));
     assert!(output.contains(r#""fingerprint": "parse-error-test.py-Syntax error at line 40""#));
     assert!(output.contains(r#""check_name": "ParseError""#));

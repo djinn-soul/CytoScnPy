@@ -163,7 +163,11 @@ fn find_and_group_clones(
 
     #[cfg(feature = "cfg")]
     if detector.config.cfg_validation {
-        pairs = detector.validate_with_cfg_from_paths(pairs, detector.config.min_lines);
+        pairs = detector.validate_with_cfg_from_paths(
+            pairs,
+            &mut subtree_cache,
+            detector.config.min_lines,
+        );
     }
 
     let groups = CloneDetector::group_clones(&pairs);

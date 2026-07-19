@@ -119,6 +119,8 @@ pub struct FileAnalysisResult {
     pub(crate) pytest_plugins: Vec<PytestPluginDeclaration>,
     /// Names explicitly listed in this file's `__all__` (unqualified).
     pub(crate) exports: Vec<String>,
+    /// Whether this file declares `__all__`, even if the declared list is empty.
+    pub(crate) exports_declared: bool,
     /// Dotted module name for this file (e.g. `"pkg.sub.module"`).
     pub(crate) module_name: String,
     /// Resolved source module names for each `from x import *` in this file.
@@ -151,6 +153,7 @@ impl FileAnalysisResult {
             fixture_imports: Vec::new(),
             pytest_plugins: Vec::new(),
             exports: Vec::new(),
+            exports_declared: false,
             module_name: String::new(),
             star_imports: Vec::new(),
         }

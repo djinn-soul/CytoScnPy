@@ -81,8 +81,6 @@ impl CytoScnPyVisitor<'_> {
                 self.alias_map.insert(asname.to_string(), full_name.clone());
                 self.import_bindings
                     .insert(self.get_qualified_name(asname.as_str()), full_name.clone());
-                // Importing a symbol is itself a static dependency on that source symbol.
-                self.add_ref(&full_name);
             } else {
                 self.alias_map
                     .insert(asname.to_string(), alias.name.to_string());

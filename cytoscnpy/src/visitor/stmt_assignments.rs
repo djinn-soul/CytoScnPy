@@ -3,6 +3,7 @@ use super::{ast, CytoScnPyVisitor, DefinitionInfo, DefinitionType, Expr, SmallVe
 impl CytoScnPyVisitor<'_> {
     pub(super) fn handle_assign_stmt(&mut self, node: &ast::StmtAssign) {
         if node.targets.iter().any(Self::is_all_name_expr) {
+            self.exports_declared = true;
             if Self::is_all_present_in_expr(&node.value) {
                 self.extend_exports_from_expr(&node.value);
             } else {
@@ -87,6 +88,7 @@ impl CytoScnPyVisitor<'_> {
 
     pub(super) fn handle_aug_assign_stmt(&mut self, node: &ast::StmtAugAssign) {
         if Self::is_all_name_expr(&node.target) {
+            self.exports_declared = true;
             self.extend_exports_from_expr(&node.value);
         }
         self.visit_expr(&node.target);

@@ -50,11 +50,7 @@ pub fn generate_clone_findings_with_thresholds(
         .flat_map(|pair| {
             let calc_conf = |inst: &crate::clones::CloneInstance| {
                 let ctx = FixContext {
-                    is_test_file: crate::utils::is_test_path(
-                        &pair.instance_a.file.to_string_lossy(),
-                    ) || crate::utils::is_test_path(
-                        &pair.instance_b.file.to_string_lossy(),
-                    ),
+                    is_test_file: crate::utils::is_test_path(&inst.file.to_string_lossy()),
                     same_file: pair.is_same_file(),
                     ..FixContext::default()
                 };
@@ -103,9 +99,14 @@ pub fn generate_clone_findings_with_thresholds(
         ));
     }
 
-    let mut best_by_location: HashMap<(String, usize), CloneFinding> = HashMap::new();
+    let mut best_by_location: HashMap<(String, usize, usize, usize), CloneFinding> = HashMap::new();
     for finding in findings {
-        let key = (finding.file.display().to_string(), finding.line);
+        let key = (
+            finding.file.display().to_string(),
+            finding.line,
+            finding.start_byte,
+            finding.end_byte,
+        );
         match best_by_location.entry(key) {
             std::collections::hash_map::Entry::Vacant(e) => {
                 e.insert(finding);
@@ -140,8 +141,73 @@ pub fn generate_clone_findings_with_thresholds(
         left.file
             .cmp(&right.file)
             .then_with(|| left.line.cmp(&right.line))
+            .then_with(|| left.start_byte.cmp(&right.start_byte))
+            .then_with(|| left.end_byte.cmp(&right.end_byte))
             .then_with(|| left.related_clone.file.cmp(&right.related_clone.file))
             .then_with(|| left.related_clone.line.cmp(&right.related_clone.line))
     });
     findings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clones::{CloneInstance, CloneType, NodeKind};
+
+    fn instance(file: &str, start_line: usize, start_byte: usize) -> CloneInstance {
+        CloneInstance {
+            file: PathBuf::from(file),
+            start_line,
+            end_line: start_line + 4,
+            start_byte,
+            end_byte: start_byte + 20,
+            normalized_hash: 0,
+            name: None,
+            node_kind: NodeKind::Function,
+        }
+    }
+
+    #[test]
+    fn test_file_penalty_is_scored_per_instance() {
+        let pair = ClonePair {
+            instance_a: instance("src/module.py", 1, 0),
+            instance_b: instance("tests/test_module.py", 1, 30),
+            similarity: 0.85,
+            clone_type: CloneType::Type3,
+            edit_distance: 5,
+        };
+        let findings = generate_clone_findings_with_thresholds(&[pair], &[], false, 90, 40);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].file, PathBuf::from("src/module.py"));
+    }
+
+    #[test]
+    fn preserves_distinct_blocks_on_the_same_line() {
+        let pairs = [
+            ClonePair {
+                instance_a: instance("src/module.py", 1, 0),
+                instance_b: instance("src/other.py", 10, 30),
+                similarity: 1.0,
+                clone_type: CloneType::Type1,
+                edit_distance: 0,
+            },
+            ClonePair {
+                instance_a: instance("src/module.py", 1, 40),
+                instance_b: instance("src/third.py", 20, 70),
+                similarity: 1.0,
+                clone_type: CloneType::Type1,
+                edit_distance: 0,
+            },
+        ];
+        let findings = generate_clone_findings(&pairs, &[], false);
+
+        assert_eq!(
+            findings
+                .iter()
+                .filter(|f| f.file == std::path::Path::new("src/module.py"))
+                .count(),
+            2
+        );
+    }
 }

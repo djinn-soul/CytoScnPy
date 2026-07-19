@@ -11,10 +11,10 @@ fn detects_pair(left: &str, right: &str) -> bool {
     let config = CloneConfig::default()
         .with_min_similarity(1.0)
         .with_tests(true);
-    !CloneDetector::with_config(config)
-        .detect(&files)
-        .pairs
-        .is_empty()
+    let Ok(detector) = CloneDetector::with_config(config) else {
+        return false;
+    };
+    !detector.detect(&files).pairs.is_empty()
 }
 
 #[test]

@@ -12,6 +12,9 @@ impl BlockComplexityVisitor {
         if self.visit_context_stmt(stmt) {
             return;
         }
+        if self.visit_definition_stmt(stmt) {
+            return;
+        }
         if self.visit_assignment_stmt(stmt) {
             return;
         }
@@ -106,6 +109,15 @@ impl BlockComplexityVisitor {
             }
         }
         self.visit_body(&node.body);
+        true
+    }
+
+    fn visit_definition_stmt(&mut self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::FunctionDef(node) => self.visit_body(&node.body),
+            Stmt::ClassDef(node) => self.visit_body(&node.body),
+            _ => return false,
+        }
         true
     }
 

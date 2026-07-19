@@ -32,9 +32,8 @@ impl FunctionHalsteadVisitor {
 
     fn visit_function_def(&mut self, node: &ast::StmtFunctionDef) {
         let mut visitor = HalsteadVisitor::new();
-        if node.is_async {
-            visitor.add_operator("async def");
-        }
+        visitor.add_operator(if node.is_async { "async def" } else { "def" });
+        visitor.add_operand(&node.name);
         for stmt in &node.body {
             visitor.visit_stmt(stmt);
         }
@@ -57,6 +56,11 @@ impl FunctionHalsteadVisitor {
             Stmt::For(node) => self.visit_loop_parts(&node.body, &node.orelse),
             Stmt::While(node) => self.visit_loop_parts(&node.body, &node.orelse),
             Stmt::With(node) => self.visit_body(&node.body),
+            Stmt::Match(node) => {
+                for case in &node.cases {
+                    self.visit_body(&case.body);
+                }
+            }
             Stmt::Try(node) => self.visit_try_stmt(node),
             _ => {}
         }
@@ -65,7 +69,6 @@ impl FunctionHalsteadVisitor {
     fn visit_if_stmt(&mut self, node: &ast::StmtIf) {
         self.visit_body(&node.body);
         for clause in &node.elif_else_clauses {
-            self.visit_stmt(&clause.body[0]);
             self.visit_body(&clause.body);
         }
     }

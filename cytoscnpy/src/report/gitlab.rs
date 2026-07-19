@@ -26,6 +26,7 @@ pub fn print_gitlab_with_root(
     let mut issues = Vec::new();
 
     add_danger_issues(&mut issues, result, root);
+    add_quality_issues(&mut issues, result, root);
     add_taint_issues(&mut issues, result, root);
     add_secrets_issues(&mut issues, result, root);
     add_unused_code_issues(&mut issues, result, root);
@@ -40,9 +41,12 @@ fn add_danger_issues(
     result: &AnalysisResult,
     root: Option<&std::path::Path>,
 ) {
-    for (i, finding) in result.danger.iter().enumerate() {
+    for finding in &result.danger {
         let normalized_path = normalize_path(&finding.file, root);
-        let fingerprint = format!("danger-{}-{}-{}", finding.rule_id, normalized_path, i);
+        let fingerprint = format!(
+            "danger-{}-{}-{}-{}",
+            finding.rule_id, normalized_path, finding.line, finding.col
+        );
         let severity = match finding.severity.as_str() {
             "CRITICAL" | "HIGH" => "critical",
             "MEDIUM" => "major",
@@ -54,6 +58,34 @@ fn add_danger_issues(
             &normalized_path,
             finding.line,
             severity,
+            &finding.rule_id,
+        ));
+    }
+}
+
+fn add_quality_issues(
+    issues: &mut Vec<serde_json::Value>,
+    result: &AnalysisResult,
+    root: Option<&std::path::Path>,
+) {
+    for finding in &result.quality {
+        let normalized_path = normalize_path(&finding.file, root);
+        let fingerprint = format!(
+            "quality-{}-{}-{}-{}",
+            finding.rule_id, normalized_path, finding.line, finding.col
+        );
+        let severity = match finding.severity.as_str() {
+            "CRITICAL" | "HIGH" => "critical",
+            "MEDIUM" => "major",
+            _ => "minor",
+        };
+        issues.push(make_gitlab_issue(
+            &finding.message,
+            &fingerprint,
+            &normalized_path,
+            finding.line,
+            severity,
+            &finding.rule_id,
         ));
     }
 }
@@ -63,9 +95,16 @@ fn add_taint_issues(
     result: &AnalysisResult,
     root: Option<&std::path::Path>,
 ) {
-    for (i, finding) in result.taint_findings.iter().enumerate() {
+    for finding in &result.taint_findings {
         let normalized_path = normalize_path(&finding.file, root);
-        let fingerprint = format!("taint-{}-{}-{}", finding.rule_id, normalized_path, i);
+        let fingerprint = format!(
+            "taint-{}-{}-{}-{}-{}",
+            finding.rule_id,
+            normalized_path,
+            finding.source_line,
+            finding.sink_line,
+            finding.sink_col
+        );
         let severity = match finding.severity.to_string().as_str() {
             "CRITICAL" | "HIGH" => "critical",
             "MEDIUM" => "major",
@@ -77,6 +116,7 @@ fn add_taint_issues(
             &normalized_path,
             finding.sink_line,
             severity,
+            &finding.rule_id,
         ));
     }
 }
@@ -86,15 +126,19 @@ fn add_secrets_issues(
     result: &AnalysisResult,
     root: Option<&std::path::Path>,
 ) {
-    for (i, secret) in result.secrets.iter().enumerate() {
+    for secret in &result.secrets {
         let normalized_path = normalize_path(&secret.file, root);
-        let fingerprint = format!("secret-{}-{}-{}", secret.rule_id, normalized_path, i);
+        let fingerprint = format!(
+            "secret-{}-{}-{}",
+            secret.rule_id, normalized_path, secret.line
+        );
         issues.push(make_gitlab_issue(
             &secret.message,
             &fingerprint,
             &normalized_path,
             secret.line,
             "critical",
+            &secret.rule_id,
         ));
     }
 }
@@ -115,6 +159,7 @@ fn add_unused_code_issues(
             &normalized_path,
             func.line,
             "minor",
+            "UnusedFunction",
         ));
     }
     for cls in &result.unused_classes {
@@ -125,6 +170,7 @@ fn add_unused_code_issues(
             &normalized_path,
             cls.line,
             "minor",
+            "UnusedClass",
         ));
     }
     for imp in &result.unused_imports {
@@ -138,6 +184,7 @@ fn add_unused_code_issues(
             &normalized_path,
             imp.line,
             "info",
+            "UnusedImport",
         ));
     }
     for var in &result.unused_variables {
@@ -148,6 +195,7 @@ fn add_unused_code_issues(
             &normalized_path,
             var.line,
             "info",
+            "UnusedVariable",
         ));
     }
     for method in &result.unused_methods {
@@ -161,6 +209,7 @@ fn add_unused_code_issues(
             &normalized_path,
             method.line,
             "minor",
+            "UnusedMethod",
         ));
     }
     for param in &result.unused_parameters {
@@ -174,6 +223,7 @@ fn add_unused_code_issues(
             &normalized_path,
             param.line,
             "info",
+            "UnusedParameter",
         ));
     }
 }
@@ -183,25 +233,31 @@ fn add_parse_error_issues(
     result: &AnalysisResult,
     root: Option<&std::path::Path>,
 ) {
-    for (i, error) in result.parse_errors.iter().enumerate() {
+    for error in &result.parse_errors {
         let normalized_path = normalize_path(&error.file, root);
         issues.push(make_gitlab_issue(
             &format!("Parse Error: {}", error.error),
-            &format!("parse-error-{i}"),
+            &format!("parse-error-{}-{}", normalized_path, error.error),
             &normalized_path,
             1,
             "critical",
+            "ParseError",
         ));
     }
 }
 
 fn normalize_path(path: &std::path::Path, root: Option<&std::path::Path>) -> String {
     let normalized = if let Some(r) = root {
-        path.strip_prefix(r).unwrap_or(path)
+        if r.as_os_str() == "." || r.as_os_str().is_empty() {
+            path
+        } else {
+            path.strip_prefix(r).unwrap_or(path)
+        }
     } else {
         path
     };
-    normalized.to_string_lossy().replace('\\', "/")
+    let path = normalized.to_string_lossy().replace('\\', "/");
+    path.strip_prefix("./").unwrap_or(&path).to_owned()
 }
 
 fn make_gitlab_issue(
@@ -210,6 +266,7 @@ fn make_gitlab_issue(
     file: &str,
     line: usize,
     severity: &str,
+    check_name: &str,
 ) -> serde_json::Value {
     json!({
         "description": format!("{} ({}:{})", description, file, line),
@@ -221,6 +278,6 @@ fn make_gitlab_issue(
             }
         },
         "severity": severity,
-        "check_name": fingerprint.split('-').nth(1).unwrap_or("unknown")
+        "check_name": check_name
     })
 }

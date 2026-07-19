@@ -3,13 +3,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 /// Metrics calculated using Halstead's Complexity Measures.
 pub struct HalsteadMetrics {
-    /// N1: Total number of operators.
+    /// h1: Number of distinct operators.
     pub h1: usize,
-    /// N2: Total number of operands.
+    /// h2: Number of distinct operands.
     pub h2: usize,
-    /// n1: Number of distinct operators.
+    /// N1: Total number of operators.
     pub n1: usize,
-    /// n2: Number of distinct operands.
+    /// N2: Total number of operands.
     pub n2: usize,
     /// Halstead Program Vocabulary (n1 + n2).
     pub vocabulary: f64,

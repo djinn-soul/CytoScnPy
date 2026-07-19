@@ -68,3 +68,17 @@ pub static FRAMEWORK_FUNCTIONS: &[&str] = &[
     "form_invalid",
     "*_queryset",
 ];
+
+/// Exact framework base-class names whose methods are invoked by framework dispatch.
+pub(super) static FRAMEWORK_BASE_CLASSES: &[&str] = &[
+    "view",
+    "apiview",
+    "genericapiview",
+    "viewset",
+    "genericviewset",
+    "modelviewset",
+    "readonlymodelviewset",
+    "schema",
+    "basemodel",
+    "model",
+];

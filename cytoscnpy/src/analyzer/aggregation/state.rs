@@ -106,6 +106,7 @@ impl AggregationState {
             fixture_imports,
             pytest_plugins,
             exports,
+            exports_declared,
             module_name,
             star_imports,
         } = result;
@@ -170,7 +171,7 @@ impl AggregationState {
         self.all_fixture_imports.extend(fixture_imports);
         self.all_pytest_plugins.extend(pytest_plugins);
 
-        if !exports.is_empty() && !module_name.is_empty() {
+        if exports_declared && !module_name.is_empty() {
             self.all_module_exports.push((module_name.clone(), exports));
         }
         if !module_name.is_empty() {
@@ -215,42 +216,36 @@ impl AggregationState {
         propagate_import_bindings(&mut self.ref_counts, &self.all_import_bindings);
     }
 
+    /// Preserves a source symbol referenced by tests when a package `__init__.py`
+    /// publicly re-exports it. Unused re-export chains are deliberately not seeded.
+    pub(super) fn apply_test_referenced_init_reexports(&mut self, include_tests: bool) {
+        if !include_tests {
+            return;
+        }
+
+        for definition in &self.all_defs {
+            if definition.def_type != crate::visitor::DefinitionType::Import
+                || !definition.in_init
+                || definition.simple_name.starts_with('_')
+            {
+                continue;
+            }
+            let Some(source) = self.all_import_bindings.get(&definition.full_name) else {
+                continue;
+            };
+            if self.ref_counts.get(source).is_some_and(|count| *count > 0) {
+                self.prod_ref_counts
+                    .entry(source.clone())
+                    .and_modify(|count| *count = (*count).max(1))
+                    .or_insert(1);
+            }
+        }
+    }
+
     /// Same as `apply_import_binding_reference_increments` but operates on `prod_ref_counts`.
     /// Must run after `apply_star_import_bindings` and `apply_export_reference_increments`.
     pub(super) fn apply_prod_import_binding_reference_increments(&mut self) {
         propagate_import_bindings(&mut self.prod_ref_counts, &self.all_import_bindings);
-    }
-
-    /// Resolves `from x import *` cross-file.
-    ///
-    /// For each recorded star-import `(importer_module, source_module)`, looks up the
-    /// source module's `__all__` exports (collected during file analysis)
-    /// and synthesises explicit import bindings:
-    ///   `importer_module.Name  →  source_module.Name`
-    ///
-    /// This must run **before** `apply_import_binding_reference_increments` so the new bindings feed
-    /// into the worklist.
-    ///
-    pub(super) fn apply_star_import_bindings(&mut self) {
-        // Build a fast lookup: source_module → [exported_names]
-        let mut export_map: FxHashMap<&str, &[String]> = FxHashMap::default();
-        for (module, names) in &self.all_module_exports {
-            export_map.insert(module.as_str(), names.as_slice());
-        }
-
-        for (importer, source) in &self.all_star_imports {
-            let Some(names) = export_map.get(source.as_str()) else {
-                continue;
-            };
-            for name in *names {
-                let local_key = format!("{importer}.{name}");
-                let source_val = format!("{source}.{name}");
-                // Synthesise binding: importer.Name → source.Name
-                self.all_import_bindings
-                    .entry(local_key)
-                    .or_insert(source_val);
-            }
-        }
     }
 
     /// For every symbol listed in any module's `__all__`, ensures its qualified name

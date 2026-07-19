@@ -26,6 +26,7 @@ impl<'a> CytoScnPyVisitor<'a> {
             definitions: Vec::new(),
             references: FxHashMap::default(),
             exports: Vec::new(),
+            exports_declared: false,
             dynamic_imports: Vec::new(),
             project_type,
             file_path,

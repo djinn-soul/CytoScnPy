@@ -32,12 +32,14 @@ fn test_real_data_scenarios() {
         "hidden_gem should be used"
     );
 
-    // 2. Check User.save (method) should be used via processor.py hasattr()
+    // 2. Calls inside an unreachable function must not keep methods alive.
+    // Cross-file dynamic dispatch from a reachable caller is covered separately
+    // by `complex_dynamic_test::test_hasattr_cross_file`.
     println!("Unused functions: {unused_funcs:?}");
     println!("Unused methods: {unused_methods:?}");
     assert!(
-        !unused_methods.contains(&"save".to_owned()),
-        "User.save should be used"
+        unused_methods.contains(&"save".to_owned()),
+        "User.save should be unused when its only caller is unreachable"
     );
     assert!(
         unused_methods.contains(&"delete".to_owned()),

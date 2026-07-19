@@ -3,6 +3,7 @@ use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
 use rustc_hash::FxHashSet;
 
+use super::constants::FRAMEWORK_BASE_CLASSES;
 use super::decorators::check_decorators;
 use super::django::{check_django_call_patterns, extract_urlpatterns_views};
 use super::fastapi::extract_fastapi_depends;
@@ -20,6 +21,8 @@ pub struct FrameworkAwareVisitor<'a> {
     pub line_index: &'a LineIndex,
     /// Symbol names referenced implicitly by framework conventions.
     pub framework_references: Vec<String>,
+    /// Symbols imported from sibling package modules, used for blueprint provenance.
+    pub(super) relative_imported_symbols: FxHashSet<String>,
 }
 
 impl<'a> FrameworkAwareVisitor<'a> {
@@ -32,6 +35,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
             framework_decorated_lines: FxHashSet::default(),
             line_index,
             framework_references: Vec::new(),
+            relative_imported_symbols: FxHashSet::default(),
         }
     }
 
@@ -50,6 +54,15 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 }
             }
             Stmt::ImportFrom(node) => {
+                if node.level > 0 {
+                    for alias in &node.names {
+                        let local_name = alias.asname.as_ref().unwrap_or(&alias.name);
+                        if local_name.as_str() != "*" {
+                            self.relative_imported_symbols
+                                .insert(local_name.to_string());
+                        }
+                    }
+                }
                 if let Some(module) = &node.module {
                     let module_name = module.as_str();
                     if let Some(framework) = get_framework_imports().iter().find(|framework| {
@@ -82,10 +95,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                     if let Some(id) = &id {
                         let id_lower = id.to_lowercase();
                         if self.is_framework_file
-                            && matches!(
-                                id_lower.as_str(),
-                                "view" | "apiview" | "schema" | "basemodel" | "model"
-                            )
+                            && FRAMEWORK_BASE_CLASSES.contains(&id_lower.as_str())
                         {
                             is_framework_class = true;
                             let line = self.line_index.line_index(node.name.range().start());

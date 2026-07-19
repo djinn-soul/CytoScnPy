@@ -39,6 +39,7 @@ impl CloneDetector {
     pub(super) fn validate_with_cfg_from_paths(
         &self,
         pairs: Vec<ClonePair>,
+        cache: &mut super::cache::PairSubtreeCache,
         min_lines: usize,
     ) -> Vec<ClonePair> {
         let threshold = self.config.cfg_similarity_threshold;
@@ -46,14 +47,18 @@ impl CloneDetector {
         pairs
             .into_iter()
             .filter(|pair| {
-                let Some(subtree_a) = load_subtree(&pair.instance_a, min_lines) else {
+                cache.load(&pair.instance_a.file, min_lines);
+                cache.load(&pair.instance_b.file, min_lines);
+                let Some(subtree_a) = cache.find(&pair.instance_a.file, pair.instance_a.start_byte)
+                else {
                     return false;
                 };
-                let Some(subtree_b) = load_subtree(&pair.instance_b, min_lines) else {
+                let Some(subtree_b) = cache.find(&pair.instance_b.file, pair.instance_b.start_byte)
+                else {
                     return false;
                 };
 
-                cfg_subtrees_match(&subtree_a, &subtree_b, threshold)
+                cfg_subtrees_match(&subtree_a.subtree, &subtree_b.subtree, threshold)
             })
             .collect()
     }
@@ -103,21 +108,10 @@ fn cfg_subtrees_match(
     matches!((cfg_a, cfg_b), (Some(a), Some(b)) if a.similarity_score(&b) >= threshold)
 }
 
-#[cfg(feature = "cfg")]
-fn load_subtree(
-    instance: &crate::clones::CloneInstance,
-    min_lines: usize,
-) -> Option<parser::Subtree> {
-    let source = std::fs::read_to_string(&instance.file).ok()?;
-    parser::extract_subtrees_with_min_lines(&source, &instance.file, min_lines)
-        .ok()?
-        .into_iter()
-        .find(|subtree| subtree.start_byte == instance.start_byte)
-}
-
 #[cfg(all(test, feature = "cfg"))]
 mod tests {
     use super::{dedent_definition, CloneDetector};
+    use crate::clones::detector::cache::PairSubtreeCache;
     use crate::clones::{CloneConfig, CloneInstance, ClonePair, CloneType, NodeKind};
     use std::path::PathBuf;
 
@@ -151,8 +145,9 @@ mod tests {
         };
         let detector = CloneDetector::with_config(CloneConfig::default().with_cfg_validation(true))
             .expect("valid clone config");
+        let mut cache = PairSubtreeCache::default();
         assert!(detector
-            .validate_with_cfg_from_paths(vec![pair], 1)
+            .validate_with_cfg_from_paths(vec![pair], &mut cache, 1)
             .is_empty());
     }
 }

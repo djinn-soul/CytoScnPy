@@ -1,6 +1,6 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 128
+assertion_line: 131
 expression: output
 ---
 {
@@ -27,10 +27,10 @@ expression: output
     "parse_errors_count": 0,
     "quality_count": 0,
     "raw_metrics": {
-      "blank": 6,
+      "blank": 5,
       "comments": 0,
       "lloc": 9,
-      "loc": 15,
+      "loc": 14,
       "multi": 0,
       "single_comments": 0,
       "sloc": 9
@@ -50,7 +50,7 @@ expression: output
     {
       "complexity": 2.0,
       "file": "[FILE]",
-      "loc": 15,
+      "loc": 14,
       "mi": 100.0,
       "sloc": 9,
       "total_issues": 4

@@ -26,7 +26,7 @@ fn test_clone_detector_with_custom_config() {
     let config = CloneConfig::default()
         .with_min_similarity(0.95)
         .with_auto_fix_threshold(99);
-    let detector = CloneDetector::with_config(config);
+    let detector = CloneDetector::with_config(config).expect("valid clone config");
     let result = detector.detect(&[]);
     assert_eq!(result.pairs.len(), 0);
 }
@@ -63,7 +63,8 @@ def duplicate(x):
         (PathBuf::from("tests/test_one.py"), source.to_string()),
         (PathBuf::from("tests/test_two.py"), source.to_string()),
     ];
-    let detector = CloneDetector::with_config(CloneConfig::default().with_tests(true));
+    let detector = CloneDetector::with_config(CloneConfig::default().with_tests(true))
+        .expect("valid clone config");
 
     let result = detector.detect(&files);
 
@@ -259,7 +260,8 @@ def handle_request_v2(req):
         (PathBuf::from("v2.py"), source_b.to_string()),
     ];
 
-    let detector = CloneDetector::with_config(CloneConfig::default().with_min_similarity(0.5)); // Lower to 0.5 for debug
+    let detector = CloneDetector::with_config(CloneConfig::default().with_min_similarity(0.5))
+        .expect("valid clone config"); // Lower to 0.5 for debug
     let result = detector.detect(&files);
 
     // Diagnostic: check extract_subtrees directly

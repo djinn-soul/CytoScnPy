@@ -460,6 +460,10 @@ fn test_init_default() {
 fn test_multiple_decorators() {
     // Test handling multiple decorators on a single function
     let source = r#"
+from flask import Flask
+from flask_login import login_required
+app = Flask(__name__)
+
 @app.route('/users')
 @login_required
 @cache.cached(timeout=60)
@@ -481,6 +485,11 @@ def get_users():
 fn test_complex_decorator_patterns() {
     // Test complex route patterns with URL parameters and methods
     let source = r#"
+from flask import Flask
+from fastapi import APIRouter
+app = Flask(__name__)
+router = APIRouter()
+
 @app.route('/api/v1/users/<int:user_id>', methods=['GET', 'POST'])
 def user_endpoint(user_id):
     return {}

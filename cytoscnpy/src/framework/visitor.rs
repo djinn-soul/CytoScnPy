@@ -39,8 +39,12 @@ impl<'a> FrameworkAwareVisitor<'a> {
         }
     }
 
-    /// Visits a statement and updates framework detection state.
+    /// Visits a top-level module statement and updates framework detection state.
     pub fn visit_stmt(&mut self, stmt: &Stmt) {
+        self.visit_stmt_inner(stmt, true);
+    }
+
+    fn visit_stmt_inner(&mut self, stmt: &Stmt, is_module_scope: bool) {
         match stmt {
             Stmt::Import(node) => {
                 for alias in &node.names {
@@ -54,7 +58,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 }
             }
             Stmt::ImportFrom(node) => {
-                if node.level > 0 {
+                if is_module_scope && node.level > 0 {
                     for alias in &node.names {
                         let local_name = alias.asname.as_ref().unwrap_or(&alias.name);
                         if local_name.as_str() != "*" {
@@ -79,7 +83,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                 check_decorators(self, &node.decorator_list, line);
                 extract_fastapi_depends(self, &node.parameters);
                 for nested in &node.body {
-                    self.visit_stmt(nested);
+                    self.visit_stmt_inner(nested, false);
                 }
             }
             Stmt::ClassDef(node) => {
@@ -123,7 +127,7 @@ impl<'a> FrameworkAwareVisitor<'a> {
                             }
                         }
                     }
-                    self.visit_stmt(nested);
+                    self.visit_stmt_inner(nested, false);
                 }
             }
             Stmt::Assign(node) => {

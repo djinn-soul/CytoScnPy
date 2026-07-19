@@ -35,20 +35,25 @@ fn get_decorator_name(decorator: &Expr) -> String {
     }
 }
 
+const BLUEPRINT_METHODS: &[&str] = &[
+    "route", "get", "post", "put", "delete", "patch", "head", "options",
+];
+
 fn is_relative_blueprint_route(visitor: &FrameworkAwareVisitor, name: &str) -> bool {
     let Some((owner, method)) = name.rsplit_once('.') else {
         return false;
     };
-    method == "route" && visitor.relative_imported_symbols.contains(owner)
+    BLUEPRINT_METHODS.contains(&method) && visitor.relative_imported_symbols.contains(owner)
 }
 
 fn is_framework_decorator(name: &str) -> bool {
     let method = name.rsplit('.').next().unwrap_or(name);
     FRAMEWORK_DECORATORS.iter().any(|pattern| {
         let pattern = pattern.trim_start_matches('@');
-        pattern
-            .strip_prefix("*.")
-            .is_some_and(|expected| method == expected)
-            || pattern == name
+        if let Some(expected) = pattern.strip_prefix("*.") {
+            method == expected
+        } else {
+            pattern == name || pattern == method
+        }
     })
 }

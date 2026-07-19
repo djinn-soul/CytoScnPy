@@ -238,6 +238,10 @@ impl AggregationState {
                     .entry(source.clone())
                     .and_modify(|count| *count = (*count).max(1))
                     .or_insert(1);
+                self.prod_ref_counts
+                    .entry(definition.full_name.clone())
+                    .and_modify(|count| *count = (*count).max(1))
+                    .or_insert(1);
             }
         }
     }

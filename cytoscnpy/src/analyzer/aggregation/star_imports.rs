@@ -55,18 +55,15 @@ impl AggregationState {
             .collect();
         let mut names: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
 
-        for source in source_modules {
-            let prefix = format!("{source}.");
-            for definition in &self.all_defs {
-                let Some(local_name) = definition.full_name.strip_prefix(&prefix) else {
-                    continue;
-                };
-                if !local_name.contains('.') && !local_name.starts_with('_') {
-                    names
-                        .entry(source.to_owned())
-                        .or_default()
-                        .insert(local_name.to_owned());
-                }
+        for definition in &self.all_defs {
+            let Some((module, local_name)) = definition.full_name.rsplit_once('.') else {
+                continue;
+            };
+            if !local_name.starts_with('_') && source_modules.contains(module) {
+                names
+                    .entry(module.to_owned())
+                    .or_default()
+                    .insert(local_name.to_owned());
             }
         }
 

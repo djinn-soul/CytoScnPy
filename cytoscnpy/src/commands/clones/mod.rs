@@ -42,16 +42,16 @@ pub struct CloneOptions {
     pub progress_bar: Option<std::sync::Arc<indicatif::ProgressBar>>,
 }
 
-fn create_detector(options: &CloneOptions) -> CloneDetector {
+fn create_detector(options: &CloneOptions) -> Result<CloneDetector> {
     let config = CloneConfig::default()
         .with_min_similarity(options.similarity)
         // Command-level discovery already applies root-relative test filtering.
         .with_tests(true);
-    let mut detector = CloneDetector::with_config(config);
+    let mut detector = CloneDetector::with_config(config).map_err(anyhow::Error::msg)?;
     if let Some(ref pb) = options.progress_bar {
         detector.progress_bar = Some(std::sync::Arc::clone(pb));
     }
-    detector
+    Ok(detector)
 }
 
 pub(crate) fn print_clone_results<W: Write>(
@@ -174,7 +174,7 @@ pub fn run_clones<W: Write>(
     }
 
     let file_count = file_paths.len();
-    let detector = create_detector(options);
+    let detector = create_detector(options)?;
     let (auto_fix_threshold, suggest_threshold) = detector.confidence_thresholds();
     let result = detector.detect_from_paths(&file_paths);
 

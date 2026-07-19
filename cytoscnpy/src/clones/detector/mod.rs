@@ -2,6 +2,7 @@ use super::{CloneConfig, CloneGroup, ClonePair, CloneSummary, CloneType};
 use indicatif::ProgressBar;
 use std::sync::Arc;
 
+mod cache;
 mod cfg_validation;
 mod grouping;
 mod in_memory;
@@ -25,16 +26,12 @@ impl CloneDetector {
     }
 
     /// Create with custom configuration
-    #[must_use]
-    pub fn with_config(config: CloneConfig) -> Self {
-        assert!(
-            config.validate().is_ok(),
-            "invalid clone detection configuration"
-        );
-        Self {
+    pub fn with_config(config: CloneConfig) -> Result<Self, String> {
+        config.validate()?;
+        Ok(Self {
             config,
             progress_bar: None,
-        }
+        })
     }
 
     /// Number of files to process per chunk to prevent OOM on large projects.
@@ -252,6 +249,7 @@ mod tests {
             .with_min_similarity(1.0)
             .with_tests(true);
         assert!(CloneDetector::with_config(config)
+            .expect("valid clone config")
             .detect(&files)
             .pairs
             .is_empty());
@@ -272,8 +270,19 @@ mod tests {
         let config = CloneConfig::default()
             .with_min_similarity(1.0)
             .with_tests(true);
-        let result = CloneDetector::with_config(config).detect(&files);
+        let result = CloneDetector::with_config(config)
+            .expect("valid clone config")
+            .detect(&files);
         assert_eq!(result.pairs.len(), 1);
         assert_eq!(result.pairs[0].clone_type, CloneType::Type2);
+    }
+
+    #[test]
+    fn with_config_rejects_invalid_configuration_without_panicking() {
+        let config = CloneConfig {
+            min_similarity: f64::NAN,
+            ..CloneConfig::default()
+        };
+        assert!(CloneDetector::with_config(config).is_err());
     }
 }

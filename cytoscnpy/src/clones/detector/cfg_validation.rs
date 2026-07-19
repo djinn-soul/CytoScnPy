@@ -1,8 +1,6 @@
 use super::CloneDetector;
 #[cfg(feature = "cfg")]
 use crate::clones::{parser, ClonePair};
-#[cfg(feature = "cfg")]
-use std::path::PathBuf;
 
 impl CloneDetector {
     /// Validate clone pairs using CFG behavioral analysis
@@ -15,58 +13,47 @@ impl CloneDetector {
         pairs: Vec<ClonePair>,
         subtrees: &[parser::Subtree],
     ) -> Vec<ClonePair> {
-        use crate::cfg::Cfg;
-        use parser::SubtreeType;
-
-        let threshold = self.config.cfg_similarity_threshold;
-
-        let subtree_map: std::collections::HashMap<(PathBuf, usize), usize> = subtrees
+        let subtree_map: std::collections::HashMap<_, _> = subtrees
             .iter()
             .enumerate()
-            .map(|(i, s)| ((s.file.clone(), s.start_byte), i))
+            .map(|(index, subtree)| ((subtree.file.clone(), subtree.start_byte), index))
             .collect();
+        let threshold = self.config.cfg_similarity_threshold;
 
         pairs
             .into_iter()
             .filter(|pair| {
                 let key_a = (pair.instance_a.file.clone(), pair.instance_a.start_byte);
                 let key_b = (pair.instance_b.file.clone(), pair.instance_b.start_byte);
-
-                let (Some(&idx_a), Some(&idx_b)) =
+                let (Some(&index_a), Some(&index_b)) =
                     (subtree_map.get(&key_a), subtree_map.get(&key_b))
                 else {
                     return false;
                 };
+                cfg_subtrees_match(&subtrees[index_a], &subtrees[index_b], threshold)
+            })
+            .collect()
+    }
 
-                let subtree_a = &subtrees[idx_a];
-                let subtree_b = &subtrees[idx_b];
+    #[cfg(feature = "cfg")]
+    pub(super) fn validate_with_cfg_from_paths(
+        &self,
+        pairs: Vec<ClonePair>,
+        min_lines: usize,
+    ) -> Vec<ClonePair> {
+        let threshold = self.config.cfg_similarity_threshold;
 
-                let is_function_a = matches!(
-                    subtree_a.node_type,
-                    SubtreeType::Function | SubtreeType::AsyncFunction | SubtreeType::Method
-                );
-                let is_function_b = matches!(
-                    subtree_b.node_type,
-                    SubtreeType::Function | SubtreeType::AsyncFunction | SubtreeType::Method
-                );
-                if !is_function_a || !is_function_b {
-                    return true;
-                }
+        pairs
+            .into_iter()
+            .filter(|pair| {
+                let Some(subtree_a) = load_subtree(&pair.instance_a, min_lines) else {
+                    return false;
+                };
+                let Some(subtree_b) = load_subtree(&pair.instance_b, min_lines) else {
+                    return false;
+                };
 
-                let name_a = subtree_a.name.as_deref().unwrap_or("func");
-                let name_b = subtree_b.name.as_deref().unwrap_or("func");
-
-                let source_a = dedent_definition(&subtree_a.source_slice);
-                let source_b = dedent_definition(&subtree_b.source_slice);
-                let cfg_a = Cfg::from_source(&source_a, name_a);
-                let cfg_b = Cfg::from_source(&source_b, name_b);
-
-                match (cfg_a, cfg_b) {
-                    (Some(a), Some(b)) => a.similarity_score(&b) >= threshold,
-                    // Fail closed: if either CFG can't be built, don't let an
-                    // unverifiable pair through as a false positive.
-                    _ => false,
-                }
+                cfg_subtrees_match(&subtree_a, &subtree_b, threshold)
             })
             .collect()
     }
@@ -87,6 +74,45 @@ fn dedent_definition(source: &str) -> String {
         .map(|line| line.strip_prefix(indent).unwrap_or(line))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(feature = "cfg")]
+fn cfg_subtrees_match(
+    subtree_a: &parser::Subtree,
+    subtree_b: &parser::Subtree,
+    threshold: f64,
+) -> bool {
+    use crate::cfg::Cfg;
+    use parser::SubtreeType;
+
+    let is_function_a = matches!(
+        subtree_a.node_type,
+        SubtreeType::Function | SubtreeType::AsyncFunction | SubtreeType::Method
+    );
+    let is_function_b = matches!(
+        subtree_b.node_type,
+        SubtreeType::Function | SubtreeType::AsyncFunction | SubtreeType::Method
+    );
+    if !is_function_a || !is_function_b {
+        return true;
+    }
+    let name_a = subtree_a.name.as_deref().unwrap_or("func");
+    let name_b = subtree_b.name.as_deref().unwrap_or("func");
+    let cfg_a = Cfg::from_source(&dedent_definition(&subtree_a.source_slice), name_a);
+    let cfg_b = Cfg::from_source(&dedent_definition(&subtree_b.source_slice), name_b);
+    matches!((cfg_a, cfg_b), (Some(a), Some(b)) if a.similarity_score(&b) >= threshold)
+}
+
+#[cfg(feature = "cfg")]
+fn load_subtree(
+    instance: &crate::clones::CloneInstance,
+    min_lines: usize,
+) -> Option<parser::Subtree> {
+    let source = std::fs::read_to_string(&instance.file).ok()?;
+    parser::extract_subtrees_with_min_lines(&source, &instance.file, min_lines)
+        .ok()?
+        .into_iter()
+        .find(|subtree| subtree.start_byte == instance.start_byte)
 }
 
 #[cfg(all(test, feature = "cfg"))]
@@ -123,7 +149,10 @@ mod tests {
             clone_type: CloneType::Type1,
             edit_distance: 0,
         };
-        let detector = CloneDetector::with_config(CloneConfig::default().with_cfg_validation(true));
-        assert!(detector.validate_with_cfg(vec![pair], &[]).is_empty());
+        let detector = CloneDetector::with_config(CloneConfig::default().with_cfg_validation(true))
+            .expect("valid clone config");
+        assert!(detector
+            .validate_with_cfg_from_paths(vec![pair], 1)
+            .is_empty());
     }
 }

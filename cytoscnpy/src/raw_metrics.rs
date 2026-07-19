@@ -29,6 +29,38 @@ struct StringCollector {
     ranges: Vec<(usize, usize)>,
 }
 
+#[derive(Default)]
+struct DocstringCollector {
+    ranges: Vec<(usize, usize)>,
+}
+
+impl<'a> Visitor<'a> for DocstringCollector {
+    fn visit_stmt(&mut self, stmt: &'a Stmt) {
+        match stmt {
+            Stmt::FunctionDef(node) => collect_body_docstring(&node.body, &mut self.ranges),
+            Stmt::ClassDef(node) => collect_body_docstring(&node.body, &mut self.ranges),
+            _ => {}
+        }
+        visitor::walk_stmt(self, stmt);
+    }
+}
+
+#[derive(Default)]
+struct LogicalLineCounter {
+    count: usize,
+}
+
+impl<'a> Visitor<'a> for LogicalLineCounter {
+    fn visit_stmt(&mut self, stmt: &'a Stmt) {
+        if matches!(stmt, Stmt::Expr(node) if matches!(node.value.as_ref(), Expr::StringLiteral(_)))
+        {
+            return;
+        }
+        self.count += 1;
+        visitor::walk_stmt(self, stmt);
+    }
+}
+
 impl<'a> Visitor<'a> for StringCollector {
     fn visit_expr(&mut self, expr: &'a Expr) {
         self.collect_string_range(expr);
@@ -68,17 +100,52 @@ fn collect_string_ranges(body: &[Stmt]) -> Vec<(usize, usize)> {
     collector.ranges
 }
 
+fn collect_docstring_ranges(body: &[Stmt]) -> Vec<(usize, usize)> {
+    let mut collector = DocstringCollector::default();
+    collect_body_docstring(body, &mut collector.ranges);
+    for stmt in body {
+        collector.visit_stmt(stmt);
+    }
+    collector.ranges
+}
+
+fn collect_body_docstring(body: &[Stmt], ranges: &mut Vec<(usize, usize)>) {
+    let Some(Stmt::Expr(node)) = body.first() else {
+        return;
+    };
+    let Expr::StringLiteral(string) = node.value.as_ref() else {
+        return;
+    };
+    let range = string.range();
+    ranges.push((range.start().to_usize(), range.end().to_usize()));
+}
+
+fn count_logical_lines(body: &[Stmt]) -> usize {
+    let mut counter = LogicalLineCounter::default();
+    for stmt in body {
+        counter.visit_stmt(stmt);
+    }
+    counter.count
+}
+
 /// Analyzes raw metrics (LOC, SLOC, etc.) from source code.
 ///
 /// Parses `code` internally. Callers that already hold the parsed AST should
 /// use `analyze_raw_with_module` to skip the reparse.
 #[must_use]
 pub fn analyze_raw(code: &str) -> RawMetrics {
-    let string_ranges = match parse_module(code) {
-        Ok(parsed) => collect_string_ranges(&parsed.into_syntax().body),
-        Err(_) => Vec::new(),
+    let (string_ranges, docstring_ranges, lloc) = match parse_module(code) {
+        Ok(parsed) => {
+            let module = parsed.into_syntax();
+            (
+                collect_string_ranges(&module.body),
+                collect_docstring_ranges(&module.body),
+                count_logical_lines(&module.body),
+            )
+        }
+        Err(_) => (Vec::new(), Vec::new(), 0),
     };
-    analyze_raw_inner(code, &string_ranges)
+    analyze_raw_inner(code, &string_ranges, &docstring_ranges, lloc)
 }
 
 /// Analyzes raw metrics from source code using an already-parsed module.
@@ -87,16 +154,24 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
 #[must_use]
 pub fn analyze_raw_with_module(code: &str, module: &ModModule) -> RawMetrics {
     let string_ranges = collect_string_ranges(&module.body);
-    analyze_raw_inner(code, &string_ranges)
+    let docstring_ranges = collect_docstring_ranges(&module.body);
+    analyze_raw_inner(
+        code,
+        &string_ranges,
+        &docstring_ranges,
+        count_logical_lines(&module.body),
+    )
 }
 
-fn analyze_raw_inner(code: &str, string_ranges: &[(usize, usize)]) -> RawMetrics {
+fn analyze_raw_inner(
+    code: &str,
+    string_ranges: &[(usize, usize)],
+    docstring_ranges: &[(usize, usize)],
+    lloc: usize,
+) -> RawMetrics {
     let mut metrics = RawMetrics::default();
 
-    let mut lines: Vec<&str> = code.lines().collect();
-    if code.ends_with('\n') && !code.is_empty() {
-        lines.push("");
-    }
+    let lines: Vec<&str> = code.lines().collect();
     metrics.loc = lines.len();
 
     let mut line_types = vec![LineType::Code; metrics.loc + 1]; // 1-indexed
@@ -111,7 +186,7 @@ fn analyze_raw_inner(code: &str, string_ranges: &[(usize, usize)]) -> RawMetrics
 
     let line_index = LineIndex::new(code);
 
-    for (start_offset, end_offset) in string_ranges {
+    for (start_offset, end_offset) in docstring_ranges {
         let start_row = line_index.line_index(ruff_text_size::TextSize::new(
             u32::try_from(*start_offset).unwrap_or(0),
         ));
@@ -135,6 +210,7 @@ fn analyze_raw_inner(code: &str, string_ranges: &[(usize, usize)]) -> RawMetrics
 
     // 3. Find Comments
     let mut current_offset = 0;
+    let mut inline_comments = 0;
     // We iterate over lines to check for comments.
     // We use split_inclusive to get lines with newlines to track offsets correctly.
     for (i, line_with_newline) in code.split_inclusive('\n').enumerate() {
@@ -173,7 +249,7 @@ fn analyze_raw_inner(code: &str, string_ranges: &[(usize, usize)]) -> RawMetrics
                     line_types[line_num] = LineType::Comment;
                 } else {
                     // Inline comment
-                    metrics.single_comments += 1;
+                    inline_comments += 1;
                 }
             }
         }
@@ -181,14 +257,13 @@ fn analyze_raw_inner(code: &str, string_ranges: &[(usize, usize)]) -> RawMetrics
 
     // 4. Aggregate metrics
     metrics.multi = 0;
-    metrics.comments = 0;
+    metrics.comments = inline_comments;
     metrics.sloc = 0;
 
     for t in line_types.iter().skip(1) {
         match t {
             LineType::Multi => {
                 metrics.multi += 1;
-                metrics.sloc += 1;
             }
             LineType::Comment => {
                 metrics.comments += 1;
@@ -199,8 +274,7 @@ fn analyze_raw_inner(code: &str, string_ranges: &[(usize, usize)]) -> RawMetrics
         }
     }
 
-    // LLOC approximation
-    metrics.lloc = metrics.sloc;
+    metrics.lloc = lloc;
 
     metrics
 }

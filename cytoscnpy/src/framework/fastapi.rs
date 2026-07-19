@@ -7,10 +7,24 @@ pub(super) fn extract_fastapi_depends(visitor: &mut FrameworkAwareVisitor, args:
         if let Some(default) = &arg.default {
             check_depends_call(visitor, default);
         }
+        if let Some(annotation) = &arg.parameter.annotation {
+            check_depends_call(visitor, annotation);
+        }
+    }
+    for arg in &args.posonlyargs {
+        if let Some(default) = &arg.default {
+            check_depends_call(visitor, default);
+        }
+        if let Some(annotation) = &arg.parameter.annotation {
+            check_depends_call(visitor, annotation);
+        }
     }
     for arg in &args.kwonlyargs {
         if let Some(default) = &arg.default {
             check_depends_call(visitor, default);
+        }
+        if let Some(annotation) = &arg.parameter.annotation {
+            check_depends_call(visitor, annotation);
         }
     }
 }
@@ -32,5 +46,14 @@ fn check_depends_call(visitor: &mut FrameworkAwareVisitor, expr: &Expr) {
                 }
             }
         }
+    }
+    match expr {
+        Expr::Subscript(node) => check_depends_call(visitor, &node.slice),
+        Expr::Tuple(node) => {
+            for element in &node.elts {
+                check_depends_call(visitor, element);
+            }
+        }
+        _ => {}
     }
 }

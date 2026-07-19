@@ -54,7 +54,7 @@ impl TreeSimilarity {
         let similarity = if max_size == 0 {
             1.0
         } else {
-            1.0 - (distance as f64 / max_size as f64)
+            (1.0 - (distance as f64 / max_size as f64)).max(0.0)
         };
         (distance, similarity)
     }
@@ -174,6 +174,15 @@ mod tests {
 
         let distance = calc.edit_distance(&tree_a, &tree_b);
         assert!(distance > 0);
+    }
+
+    #[test]
+    fn test_similarity_is_never_negative() {
+        let calc = TreeSimilarity::default();
+        let tree_a = make_tree(vec![node("if", None), node("return", None)]);
+        let tree_b = make_tree(vec![node("for", None), node("break", None)]);
+
+        assert!(calc.similarity(&tree_a, &tree_b) <= f64::EPSILON);
     }
 
     #[test]

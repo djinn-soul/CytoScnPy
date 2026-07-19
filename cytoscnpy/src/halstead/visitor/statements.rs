@@ -15,7 +15,7 @@ pub(super) fn visit_stmt(visitor: &mut HalsteadVisitor, stmt: &Stmt) {
         Stmt::Assign(node) => visit_assign(visitor, node),
         Stmt::AugAssign(node) => visit_aug_assign(visitor, node),
         Stmt::AnnAssign(node) => visit_ann_assign(visitor, node),
-        Stmt::If(_) | Stmt::For(_) | Stmt::While(_) | Stmt::With(_) => {
+        Stmt::If(_) | Stmt::For(_) | Stmt::While(_) | Stmt::With(_) | Stmt::Match(_) => {
             visit_control_flow(visitor, stmt);
         }
         Stmt::Raise(node) => visit_raise(visitor, node),
@@ -103,6 +103,20 @@ fn visit_control_flow(visitor: &mut HalsteadVisitor, stmt: &Stmt) {
             }
             for stmt in &node.body {
                 visitor.visit_stmt(stmt);
+            }
+        }
+        Stmt::Match(node) => {
+            visitor.add_operator("match");
+            visitor.visit_expr(&node.subject);
+            for case in &node.cases {
+                visitor.add_operator("case");
+                if let Some(guard) = &case.guard {
+                    visitor.add_operator("if");
+                    visitor.visit_expr(guard);
+                }
+                for stmt in &case.body {
+                    visitor.visit_stmt(stmt);
+                }
             }
         }
         _ => {}

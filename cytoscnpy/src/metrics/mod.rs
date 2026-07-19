@@ -16,7 +16,7 @@ use std::f64;
 /// - LOC = Lines of Code (SLOC)
 ///
 /// If `comments` is provided (and > 0), it adds a comment weight:
-/// MI = MI + 50 * sin(sqrt(2.4 * (comments / LOC)))
+/// MI = MI + 50 * sin(sqrt(2.4 * `radians(percent_comments)`))
 ///
 /// The result is clamped to [0, 100].
 #[must_use]
@@ -39,8 +39,8 @@ pub fn mi_compute(volume: f64, complexity: usize, sloc: usize, comments: usize) 
 
     // Comment weight
     if comments > 0 && sloc > 0 {
-        let per_comment = comments as f64 / sloc as f64;
-        mi += 50.0 * (2.4 * per_comment).sqrt().sin();
+        let percent_comments = comments as f64 / sloc as f64 * 100.0;
+        mi += 50.0 * (2.4 * percent_comments.to_radians()).sqrt().sin();
     }
 
     // Clamp to 0-100

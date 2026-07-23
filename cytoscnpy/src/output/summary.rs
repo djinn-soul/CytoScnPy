@@ -79,6 +79,18 @@ pub fn print_summary_pills(
         pill("Parse Errors", result.parse_errors.len()),
     )?;
 
+    writeln!(
+        writer,
+        "{}  {}  {}  {}",
+        pill("Transitive Deps", result.transitive_dependencies.len()),
+        pill(
+            "Dev Deps in Prod",
+            result.dev_dependencies_in_production.len()
+        ),
+        pill("Stdlib Deps", result.stdlib_dependencies.len()),
+        pill("Clones", result.clones.len()),
+    )?;
+
     writeln!(writer)?;
     Ok(())
 }

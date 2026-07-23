@@ -32,7 +32,7 @@ fn main() -> ExitCode {
     match entry_point::run_with_args(std::env::args().skip(1).collect()) {
         Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
         Err(e) => {
-            eprintln!("Error: {e}");
+            eprintln!("Error: {e:#}");
             ExitCode::FAILURE
         }
     }

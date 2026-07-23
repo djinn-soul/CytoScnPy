@@ -45,3 +45,25 @@ fn clone_section_follows_main_report_and_uses_singular_pair_label() {
     assert!(output.contains("1 clone pair"), "{output}");
     assert!(!output.contains("1 clone pairs"), "{output}");
 }
+
+#[test]
+fn project_config_enables_clone_section_without_cli_flag() {
+    let project = clone_project();
+    fs::write(
+        project.path().join("pyproject.toml"),
+        "[tool.cytoscnpy]\nclones = true\nclone_similarity = 0.8\n",
+    )
+    .unwrap();
+    let mut buffer = Vec::new();
+
+    let exit_code = run_with_args_to(
+        vec![project.path().to_string_lossy().into_owned()],
+        &mut buffer,
+    )
+    .unwrap();
+
+    assert_eq!(exit_code, 0);
+    let output = String::from_utf8(buffer).unwrap();
+    assert!(output.contains("Clone Detection Results"), "{output}");
+    assert!(output.contains("1 clone pair"), "{output}");
+}

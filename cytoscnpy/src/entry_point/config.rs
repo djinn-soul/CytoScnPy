@@ -1,4 +1,5 @@
 use crate::cli::Cli;
+use anyhow::Result;
 
 pub(crate) struct AppConfig {
     pub(crate) config: crate::config::Config,
@@ -8,11 +9,14 @@ pub(crate) struct AppConfig {
 }
 
 /// Loads project configuration and merges it with CLI flags.
-pub(crate) fn setup_configuration(effective_paths: &[std::path::PathBuf], cli: &Cli) -> AppConfig {
+pub(crate) fn setup_configuration(
+    effective_paths: &[std::path::PathBuf],
+    cli: &Cli,
+) -> Result<AppConfig> {
     let config_path = effective_paths
         .first()
         .map_or(std::path::Path::new("."), std::path::PathBuf::as_path);
-    let mut config = crate::config::Config::load_from_path(config_path);
+    let mut config = crate::config::Config::try_load_from_path(config_path)?;
 
     // CLI rule thresholds override config so analysis and gates stay consistent.
     if let Some(value) = cli.max_complexity {
@@ -43,12 +47,12 @@ pub(crate) fn setup_configuration(effective_paths: &[std::path::PathBuf], cli: &
     let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
     include_folders.extend(cli.include_folders.clone());
 
-    AppConfig {
+    Ok(AppConfig {
         config,
         exclude_folders,
         include_folders,
         include_tests,
-    }
+    })
 }
 
 pub(crate) fn is_vscode_client(cli: &Cli) -> bool {

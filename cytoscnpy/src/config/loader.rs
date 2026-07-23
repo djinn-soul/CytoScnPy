@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
@@ -28,6 +29,10 @@ fn mark_deprecated_keys_from_content(config: &mut Config, content: &str, path: &
 }
 
 pub(super) fn load_from_path(path: &Path) -> Config {
+    try_load_from_path(path).unwrap_or_default()
+}
+
+pub(super) fn try_load_from_path(path: &Path) -> Result<Config> {
     let mut current = path.to_path_buf();
     if current.is_file() {
         current.pop();
@@ -36,30 +41,13 @@ pub(super) fn load_from_path(path: &Path) -> Config {
     loop {
         let cytoscnpy_toml = current.join(CONFIG_FILENAME);
         if cytoscnpy_toml.exists() {
-            if let Ok(content) = fs::read_to_string(&cytoscnpy_toml) {
-                if let Ok(mut config) = toml::from_str::<Config>(&content) {
-                    config.config_file_path = Some(cytoscnpy_toml);
-                    mark_deprecated_keys_from_content(&mut config, &content, &["cytoscnpy"]);
-                    return config;
-                }
-            }
+            return load_cytoscnpy_toml(&cytoscnpy_toml);
         }
 
         let pyproject_toml = current.join(PYPROJECT_FILENAME);
         if pyproject_toml.exists() {
-            if let Ok(content) = fs::read_to_string(&pyproject_toml) {
-                if let Ok(pyproject) = toml::from_str::<PyProject>(&content) {
-                    let mut config = Config {
-                        cytoscnpy: pyproject.tool.cytoscnpy,
-                        config_file_path: Some(pyproject_toml),
-                    };
-                    mark_deprecated_keys_from_content(
-                        &mut config,
-                        &content,
-                        &["tool", "cytoscnpy"],
-                    );
-                    return config;
-                }
+            if let Some(config) = load_pyproject_toml(&pyproject_toml)? {
+                return Ok(config);
             }
         }
 
@@ -68,7 +56,43 @@ pub(super) fn load_from_path(path: &Path) -> Config {
         }
     }
 
-    Config::default()
+    Ok(Config::default())
+}
+
+fn read_config(path: &Path) -> Result<String> {
+    fs::read_to_string(path)
+        .with_context(|| format!("failed to read configuration file '{}'", path.display()))
+}
+
+fn load_cytoscnpy_toml(path: &Path) -> Result<Config> {
+    let content = read_config(path)?;
+    let mut config = toml::from_str::<Config>(&content)
+        .with_context(|| format!("failed to parse configuration file '{}'", path.display()))?;
+    config.config_file_path = Some(path.to_path_buf());
+    mark_deprecated_keys_from_content(&mut config, &content, &["cytoscnpy"]);
+    Ok(config)
+}
+
+fn load_pyproject_toml(path: &Path) -> Result<Option<Config>> {
+    let content = read_config(path)?;
+    let value = toml::from_str::<toml::Value>(&content)
+        .with_context(|| format!("failed to parse project file '{}'", path.display()))?;
+    if value_at_path(&value, &["tool", "cytoscnpy"]).is_none() {
+        return Ok(None);
+    }
+
+    let pyproject = toml::from_str::<PyProject>(&content).with_context(|| {
+        format!(
+            "invalid [tool.cytoscnpy] configuration in '{}'",
+            path.display()
+        )
+    })?;
+    let mut config = Config {
+        cytoscnpy: pyproject.tool.cytoscnpy,
+        config_file_path: Some(path.to_path_buf()),
+    };
+    mark_deprecated_keys_from_content(&mut config, &content, &["tool", "cytoscnpy"]);
+    Ok(Some(config))
 }
 
 #[cfg(test)]

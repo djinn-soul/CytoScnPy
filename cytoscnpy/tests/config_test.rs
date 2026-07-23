@@ -133,6 +133,82 @@ fn test_missing_config_files() {
 }
 
 #[test]
+fn test_try_load_reports_invalid_project_configuration() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("pyproject.toml"),
+        "[tool.cytoscnpy]\nclones = 'not-a-boolean'\n",
+    )
+    .unwrap();
+
+    let error = Config::try_load_from_path(dir.path()).unwrap_err();
+    let detailed = format!("{error:#}");
+
+    assert!(
+        error
+            .to_string()
+            .contains("invalid [tool.cytoscnpy] configuration"),
+        "{error:#}"
+    );
+    assert!(detailed.contains("expected a boolean"), "{detailed}");
+}
+
+#[test]
+fn test_try_load_reports_invalid_standalone_configuration() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(".cytoscnpy.toml"),
+        "[cytoscnpy]\nclones = 'not-a-boolean'\n",
+    )
+    .unwrap();
+
+    let error = Config::try_load_from_path(dir.path()).unwrap_err();
+    let detailed = format!("{error:#}");
+
+    assert!(detailed.contains(".cytoscnpy.toml"), "{detailed}");
+    assert!(detailed.contains("expected a boolean"), "{detailed}");
+}
+
+#[test]
+fn test_legacy_loader_falls_back_to_defaults_on_error() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(".cytoscnpy.toml"),
+        "[cytoscnpy]\nclones = 'not-a-boolean'\n",
+    )
+    .unwrap();
+
+    let config = Config::load_from_path(dir.path());
+
+    assert!(config.config_file_path.is_none());
+    assert_eq!(config.cytoscnpy.clones, None);
+}
+
+#[test]
+fn test_cli_reports_invalid_project_configuration() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("pyproject.toml"),
+        "[tool.cytoscnpy]\nclones = 'not-a-boolean'\n",
+    )
+    .unwrap();
+    let mut output = Vec::new();
+
+    let error = cytoscnpy::entry_point::run_with_args_to(
+        vec![dir.path().to_string_lossy().into_owned()],
+        &mut output,
+    )
+    .unwrap_err();
+
+    assert!(
+        error
+            .to_string()
+            .contains("invalid [tool.cytoscnpy] configuration"),
+        "{error:#}"
+    );
+}
+
+#[test]
 fn test_structured_sanitizer_config() {
     let config: Config = toml::from_str(
         r#"

@@ -3,6 +3,8 @@
 //! This module is gated behind the `html_report` feature flag and provides
 //! functionality to generate static HTML reports from analysis results.
 
+pub(crate) mod category_findings;
+
 /// Default CSS and JS assets for the report.
 #[cfg(feature = "html_report")]
 pub mod assets;
@@ -17,6 +19,8 @@ pub mod templates;
 pub mod github;
 /// `GitLab` Code Quality report generator.
 pub mod gitlab;
+/// Versioned JSON report generator.
+pub mod json;
 /// `JUnit` XML report generator.
 pub mod junit;
 /// Markdown report generator.

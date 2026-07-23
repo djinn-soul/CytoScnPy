@@ -1,14 +1,15 @@
 use crate::analyzer::AnalysisResult;
+use crate::report::category_findings::collect_dependency_findings;
 use crate::utils::normalize_display_path;
 use colored::Colorize;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
 
+use super::print_dependency_findings;
 use super::summary::print_header;
 use super::tables::{
-    print_findings, print_missing_dependencies, print_parse_errors, print_secrets,
-    print_taint_findings, print_unused_dependencies, print_unused_items,
+    print_findings, print_parse_errors, print_secrets, print_taint_findings, print_unused_items,
 };
 
 /// Print the full report.
@@ -27,6 +28,10 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         + result.unused_variables.len()
         + result.unused_dependencies.len()
         + result.missing_dependencies.len()
+        + result.transitive_dependencies.len()
+        + result.dev_dependencies_in_production.len()
+        + result.stdlib_dependencies.len()
+        + result.clones.len()
         + result.danger.len()
         + result.secrets.len()
         + result.quality.len()
@@ -74,8 +79,7 @@ pub fn print_report(writer: &mut impl Write, result: &AnalysisResult) -> std::io
         "Variable",
     )?;
 
-    print_unused_dependencies(writer, &result.unused_dependencies)?;
-    print_missing_dependencies(writer, &result.missing_dependencies)?;
+    print_dependency_findings(writer, result)?;
 
     print_findings(writer, "Security Issues", &result.danger)?;
     print_secrets(writer, "Secrets", &result.secrets)?;
@@ -184,6 +188,15 @@ pub fn print_report_grouped(
             "LOW",
         );
     }
+    for finding in collect_dependency_findings(result) {
+        let (file, line) = finding.location_or_manifest(None);
+        add(
+            &file,
+            line,
+            format!("[DEPENDENCY:{}] {}", finding.rule_id, finding.message),
+            &finding.severity,
+        );
+    }
     for error in &result.parse_errors {
         add(
             &error.file.to_string_lossy(),
@@ -226,21 +239,26 @@ pub fn print_report_grouped(
 pub fn print_report_quiet(writer: &mut impl Write, result: &AnalysisResult) -> std::io::Result<()> {
     writeln!(writer)?;
 
-    let total = result.unused_functions.len()
+    let unused = result.unused_functions.len()
         + result.unused_methods.len()
         + result.unused_imports.len()
         + result.unused_parameters.len()
         + result.unused_classes.len()
-        + result.unused_variables.len()
-        + result.unused_dependencies.len()
-        + result.missing_dependencies.len();
+        + result.unused_variables.len();
+    let dependencies = result.unused_dependencies.len()
+        + result.missing_dependencies.len()
+        + result.transitive_dependencies.len()
+        + result.dev_dependencies_in_production.len()
+        + result.stdlib_dependencies.len();
     let security = result.danger.len()
         + result.secrets.len()
         + result.quality.len()
-        + result.taint_findings.len();
+        + result.taint_findings.len()
+        + result.parse_errors.len();
+    let clones = result.clones.len();
     writeln!(
         writer,
-        "\n[SUMMARY] {total} unused code issues, {security} security/quality issues"
+        "\n[SUMMARY] {unused} unused code issues, {dependencies} dependency issues, {security} security/quality/parse issues, {clones} clone findings"
     )?;
 
     Ok(())

@@ -137,6 +137,7 @@ impl CytoScnPy {
             unused_parameters: classified.unused_parameters,
             unused_dependencies: Vec::new(),
             missing_dependencies: Vec::new(),
+            missing_dependency_details: Vec::new(),
             transitive_dependencies: Vec::new(),
             dev_dependencies_in_production: Vec::new(),
             stdlib_dependencies: Vec::new(),

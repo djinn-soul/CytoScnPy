@@ -96,6 +96,16 @@ pub(super) fn flatten_issues(result: &AnalysisResult) -> Vec<IssueItem> {
             0,
         );
     }
+    for finding in crate::report::category_findings::collect_dependency_findings(result) {
+        let (file, line) = finding.location_or_manifest(None);
+        add(
+            finding.category,
+            &finding.severity,
+            format!("{}: {}", finding.rule_id, finding.message),
+            file,
+            line,
+        );
+    }
 
     items
 }

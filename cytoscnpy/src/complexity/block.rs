@@ -4,9 +4,22 @@ mod expression_traversal;
 mod statement_traversal;
 
 pub(super) fn calculate_complexity(body: &[Stmt], no_assert: bool) -> usize {
+    calculate_complexity_with_nested(body, no_assert, false)
+}
+
+pub(super) fn calculate_total_complexity(body: &[Stmt], no_assert: bool) -> usize {
+    calculate_complexity_with_nested(body, no_assert, true)
+}
+
+fn calculate_complexity_with_nested(
+    body: &[Stmt],
+    no_assert: bool,
+    descend_definitions: bool,
+) -> usize {
     let mut visitor = BlockComplexityVisitor {
         complexity: 1,
         no_assert,
+        descend_definitions,
     };
     visitor.visit_body(body);
     visitor.complexity
@@ -15,6 +28,7 @@ pub(super) fn calculate_complexity(body: &[Stmt], no_assert: bool) -> usize {
 struct BlockComplexityVisitor {
     complexity: usize,
     no_assert: bool,
+    descend_definitions: bool,
 }
 
 fn is_wildcard_case(pattern: &ast::Pattern) -> bool {

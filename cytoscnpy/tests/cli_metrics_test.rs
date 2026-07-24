@@ -49,7 +49,7 @@ fn test_cli_raw() {
     let output = String::from_utf8(buffer).unwrap();
     assert!(output.contains("test.py"));
     assert!(output.contains("LOC"));
-    assert!(output.contains('3')); // LOC (x=1, #comment, newline)
+    assert!(output.contains('2')); // LOC (x=1, #comment); trailing newline is not a line
     assert!(output.contains('1')); // SLOC/Comments
 }
 
@@ -157,10 +157,9 @@ fn test_cli_json_output() {
     )
     .unwrap();
 
-    let output = String::from_utf8(buffer).unwrap();
-    assert!(output.contains("\"file\":"));
-    assert!(output.contains("\"loc\":"));
-    assert!(output.contains('2'));
+    let output: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+    assert!(output[0]["file"].as_str().is_some());
+    assert_eq!(output[0]["loc"], 1);
 }
 
 // ==================== STATS COMMAND TESTS ====================

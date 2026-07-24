@@ -2,7 +2,7 @@ use crate::metrics::cc_rank;
 use crate::utils::LineIndex;
 use ruff_text_size::Ranged;
 
-use super::block::calculate_complexity;
+use super::block::{calculate_complexity, calculate_total_complexity};
 use super::visitor::ComplexityVisitor;
 
 /// A finding related to Cyclomatic Complexity.
@@ -59,7 +59,7 @@ pub fn analyze_complexity(
 pub fn calculate_module_complexity(code: &str) -> Option<usize> {
     if let Ok(parsed) = ruff_python_parser::parse_module(code) {
         let module = parsed.into_syntax();
-        return Some(calculate_complexity(&module.body, false));
+        return Some(calculate_total_complexity(&module.body, false));
     }
     None
 }
@@ -70,5 +70,5 @@ pub fn calculate_module_complexity(code: &str) -> Option<usize> {
 /// source — for callers that already hold the parsed AST.
 #[must_use]
 pub fn calculate_module_complexity_ast(module: &ruff_python_ast::ModModule) -> usize {
-    calculate_complexity(&module.body, false)
+    calculate_total_complexity(&module.body, false)
 }

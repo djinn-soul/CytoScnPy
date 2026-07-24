@@ -3,7 +3,10 @@ use crate::rules::Finding;
 use std::path::Path;
 
 pub(super) fn module_name_from_path(file_path: &Path, root_path: &Path) -> String {
-    let relative_path = file_path.strip_prefix(root_path).unwrap_or(file_path);
+    let package_relative = package_relative_path(file_path);
+    let relative_path = package_relative
+        .as_deref()
+        .unwrap_or_else(|| file_path.strip_prefix(root_path).unwrap_or(file_path));
     let components: Vec<&str> = relative_path
         .components()
         .filter_map(|component| component.as_os_str().to_str())
@@ -24,6 +27,25 @@ pub(super) fn module_name_from_path(file_path: &Path, root_path: &Path) -> Strin
     }
 
     module_parts.join(".")
+}
+
+/// Returns the path from the import root when the file belongs to a regular package.
+/// This intentionally walks above the analysis root so scanning a package subdirectory
+/// still produces the same qualified names as Python imports.
+fn package_relative_path(file_path: &Path) -> Option<std::path::PathBuf> {
+    let mut current = file_path.parent()?;
+    let mut top_package = None;
+
+    while current.join("__init__.py").is_file() {
+        top_package = Some(current);
+        current = current.parent()?;
+    }
+
+    let top_package = top_package?;
+    file_path
+        .strip_prefix(top_package.parent()?)
+        .ok()
+        .map(Path::to_path_buf)
 }
 
 pub(super) fn split_lint_finding(

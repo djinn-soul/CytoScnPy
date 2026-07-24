@@ -12,6 +12,8 @@ use std::path::Path;
 pub struct ScoringContext<'a> {
     /// The content of the line where the finding was detected.
     pub line_content: &'a str,
+    /// Rule ID of the candidate being scored.
+    pub rule_id: &'a str,
     /// Path to the file being analyzed.
     pub file_path: &'a Path,
     /// Whether the finding is in a comment.
@@ -108,7 +110,7 @@ impl ContextScorer {
         }
 
         // Check for suppression comments
-        if crate::utils::get_line_suppression(ctx.line_content).is_some() {
+        if crate::utils::is_rule_suppressed_on_line(ctx.line_content, ctx.rule_id) {
             score += self.adjustments.has_pragma;
         }
 

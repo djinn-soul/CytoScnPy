@@ -87,6 +87,14 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         run.result.stdlib_dependencies = deps_result.stdlib;
     }
 
+    crate::analyzer::apply_global_ignores(&mut run.result, config.cytoscnpy.ignore.as_deref());
+    run.clone_pairs_found = run
+        .result
+        .clones
+        .iter()
+        .filter(|finding| finding.is_duplicate)
+        .count();
+
     // If --no-dead flag is set, clear dead code detection results
     // (only show security/quality scans)
     if cli_var.scan.no_dead {

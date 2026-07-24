@@ -82,6 +82,17 @@ pub enum Suppression {
     Specific(FxHashSet<String>),
 }
 
+impl Suppression {
+    /// Returns whether this suppression covers the requested rule ID.
+    #[must_use]
+    pub fn covers(&self, rule_id: &str) -> bool {
+        match self {
+            Self::All => true,
+            Self::Specific(rules) => rules.contains(&rule_id.to_uppercase()),
+        }
+    }
+}
+
 /// Detects suppression specification for a line.
 ///
 /// Supports multiple formats:
@@ -194,21 +205,15 @@ pub fn is_line_suppressed(
     line: usize,
     rule_id: &str,
 ) -> bool {
-    if let Some(suppression) = ignored_lines.get(&line) {
-        match suppression {
-            Suppression::All => return true,
-            Suppression::Specific(rules) => {
-                if rules.contains(rule_id) {
-                    return true;
-                }
-                // Check for generic prefix suppression (e.g. CSP ignores CSP-D101)
-                // Although get_line_suppression already handles generic CSP,
-                // we check here if the rule matches any stored prefix if we ever support that.
-                // Currently Specific stores full codes or "CSP" is mapped to All.
-            }
-        }
-    }
-    false
+    ignored_lines
+        .get(&line)
+        .is_some_and(|suppression| suppression.covers(rule_id))
+}
+
+/// Returns whether an inline comment suppresses the requested rule ID.
+#[must_use]
+pub fn is_rule_suppressed_on_line(line: &str, rule_id: &str) -> bool {
+    get_line_suppression(line).is_some_and(|suppression| suppression.covers(rule_id))
 }
 
 #[cfg(test)]

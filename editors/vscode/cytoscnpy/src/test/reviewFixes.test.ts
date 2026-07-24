@@ -3,6 +3,7 @@ import { bundledExecutableName } from "../configuration";
 import { resolveFinding } from "../findingResolver";
 import { CoalescingTaskQueue, DebouncedTaskMap } from "../scanScheduler";
 import { CytoScnPyFinding } from "../analyzer";
+import { isProjectConfigPath } from "../configWatcher";
 
 function finding(
   name: string,
@@ -39,6 +40,12 @@ suite("Review fix regressions", () => {
       "cytoscnpy-cli-darwin-arm64",
     );
     assert.strictEqual(bundledExecutableName("linux", "arm64"), undefined);
+  });
+
+  test("project config watcher recognizes both supported config files", () => {
+    assert.strictEqual(isProjectConfigPath("/workspace/pyproject.toml"), true);
+    assert.strictEqual(isProjectConfigPath("/workspace/.cytoscnpy.toml"), true);
+    assert.strictEqual(isProjectConfigPath("/workspace/settings.json"), false);
   });
 
   test("same-line findings resolve by exact rendered message", () => {

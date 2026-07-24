@@ -11,6 +11,7 @@ mod builder;
 mod confidence_penalties;
 mod fixtures;
 mod heuristics;
+mod ignore;
 pub mod single_file;
 mod traversal;
 mod utils;
@@ -21,6 +22,7 @@ pub mod types;
 // Re-export types for public API
 pub use confidence_penalties::apply_penalties;
 pub use heuristics::apply_heuristics;
+pub(crate) use ignore::apply_global_ignores;
 pub use types::{AnalysisResult, AnalysisSummary, FileAnalysisResult, ParseError};
 
 use crate::config::Config;

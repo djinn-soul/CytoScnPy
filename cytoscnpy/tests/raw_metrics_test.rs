@@ -100,14 +100,14 @@ def main():
     // LOC: 12
     // Blank: 3 (1, 3, 7)
     // Comments: 1 (5)
-    // Multi: 0 (this is a data string, not a docstring)
-    // SLOC: 8 (data-string lines are code)
+    // Multi: 4 (all physical lines in the multiline data string)
+    // SLOC: 8 (non-docstring multiline literals remain code)
 
     let metrics = analyze_raw(code);
     assert_eq!(metrics.loc, 12);
     assert_eq!(metrics.blank, 3);
     assert_eq!(metrics.comments, 1);
-    assert_eq!(metrics.multi, 0);
+    assert_eq!(metrics.multi, 4);
     assert_eq!(metrics.sloc, 8);
     assert_eq!(metrics.lloc, 4);
 }

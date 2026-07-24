@@ -128,9 +128,20 @@ fn add_secrets_issues(
 ) {
     for secret in &result.secrets {
         let normalized_path = normalize_path(&secret.file, root);
+        let matched = secret.matched_value.as_deref().unwrap_or("-");
+        let entropy = secret
+            .entropy
+            .map(|value| format!("{value:.4}"))
+            .unwrap_or_else(|| "-".to_owned());
         let fingerprint = format!(
-            "secret-{}-{}-{}",
-            secret.rule_id, normalized_path, secret.line
+            "secret-{}-{}-{}-{}-{}-{}-{}",
+            secret.rule_id,
+            normalized_path,
+            secret.line,
+            secret.confidence,
+            secret.message,
+            matched,
+            entropy
         );
         issues.push(make_gitlab_issue(
             &secret.message,

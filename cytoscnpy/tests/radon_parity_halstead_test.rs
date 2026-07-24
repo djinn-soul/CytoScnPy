@@ -13,7 +13,7 @@ fn get_halstead_counts(code: &str) -> (usize, usize, usize, usize) {
         if let ruff_python_ast::Mod::Module(m) = ast.into_syntax() {
             let metrics = analyze_halstead(&ruff_python_ast::Mod::Module(m));
             // Returns (total_operators, total_operands, distinct_operators, distinct_operands)
-            return (metrics.h1, metrics.h2, metrics.n1, metrics.n2);
+            return (metrics.n1, metrics.n2, metrics.h1, metrics.h2);
         }
     }
     (0, 0, 0, 0)

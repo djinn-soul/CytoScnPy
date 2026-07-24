@@ -12,7 +12,7 @@ fn test_halstead_simple() {
         let metrics = analyze_halstead(&ruff_python_ast::Mod::Module(m));
         // Operators: = (1)
         // Operands: x, 1 (2)
-        // n1 = 1, n2 = 2
+        // h1 = 1, h2 = 2
         // N1 = 1, N2 = 2
         assert_eq!(metrics.h1, 1);
         assert_eq!(metrics.h2, 2);
@@ -39,8 +39,8 @@ fn test_halstead_function() {
         // Distinct operands: foo, x, 1 = 3
 
         assert_eq!(metrics.h1, 3);
-        assert_eq!(metrics.h2, 4);
+        assert_eq!(metrics.h2, 3);
         assert_eq!(metrics.n1, 3);
-        assert_eq!(metrics.n2, 3);
+        assert_eq!(metrics.n2, 4);
     }
 }

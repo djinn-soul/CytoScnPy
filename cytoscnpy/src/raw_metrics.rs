@@ -1,10 +1,10 @@
 use crate::utils::LineIndex;
-use ruff_python_ast::visitor::{self, Visitor};
-use ruff_python_ast::{Expr, ModModule, Stmt};
+use ruff_python_ast::ModModule;
 use ruff_python_parser::parse_module;
-use ruff_text_size::Ranged;
-
 use serde::{Deserialize, Serialize};
+
+mod collectors;
+use collectors::{collect_docstring_ranges, collect_string_ranges, count_logical_lines};
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 /// Raw metrics gathered from source code analysis.
@@ -25,109 +25,6 @@ pub struct RawMetrics {
     pub single_comments: usize,
 }
 
-struct StringCollector {
-    ranges: Vec<(usize, usize)>,
-}
-
-#[derive(Default)]
-struct DocstringCollector {
-    ranges: Vec<(usize, usize)>,
-}
-
-impl<'a> Visitor<'a> for DocstringCollector {
-    fn visit_stmt(&mut self, stmt: &'a Stmt) {
-        match stmt {
-            Stmt::FunctionDef(node) => collect_body_docstring(&node.body, &mut self.ranges),
-            Stmt::ClassDef(node) => collect_body_docstring(&node.body, &mut self.ranges),
-            _ => {}
-        }
-        visitor::walk_stmt(self, stmt);
-    }
-}
-
-#[derive(Default)]
-struct LogicalLineCounter {
-    count: usize,
-}
-
-impl<'a> Visitor<'a> for LogicalLineCounter {
-    fn visit_stmt(&mut self, stmt: &'a Stmt) {
-        if matches!(stmt, Stmt::Expr(node) if matches!(node.value.as_ref(), Expr::StringLiteral(_)))
-        {
-            return;
-        }
-        self.count += 1;
-        visitor::walk_stmt(self, stmt);
-    }
-}
-
-impl<'a> Visitor<'a> for StringCollector {
-    fn visit_expr(&mut self, expr: &'a Expr) {
-        self.collect_string_range(expr);
-        visitor::walk_expr(self, expr);
-    }
-}
-
-impl StringCollector {
-    fn collect_string_range(&mut self, expr: &Expr) {
-        match expr {
-            Expr::StringLiteral(s) => {
-                let range = s.range();
-                self.ranges
-                    .push((range.start().to_usize(), range.end().to_usize()));
-            }
-            Expr::BytesLiteral(b) => {
-                let range = b.range();
-                self.ranges
-                    .push((range.start().to_usize(), range.end().to_usize()));
-            }
-            Expr::FString(f) => {
-                let range = f.range();
-                self.ranges
-                    .push((range.start().to_usize(), range.end().to_usize()));
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Collects byte ranges of all string/bytes/f-string literals in a module body.
-fn collect_string_ranges(body: &[Stmt]) -> Vec<(usize, usize)> {
-    let mut collector = StringCollector { ranges: Vec::new() };
-    for stmt in body {
-        collector.visit_stmt(stmt);
-    }
-    collector.ranges
-}
-
-fn collect_docstring_ranges(body: &[Stmt]) -> Vec<(usize, usize)> {
-    let mut collector = DocstringCollector::default();
-    collect_body_docstring(body, &mut collector.ranges);
-    for stmt in body {
-        collector.visit_stmt(stmt);
-    }
-    collector.ranges
-}
-
-fn collect_body_docstring(body: &[Stmt], ranges: &mut Vec<(usize, usize)>) {
-    let Some(Stmt::Expr(node)) = body.first() else {
-        return;
-    };
-    let Expr::StringLiteral(string) = node.value.as_ref() else {
-        return;
-    };
-    let range = string.range();
-    ranges.push((range.start().to_usize(), range.end().to_usize()));
-}
-
-fn count_logical_lines(body: &[Stmt]) -> usize {
-    let mut counter = LogicalLineCounter::default();
-    for stmt in body {
-        counter.visit_stmt(stmt);
-    }
-    counter.count
-}
-
 /// Analyzes raw metrics (LOC, SLOC, etc.) from source code.
 ///
 /// Parses `code` internally. Callers that already hold the parsed AST should
@@ -140,10 +37,10 @@ pub fn analyze_raw(code: &str) -> RawMetrics {
             (
                 collect_string_ranges(&module.body),
                 collect_docstring_ranges(&module.body),
-                count_logical_lines(&module.body),
+                Some(count_logical_lines(&module.body)),
             )
         }
-        Err(_) => (Vec::new(), Vec::new(), 0),
+        Err(_) => (Vec::new(), Vec::new(), None),
     };
     analyze_raw_inner(code, &string_ranges, &docstring_ranges, lloc)
 }
@@ -159,7 +56,7 @@ pub fn analyze_raw_with_module(code: &str, module: &ModModule) -> RawMetrics {
         code,
         &string_ranges,
         &docstring_ranges,
-        count_logical_lines(&module.body),
+        Some(count_logical_lines(&module.body)),
     )
 }
 
@@ -167,7 +64,7 @@ fn analyze_raw_inner(
     code: &str,
     string_ranges: &[(usize, usize)],
     docstring_ranges: &[(usize, usize)],
-    lloc: usize,
+    lloc: Option<usize>,
 ) -> RawMetrics {
     let mut metrics = RawMetrics::default();
 
@@ -256,7 +153,27 @@ fn analyze_raw_inner(
     }
 
     // 4. Aggregate metrics
-    metrics.multi = 0;
+    let mut assigned_multiline_lines = vec![false; metrics.loc + 1];
+    for (start_offset, end_offset) in string_ranges {
+        let start_row = line_index.line_index(ruff_text_size::TextSize::new(
+            u32::try_from(*start_offset).unwrap_or(0),
+        ));
+        let end_row = line_index.line_index(ruff_text_size::TextSize::new(
+            u32::try_from(*end_offset).unwrap_or(0),
+        ));
+        if end_row > start_row {
+            for row in start_row..=std::cmp::min(end_row, metrics.loc) {
+                if line_types[row] == LineType::Code {
+                    assigned_multiline_lines[row] = true;
+                }
+            }
+        }
+    }
+
+    metrics.multi = assigned_multiline_lines
+        .into_iter()
+        .filter(|is_multiline| *is_multiline)
+        .count();
     metrics.comments = inline_comments;
     metrics.sloc = 0;
 
@@ -274,7 +191,7 @@ fn analyze_raw_inner(
         }
     }
 
-    metrics.lloc = lloc;
+    metrics.lloc = lloc.unwrap_or(metrics.sloc);
 
     metrics
 }

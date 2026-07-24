@@ -50,7 +50,19 @@ pub(super) fn check_django_call_patterns(visitor: &mut FrameworkAwareVisitor, ex
         if function_name == "add_url_rule" {
             visitor.is_framework_file = true;
             visitor.detected_frameworks.insert("flask".to_owned());
-            if let Some(view) = call.arguments.args.get(2) {
+            let view = call
+                .arguments
+                .keywords
+                .iter()
+                .find(|keyword| {
+                    keyword
+                        .arg
+                        .as_ref()
+                        .is_some_and(|name| name.as_str() == "view_func")
+                })
+                .map(|keyword| &keyword.value)
+                .or_else(|| call.arguments.args.get(2));
+            if let Some(view) = view {
                 extract_view_reference(visitor, view);
             }
         }

@@ -12,7 +12,7 @@ pub(super) fn add_issues(
         let (file, line) = finding.location_or_manifest(root);
         issues.push(make_gitlab_issue(
             &finding.message,
-            &finding.stable_id(),
+            &finding.stable_id_with_path(&file),
             &file,
             line,
             gitlab_severity(&finding.severity),

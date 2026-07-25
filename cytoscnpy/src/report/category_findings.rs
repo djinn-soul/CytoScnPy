@@ -26,6 +26,10 @@ impl ExtendedFinding {
             .as_deref()
             .map(crate::utils::normalize_display_path)
             .unwrap_or_else(|| "-".to_owned());
+        self.stable_id_with_path(&file)
+    }
+
+    pub(crate) fn stable_id_with_path(&self, file: &str) -> String {
         format!(
             "{}:{}:{}:{}:{}:{}",
             self.kind,
@@ -56,6 +60,7 @@ pub(crate) fn collect_clone_findings(result: &AnalysisResult) -> Vec<ExtendedFin
     result
         .clones
         .iter()
+        .filter(|finding| finding.is_duplicate)
         .map(|finding| ExtendedFinding {
             rule_id: finding.rule_id.clone(),
             kind: "clone",

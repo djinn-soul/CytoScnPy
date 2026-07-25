@@ -25,6 +25,15 @@ fn assert_all_rule_ids(output: &str) {
     }
 }
 
+fn issue_for_rule<'a>(report: &'a Value, rule_id: &str) -> &'a Value {
+    report
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|issue| issue["check_name"].as_str() == Some(rule_id))
+        .unwrap()
+}
+
 #[test]
 fn structured_formats_include_all_extended_findings() {
     let result = extended_result();
@@ -40,24 +49,37 @@ fn structured_formats_include_all_extended_findings() {
 
     let sarif = rendered(|writer| sarif::print_sarif(writer, &result));
     assert_all_rule_ids(&sarif);
+    let sarif: Value = serde_json::from_str(&sarif).unwrap();
+    let clone = sarif["runs"][0]["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|finding| finding["ruleId"].as_str() == Some("CSP-C100"))
+        .unwrap();
+    assert_eq!(clone["level"], "warning");
 }
 
 #[test]
 fn gitlab_extended_fingerprints_are_stable() {
-    let result = extended_result();
-    let first: Value =
-        serde_json::from_str(&rendered(|writer| gitlab::print_gitlab(writer, &result))).unwrap();
-    let second: Value =
-        serde_json::from_str(&rendered(|writer| gitlab::print_gitlab(writer, &result))).unwrap();
+    let first_root = tempfile::tempdir().unwrap();
+    let second_root = tempfile::tempdir().unwrap();
+    let render_at_root = |root: &std::path::Path| {
+        let mut result = extended_result();
+        result.clones[0].file = root.join("src/clone.py");
+        serde_json::from_str::<Value>(&rendered(|writer| {
+            gitlab::print_gitlab_with_root(writer, &result, Some(root))
+        }))
+        .unwrap()
+    };
 
-    assert_eq!(first, second);
-    let output = first.to_string();
-    assert_all_rule_ids(&output);
-    for issue in first.as_array().unwrap() {
-        assert!(issue["fingerprint"]
-            .as_str()
-            .is_some_and(|id| !id.is_empty()));
-    }
+    let first = render_at_root(first_root.path());
+    let second = render_at_root(second_root.path());
+    let first_clone = issue_for_rule(&first, "CSP-C100");
+    let second_clone = issue_for_rule(&second, "CSP-C100");
+
+    assert_eq!(first_clone["location"]["path"], "src/clone.py");
+    assert_eq!(first_clone["fingerprint"], second_clone["fingerprint"]);
+    assert_all_rule_ids(&first.to_string());
 }
 
 #[test]
@@ -89,15 +111,28 @@ fn text_grouped_and_quiet_cover_dependency_and_clone_counts() {
 
 #[test]
 fn json_contains_raw_vectors_and_stable_extended_findings() {
-    let result = extended_result();
+    let mut result = extended_result();
+    let mut canonical = result.clones[0].clone();
+    canonical.file = "src/original.py".into();
+    canonical.message = "Canonical clone implementation".to_owned();
+    canonical.severity = "INFO".to_owned();
+    canonical.is_duplicate = false;
+    result.clones.push(canonical);
     let payload: Value =
         serde_json::from_str(&json::machine_json_payload(&result).unwrap()).unwrap();
 
     assert_eq!(payload["schema_version"], "2");
-    assert_eq!(payload["clones"].as_array().unwrap().len(), 1);
+    assert_eq!(payload["clones"].as_array().unwrap().len(), 2);
     assert_eq!(payload["unused_dependencies"].as_array().unwrap().len(), 1);
-    let stable = payload["stable_findings"].to_string();
-    assert_all_rule_ids(&stable);
+    let stable = payload["stable_findings"].as_array().unwrap();
+    assert_eq!(
+        stable
+            .iter()
+            .filter(|finding| finding["kind"].as_str() == Some("clone"))
+            .count(),
+        1
+    );
+    assert_all_rule_ids(&Value::Array(stable.clone()).to_string());
 }
 
 #[cfg(feature = "html_report")]

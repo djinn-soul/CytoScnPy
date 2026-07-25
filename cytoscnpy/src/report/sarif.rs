@@ -254,7 +254,7 @@ fn make_sarif_result(
 ) -> SarifResult {
     let level = match severity.to_uppercase().as_str() {
         "CRITICAL" | "HIGH" => "error",
-        "MEDIUM" => "warning",
+        "MEDIUM" | "WARNING" => "warning",
         _ => "note",
     };
 

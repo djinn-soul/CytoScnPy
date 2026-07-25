@@ -128,7 +128,7 @@ impl CytoScnPy {
         let quality_count = state.all_quality.len();
         let parse_errors_count = state.all_parse_errors.len();
 
-        AnalysisResult {
+        let mut result = AnalysisResult {
             unused_functions: classified.unused_functions,
             unused_methods: classified.unused_methods,
             unused_imports: classified.unused_imports,
@@ -137,6 +137,7 @@ impl CytoScnPy {
             unused_parameters: classified.unused_parameters,
             unused_dependencies: Vec::new(),
             missing_dependencies: Vec::new(),
+            missing_dependency_details: Vec::new(),
             transitive_dependencies: Vec::new(),
             dev_dependencies_in_production: Vec::new(),
             stdlib_dependencies: Vec::new(),
@@ -173,6 +174,8 @@ impl CytoScnPy {
                 halstead_metrics: state.all_halstead_metrics,
             },
             file_metrics: state.file_metrics,
-        }
+        };
+        super::apply_global_ignores(&mut result, self.config.cytoscnpy.ignore.as_deref());
+        result
     }
 }

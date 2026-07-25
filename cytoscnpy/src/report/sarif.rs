@@ -2,6 +2,8 @@ use crate::analyzer::AnalysisResult;
 use serde::Serialize;
 use std::io::Write;
 
+mod extended;
+
 #[derive(Serialize)]
 struct SarifLog {
     version: String,
@@ -142,6 +144,7 @@ pub fn print_sarif_with_root(
     }
     // Unused
     add_unused_results(&mut results, result, root);
+    extended::add_results(&mut results, result, root);
 
     // Parse Errors
     for e in &result.parse_errors {
@@ -251,7 +254,7 @@ fn make_sarif_result(
 ) -> SarifResult {
     let level = match severity.to_uppercase().as_str() {
         "CRITICAL" | "HIGH" => "error",
-        "MEDIUM" => "warning",
+        "MEDIUM" | "WARNING" => "warning",
         _ => "note",
     };
 

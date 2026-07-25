@@ -91,7 +91,11 @@ impl CytoScnPyVisitor<'_> {
     }
 
     pub(super) fn handle_aug_assign_stmt(&mut self, node: &ast::StmtAugAssign) {
-        if Self::is_all_name_expr(&node.target) {
+        let is_module_scope = self
+            .scope_stack
+            .last()
+            .is_some_and(|scope| scope.kind == ScopeType::Module);
+        if is_module_scope && Self::is_all_name_expr(&node.target) {
             self.exports_declared = true;
             self.extend_exports_from_expr(&node.value);
         }

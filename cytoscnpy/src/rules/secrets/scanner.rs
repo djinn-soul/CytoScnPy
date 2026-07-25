@@ -100,6 +100,7 @@ impl SecretScanner {
             let is_docstring = docstring_lines.is_some_and(|lines| lines.contains(&finding.line));
             let context = ScoringContext {
                 line_content,
+                rule_id: &finding.rule_id,
                 file_path,
                 is_comment,
                 is_docstring,

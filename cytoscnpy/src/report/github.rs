@@ -6,6 +6,8 @@ use crate::taint::types::TaintFinding;
 use crate::visitor::Definition;
 use std::io::Write;
 
+mod categories;
+
 /// Generates `GitHub Actions` workflow commands.
 ///
 /// See: <https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions>
@@ -33,6 +35,7 @@ pub fn print_github_with_root(
     write_taint_findings(writer, &result.taint_findings, root)?;
     write_unused_code(writer, result, root)?;
     write_parse_errors(writer, &result.parse_errors, root)?;
+    categories::write_extended_findings(writer, result, root)?;
 
     Ok(())
 }
@@ -75,12 +78,13 @@ fn write_taint_findings(
 ) -> std::io::Result<()> {
     for finding in findings {
         let path = normalize_path(&finding.file, root);
+        let level = severity_level(&finding.severity.to_string(), "warning");
         writeln!(
             writer,
-            "::warning file={},line={},col={},title={}::{} (Source: {})",
+            "::{level} file={},line={},col={},title={}::{} (Source: {})",
             escape_property(&path),
             finding.sink_line,
-            finding.sink_col,
+            valid_column(finding.sink_col),
             escape_property(&finding.rule_id),
             escape_message(&finding.vuln_type.to_string()),
             escape_message(&finding.source)
@@ -172,10 +176,7 @@ fn write_annotation(
 ) -> std::io::Result<()> {
     // Map severity to level if needed, but 'level' arg overrides for now based on category
     // GitHub supports: debug, notice, warning, error
-    let gh_level = match finding.severity.to_uppercase().as_str() {
-        "CRITICAL" | "HIGH" => "error",
-        _ => level,
-    };
+    let gh_level = severity_level(&finding.severity, level);
 
     let path = normalize_path(&finding.file, root);
 
@@ -185,7 +186,7 @@ fn write_annotation(
         gh_level,
         escape_property(&path),
         finding.line,
-        finding.col,
+        valid_column(finding.col),
         escape_property(&finding.rule_id),
         escape_message(&finding.message),
         escape_message(&path),
@@ -208,8 +209,9 @@ fn write_unused(
     let message = format!("Unused identifier '{name}' in {path}:{line}");
     writeln!(
         writer,
-        "::{level} file={},line={line},col={col},title={title}::{}",
+        "::{level} file={},line={line},col={},title={title}::{}",
         escape_property(&path),
+        valid_column(col),
         escape_message(&message)
     )?;
     Ok(())
@@ -223,7 +225,7 @@ fn write_unused(
 /// - `\n` with `%0A`
 /// - `:` with `%3A`
 /// - `,` with `%2C`
-fn escape_property(value: &str) -> String {
+pub(super) fn escape_property(value: &str) -> String {
     value
         .replace('%', "%25")
         .replace('\r', "%0D")
@@ -238,9 +240,24 @@ fn escape_property(value: &str) -> String {
 /// - `%` with `%25`
 /// - `\r` with `%0D`
 /// - `\n` with `%0A`
-fn escape_message(value: &str) -> String {
+pub(super) fn escape_message(value: &str) -> String {
     value
         .replace('%', "%25")
         .replace('\r', "%0D")
         .replace('\n', "%0A")
+}
+
+pub(super) fn severity_level<'a>(severity: &str, default: &'a str) -> &'a str {
+    match severity.to_uppercase().as_str() {
+        "CRITICAL" | "HIGH" => "error",
+        _ => default,
+    }
+}
+
+pub(super) const fn valid_column(column: usize) -> usize {
+    if column == 0 {
+        1
+    } else {
+        column
+    }
 }

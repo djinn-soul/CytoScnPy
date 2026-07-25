@@ -81,10 +81,19 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         let deps_result = crate::deps::analyze_dependencies(&deps_options);
         run.result.unused_dependencies = deps_result.unused;
         run.result.missing_dependencies = deps_result.missing;
+        run.result.missing_dependency_details = deps_result.missing_details;
         run.result.transitive_dependencies = deps_result.transitive;
         run.result.dev_dependencies_in_production = deps_result.dev_in_production;
         run.result.stdlib_dependencies = deps_result.stdlib;
     }
+
+    crate::analyzer::apply_global_ignores(&mut run.result, config.cytoscnpy.ignore.as_deref());
+    run.clone_pairs_found = run
+        .result
+        .clones
+        .iter()
+        .filter(|finding| finding.is_duplicate)
+        .count();
 
     // If --no-dead flag is set, clear dead code detection results
     // (only show security/quality scans)

@@ -8,7 +8,13 @@ pub(crate) struct AnalysisRun {
     pub(crate) result: crate::analyzer::AnalysisResult,
     pub(crate) clone_pairs_found: usize,
     pub(crate) clone_similarity: Option<f64>,
+    pub(crate) emit_clone_text: bool,
     pub(crate) start_time: std::time::Instant,
+}
+
+const fn clone_activation(cli: bool, config: bool, html: bool) -> (bool, bool) {
+    let emit_text = cli || config;
+    (emit_text || html, emit_text)
 }
 
 pub(crate) fn run_analysis<W: std::io::Write>(
@@ -139,8 +145,10 @@ pub(crate) fn run_analysis<W: std::io::Write>(
     let html_output_requested = cli_var.output.html;
     #[cfg(not(feature = "html_report"))]
     let html_output_requested = false;
+    let (run_clones, emit_clone_text) =
+        clone_activation(cli_var.clones, clones_from_config, html_output_requested);
 
-    if cli_var.clones || clones_from_config || html_output_requested {
+    if run_clones {
         clone_similarity_used = Some(clone_similarity);
         let clone_options = crate::commands::CloneOptions {
             similarity: clone_similarity,
@@ -193,6 +201,7 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         result,
         clone_pairs_found,
         clone_similarity: clone_similarity_used,
+        emit_clone_text,
         start_time,
     })
 }
@@ -227,7 +236,14 @@ fn normalize_path_for_error(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::build_whitelist_matcher;
+    use super::{build_whitelist_matcher, clone_activation};
+
+    #[test]
+    fn html_only_runs_clones_without_enabling_clone_text() {
+        assert_eq!(clone_activation(false, false, true), (true, false));
+        assert_eq!(clone_activation(true, false, true), (true, true));
+        assert_eq!(clone_activation(false, true, true), (true, true));
+    }
 
     #[test]
     fn build_whitelist_matcher_skips_when_no_entries() {

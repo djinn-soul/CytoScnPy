@@ -38,7 +38,7 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         return Ok(code);
     }
 
-    let context = build_runtime_context(&cli_var);
+    let context = build_runtime_context(&cli_var)?;
     if let Err(err) = settings::initialize(context.config.clone()) {
         if err != crate::settings::SettingsError::AlreadyInitialized {
             return Err(err.into());
@@ -101,12 +101,12 @@ pub(super) struct RuntimeContext {
     pub(super) is_vscode_client: bool,
 }
 
-fn build_runtime_context(cli_var: &Cli) -> RuntimeContext {
+fn build_runtime_context(cli_var: &Cli) -> Result<RuntimeContext> {
     let all_target_paths = collect_all_target_paths(cli_var);
     let (effective_paths, analysis_root) = resolve_analysis_context(cli_var, &all_target_paths);
-    let app_config = setup_configuration(&effective_paths, cli_var);
+    let app_config = setup_configuration(&effective_paths, cli_var)?;
 
-    RuntimeContext {
+    Ok(RuntimeContext {
         effective_paths,
         analysis_root,
         exclude_folders: app_config.exclude_folders,
@@ -114,7 +114,7 @@ fn build_runtime_context(cli_var: &Cli) -> RuntimeContext {
         include_tests: app_config.include_tests,
         is_vscode_client: is_vscode_client(cli_var),
         config: app_config.config,
-    }
+    })
 }
 
 fn print_runtime_messages(cli_var: &Cli, context: &RuntimeContext) {

@@ -191,6 +191,9 @@ pub struct AnalysisResult {
     pub unused_dependencies: Vec<crate::deps::DeclaredDependency>,
     /// List of imports that were used but never declared.
     pub missing_dependencies: Vec<String>,
+    /// Missing dependency findings with source locations for structured reports.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_dependency_details: Vec<crate::deps::MissingDependency>,
     /// Imported dependencies present only through declared transitive packages.
     #[serde(default)]
     pub transitive_dependencies: Vec<crate::deps::TransitiveDependency>,

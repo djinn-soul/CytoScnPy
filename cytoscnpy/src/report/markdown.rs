@@ -1,6 +1,8 @@
 use crate::analyzer::AnalysisResult;
 use std::io::Write;
 
+mod extended;
+
 /// Generates a Markdown summary of findings.
 ///
 /// # Errors
@@ -18,7 +20,7 @@ pub fn print_markdown(writer: &mut impl Write, result: &AnalysisResult) -> std::
 pub fn print_markdown_with_root(
     writer: &mut impl Write,
     result: &AnalysisResult,
-    _root: Option<&std::path::Path>,
+    root: Option<&std::path::Path>,
 ) -> std::io::Result<()> {
     writeln!(writer, "# CytoScnPy Analysis Report\n")?;
 
@@ -29,6 +31,7 @@ pub fn print_markdown_with_root(
     write_taint_issues(writer, result)?;
     write_unused_code(writer, result)?;
     write_parse_errors(writer, result)?;
+    extended::write_sections(writer, result, root)?;
 
     Ok(())
 }
@@ -72,6 +75,7 @@ fn write_summary(writer: &mut impl Write, result: &AnalysisResult) -> std::io::R
         result.unused_variables.len()
     )?;
     writeln!(writer, "| Parse Errors | {} |", result.parse_errors.len())?;
+    extended::write_summary_rows(writer, result)?;
     writeln!(writer)?;
     Ok(())
 }

@@ -50,6 +50,7 @@ fn test_scorer_scoring() {
 
     let ctx = ScoringContext {
         line_content: "password = 'secret123'",
+        rule_id: "CSP-S300",
         file_path: &path,
         is_comment: false,
         is_docstring: false,
@@ -63,6 +64,7 @@ fn test_scorer_scoring() {
     let test_path = PathBuf::from("/project/tests/test_main.py");
     let test_ctx = ScoringContext {
         line_content: "password = 'secret123'",
+        rule_id: "CSP-S300",
         file_path: &test_path,
         is_comment: false,
         is_docstring: false,
@@ -73,10 +75,32 @@ fn test_scorer_scoring() {
     // Env var should reduce score to 0
     let env_ctx = ScoringContext {
         line_content: "password = os.environ.get('PASSWORD')",
+        rule_id: "CSP-S300",
         file_path: &path,
         is_comment: false,
         is_docstring: false,
         is_test_file: false,
     };
     assert_eq!(scorer.score(70, &env_ctx), 0); // 70 - 100, clamped to 0
+}
+
+#[test]
+fn suppression_must_cover_the_secret_rule() {
+    let scorer = ContextScorer::new();
+    let path = PathBuf::from("/project/src/main.py");
+    let unrelated = ScoringContext {
+        line_content: "token = 'ghp_value'  # noqa: E501",
+        rule_id: "CSP-S104",
+        file_path: &path,
+        is_comment: false,
+        is_docstring: false,
+        is_test_file: false,
+    };
+    let matching = ScoringContext {
+        line_content: "token = 'ghp_value'  # noqa: CSP-S104",
+        ..unrelated
+    };
+
+    assert_eq!(scorer.score(85, &unrelated), 85);
+    assert_eq!(scorer.score(85, &matching), 0);
 }

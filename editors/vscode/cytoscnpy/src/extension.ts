@@ -16,6 +16,7 @@ import {
 } from "./configuration";
 import { resolveFinding } from "./findingResolver";
 import { CoalescingTaskQueue, DebouncedTaskMap } from "./scanScheduler";
+import { watchProjectConfiguration } from "./configWatcher";
 
 // Cache for file content hashes to skip re-analyzing unchanged files
 // We keep a history of entries to support instant Undo/Redo operations
@@ -602,6 +603,25 @@ export function activate(context: vscode.ExtensionContext) {
       cytoscnpyDiagnostics.clear();
     }
 
+    function refreshAfterConfigurationChange() {
+      invalidateWorkspaceCache();
+      const pythonDocuments = vscode.workspace.textDocuments.filter(
+        (document) => document.languageId === "python",
+      );
+      if (
+        vscode.workspace.workspaceFolders?.length &&
+        pythonDocuments.some(
+          (document) =>
+            getCytoScnPyConfiguration(context, document.uri).analysisMode ===
+            "workspace",
+        )
+      ) {
+        void runFullWorkspaceAnalysis();
+      } else {
+        pythonDocuments.forEach((document) => void refreshDiagnostics(document));
+      }
+    }
+
     // Function to run incremental analysis on a single file and merge into workspace cache
     // This is much faster than full workspace re-analysis for single file saves
     async function runIncrementalAnalysis(document: vscode.TextDocument) {
@@ -838,25 +858,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("cytoscnpy")) {
-          // Clear caches to force re-analysis with new settings
-          invalidateWorkspaceCache();
-          const pythonDocuments = vscode.workspace.textDocuments.filter(
-            (doc) => doc.languageId === "python",
-          );
-          if (
-            vscode.workspace.workspaceFolders?.length &&
-            pythonDocuments.some(
-              (doc) =>
-                getCytoScnPyConfiguration(context, doc.uri).analysisMode ===
-                "workspace",
-            )
-          ) {
-            void runFullWorkspaceAnalysis();
-          } else {
-            pythonDocuments.forEach((doc) => void refreshDiagnostics(doc));
-          }
+          refreshAfterConfigurationChange();
         }
       }),
+    );
+
+    context.subscriptions.push(
+      watchProjectConfiguration(refreshAfterConfigurationChange),
     );
 
     context.subscriptions.push(

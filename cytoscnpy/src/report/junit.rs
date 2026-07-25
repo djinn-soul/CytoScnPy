@@ -2,6 +2,8 @@ use crate::analyzer::AnalysisResult;
 use crate::rules::Finding;
 use std::io::Write;
 
+mod extended;
+
 /// Generates a `JUnit` XML report.
 ///
 /// Schema:
@@ -28,7 +30,7 @@ pub fn print_junit(writer: &mut impl Write, result: &AnalysisResult) -> std::io:
 pub fn print_junit_with_root(
     writer: &mut impl Write,
     result: &AnalysisResult,
-    _root: Option<&std::path::Path>,
+    root: Option<&std::path::Path>,
 ) -> std::io::Result<()> {
     writeln!(writer, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")?;
     writeln!(writer, "<testsuites>")?;
@@ -42,6 +44,7 @@ pub fn print_junit_with_root(
     )?;
 
     write_findings_to_junit(writer, result)?;
+    extended::write_findings(writer, result, root)?;
 
     writeln!(writer, "  </testsuite>")?;
     writeln!(writer, "</testsuites>")?;
@@ -60,6 +63,7 @@ fn count_total_findings(result: &AnalysisResult) -> usize {
         + result.unused_variables.len()
         + result.unused_methods.len()
         + result.parse_errors.len()
+        + extended::count_findings(result)
 }
 
 fn write_findings_to_junit(

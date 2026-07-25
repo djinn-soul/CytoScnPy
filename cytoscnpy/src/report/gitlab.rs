@@ -2,6 +2,8 @@ use crate::analyzer::AnalysisResult;
 use serde_json::json;
 use std::io::Write;
 
+mod extended;
+
 /// Generates `GitLab` Code Quality JSON report.
 ///
 /// See: <https://docs.gitlab.com/ee/ci/testing/code_quality.html#implementing-a-custom-tool>
@@ -31,6 +33,7 @@ pub fn print_gitlab_with_root(
     add_secrets_issues(&mut issues, result, root);
     add_unused_code_issues(&mut issues, result, root);
     add_parse_error_issues(&mut issues, result, root);
+    extended::add_issues(&mut issues, result, root);
 
     serde_json::to_writer_pretty(writer, &issues)?;
     Ok(())
@@ -271,7 +274,7 @@ fn normalize_path(path: &std::path::Path, root: Option<&std::path::Path>) -> Str
     path.strip_prefix("./").unwrap_or(&path).to_owned()
 }
 
-fn make_gitlab_issue(
+pub(super) fn make_gitlab_issue(
     description: &str,
     fingerprint: &str,
     file: &str,

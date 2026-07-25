@@ -40,6 +40,7 @@ fn create_mock_result() -> AnalysisResult {
         clones: vec![],
         file_metrics: vec![],
         missing_dependencies: vec![],
+        missing_dependency_details: vec![],
         unused_dependencies: vec![],
         transitive_dependencies: vec![],
         dev_dependencies_in_production: vec![],

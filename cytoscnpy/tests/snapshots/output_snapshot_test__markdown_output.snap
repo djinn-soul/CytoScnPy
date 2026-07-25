@@ -1,6 +1,6 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 156
+assertion_line: 159
 expression: output
 ---
 # CytoScnPy Analysis Report
@@ -20,6 +20,12 @@ expression: output
 | Unused Parameters | 0 |
 | Unused Variables | 1 |
 | Parse Errors | 0 |
+| Clone Findings | 0 |
+| Missing Dependencies | 0 |
+| Unused Dependencies | 0 |
+| Transitive Dependencies | 0 |
+| Dev Dependencies in Production | 0 |
+| Standard Library Dependencies | 0 |
 
 ## Unused Code
 

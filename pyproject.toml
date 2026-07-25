@@ -251,7 +251,7 @@ docs = [
     "mkdocs-material>=9.5.0; python_version >= '3.9'",
     "mkdocs-minify-plugin>=0.8.0; python_version >= '3.9'",
     "mkdocstrings[python]>=0.24.0",
-    "pymdown-extensions>=10.0; python_version >= '3.9'",
+    "pymdown-extensions>=11.0.0; python_version >= '3.9'",
 ]
 
 

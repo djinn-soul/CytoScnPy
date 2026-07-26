@@ -56,3 +56,30 @@ fn curated_exact_clone_corpus_has_full_precision_and_recall() {
     assert_eq!(true_positives, positives.len(), "curated recall regressed");
     assert_eq!(false_positives, 0, "curated precision regressed");
 }
+
+#[test]
+fn enum_member_names_and_values_remain_semantic() {
+    let payment_states = "from enum import Enum\n\nclass PaymentState(Enum):\n    PENDING = \"pending\"\n    SETTLED = \"settled\"\n    FAILED = \"failed\"\n    REFUNDED = \"refunded\"\n";
+    let access_levels = "from enum import Enum\n\nclass AccessLevel(Enum):\n    GUEST = \"guest\"\n    MEMBER = \"member\"\n    ADMIN = \"admin\"\n    OWNER = \"owner\"\n";
+    let renamed_payment_states = "from enum import Enum\n\nclass TransactionState(Enum):\n    PENDING = 'pending'\n    SETTLED = 'settled'\n    FAILED = 'failed'\n    REFUNDED = 'refunded'\n";
+
+    assert!(
+        !detects_pair(payment_states, access_levels),
+        "different enum members must not be reported as clones"
+    );
+    assert!(
+        detects_pair(payment_states, renamed_payment_states),
+        "renaming only the enum class should remain a Type-2 clone"
+    );
+}
+
+#[test]
+fn qualified_enum_bases_preserve_member_semantics() {
+    let colors = "import enum\n\nclass Color(enum.IntEnum):\n    RED = 1\n    GREEN = 2\n    BLUE = 3\n    WHITE = 4\n";
+    let priorities = "import enum\n\nclass Priority(enum.IntEnum):\n    LOW = 10\n    MEDIUM = 20\n    HIGH = 30\n    URGENT = 40\n";
+
+    assert!(
+        !detects_pair(colors, priorities),
+        "qualified enum bases must preserve member semantics"
+    );
+}

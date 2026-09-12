@@ -318,3 +318,37 @@ def test_resolve_file_returns_none_on_invalid_path(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "resolve", _raise)
 
     assert pytest_plugin._resolve_file(tmp_path / "broken.py") is None
+
+
+def test_sessionstart_forces_fail_on_non_python_findings(tmp_path):
+    import json
+
+    data = {
+        "secrets": [
+            {
+                "file": ".cytoscnpy.toml",
+                "message": "invalid custom secret regex",
+                "line": 1,
+            }
+        ]
+    }
+    raw_json = json.dumps(data)
+    session: Any = SimpleNamespace(
+        config=_DummyConfig(tmp_path, enabled=True),
+        stash={},
+    )
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(pytest_plugin, "_run_scan", lambda _path: (0, raw_json, ""))
+        pytest_plugin.pytest_sessionstart(session)
+
+    assert session.stash[pytest_plugin.FORCE_FAIL_KEY] is True
+    assert "invalid custom secret regex" in (
+        session.stash[pytest_plugin.ERROR_KEY] or ""
+    )
+
+
+def test_sessionfinish_fails_exitstatus_when_force_fail_set():
+    session = SimpleNamespace(stash={pytest_plugin.FORCE_FAIL_KEY: True}, exitstatus=0)
+    pytest_plugin.pytest_sessionfinish(cast(Any, session), 0)
+    assert session.exitstatus == int(pytest.ExitCode.TESTS_FAILED)

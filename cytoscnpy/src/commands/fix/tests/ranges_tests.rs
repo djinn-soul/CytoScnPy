@@ -131,3 +131,24 @@ def duplicate():
 
     assert_eq!(&source[range.0..range.1], "def duplicate():\n    return 2");
 }
+
+#[test]
+fn test_find_def_range_nested_same_name() {
+    let source = "def shared():\n    def shared():\n        return 2\n    return 1\n";
+    let parsed = ruff_python_parser::parse_module(source).unwrap();
+    let body = parsed.into_syntax().body;
+    let outer_name = source.find("shared").unwrap();
+    let inner_name = source.rfind("shared").unwrap();
+
+    let inner_range = find_def_range(&body, "shared", "function", Some(inner_name));
+    assert!(
+        inner_range.is_none(),
+        "nested definition should not match outer function"
+    );
+
+    let outer_range = find_def_range(&body, "shared", "function", Some(outer_name)).unwrap();
+    assert_eq!(
+        &source[outer_range.0..outer_range.1],
+        "def shared():\n    def shared():\n        return 2\n    return 1"
+    );
+}

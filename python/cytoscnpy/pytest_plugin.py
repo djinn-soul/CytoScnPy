@@ -107,7 +107,11 @@ def _run_scan(scan_path: Path) -> tuple[int, str, str]:
 
             raw_json = scan_json(paths=[str(scan_path)])
             return 0, raw_json, ""
-        except (ImportError, RuntimeError, OSError):
+        except ImportError:
+            pass
+        except (FileNotFoundError, ValueError) as exc:
+            return 1, "", str(exc)
+        except (RuntimeError, OSError):
             LOGGER.debug(
                 "In-process scan failed; falling back to subprocess", exc_info=True
             )
@@ -120,6 +124,15 @@ def _run_scan(scan_path: Path) -> tuple[int, str, str]:
         errors="replace",
     )
     return result.returncode, result.stdout, result.stderr
+
+
+def _detect_non_py_findings(by_file: Mapping[str, list[str]]) -> list[str]:
+    """Extract findings for files that are not Python sources."""
+    non_py_findings: list[str] = []
+    for file_str, msgs in by_file.items():
+        if not file_str.endswith(".py"):
+            non_py_findings.extend(f"{file_str}:{msg}" for msg in msgs)
+    return non_py_findings
 
 
 def pytest_sessionstart(session: Session) -> None:
@@ -153,6 +166,16 @@ def pytest_sessionstart(session: Session) -> None:
         return
 
     session.stash[BY_FILE_KEY] = _group_by_file(cast(JsonObject, data))
+
+    # Findings on non-Python files (e.g. invalid custom secret regex on `.cytoscnpy.toml`)
+    # won't have corresponding items created by `_iter_python_files`.
+    # Explicitly detect these non-file findings so FORCE_FAIL_KEY is set.
+    non_py_findings = _detect_non_py_findings(session.stash[BY_FILE_KEY])
+    if non_py_findings:
+        session.stash[FORCE_FAIL_KEY] = True
+        if session.stash[ERROR_KEY] is None:
+            session.stash[ERROR_KEY] = "\n".join(non_py_findings)
+
     # A non-zero exit with valid JSON still means the analyzer failed (e.g.
     # invalid custom secret regex emits findings on `.cytoscnpy.toml` and
     # exits 1). Those findings are attached to non-`*.py` files and would

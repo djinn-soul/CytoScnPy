@@ -52,9 +52,9 @@ def test_integration_finds_unused_function(tmp_path):
     # Run analysis
     result = run_cytoscnpy(["."], cwd=tmp_path)
 
-    assert (
-        result.returncode == 0
-    ), f"Command failed with {result.returncode}\nStdout: {result.stdout}\nStderr: {result.stderr}"
+    assert result.returncode == 0, (
+        f"Command failed with {result.returncode}\nStdout: {result.stdout}\nStderr: {result.stderr}"
+    )
 
     # Debug print
     print(f"STDOUT:\n{result.stdout}")

@@ -55,6 +55,11 @@ impl CytoScnPy {
             }
         }
 
+        let secrets_count = output.secrets.len();
+        let danger_count = output.danger.len();
+        let quality_count = output.quality.len();
+        let parse_errors_count = output.parse_errors.len();
+
         AnalysisResult {
             unused_functions,
             unused_methods,
@@ -78,6 +83,10 @@ impl CytoScnPy {
                 total_files: 1,
                 total_lines_analyzed: source.lines().count(),
                 total_definitions,
+                secrets_count,
+                danger_count,
+                quality_count,
+                parse_errors_count,
                 ..AnalysisSummary::default()
             },
             file_metrics: Vec::new(),

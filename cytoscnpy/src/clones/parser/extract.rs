@@ -1,4 +1,5 @@
 use super::definitions::{class_nodes, function_nodes};
+use super::enum_members::preserve_semantics;
 use super::statements::extract_stmt_nodes;
 use super::types::{AstParser, Subtree, SubtreeType};
 use crate::clones::CloneError;
@@ -73,7 +74,9 @@ fn extract_from_body(
                 let (start_line, end_line) = byte_to_lines(start_byte, end_byte, source);
 
                 let mut children = class_nodes(c);
-                children.extend(extract_stmt_nodes(&c.body));
+                let mut body_nodes = extract_stmt_nodes(&c.body);
+                preserve_semantics(c, &mut body_nodes);
+                children.extend(body_nodes);
                 if end_line - start_line + 1 >= min_lines {
                     subtrees.push(Subtree {
                         node_type: SubtreeType::Class,

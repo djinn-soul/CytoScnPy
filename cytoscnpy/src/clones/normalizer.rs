@@ -210,6 +210,7 @@ fn is_semantic_label_kind(kind: &str) -> bool {
             | "returns"
             | "base"
             | "class_keyword"
+            | "enum_member"
             | "pattern_keyword"
             | "match_singleton"
             | "interpolation"

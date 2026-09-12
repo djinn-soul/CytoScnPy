@@ -115,10 +115,14 @@ def test_scan_code_populates_summary_counters() -> None:
         code, filename="summary_sample.py", secrets=True, danger=True
     )
     summary = res["analysis_summary"]
-    assert summary["secrets_count"] == len(res["secrets"])
-    assert summary["secrets_count"] >= 1
-    assert summary["danger_count"] == len(res["danger"])
-    assert summary["danger_count"] >= 1
+    secrets_count = summary["secrets_count"]
+    danger_count = summary["danger_count"]
+    assert isinstance(secrets_count, int)
+    assert isinstance(danger_count, int)
+    assert secrets_count == len(res["secrets"])
+    assert secrets_count >= 1
+    assert danger_count == len(res["danger"])
+    assert danger_count >= 1
 
 
 def test_scan_rejects_nonexistent_path(tmp_path: Path) -> None:

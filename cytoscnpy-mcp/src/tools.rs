@@ -256,6 +256,19 @@ impl CytoScnPyServer {
 
 #[rmcp::tool_handler]
 impl ServerHandler for CytoScnPyServer {
+    fn list_tools(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<rmcp::model::ListToolsResult, McpError>> + Send + '_
+    {
+        std::future::ready(Ok(rmcp::model::ListToolsResult {
+            tools: self.tool_router.list_all(),
+            meta: None,
+            next_cursor: None,
+        }))
+    }
+
     fn get_info(&self) -> ServerInfo {
         let _ = &self.tool_router;
 

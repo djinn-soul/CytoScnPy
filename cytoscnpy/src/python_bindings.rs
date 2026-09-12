@@ -8,11 +8,8 @@ use pyo3::{pyfunction, types::PyModule, wrap_pyfunction, Bound, PyErr, PyResult,
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(unix)]
 type SigHandler = libc::sighandler_t;
-
-#[cfg(target_os = "macos")]
-type SigHandler = libc::sig_t;
 
 #[cfg(unix)]
 extern "C" fn sigint_handler(_: libc::c_int) {

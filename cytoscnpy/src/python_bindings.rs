@@ -142,14 +142,13 @@ fn scan_json(
             };
             if let Ok(detector) = crate::clones::CloneDetector::with_config(clone_config) {
                 let clone_result = detector.detect_from_paths(&path_bufs);
-                let clone_findings =
-                    crate::commands::generate_clone_findings_with_thresholds(
-                        &clone_result.pairs,
-                        &[],
-                        false,
-                        90,
-                        60,
-                    );
+                let clone_findings = crate::commands::generate_clone_findings_with_thresholds(
+                    &clone_result.pairs,
+                    &[],
+                    false,
+                    90,
+                    60,
+                );
                 result.clones = clone_findings;
             }
         }

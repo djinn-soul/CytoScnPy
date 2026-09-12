@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 
 def run(args: Sequence[str]) -> int: ...
-
 def scan_json(
     paths: Sequence[str] = ...,
     confidence: int | None = None,
@@ -15,7 +14,6 @@ def scan_json(
     clones: bool | None = None,
     clone_similarity: float | None = None,
 ) -> str: ...
-
 def scan_code_json(
     code: str,
     filename: str = ...,

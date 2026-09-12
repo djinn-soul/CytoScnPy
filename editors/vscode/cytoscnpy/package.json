@@ -195,18 +195,22 @@
     "test": "vscode-test"
   },
   "overrides": {
+    "brace-expansion": "5.0.8",
+    "diff": "8.0.3",
+    "glob": "13.0.6",
+    "minimatch": "10.2.5",
     "serialize-javascript": "7.0.5"
   },
   "devDependencies": {
     "@types/vscode": "^1.96.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.46.3",
-    "eslint": "^9.39.1",
+    "typescript-eslint": "^8.65.0",
+    "eslint": "^10.8.0",
     "esbuild": "^0.28.1",
-    "npm-run-all": "^4.1.5",
+    "npm-run-all2": "^8.0.4",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^2.5.2"
   }
 }

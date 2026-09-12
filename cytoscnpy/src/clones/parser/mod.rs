@@ -3,6 +3,7 @@
 //! Extracts subtrees from Python source code for clone detection.
 
 mod definitions;
+mod enum_members;
 mod expression_complex;
 mod expressions;
 mod extract;

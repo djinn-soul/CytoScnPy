@@ -106,3 +106,92 @@ def test_scan_code_json_raw_string() -> None:
     data = json.loads(raw_json)
     assert isinstance(data, dict)
     assert "analysis_summary" in data
+
+
+def test_scan_code_populates_summary_counters() -> None:
+    """Test that scan_code accurately populates summary counters matching findings."""
+    code = 'AWS_KEY = "AKIA1234567890ABCDEF"\ndef runner(cmd):\n    eval(cmd)\n'
+    res = cytoscnpy.scan_code(
+        code, filename="summary_sample.py", secrets=True, danger=True
+    )
+    summary = res["analysis_summary"]
+    assert summary["secrets_count"] == len(res["secrets"])
+    assert summary["secrets_count"] >= 1
+    assert summary["danger_count"] == len(res["danger"])
+    assert summary["danger_count"] >= 1
+
+
+def test_scan_rejects_nonexistent_path(tmp_path: Path) -> None:
+    """Test that scan rejects non-existent paths with FileNotFoundError."""
+    import pytest
+
+    missing_path = tmp_path / "does_not_exist.py"
+    with pytest.raises(FileNotFoundError, match="Path does not exist"):
+        cytoscnpy.scan(missing_path)
+
+
+def test_scan_propagates_config_parsing_failure(tmp_path: Path) -> None:
+    """Test that scan raises ValueError when config file is malformed."""
+    import pytest
+
+    config_file = tmp_path / ".cytoscnpy.toml"
+    config_file.write_text("[cytoscnpy\ninvalid_toml = [", encoding="utf-8")
+    src_file = tmp_path / "app.py"
+    src_file.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Configuration error"):
+        cytoscnpy.scan(str(src_file))
+
+
+def test_scan_applies_whitelist_from_config(tmp_path: Path) -> None:
+    """Test that whitelist in config suppresses dead code findings."""
+    config_file = tmp_path / ".cytoscnpy.toml"
+    config_file.write_text(
+        '[cytoscnpy]\nwhitelist = [{ name = "suppressed_func" }]\n',
+        encoding="utf-8",
+    )
+    src_file = tmp_path / "module.py"
+    src_file.write_text(
+        "def suppressed_func():\n    pass\ndef unsuppressed_func():\n    pass\n",
+        encoding="utf-8",
+    )
+
+    res = cytoscnpy.scan(str(tmp_path))
+    unused_names = [f["simple_name"] for f in res["unused_functions"]]
+    assert "suppressed_func" not in unused_names
+    assert "unsuppressed_func" in unused_names
+
+
+def test_scan_implicitly_enables_secrets_from_fail_on_secrets(tmp_path: Path) -> None:
+    """Test that fail_on_secrets = true enables secret scanning without secrets = true."""
+    config_file = tmp_path / ".cytoscnpy.toml"
+    config_file.write_text(
+        "[cytoscnpy]\nfail_on_secrets = true\n",
+        encoding="utf-8",
+    )
+    src_file = tmp_path / "secret.py"
+    src_file.write_text('AWS_KEY = "AKIA1234567890ABCDEF"\n', encoding="utf-8")
+
+    res = cytoscnpy.scan(str(tmp_path))
+    assert len(res["secrets"]) >= 1
+
+
+def test_scan_clones_directory_discovery(tmp_path: Path) -> None:
+    """Test that clone detection runs through normal file discovery when given a directory."""
+    f1 = tmp_path / "a.py"
+    f2 = tmp_path / "b.py"
+    clone_code = (
+        "def compute_score(values):\n"
+        "    total = 0\n"
+        "    for v in values:\n"
+        "        if v > 0:\n"
+        "            total += v * 2\n"
+        "        else:\n"
+        "            total -= v\n"
+        "    return total\n"
+    )
+    f1.write_text(clone_code, encoding="utf-8")
+    f2.write_text(clone_code, encoding="utf-8")
+
+    res = cytoscnpy.scan(str(tmp_path), clones=True)
+    assert len(res["clones"]) >= 1

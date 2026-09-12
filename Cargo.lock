@@ -406,6 +406,7 @@ dependencies = [
  "ignore",
  "indicatif",
  "insta",
+ "libc",
  "nbformat",
  "open",
  "pyo3",
@@ -422,6 +423,7 @@ dependencies = [
  "toml",
  "tree-sitter",
  "tree-sitter-python",
+ "windows-sys 0.59.0",
  "zeroize",
 ]
 

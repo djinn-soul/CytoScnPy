@@ -38,14 +38,13 @@ pub(super) fn find_def_range(
                     .min(start);
                 let range = (start, f.range().end().to_usize());
                 if let Some(target) = target_start_byte {
-                    if target == f.range().start().to_usize()
+                    if target == start
+                        || target == f.range().start().to_usize()
                         || target == f.name.range().start().to_usize()
-                        || (target >= start && target <= f.range().end().to_usize())
                     {
                         return Some(range);
                     }
-                }
-                if first_match.is_none() {
+                } else if first_match.is_none() {
                     first_match = Some(range);
                 }
             }
@@ -60,14 +59,13 @@ pub(super) fn find_def_range(
                     .min(start);
                 let range = (start, c.range().end().to_usize());
                 if let Some(target) = target_start_byte {
-                    if target == c.range().start().to_usize()
+                    if target == start
+                        || target == c.range().start().to_usize()
                         || target == c.name.range().start().to_usize()
-                        || (target >= start && target <= c.range().end().to_usize())
                     {
                         return Some(range);
                     }
-                }
-                if first_match.is_none() {
+                } else if first_match.is_none() {
                     first_match = Some(range);
                 }
             }
@@ -90,7 +88,12 @@ pub(super) fn find_def_range(
             _ => {}
         }
     }
-    None
+
+    if target_start_byte.is_none() {
+        first_match
+    } else {
+        None
+    }
 }
 
 pub(super) fn find_method_edit(

@@ -1651,8 +1651,9 @@ def main():  # noqa: C901
                 mem_diff = current["memory_mb"] - base_memory
                 mem_ratio = mem_diff / base_memory if base_memory > 0 else 0
                 if mem_ratio > args.threshold:
-                    # Ignore small memory increases (< 10MB) to avoid CI noise
-                    if mem_diff > 10.0:
+                    # Ignore small memory increases (< 15MB) to avoid CI noise
+                    # from Python startup and RSS sampling on hosted runners.
+                    if mem_diff > 15.0:
                         regression_msg = f"{current['name']} Memory: {base_memory:.1f}MB -> {current['memory_mb']:.1f}MB (+{mem_ratio * 100:.1f}%)"
                         if is_cytoscnpy:
                             cytoscnpy_regressions.append(regression_msg)

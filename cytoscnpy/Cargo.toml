@@ -80,6 +80,13 @@ chrono = { version = "0.4.42", default-features = false, features = [
 ], optional = true }
 open = { version = "5.3.3", optional = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Console"] }
+
+
 [features]
 default = ["html_report", "cst", "cfg"]
 html_report = ["dep:askama", "dep:chrono", "dep:open"]

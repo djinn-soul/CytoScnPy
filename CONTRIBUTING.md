@@ -152,7 +152,7 @@ You can test workflows locally using [act](https://github.com/nektos/act):
 ```bash
 # Install act (requires Docker)
 # Test the rust-ci workflow
-act -W .github/workflows/rust-ci.yml
+act -W .github/workflows/ci.yml
 ```
 
 ## 🔄 Development Workflow

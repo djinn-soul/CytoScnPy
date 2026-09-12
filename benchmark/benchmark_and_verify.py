@@ -9,18 +9,11 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import (
-    Callable,
-    Optional,
-    Protocol,
-    TypedDict,
-    Union,
-    cast,
-)
+from typing import Protocol, TypedDict, cast
 
-Finding = tuple[str, Optional[int], str, str]
+Finding = tuple[str, int | None, str, str]
 
 
 class ToolStatus(TypedDict):
@@ -65,7 +58,7 @@ class MetricResult(TypedDict):
     missed_items: list[str]
 
 
-VerificationValue = Union[MetricResult, str]
+VerificationValue = MetricResult | str
 VerificationResult = dict[str, VerificationValue]
 MetricResults = dict[str, MetricResult]
 
@@ -268,7 +261,7 @@ def run_command(
 
 def normalize_path(p: str) -> str:
     """Normalize path separator to forward slashes."""
-    return str(Path(p).as_posix()).strip("/")
+    return Path(p.replace("\\", "/")).as_posix().strip("/")
 
 
 def _as_str(value: object) -> str:
@@ -1499,7 +1492,7 @@ def main():  # noqa: C901
                 # Verify
                 # Use clean stdout if available to avoid stderr pollution (e.g. logging/errors mixed with JSON)
                 stdout = res["stdout"]
-                output_to_parse = stdout if stdout else res["output"]
+                output_to_parse = stdout or res["output"]
                 metrics = verifier.compare(tool["name"], output_to_parse)
                 verification_entry: VerificationResult = dict(metrics)
                 verification_entry["Tool"] = tool["name"]

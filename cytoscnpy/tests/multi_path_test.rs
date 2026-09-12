@@ -64,6 +64,23 @@ result = used_function()
     assert_eq!(result.analysis_summary.total_files, 1);
 }
 
+#[test]
+fn test_analyze_paths_single_test_helper_respects_include_tests() {
+    let dir = project_tempdir();
+    let tests_dir = dir.path().join("tests");
+    fs::create_dir_all(&tests_dir).unwrap();
+    let helper_path = tests_dir.join("helpers.py");
+    fs::write(&helper_path, "def unused_test_helper():\n    pass\n").unwrap();
+
+    let mut without_tests = CytoScnPy::default().with_confidence(60).with_tests(false);
+    let excluded = without_tests.analyze_paths(&[helper_path.clone()]);
+    assert_eq!(excluded.analysis_summary.total_files, 0);
+
+    let mut with_tests = CytoScnPy::default().with_confidence(60).with_tests(true);
+    let included = with_tests.analyze_paths(&[helper_path]);
+    assert_eq!(included.analysis_summary.total_files, 1);
+}
+
 /// Test that `analyze_paths` with multiple individual files works
 #[test]
 fn test_analyze_paths_multiple_files() {
@@ -495,4 +512,96 @@ def production_helper():
         "production_helper is only called from tests, so it should be flagged \
          unused in production; got {unused_funcs:?}"
     );
+}
+
+/// File-only analysis retains test directories inside the nearest project, but
+/// not a `tests` directory containing that project (including Git worktrees).
+#[test]
+fn test_single_file_project_boundary_classification() {
+    for marker in [".cytoscnpy.toml", "pyproject.toml", ".git"] {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("tests/project");
+        fs::create_dir_all(project.join("tests")).unwrap();
+        fs::create_dir_all(project.join("src")).unwrap();
+        fs::write(project.join(marker), "").unwrap();
+        let helper = project.join("tests/helpers.py");
+        let production = project.join("src/main.py");
+        for file in [&helper, &production] {
+            fs::write(file, "assert True\n").unwrap();
+        }
+
+        for (file, is_test) in [(&helper, true), (&production, false)] {
+            assert_eq!(
+                cytoscnpy::utils::is_test_path_relative_to(file, file),
+                is_test,
+                "file root: {marker}, {file:?}",
+            );
+            for include_tests in [false, true] {
+                let expected_files = usize::from(include_tests || !is_test);
+                let mut analyzer = CytoScnPy::default()
+                    .with_tests(include_tests)
+                    .with_danger(true);
+                let paths = [file.clone()];
+                assert_eq!(analyzer.count_files(&paths), expected_files);
+                let result = analyzer.analyze_paths(&paths);
+                assert_eq!(analyzer.analysis_root, project);
+                assert_eq!(result.analysis_summary.total_files, expected_files);
+                assert!(result.parse_errors.is_empty());
+                assert_eq!(result.danger.len(), usize::from(!is_test));
+
+                // The single-path entry point must agree with analyze_paths.
+                let direct = analyzer.analyze(file);
+                assert_eq!(direct.analysis_summary.total_files, expected_files);
+                assert_eq!(direct.danger.len(), result.danger.len());
+            }
+        }
+    }
+}
+
+/// A test-directory input must be filtered relative to the shared project,
+/// rather than stripping its own `tests` component before filtering.
+#[test]
+fn test_mixed_paths_share_classification_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("tests/project");
+    let tests = project.join("tests");
+    fs::create_dir_all(&tests).unwrap();
+    let production = project.join("main.py");
+    fs::write(&production, "assert True\n").unwrap();
+    fs::write(tests.join("helpers.py"), "assert True\n").unwrap();
+
+    for include_tests in [false, true] {
+        for paths in [
+            vec![tests.clone(), production.clone()],
+            vec![production.clone(), tests.clone()],
+            vec![project.clone()],
+        ] {
+            let mut analyzer = CytoScnPy::default()
+                .with_tests(include_tests)
+                .with_danger(true);
+            let expected_files = 1 + usize::from(include_tests);
+            assert_eq!(analyzer.count_files(&paths), expected_files);
+            let result = analyzer.analyze_paths(&paths);
+            assert_eq!(analyzer.analysis_root, project);
+            assert_eq!(result.analysis_summary.total_files, expected_files);
+            assert_eq!(result.danger.len(), 1);
+        }
+    }
+}
+
+/// Unmarked absolute paths cannot tell us whether an ancestor named `tests`
+/// belongs to the project. Preserve the conservative containing-directory root.
+#[test]
+fn test_unmarked_single_file_root_is_conservative() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("tests/project");
+    fs::create_dir_all(&project).unwrap();
+    let production = project.join("main.py");
+    fs::write(&production, "assert True\n").unwrap();
+    let mut analyzer = CytoScnPy::default().with_tests(false).with_danger(true);
+    assert_eq!(analyzer.count_files(&[production.clone()]), 1);
+    let result = analyzer.analyze_paths(&[production]);
+    assert_eq!(analyzer.analysis_root, project);
+    assert_eq!(result.analysis_summary.total_files, 1);
+    assert_eq!(result.danger.len(), 1);
 }

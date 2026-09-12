@@ -78,7 +78,12 @@ fn plan_item_edit(
             }
         }
     } else {
-        edit_range = find_def_range(&module.body, &def.simple_name, item_type);
+        edit_range = find_def_range(
+            &module.body,
+            &def.simple_name,
+            item_type,
+            Some(def.start_byte),
+        );
     }
 
     let (start, end) = edit_range?;
@@ -134,7 +139,12 @@ fn plan_item_edit(
             }
         }
     } else {
-        edit_range = find_def_range(&module.body, &def.simple_name, item_type);
+        edit_range = find_def_range(
+            &module.body,
+            &def.simple_name,
+            item_type,
+            Some(def.start_byte),
+        );
     }
 
     let (start, end) = edit_range?;

@@ -73,7 +73,7 @@ fn test_analyze_paths_single_test_helper_respects_include_tests() {
     fs::write(&helper_path, "def unused_test_helper():\n    pass\n").unwrap();
 
     let mut without_tests = CytoScnPy::default().with_confidence(60).with_tests(false);
-    let excluded = without_tests.analyze_paths(&[helper_path.clone()]);
+    let excluded = without_tests.analyze_paths(std::slice::from_ref(&helper_path));
     assert_eq!(excluded.analysis_summary.total_files, 0);
 
     let mut with_tests = CytoScnPy::default().with_confidence(60).with_tests(true);
@@ -599,7 +599,7 @@ fn test_unmarked_single_file_root_is_conservative() {
     let production = project.join("main.py");
     fs::write(&production, "assert True\n").unwrap();
     let mut analyzer = CytoScnPy::default().with_tests(false).with_danger(true);
-    assert_eq!(analyzer.count_files(&[production.clone()]), 1);
+    assert_eq!(analyzer.count_files(std::slice::from_ref(&production)), 1);
     let result = analyzer.analyze_paths(&[production]);
     assert_eq!(analyzer.analysis_root, project);
     assert_eq!(result.analysis_summary.total_files, 1);

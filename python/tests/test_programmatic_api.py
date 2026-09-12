@@ -28,7 +28,11 @@ def test_scan_code_detects_dangerous_pattern() -> None:
     assert isinstance(res, dict)
     assert "danger" in res
     assert len(res["danger"]) >= 1
-    assert any("eval" in str(d.get("message", "")).lower() or d.get("rule_id", "") == "CSP-D001" for d in res["danger"])
+    assert any(
+        "eval" in str(d.get("message", "")).lower()
+        or d.get("rule_id", "") == "CSP-D001"
+        for d in res["danger"]
+    )
 
 
 def test_scan_code_detects_secret() -> None:
@@ -43,7 +47,9 @@ def test_scan_code_detects_secret() -> None:
 def test_scan_file_path(tmp_path: Path) -> None:
     """Test that cytoscnpy.scan analyzes a Python file path."""
     file_path = tmp_path / "sample.py"
-    file_path.write_text("def unused_a(): pass\ndef unused_b(): pass\n", encoding="utf-8")
+    file_path.write_text(
+        "def unused_a(): pass\ndef unused_b(): pass\n", encoding="utf-8"
+    )
 
     res = cytoscnpy.scan(file_path)
     assert isinstance(res, dict)

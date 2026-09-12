@@ -77,7 +77,7 @@ def scan(
         A dictionary containing analysis results (unused code, security findings,
         quality findings, metrics, and summary).
     """
-    if isinstance(paths, (str, Path)):
+    if isinstance(paths, str | Path):
         resolved_paths = [str(paths)]
     else:
         resolved_paths = [str(p) for p in paths]

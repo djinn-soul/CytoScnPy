@@ -277,7 +277,7 @@ def _as_int(value: object) -> int | None:
 def _as_float(value: object) -> float | None:
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     return None
 

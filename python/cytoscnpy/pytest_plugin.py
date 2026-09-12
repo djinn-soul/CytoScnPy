@@ -108,7 +108,9 @@ def _run_scan(scan_path: Path) -> tuple[int, str, str]:
             raw_json = scan_json(paths=[str(scan_path)])
             return 0, raw_json, ""
         except (ImportError, RuntimeError, OSError):
-            LOGGER.debug("In-process scan failed; falling back to subprocess", exc_info=True)
+            LOGGER.debug(
+                "In-process scan failed; falling back to subprocess", exc_info=True
+            )
 
     result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "cytoscnpy", str(scan_path), "--json"],
@@ -140,9 +142,7 @@ def pytest_sessionstart(session: Session) -> None:
         data = cast(object, json.loads(raw_stdout))
     except json.JSONDecodeError:
         session.stash[ERROR_KEY] = (
-            raw_stderr.strip()
-            or raw_stdout[:200]
-            or "cytoscnpy produced no output"
+            raw_stderr.strip() or raw_stdout[:200] or "cytoscnpy produced no output"
         )
         session.stash[FORCE_FAIL_KEY] = returncode != 0
         return

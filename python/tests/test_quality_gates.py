@@ -179,12 +179,12 @@ def unused_function():
         combined = f"{captured.out}{captured.err}"
 
         assert exit_code == 0, "Expected quiet mode to run successfully"
-        assert "Unreachable:" in combined or "[SUMMARY]" in combined, (
-            "Expected summary in quiet output"
-        )
-        assert "\u250c" not in combined and "\u255e" not in combined, (
-            "Quiet mode should not contain detailed tables"
-        )
+        assert (
+            "Unreachable:" in combined or "[SUMMARY]" in combined
+        ), "Expected summary in quiet output"
+        assert (
+            "\u250c" not in combined and "\u255e" not in combined
+        ), "Quiet mode should not contain detailed tables"
 
     def test_quiet_mode_shows_gate_result(self, tmp_path, capfd):
         """Quiet mode should still show the gate result banner."""
@@ -216,9 +216,9 @@ def function():
         captured = capfd.readouterr()
         combined = f"{captured.out}{captured.err}"
         assert exit_code == 0, "Expected auto-enable quality with --min-mi"
-        assert "Average MI:" in combined or "Maintainability Index" in combined, (
-            "Expected MI metrics when --min-mi is used"
-        )
+        assert (
+            "Average MI:" in combined or "Maintainability Index" in combined
+        ), "Expected MI metrics when --min-mi is used"
 
     def test_auto_enable_quality_with_max_complexity(self, tmp_path, capfd):
         """--max-complexity should auto-enable quality mode."""
@@ -232,9 +232,9 @@ def function():
         captured = capfd.readouterr()
         combined = f"{captured.out}{captured.err}"
         assert exit_code == 0, "Expected auto-enable quality with --max-complexity"
-        assert "Average Complexity:" in combined or "Quality:" in combined, (
-            "Expected complexity metrics when --max-complexity is used"
-        )
+        assert (
+            "Average Complexity:" in combined or "Quality:" in combined
+        ), "Expected complexity metrics when --max-complexity is used"
 
 
 class TestSecurityAndDependencyGates:

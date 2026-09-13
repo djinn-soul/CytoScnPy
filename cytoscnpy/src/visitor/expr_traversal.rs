@@ -105,7 +105,7 @@ impl CytoScnPyVisitor<'_> {
                 self.visit_comprehension_generators(
                     &node.generators,
                     None,
-                    Some(&node.key),
+                    node.key.as_deref(),
                     Some(&node.value),
                 );
             }

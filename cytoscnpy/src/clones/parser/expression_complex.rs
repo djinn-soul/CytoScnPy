@@ -23,7 +23,10 @@ pub(super) fn extract_complex_expr(expr: &ast::Expr) -> Vec<SubtreeNode> {
             comprehension("generator", extract_expr_nodes(&node.elt), &node.generators)
         }
         ast::Expr::DictComp(node) => {
-            let mut result = extract_expr_nodes(&node.key);
+            let mut result = match &node.key {
+                Some(key) => extract_expr_nodes(key),
+                None => Vec::new(),
+            };
             result.extend(extract_expr_nodes(&node.value));
             comprehension("dict_comp", result, &node.generators)
         }

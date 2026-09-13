@@ -79,6 +79,7 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    "deslopify",
     # Project specific excludes
     "benchmark/examples",
     "benchmark/test_corpus",

@@ -44,7 +44,7 @@ impl BlockComplexityVisitor {
             Expr::ListComp(node) => self.visit_generators(&node.generators, Some(&node.elt), None),
             Expr::SetComp(node) => self.visit_generators(&node.generators, Some(&node.elt), None),
             Expr::DictComp(node) => {
-                self.visit_generators(&node.generators, Some(&node.key), Some(&node.value));
+                self.visit_generators(&node.generators, node.key.as_deref(), Some(&node.value));
             }
             Expr::Generator(node) => self.visit_generators(&node.generators, Some(&node.elt), None),
             _ => return false,

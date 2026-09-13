@@ -1,0 +1,4 @@
+[project]
+name = "benchmark-examples"
+version = "0.1.0"
+description = "CytoScnPy benchmark evaluation test corpus"

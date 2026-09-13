@@ -49,9 +49,7 @@ fn test_absolute_path_from_different_cwd() -> anyhow::Result<()> {
 
     match result {
         Ok(code) => {
-            if code != 0 {
-                panic!("Command failed with code {code}");
-            }
+            assert_eq!(code, 0, "Command failed with code {code}");
         }
         Err(e) => {
             panic!("Command returned error: {e:?}");

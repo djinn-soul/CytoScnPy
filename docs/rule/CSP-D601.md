@@ -25,6 +25,7 @@ class UserProfile:
     def has_permission(self, perm):
         return perm in self.permissions
 
+
 def grant_access(user):
     # This check is intended to work on a UserProfile object.
     if user.has_permission("admin"):
@@ -32,12 +33,13 @@ def grant_access(user):
     else:
         print("Standard access granted.")
 
+
 # --- Later, in a different part of the code ---
 
 # A developer mistakenly passes a username (a string) instead of the user object.
 # The type of 'user' has changed from UserProfile to str.
 user_object = UserProfile("alice", ["read"])
-current_user = user_object.username # Mistake: should be current_user = user_object
+current_user = user_object.username  # Mistake: should be current_user = user_object
 
 # When grant_access is called, it will crash with an AttributeError
 # because a string has no 'has_permission' method.
@@ -59,6 +61,7 @@ The solution is to ensure that variables retain their expected types. This can b
 ```python
 from typing import List
 
+
 class UserProfile:
     def __init__(self, username: str, permissions: List[str]):
         self.username = username
@@ -67,12 +70,14 @@ class UserProfile:
     def has_permission(self, perm: str) -> bool:
         return perm in self.permissions
 
+
 # Using type hints makes the expected type clear.
 def grant_access(user: UserProfile):
     if user.has_permission("admin"):
         print("Admin access granted.")
     else:
         print("Standard access granted.")
+
 
 user_object = UserProfile("alice", ["read"])
 # The code now correctly passes the object, not just the username.
@@ -88,5 +93,5 @@ This finding indicates a definite bug or logic flaw in your code that should be 
 ```python
 # This is known to be incorrect but cannot be fixed right now.
 # ignore: CSP-D601
-grant_access(current_user) # where current_user is a string
+grant_access(current_user)  # where current_user is a string
 ```

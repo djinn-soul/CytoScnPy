@@ -15,7 +15,7 @@ def test_main_execution():
     python_dir = Path(__file__).resolve().parent.parent
     env["PYTHONPATH"] = str(python_dir) + os.pathsep + env.get("PYTHONPATH", "")
 
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [
             sys.executable,
             "-m",

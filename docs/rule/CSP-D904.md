@@ -15,6 +15,7 @@ Log injection occurs when untrusted data containing newline or carriage-return c
 ```python
 import logging
 
+
 def login(request):
     username = request.GET["username"]
     logging.info(f"Login attempt for {username}")
@@ -27,8 +28,10 @@ If `username` contains `\n` or `\r`, the resulting log output can include attack
 ```python
 import logging
 
+
 def clean_for_log(value):
     return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
 
 def login(request):
     username = clean_for_log(request.GET["username"])

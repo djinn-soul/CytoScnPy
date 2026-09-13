@@ -15,16 +15,18 @@ Logging sensitive information like API keys or user passwords can lead to data b
 
 ```python
 import logging
+
 api_key = "sk-..."
-logging.info(f"Using API key: {api_key}") # DANGEROUS: Leaks in logs
+logging.info(f"Using API key: {api_key}")  # DANGEROUS: Leaks in logs
 ```
 
 ### Safe Alternative
 
 ```python
 import logging
+
 api_key = "sk-..."
-logging.info("Using API key: [REDACTED]") # SAFE
+logging.info("Using API key: [REDACTED]")  # SAFE
 ```
 
 ## In-depth: Framework Secrets (CSP-D902)
@@ -35,12 +37,13 @@ Framework settings files often contain sensitive keys that must not be committed
 
 ```python
 # settings.py
-SECRET_KEY = 'django-insecure-hardcoded-key-here' # VULNERABLE
+SECRET_KEY = "django-insecure-hardcoded-key-here"  # VULNERABLE
 ```
 
 ### Safe Alternative
 
 ```python
 import os
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') # SAFE: Loaded from env
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")  # SAFE: Loaded from env
 ```

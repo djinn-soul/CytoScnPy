@@ -54,10 +54,7 @@ import requests
 try:
     # Wait max 3.5 seconds to establish a connection, and max 10 seconds
     # to receive the response after the connection is made.
-    response = requests.get(
-        "https://api.example.com/large-file",
-        timeout=(3.5, 10)
-    )
+    response = requests.get("https://api.example.com/large-file", timeout=(3.5, 10))
     print("Request successful.")
 except requests.exceptions.Timeout:
     print("The request timed out.")

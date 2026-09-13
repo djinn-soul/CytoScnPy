@@ -159,7 +159,9 @@ fn visit_comprehension_expr(
             visit_elt_comprehension(graph, &comp.elt, &comp.generators, caller, module_name);
         }
         Expr::DictComp(comp) => {
-            graph.visit_expr_for_calls(&comp.key, caller, module_name);
+            if let Some(key) = &comp.key {
+                graph.visit_expr_for_calls(key, caller, module_name);
+            }
             graph.visit_expr_for_calls(&comp.value, caller, module_name);
             visit_generators(graph, &comp.generators, caller, module_name);
         }

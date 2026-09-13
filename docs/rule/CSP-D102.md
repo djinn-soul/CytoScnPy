@@ -74,11 +74,7 @@ engine = create_engine("sqlite:///example.db")
 user_id = input("Enter user ID: ")
 
 # The user input is passed safely as a parameter
-df = pd.read_sql_query(
-    "SELECT * FROM users WHERE id = ?",
-    engine,
-    params=(user_id,)
-)
+df = pd.read_sql_query("SELECT * FROM users WHERE id = ?", engine, params=(user_id,))
 print(df.head())
 ```
 

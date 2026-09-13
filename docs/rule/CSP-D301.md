@@ -54,15 +54,15 @@ import hashlib
 import os
 
 password = b"my-super-secret-password"
-salt = os.urandom(16) # A new random salt should be generated for each password
+salt = os.urandom(16)  # A new random salt should be generated for each password
 
 # Use scrypt, a password-based key derivation function
 hashed_password = hashlib.scrypt(
     password,
     salt=salt,
-    n=16384, # CPU/memory cost factor
-    r=8,     # Block size
-    p=1      # Parallelization factor
+    n=16384,  # CPU/memory cost factor
+    r=8,  # Block size
+    p=1,  # Parallelization factor
 )
 
 # Store the salt along with the hash

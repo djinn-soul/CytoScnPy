@@ -38,7 +38,6 @@ try:
     print(f"Result: {result}")
 except (ValueError, SyntaxError):
     print("Invalid input.")
-
 ```
 If you need to execute more complex code, it is better to redesign your application to avoid dynamic code execution. If that is not possible, you must ensure that the input to `eval()` is strictly controlled and sanitized.
 

@@ -41,6 +41,11 @@ runs:
         targets: ${{ inputs.targets }}
         components: ${{ inputs.components }}
 
+    - name: Enable long paths (Windows only)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: git config --system core.longpaths true || true
+
     - name: Install mold linker (Linux only)
       if: runner.os == 'Linux'
       uses: rui314/setup-mold@v1

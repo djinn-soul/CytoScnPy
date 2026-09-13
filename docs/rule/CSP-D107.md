@@ -15,6 +15,7 @@ XPath injection can expose unexpected XML nodes, bypass authorization checks, or
 ```python
 from lxml import etree
 
+
 def find_user(tree, username):
     return tree.xpath(f"//user[name='{username}']")
 ```
@@ -25,6 +26,7 @@ If `username` contains quotes or XPath operators, it can change the query.
 
 ```python
 from lxml import etree
+
 
 def find_user(tree, username):
     query = etree.XPath("//user[name=$name]")

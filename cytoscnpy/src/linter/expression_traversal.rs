@@ -158,7 +158,9 @@ impl LinterVisitor {
         match expr {
             Expr::DictComp(node) => {
                 self.visit_comprehension_generators(&node.generators);
-                self.visit_expr(&node.key);
+                if let Some(key) = &node.key {
+                    self.visit_expr(key);
+                }
                 self.visit_expr(&node.value);
             }
             Expr::Generator(node) => {

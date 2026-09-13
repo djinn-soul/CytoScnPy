@@ -15,6 +15,7 @@ Changing process credentials is security-sensitive. If attacker-controlled input
 ```python
 import os
 
+
 def switch_user(uid):
     os.setuid(uid)
 ```
@@ -27,6 +28,7 @@ The caller controls the target user ID. In a privileged process, this can create
 import os
 
 SERVICE_UID = 1001
+
 
 def drop_privileges():
     os.setgid(SERVICE_UID)

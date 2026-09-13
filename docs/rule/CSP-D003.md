@@ -47,7 +47,6 @@ except FileNotFoundError:
     print("Error: cat command not found.")
 except subprocess.CalledProcessError:
     print(f"Error: Could not display file {filename}.")
-
 ```
 
 By passing the arguments as a list, the operating system is responsible for handling the arguments safely, preventing the shell from interpreting them.

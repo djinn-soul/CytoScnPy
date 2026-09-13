@@ -28,7 +28,15 @@ with open(filename, "w") as f:
 
 # This sets the permissions to 666 (rw-rw-rw-), which is insecure.
 # Any user on the system can now modify this config file.
-os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+os.chmod(
+    filename,
+    stat.S_IRUSR
+    | stat.S_IWUSR
+    | stat.S_IRGRP
+    | stat.S_IWGRP
+    | stat.S_IROTH
+    | stat.S_IWOTH,
+)
 
 # A more common, but still dangerous, way to see this is with octal literals:
 # os.chmod(filename, 0o777) # rwxrwxrwx

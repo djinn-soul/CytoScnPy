@@ -15,6 +15,7 @@ Between the check and the use, another process can replace the file, swap a syml
 ```python
 import os
 
+
 def read_config(path):
     if os.path.exists(path):
         with open(path) as handle:

@@ -58,7 +58,6 @@ try:
     print(root.text)
 except ET.ParseError as e:
     print(f"Blocked a potential XXE attack: {e}")
-
 ```
 Simply replacing the import from `xml...` to `defusedxml...` is often enough to secure your application against XXE and other XML-based attacks.
 

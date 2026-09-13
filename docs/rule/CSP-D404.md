@@ -19,14 +19,16 @@ from flask import Flask
 
 app = Flask(__name__)
 
-@app.route('/')
+
+@app.route("/")
 def index():
     return "This is a private development server."
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Binding to '0.0.0.0' makes the server accessible from the local network.
     # If the developer is on a public Wi-Fi, this could be very dangerous.
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host="0.0.0.0", port=8080)
 ```
 
 ## Vulnerable Code Example (Socket Server)
@@ -38,7 +40,7 @@ import socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Binding to all interfaces
-server_socket.bind(('0.0.0.0', 9999))
+server_socket.bind(("0.0.0.0", 9999))
 server_socket.listen(5)
 
 print("Server listening on all interfaces on port 9999...")
@@ -55,13 +57,15 @@ from flask import Flask
 
 app = Flask(__name__)
 
-@app.route('/')
+
+@app.route("/")
 def index():
     return "This is a private development server."
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Binding to '127.0.0.1' ensures the server is only accessible locally.
-    app.run(host='127.0.0.1', port=8080)
+    app.run(host="127.0.0.1", port=8080)
 ```
 
 ### Safe Production Practice
@@ -72,8 +76,8 @@ In production, it is common to bind to `0.0.0.0` within a container. The exposur
 import os
 
 # Get the host from an environment variable, defaulting to localhost.
-host = os.environ.get('APP_HOST', '127.0.0.1')
-port = int(os.environ.get('APP_PORT', 8080))
+host = os.environ.get("APP_HOST", "127.0.0.1")
+port = int(os.environ.get("APP_PORT", 8080))
 
 app.run(host=host, port=port)
 ```
@@ -86,12 +90,12 @@ If you are intentionally creating a public-facing service and have appropriate f
 # This is a public service and is intended to be exposed.
 # Security is handled by the cloud environment's firewall.
 # ignore
-app.run(host='0.0.0.0', port=80)
+app.run(host="0.0.0.0", port=80)
 ```
 
 Or, for this specific rule:
 
 ```python
 # ignore: CSP-D404
-app.run(host='0.0.0.0', port=80)
+app.run(host="0.0.0.0", port=80)
 ```

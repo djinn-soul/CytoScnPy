@@ -576,7 +576,8 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
   def mutable_default(arg=[]):  # noqa
       pass
 
-  x = [1, 2] == None # noqa: CSP-L003
+
+  x = [1, 2] == None  # noqa: CSP-L003
   for x in items:  # noqa: CSP-P003
       out += x
   y = api_key  # pragma: no cytoscnpy

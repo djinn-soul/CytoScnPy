@@ -23,12 +23,14 @@ Leaving such functions in production code can lead to information disclosure, de
 import pdb
 import os
 
+
 def process_data(data):
     # Debugger set during development
     pdb.set_trace()
 
-    result = os.system(f"echo {data}") # Example of a potentially dangerous call
+    result = os.system(f"echo {data}")  # Example of a potentially dangerous call
     return result
+
 
 # In production, calling process_data might halt execution and expose the debugger.
 ```
@@ -67,5 +69,5 @@ Or, for this specific rule:
 
 ```python
 # ignore: CSP-D704
-pdb.set_trace() # Intentionally included for a specific debugging scenario
+pdb.set_trace()  # Intentionally included for a specific debugging scenario
 ```

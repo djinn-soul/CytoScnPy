@@ -83,8 +83,10 @@ Use standard suppression comments. You can suppress all findings or target speci
 def my_function(arg=[]):  # noqa
     pass
 
+
 def risky_compare(x):  # noqa: CSP-L003
     return x == None
+
 
 for x in items:  # noqa: CSP-P003
     out += x

@@ -24,7 +24,6 @@ try:
     obj = marshal.loads(data_from_network)
 except ValueError:
     print("Could not unmarshal the data.")
-
 ```
 
 ## Safe Code Example

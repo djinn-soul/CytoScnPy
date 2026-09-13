@@ -22,12 +22,14 @@ For all new applications, **AES (Advanced Encryption Standard)** is the recommen
 from Crypto.Cipher import DES
 from Crypto.Random import get_random_bytes
 
-key = get_random_bytes(8) # DES uses a 64-bit (8 byte) key, but only 56 bits are effective
+key = get_random_bytes(
+    8
+)  # DES uses a 64-bit (8 byte) key, but only 56 bits are effective
 cipher = DES.new(key, DES.MODE_ECB)
-data = b'secret data to be hidden'
+data = b"secret data to be hidden"
 
 # Pad data to be a multiple of 8 bytes
-padded_data = data + b' ' * (8 - len(data) % 8)
+padded_data = data + b" " * (8 - len(data) % 8)
 
 encrypted_data = cipher.encrypt(padded_data)
 
@@ -42,10 +44,10 @@ Use AES with a secure mode of operation like GCM, which provides both confidenti
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 
-key = get_random_bytes(16) # AES-128 uses a 16-byte key
+key = get_random_bytes(16)  # AES-128 uses a 16-byte key
 cipher = AES.new(key, AES.MODE_GCM)
 
-data = b'secret data to be hidden'
+data = b"secret data to be hidden"
 
 encrypted_data, tag = cipher.encrypt_and_digest(data)
 

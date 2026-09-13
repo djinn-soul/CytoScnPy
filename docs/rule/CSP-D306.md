@@ -15,6 +15,7 @@ Low-level cryptographic primitives are easy to misuse. Incorrect nonce handling,
 ```python
 from nacl.bindings import crypto_box_open
 
+
 def decrypt(ciphertext, nonce, public_key, private_key):
     return crypto_box_open(ciphertext, nonce, public_key, private_key)
 ```
@@ -25,6 +26,7 @@ This directly uses the low-level primitive and requires the caller to handle all
 
 ```python
 from nacl.public import Box, PrivateKey, PublicKey
+
 
 def decrypt(ciphertext, nonce, public_key_bytes, private_key_bytes):
     box = Box(PrivateKey(private_key_bytes), PublicKey(public_key_bytes))

@@ -40,8 +40,8 @@ Replace insecure modules with their secure and modern alternatives.
 
 ```python
 # Secure alternatives for network communication
-import requests # For HTTP
-import paramiko # For SSH/SFTP
+import requests  # For HTTP
+import paramiko  # For SSH/SFTP
 
 # Secure data serialization
 import json

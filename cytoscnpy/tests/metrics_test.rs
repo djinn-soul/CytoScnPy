@@ -43,7 +43,7 @@ fn parse_func_body(code: &str) -> Vec<Stmt> {
     let parsed = parse_module(code).expect("Failed to parse Python module");
     let module = parsed.into_syntax();
     if let Stmt::FunctionDef(f) = &module.body[0] {
-        f.body.clone()
+        f.body.to_vec()
     } else {
         panic!("Expected function def");
     }
@@ -53,7 +53,7 @@ fn parse_class_body(code: &str) -> Vec<Stmt> {
     let parsed = parse_module(code).expect("Failed to parse Python module");
     let module = parsed.into_syntax();
     if let Stmt::ClassDef(c) = &module.body[0] {
-        c.body.clone()
+        c.body.to_vec()
     } else {
         panic!("Expected class def");
     }

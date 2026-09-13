@@ -234,6 +234,7 @@ match command:
 def factory():
     def inner():  # Flagged as unused
         pass
+
     return inner  # Should mark 'inner' as used
 ```
 

@@ -17,10 +17,11 @@ from flask import Flask, redirect, request, url_for
 
 app = Flask(__name__)
 
-@app.route('/redirect_user')
+
+@app.route("/redirect_user")
 def redirect_user():
     # The 'next' parameter is taken directly from user input.
-    next_url = request.args.get('next')
+    next_url = request.args.get("next")
 
     if next_url:
         # VULNERABLE: The application redirects to an unvalidated URL.
@@ -28,13 +29,15 @@ def redirect_user():
         return redirect(next_url)
     else:
         # Redirect to a safe default if 'next' is not provided.
-        return redirect(url_for('index'))
+        return redirect(url_for("index"))
 
-@app.route('/')
+
+@app.route("/")
 def index():
     return "Welcome!"
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True)
 ```
 
@@ -53,7 +56,8 @@ app = Flask(__name__)
 
 # Whitelist of domains that are allowed for redirection.
 # This should include your own application's domain(s).
-ALLOWED_REDIRECT_HOSTS = ['127.0.0.1:5000', 'your-trusted-app.com']
+ALLOWED_REDIRECT_HOSTS = ["127.0.0.1:5000", "your-trusted-app.com"]
+
 
 def is_safe_redirect_url(target):
     """
@@ -77,22 +81,25 @@ def is_safe_redirect_url(target):
         # Other cases like 'http://' or 'https://' without a host are invalid.
         return False
 
-@app.route('/redirect_user')
+
+@app.route("/redirect_user")
 def redirect_user():
-    next_url = request.args.get('next')
+    next_url = request.args.get("next")
 
     # Validate the URL before redirecting.
     if next_url and is_safe_redirect_url(next_url):
         return redirect(next_url)
     else:
         # Redirect to a safe default page if validation fails.
-        return redirect(url_for('index'))
+        return redirect(url_for("index"))
 
-@app.route('/')
+
+@app.route("/")
 def index():
     return "Welcome!"
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True)
 ```
 

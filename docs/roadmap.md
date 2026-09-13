@@ -437,7 +437,7 @@ _Implementing findings from the Recommendation System Audit._
 | --------------------------- | --------------------------------------- | ---------------------------- |
 | **Containerized Execution** | Isolated, reproducible environments     | Docker, Podman               |
 | **Cross-Platform Matrix**   | Test on Windows, Linux, macOS           | GitHub Actions matrix        |
-| **Python Version Matrix**   | Test with Python 3.8-3.13               | tox, nox                     |
+| **Python Version Matrix**   | Test with Python 3.10-3.14              | GitHub Actions               |
 | **Memory Profiling**        | Track peak RSS, allocations             | tracemalloc, memory_profiler |
 | **CPU Profiling**           | Identify bottlenecks                    | py-spy, cProfile             |
 | **Differential Testing**    | Compare outputs between tool versions   | Custom diff scripts          |

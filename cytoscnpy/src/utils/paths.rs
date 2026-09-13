@@ -5,7 +5,21 @@
 //! - Path traversal security validation
 //! - Python file discovery with gitignore support
 
-use crate::constants::DEFAULT_EXCLUDE_FOLDERS;
+use crate::constants::{CONFIG_FILENAME, DEFAULT_EXCLUDE_FOLDERS, PYPROJECT_FILENAME};
+
+/// Finds a project boundary for file-only analysis without inspecting absolute
+/// ancestors for test names. An unmarked input keeps its containing directory.
+pub(crate) fn discover_project_root(directory: &std::path::Path) -> std::path::PathBuf {
+    directory
+        .ancestors()
+        .find(|ancestor| {
+            ancestor.join(CONFIG_FILENAME).is_file()
+                || ancestor.join(PYPROJECT_FILENAME).is_file()
+                || ancestor.join(".git").exists()
+        })
+        .unwrap_or(directory)
+        .to_path_buf()
+}
 
 /// Normalizes a path for CLI display.
 ///

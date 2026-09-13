@@ -18,13 +18,17 @@ inputs:
     description: "Version of cytoscnpy to install"
     required: false
     default: "latest"
+  python-version:
+    description: "Python version used to run cytoscnpy"
+    required: false
+    default: "3.13"
 runs:
   using: "composite"
   steps:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.13"
+        python-version: ${{ inputs.python-version }}
 
     - name: Install CytoScnPy
       shell: bash

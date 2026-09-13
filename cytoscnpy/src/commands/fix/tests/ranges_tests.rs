@@ -11,7 +11,7 @@ def unused():
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "unused", "function");
+    let range = find_def_range(&body, "unused", "function", source.find("def unused"));
     assert!(range.is_some());
     let (start, _end) = range.unwrap();
     assert!(start > 15);
@@ -27,7 +27,7 @@ def unused():
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "unused", "function").unwrap();
+    let range = find_def_range(&body, "unused", "function", source.find("unused")).unwrap();
     assert_eq!(range.0, source.find('@').unwrap());
 }
 
@@ -42,7 +42,7 @@ class Unused:
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "Unused", "class");
+    let range = find_def_range(&body, "Unused", "class", source.find("class Unused"));
     assert!(range.is_some());
 }
 
@@ -56,7 +56,7 @@ class Unused:
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "Unused", "class").unwrap();
+    let range = find_def_range(&body, "Unused", "class", source.find("Unused")).unwrap();
     assert_eq!(range.0, source.find('@').unwrap());
 }
 
@@ -69,7 +69,7 @@ import unused
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "unused", "import");
+    let range = find_def_range(&body, "unused", "import", None);
     assert!(range.is_some());
 }
 
@@ -79,7 +79,7 @@ fn test_find_def_range_import_from_multi() {
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "a", "import");
+    let range = find_def_range(&body, "a", "import", None);
     assert!(range.is_none());
 }
 
@@ -95,7 +95,7 @@ class Service:
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "unused", "method");
+    let range = find_def_range(&body, "unused", "method", None);
     assert!(range.is_some());
 }
 
@@ -110,6 +110,45 @@ class Service:
     let parsed = ruff_python_parser::parse_module(source).unwrap();
     let body = parsed.into_syntax().body;
 
-    let range = find_def_range(&body, "unused", "method").unwrap();
+    let range = find_def_range(&body, "unused", "method", None).unwrap();
     assert_eq!(range.0, source.find('@').unwrap());
+}
+
+#[test]
+fn test_find_def_range_uses_source_position_for_duplicate_names() {
+    let source = "
+def duplicate():
+    return 1
+
+def duplicate():
+    return 2
+";
+    let parsed = ruff_python_parser::parse_module(source).unwrap();
+    let body = parsed.into_syntax().body;
+    let second_name = source.rfind("duplicate").unwrap();
+
+    let range = find_def_range(&body, "duplicate", "function", Some(second_name)).unwrap();
+
+    assert_eq!(&source[range.0..range.1], "def duplicate():\n    return 2");
+}
+
+#[test]
+fn test_find_def_range_nested_same_name() {
+    let source = "def shared():\n    def shared():\n        return 2\n    return 1\n";
+    let parsed = ruff_python_parser::parse_module(source).unwrap();
+    let body = parsed.into_syntax().body;
+    let outer_name = source.find("shared").unwrap();
+    let inner_name = source.rfind("shared").unwrap();
+
+    let inner_range = find_def_range(&body, "shared", "function", Some(inner_name));
+    assert!(
+        inner_range.is_none(),
+        "nested definition should not match outer function"
+    );
+
+    let outer_range = find_def_range(&body, "shared", "function", Some(outer_name)).unwrap();
+    assert_eq!(
+        &source[outer_range.0..outer_range.1],
+        "def shared():\n    def shared():\n        return 2\n    return 1"
+    );
 }

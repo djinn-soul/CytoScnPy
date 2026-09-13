@@ -4,6 +4,8 @@
 
 mod paths;
 
+pub(crate) use paths::discover_project_root;
+
 // Re-export path utilities for backward compatibility
 pub use paths::{
     collect_python_files_gitignore, is_excluded, normalize_display_path, validate_output_path,
@@ -153,14 +155,44 @@ pub fn is_test_path(p: &str) -> bool {
 }
 
 /// Checks whether a path is a test path relative to an analysis root.
+/// File roots discover their nearest project boundary; directory roots are
+/// authoritative. Paths outside the root use only their filename, never test
+/// directory names from unrelated absolute ancestors.
 #[must_use]
 pub fn is_test_path_relative_to(path: &std::path::Path, root: &std::path::Path) -> bool {
-    let relative = if root.is_file() {
-        path.file_name().map(std::path::Path::new).unwrap_or(path)
+    let discovered_root;
+    let root = if root.is_file() {
+        discovered_root = discover_project_root(root.parent().unwrap_or(std::path::Path::new(".")));
+        discovered_root.as_path()
     } else {
-        path.strip_prefix(root).unwrap_or(path)
+        root
     };
+    let relative = path
+        .strip_prefix(root)
+        .ok()
+        .filter(|relative| !relative.as_os_str().is_empty())
+        .unwrap_or_else(|| path.file_name().map(std::path::Path::new).unwrap_or(path));
     is_test_path(&relative.to_string_lossy())
+}
+
+#[cfg(test)]
+mod test_path_tests {
+    use super::is_test_path_relative_to;
+    use std::path::Path;
+
+    #[test]
+    fn ignores_test_segments_above_the_analysis_root() {
+        let root = Path::new("/workspace/tests/project");
+
+        assert!(!is_test_path_relative_to(
+            Path::new("/workspace/tests/project/src/main.py"),
+            root,
+        ));
+        assert!(is_test_path_relative_to(
+            Path::new("/workspace/tests/project/tests/test_main.py"),
+            root,
+        ));
+    }
 }
 
 /// Checks if a path is a framework path.

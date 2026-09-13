@@ -18,7 +18,7 @@ impl CytoScnPy {
             std::thread::sleep(std::time::Duration::from_millis(delay_ms));
         }
 
-        let is_test_file = crate::utils::is_test_path(&file_path.to_string_lossy());
+        let is_test_file = crate::utils::is_test_path_relative_to(file_path, root_path);
         let source = match read_source(file_path, is_notebook, &self.analysis_root) {
             Ok(source) => source,
             Err(error) => return FileAnalysisResult::error(file_path, error),

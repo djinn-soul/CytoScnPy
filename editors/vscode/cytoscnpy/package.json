@@ -202,15 +202,15 @@
     "serialize-javascript": "7.0.5"
   },
   "devDependencies": {
-    "@types/vscode": "^1.96.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.65.0",
-    "eslint": "^10.8.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.1",
+    "eslint": "^10.8.0",
     "npm-run-all2": "^8.0.4",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.65.0"
   }
 }

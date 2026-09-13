@@ -10,7 +10,7 @@ from typing import Any
 
 def normalize_path(p: str) -> str:
     """Normalize path separator."""
-    return str(Path(p).as_posix()).strip("/").lower()
+    return Path(p.replace("\\", "/")).as_posix().strip("/").lower()
 
 
 def load_ground_truth(

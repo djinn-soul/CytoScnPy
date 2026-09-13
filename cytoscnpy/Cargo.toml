@@ -79,7 +79,13 @@ chrono = { version = "0.4.42", default-features = false, features = [
     "clock",
 ], optional = true }
 open = { version = "5.3.3", optional = true }
-ctrlc = "3.5.1"
+
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Console"] }
+
 
 [features]
 default = ["html_report", "cst", "cfg"]

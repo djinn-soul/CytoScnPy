@@ -27,7 +27,7 @@
 
 ## Scoring model
 
-- [ ] Score setup reliability from dependency manager, lockfile, Docker, build scripts, and `.gitignore`.
+- [x] Score setup reliability from dependency manager, lockfile, Docker, build scripts, and `.gitignore`.
 - [ ] Score architecture clarity from project depth, file sizes, organization, layering, and searchability.
 - [ ] Score coupling/blast radius from import fan-in, fan-out, and cycles.
 - [ ] Score style consistency from formatter, linter, and naming signals.
@@ -40,13 +40,13 @@
 
 ## Scanning and metadata
 
-- [ ] Respect repository and global Git ignore rules.
-- [ ] Skip dependency, generated, build, cache, editor, and virtual-environment directories.
-- [ ] Collect file, line, byte, largest-file, average-file, depth, and top-level-directory metrics.
-- [ ] Identify test files separately from source files.
-- [ ] Report per-language file, line, and byte totals.
-- [ ] Detect formatter, linter, type-checker, test, CI, Docker, dependency, lockfile, build, editor, documentation, and Git-ignore configuration.
-- [ ] Inspect Python project configuration for Ruff/Pylint, mypy/Pyright, and pytest.
+- [x] Respect repository and global Git ignore rules.
+- [x] Skip dependency, generated, build, cache, editor, and virtual-environment directories.
+- [x] Collect file, line, byte, largest-file, average-file, depth, and top-level-directory metrics.
+- [x] Identify test files separately from source files.
+- [x] Report per-language file, line, and byte totals.
+- [x] Detect formatter, linter, type-checker, test, CI, Docker, dependency, lockfile, build, editor, documentation, and Git-ignore configuration.
+- [x] Inspect Python project configuration for Ruff/Pylint, mypy/Pyright, and pytest.
 
 ## Language and AST analysis
 
@@ -94,8 +94,8 @@
 
 - [ ] Generate prioritized recommendations with estimated score reduction.
 - [ ] Recommend splitting large logic-heavy files and simplifying complex functions.
-- [ ] Recommend adding tests, formatters, linters, and type checking.
-- [ ] Recommend README, architecture documentation, and CI configuration.
+- [x] Recommend adding tests, formatters, linters, and type checking.
+- [x] Recommend README, architecture documentation, and CI configuration.
 - [ ] Recommend resolving circular dependencies and enforcing module layering.
 - [ ] Recommend removing anti-patterns and reducing mutable global state.
 - [ ] Recommend extracting stable code into libraries to reduce active context surface.
@@ -149,7 +149,7 @@ All ten repository scoring dimensions are new, but several measurements are reus
 
 | # | Dimension | Reusable CytoScnPy inputs | Missing inputs or logic |
 |---|---|---|---|
-| 18 | Setup reliability | Dependency-analysis infrastructure | Tool/config inventory, setup checks, scoring |
+| 18 | Setup reliability | Existing (`cytoscnpy doctor`) | Setup reliability 0-100 scoring, tooling inventory, lockfile/CI/docker/test/linter checks |
 | 19 | Architecture clarity | File metrics, complexity, class cohesion | Directory organization, layering, searchability scoring |
 | 20 | Coupling/blast radius | Import bindings and references | Module graph statistics, cycle reports, scoring |
 | 21 | Style consistency | Python definitions | Naming distribution and formatter/linter detection |
@@ -166,13 +166,13 @@ CytoScnPy's own CI integration does not imply detection of CI configuration in s
 
 | # | Roadmap item | Current status | Remaining work |
 |---|---|---|---|
-| 28 | Repository/global Git ignore | Existing | Reuse the scanner. |
-| 29 | Skip dependency/build/cache directories | Existing foundation | Review differences in default exclusion lists. |
-| 30 | File/line/byte/depth statistics | Partial | Extend existing totals with largest/average file and depth summaries where needed. |
-| 31 | Identify tests separately | Existing | Expose inventory independently of whether tests are analyzed. |
-| 32 | Per-language totals | Missing for broad inventory | Add lightweight extension-based inventory if desired. |
-| 33 | Detect project tooling/configuration | Partial | Reuse configuration/dependency readers; broad tooling detection is new. |
-| 34 | Ruff/Pylint/mypy/Pyright/pytest settings | Missing as health feature | Inspect relevant project sections explicitly. |
+| 28 | Repository/global Git ignore | Existing (`cytoscnpy doctor`) | Gitignore-aware repo walker respects ignore rules. |
+| 29 | Skip dependency/build/cache directories | Existing (`cytoscnpy doctor`) | Standard filters and directory pruning skips build, cache, venv, and git dirs. |
+| 30 | File/line/byte/depth statistics | Existing (`cytoscnpy doctor`) | Total files, lines, bytes, average lines, max depth, largest file. |
+| 31 | Identify tests separately | Existing (`cytoscnpy doctor`) | Source vs test file counts, line counts, and test-to-source ratios. |
+| 32 | Per-language totals | Existing (`cytoscnpy doctor`) | Polyglot extension scanner counts files, lines, and bytes per language. |
+| 33 | Detect project tooling/configuration | Existing (`cytoscnpy doctor`) | Formatters, linters, type checkers, tests, CI, Docker, lockfiles, build scripts. |
+| 34 | Ruff/Pylint/mypy/Pyright/pytest settings | Existing (`cytoscnpy doctor`) | Deep inspection of `pyproject.toml` tool tables and build backend. |
 
 The scanner already respects `.gitignore`, global ignore, and `.git/info/exclude`, and filters excluded directories during traversal. Test inventory must count tests even when normal analysis excludes them. Source: [scanner](cytoscnpy/src/utils/paths.rs).
 

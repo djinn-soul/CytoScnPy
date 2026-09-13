@@ -213,27 +213,21 @@ pub enum Commands {
         /// Path options (paths vs root).
         #[command(flatten)]
         paths: PathArgs,
-
         /// Output JSON format.
         #[arg(long)]
         json: bool,
-
         /// Only show circular dependency cycles.
         #[arg(long)]
         cycles_only: bool,
-
         /// Exit with code 1 if any circular dependencies are detected.
         #[arg(long)]
         fail_on_cycles: bool,
-
         /// Exit with code 1 if any god modules are detected.
         #[arg(long)]
         fail_on_god_modules: bool,
-
         /// Exclude folders.
         #[arg(long, alias = "exclude-folder")]
         exclude: Vec<String>,
-
         /// Output file path.
         #[arg(long, short = 'o')]
         output_file: Option<String>,
@@ -243,35 +237,46 @@ pub enum Commands {
         /// Path options (paths vs root).
         #[command(flatten)]
         paths: PathArgs,
-
         /// Lookback window in months for Git activity (default: auto-scaled to repo age).
         #[arg(long)]
         git_months: Option<u32>,
-
         /// Usable LLM context capacity in tokens (default: 176000).
         #[arg(long)]
         context_budget: Option<usize>,
-
         /// Disable Git history analysis (pure static context estimation).
         #[arg(long)]
         no_git: bool,
-
         /// Output JSON format.
         #[arg(long)]
         json: bool,
-
         /// Only show churn-complexity hotspot files.
         #[arg(long)]
         hotspots_only: bool,
-
         /// Exit with code 1 if severe (Critical or High) hotspots are detected.
         #[arg(long)]
         fail_on_hotspots: bool,
-
         /// Exclude folders.
         #[arg(long, alias = "exclude-folder")]
         exclude: Vec<String>,
-
+        /// Output file path.
+        #[arg(long, short = 'o')]
+        output_file: Option<String>,
+    },
+    /// Check repository health, setup reliability, and configuration metadata
+    #[command(alias = "health")]
+    Doctor {
+        /// Path options (paths vs root).
+        #[command(flatten)]
+        paths: PathArgs,
+        /// Output JSON format.
+        #[arg(long)]
+        json: bool,
+        /// Exit with code 1 if critical or recommended setup items are missing or failing.
+        #[arg(long)]
+        fail_on_missing: bool,
+        /// Exclude folders.
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
         /// Output file path.
         #[arg(long, short = 'o')]
         output_file: Option<String>,

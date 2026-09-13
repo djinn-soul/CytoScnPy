@@ -25,13 +25,8 @@ fn run_cytoscnpy(path: &str, flags: &[&str]) -> Value {
         .unwrap_or_else(|e| panic!("Failed to run cytoscnpy with args {:?}: {}", args, e));
 
     let output_str = str::from_utf8(&buffer).expect("Invalid UTF-8 output");
-    println!("-----------------Output===================: {}", output_str);
 
-    assert_eq!(
-        exit_code, 0,
-        "Command failed with exit code {}. Output: {}",
-        exit_code, output_str
-    );
+    assert_eq!(exit_code, 0, "Command failed with exit code {exit_code}");
 
     serde_json::from_str(output_str).expect("Failed to parse JSON output")
 }

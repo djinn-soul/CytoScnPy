@@ -17,15 +17,6 @@ fn test_analyze_code_secrets() {
     // Use a non-test filename to avoid test file score penalty
     let result = analyzer.analyze_code(code, &PathBuf::from("config.py"));
 
-    // Debug print to see what we found if it fails
-    if result.secrets.is_empty() {
-        println!("No secrets found!");
-    } else {
-        for s in &result.secrets {
-            println!("Found secret: {} ({})", s.rule_id, s.message);
-        }
-    }
-
     assert!(
         !result.secrets.is_empty(),
         "Should detect secrets in analyze_code"

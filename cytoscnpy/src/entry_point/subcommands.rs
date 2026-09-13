@@ -1,7 +1,7 @@
 use super::config::resolve_scan_flag;
 use super::handlers::{
-    handle_cc, handle_files, handle_graph, handle_hal, handle_mi, handle_raw, handle_stats,
-    CcFlags, DepsCliArgs, DepsFlags, GraphFlags, MiFlags,
+    handle_cc, handle_context, handle_files, handle_graph, handle_hal, handle_mi, handle_raw,
+    handle_stats, CcFlags, ContextFlags, DepsCliArgs, DepsFlags, GraphFlags, MiFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -205,6 +205,33 @@ pub(super) fn run_subcommand<W: std::io::Write>(
                 cycles_only,
                 fail_on_cycles,
                 fail_on_god_modules,
+                verbose,
+            },
+            output_file,
+            exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Context {
+            paths,
+            git_months,
+            context_budget,
+            no_git,
+            json,
+            hotspots_only,
+            fail_on_hotspots,
+            exclude,
+            output_file,
+        } => handle_context(
+            &paths,
+            ContextFlags {
+                git_months,
+                context_budget: context_budget.unwrap_or(176_000),
+                no_git,
+                json,
+                hotspots_only,
+                fail_on_hotspots,
                 verbose,
             },
             output_file,

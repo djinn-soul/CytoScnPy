@@ -10,9 +10,9 @@
 - [ ] Support scanning the current directory and multiple supplied paths.
 - [ ] Add `--format terminal`, `--format json`, and `--format llm`.
 - [ ] Add `--verbose` for complete dimension output.
-- [ ] Add `--context-budget` for token-cost details.
+- [x] Add `--context-budget` for token-cost details.
 - [ ] Add repeatable `--ignore` patterns.
-- [ ] Add Git controls: `--no-git` and `--git-months`.
+- [x] Add Git controls: `--no-git` and `--git-months`.
 - [ ] Add CI mode with `--ci` and an allowed-score gate using `--max-score`.
 
 ## Reports and integrations
@@ -23,7 +23,7 @@
 - [ ] Include score, raw score, verdict, size multiplier, and weighted dimension ratings in reports.
 - [ ] Include repository totals, language breakdown, test/source counts, and detected configuration.
 - [ ] Include duplicate-code statistics.
-- [ ] Include active-surface and hot-file data when Git history is available.
+- [x] Include active-surface and hot-file data when Git history is available.
 
 ## Scoring model
 
@@ -82,13 +82,13 @@
 
 ## Git-aware context analysis
 
-- [ ] Detect whether a scan target is a Git repository.
-- [ ] Identify active and frozen files from a configurable recent-history window.
-- [ ] Report commits, active files/lines/bytes, frozen files/bytes, and hot files.
-- [ ] Use the active code surface in context-pressure scoring.
-- [ ] Flag frequently changed files that are also complex.
-- [ ] Estimate token costs for discovery, reading, dependency tracing, and comprehension.
-- [ ] Report estimated navigation cost and context remaining for productive work.
+- [x] Detect whether a scan target is a Git repository.
+- [x] Identify active and frozen files from a configurable recent-history window.
+- [x] Report commits, active files/lines/bytes, frozen files/bytes, and hot files.
+- [x] Use the active code surface in context-pressure scoring.
+- [x] Flag frequently changed files that are also complex.
+- [x] Estimate token costs for discovery, reading, dependency tracing, and comprehension.
+- [x] Report estimated navigation cost and context remaining for productive work.
 
 ## Recommendation engine
 
@@ -224,13 +224,13 @@ Mutable default arguments differ from mutable class variables. Recognizing wildc
 
 | # | Roadmap item | Current status | Remaining work |
 |---|---|---|---|
-| 58 | Detect Git repository | Partial infrastructure | Add explicit repository metadata for history analysis. |
-| 59 | Active/frozen files | Missing | Classify by recent commit activity. |
-| 60 | Commit/activity/hot-file report | Missing | Collect and expose history statistics. |
-| 61 | Active surface in scoring | Missing | Connect Git results to the scoring model. |
-| 62 | Frequently changed and complex files | Missing | Join activity with existing complexity metrics. |
-| 63 | Discovery/reading/tracing/comprehension tokens | Missing | Implement documented estimators. |
-| 64 | Navigation cost and remaining context | Missing | Add configurable context capacity and report assumptions. |
+| 58 | Detect Git repository | Existing (`cytoscnpy context`) | Validates `.git` and `git rev-parse --git-dir` with graceful non-git fallback. |
+| 59 | Active/frozen files | Existing (`cytoscnpy context`) | Classifies by recent commit churn in lookback window. |
+| 60 | Commit/activity/hot-file report | Existing (`cytoscnpy context`) | Collects and exposes commit totals, active/frozen line/byte ratios, and top hot files. |
+| 61 | Active surface in scoring | Existing (`cytoscnpy context`) | Biases context reading and navigation models toward active code surface. |
+| 62 | Frequently changed and complex files | Existing (`cytoscnpy context`) | Cross-references churn with AST cyclomatic complexity to flag risk hotspots. |
+| 63 | Discovery/reading/tracing/comprehension tokens | Existing (`cytoscnpy context`) | Implements Python-aware token estimators across all navigation phases. |
+| 64 | Navigation cost and remaining context | Existing (`cytoscnpy context`) | Configurable `--context-budget`, navigation percentage, and qualitative verdict. |
 
 Git ignore handling and Git-history analysis are separate capabilities. DeSlopify defaults to a maximum one-month lookback, adapts the window to repository age, and retains ten hot files. Source: [reference Git analysis](deslopify/src/scanner/git.rs).
 

@@ -28,7 +28,7 @@ try:
     with urllib.request.urlopen(url, context=unverified_context) as response:
         print("Successfully fetched URL without verification.")
         # An attacker could be intercepting this and reading/modifying the data.
-        print(response.read().decode('utf-8'))
+        print(response.read().decode("utf-8"))
 except Exception as e:
     print(f"An error occurred: {e}")
 ```
@@ -62,7 +62,6 @@ try:
         pass
 except ssl.SSLCertVerificationError as e:
     print(f"Correctly blocked connection to invalid URL: {e}")
-
 ```
 
 ### Handling Self-Signed Certificates

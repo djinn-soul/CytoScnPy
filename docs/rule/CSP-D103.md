@@ -21,14 +21,14 @@ from flask import Flask, request, Markup
 
 app = Flask(__name__)
 
-@app.route('/user')
+
+@app.route("/user")
 def user_profile():
-    user_name = request.args.get('name', '')
+    user_name = request.args.get("name", "")
 
     # This is vulnerable. The user's input is rendered directly into the HTML.
     # An attacker can provide a URL like: /user?name=<script>alert('XSS')</script>
     return Markup(f"<h1>Hello, {user_name}!</h1>")
-
 ```
 
 ## Vulnerable Code Example (FastAPI)
@@ -38,6 +38,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 app = FastAPI()
+
 
 @app.get("/items/")
 async def read_items(q: str | None = None):
@@ -61,9 +62,10 @@ from flask import Flask, request, render_template_string
 
 app = Flask(__name__)
 
-@app.route('/user')
+
+@app.route("/user")
 def user_profile():
-    user_name = request.args.get('name', '')
+    user_name = request.args.get("name", "")
 
     # Jinja2 will automatically escape the user_name variable.
     # <script> tags will be rendered as text, not executed.
@@ -82,6 +84,7 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+
 
 @app.get("/items/", response_class=HTMLResponse)
 async def read_items(request: Request, q: str | None = None):

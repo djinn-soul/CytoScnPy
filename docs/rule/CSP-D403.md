@@ -21,13 +21,15 @@ from flask import Flask
 
 app = Flask(__name__)
 
-@app.route('/')
+
+@app.route("/")
 def hello():
     # This will cause an error
     1 / 0
     return "Hello, World!"
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Running with debug=True exposes the interactive debugger
     app.run(debug=True)
 ```
@@ -55,7 +57,7 @@ app = Flask(__name__)
 # It's better to use a production-ready WSGI server like Gunicorn or uWSGI
 # instead of app.run() in production.
 # If you must use app.run(), ensure debug is disabled.
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Get debug status from an environment variable, defaulting to False
     is_debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
     app.run(debug=is_debug)
@@ -69,7 +71,7 @@ import os
 # Set DEBUG to False by default, and only enable it if an env var is explicitly set.
 # The `os.environ.get(...) != 'False'` is a robust way to handle this, as most
 # non-empty strings are True in a boolean context.
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 ```
 
 The standard practice is to use a production-grade WSGI server (like Gunicorn, uWSGI, or Daphne) to run your application, rather than the built-in development servers provided by the frameworks. These servers do not use the framework's debug mode.

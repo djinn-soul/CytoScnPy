@@ -18,7 +18,6 @@ user_input = input("Enter a command: ")
 # The user can enter a malicious string like:
 # "os.system('rm -rf /')"
 exec(user_input)
-
 ```
 In this example, the user can provide a string that, when executed, will run a dangerous command with the privileges of the application.
 
@@ -30,8 +29,10 @@ The safest approach is to avoid `exec()` entirely. If you need to execute differ
 def say_hello():
     print("Hello!")
 
+
 def say_goodbye():
     print("Goodbye!")
+
 
 commands = {
     "hello": say_hello,

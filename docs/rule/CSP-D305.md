@@ -15,11 +15,11 @@ An attacker can analyze the encrypted data to identify patterns, which may help 
 ```python
 from Crypto.Cipher import AES
 
-key = b'Sixteen byte key' # 16 bytes = 128 bits
-cipher = AES.new(key, AES.MODE_ECB) # Using ECB mode is insecure
+key = b"Sixteen byte key"  # 16 bytes = 128 bits
+cipher = AES.new(key, AES.MODE_ECB)  # Using ECB mode is insecure
 
 # A message with a repeating pattern
-data = b'ATTACK ATTACK ATTACK ATTACK'
+data = b"ATTACK ATTACK ATTACK ATTACK"
 
 encrypted_data = cipher.encrypt(data)
 
@@ -41,7 +41,7 @@ from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 
 key = get_random_bytes(16)
-data = b'ATTACK ATTACK ATTACK ATTACK'
+data = b"ATTACK ATTACK ATTACK ATTACK"
 
 # GCM is a modern, secure, and recommended mode.
 cipher = AES.new(key, AES.MODE_GCM)

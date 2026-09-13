@@ -20,10 +20,11 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-@app.route('/proxy')
+
+@app.route("/proxy")
 def proxy():
     # The URL comes directly from user input.
-    url = request.args.get('url')
+    url = request.args.get("url")
 
     if not url:
         return "Please provide a URL.", 400
@@ -36,7 +37,6 @@ def proxy():
             return content
     except Exception as e:
         return f"Error fetching URL: {e}", 500
-
 ```
 
 ## Safe Code Example
@@ -50,11 +50,12 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-ALLOWED_SCHEMES = {'http', 'https'}
+ALLOWED_SCHEMES = {"http", "https"}
 
-@app.route('/proxy')
+
+@app.route("/proxy")
 def proxy():
-    url = request.args.get('url')
+    url = request.args.get("url")
 
     if not url:
         return "Please provide a URL.", 400

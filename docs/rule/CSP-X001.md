@@ -20,19 +20,20 @@ Even in frameworks with built-in autoescaping (like Django or Flask with Jinja2)
 
 ```python
 from flask import Flask, request, Response
-import html # For escaping, but not used here correctly
+import html  # For escaping, but not used here correctly
 
 app = Flask(__name__)
 
-@app.route('/greet')
+
+@app.route("/greet")
 def greet_user():
-    name = request.args.get('name', 'Guest')
+    name = request.args.get("name", "Guest")
 
     # User input 'name' is directly embedded into an HTML string without escaping.
     # If name contains '<script>alert(1)</script>', it will be executed.
     html_output = f"<p>Hello, {name}!</p>"
 
-    return Response(html_output, mimetype='text/html')
+    return Response(html_output, mimetype="text/html")
 ```
 
 ## Safe Code Example
@@ -45,17 +46,19 @@ Frameworks like Flask (with Jinja2) or Django automatically escape variables by 
 
 ```python
 from flask import Flask, request, render_template_string
-from jinja2 import Markup # Used to explicitly mark safe content if needed
+from jinja2 import Markup  # Used to explicitly mark safe content if needed
 
 app = Flask(__name__)
 
-@app.route('/greet')
+
+@app.route("/greet")
 def greet_user():
-    name = request.args.get('name', 'Guest')
+    name = request.args.get("name", "Guest")
 
     # Jinja2 will automatically escape the 'name' variable in the template.
     template = "<h1>Hello, {{ user_name }}!</h1>"
     return render_template_string(template, user_name=name)
+
 
 # Example if you have a trusted HTML string:
 trusted_html_snippet = "<b>User</b>"
@@ -71,7 +74,7 @@ If you are not using a templating engine or need to build HTML strings manually,
 ```python
 import html
 
-name = request.args.get('name', 'Guest')
+name = request.args.get("name", "Guest")
 
 # Manually escape user input before embedding it in HTML.
 escaped_name = html.escape(name)
@@ -97,5 +100,5 @@ Or, for this specific rule:
 
 ```python
 # ignore: CSP-X001
-return f"<p>Welcome, {user_input}!</p>" # Assuming input is safely handled elsewhere
+return f"<p>Welcome, {user_input}!</p>"  # Assuming input is safely handled elsewhere
 ```

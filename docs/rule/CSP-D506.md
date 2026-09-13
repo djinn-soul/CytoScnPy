@@ -19,15 +19,15 @@ import os
 
 # os.tempnam() returns a path to a file that does not yet exist.
 # This is a race condition waiting to happen.
-tmp_path = os.tempnam('/tmp', 'myapp_')
+tmp_path = os.tempnam("/tmp", "myapp_")
 
 # Attacker can create a symlink:
 # ln -s /root/.ssh/authorized_keys /tmp/myapp_...
 
 # The application, thinking it's writing to a temp file,
 # will now overwrite the root user's authorized_keys file.
-with open(tmp_path, 'w') as f:
-    f.write('ssh-rsa AAAA... attacker@key')
+with open(tmp_path, "w") as f:
+    f.write("ssh-rsa AAAA... attacker@key")
 ```
 
 ## Safe Code Example
@@ -42,9 +42,9 @@ import tempfile
 
 # Creates a file that is automatically deleted when the 'with' block exits.
 # There is no race condition.
-with tempfile.NamedTemporaryFile(mode='w', dir='/tmp', prefix='myapp_') as tmp:
+with tempfile.NamedTemporaryFile(mode="w", dir="/tmp", prefix="myapp_") as tmp:
     print(f"Created secure temporary file: {tmp.name}")
-    tmp.write('This is safe and will be cleaned up.')
+    tmp.write("This is safe and will be cleaned up.")
 ```
 
 ### Using `mkstemp()`
@@ -55,11 +55,11 @@ import tempfile
 import os
 
 # Creates the file securely and returns a handle and path.
-fd, path = tempfile.mkstemp(dir='/tmp', prefix='myapp_')
+fd, path = tempfile.mkstemp(dir="/tmp", prefix="myapp_")
 
 try:
-    with os.fdopen(fd, 'w') as tmp:
-        tmp.write('This is also safe.')
+    with os.fdopen(fd, "w") as tmp:
+        tmp.write("This is also safe.")
 finally:
     # You must remove the file yourself.
     os.remove(path)

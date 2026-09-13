@@ -15,6 +15,7 @@ The rule covers common `python-ldap` and `ldap3` search APIs, including position
 ```python
 import ldap
 
+
 def find_user(conn, username):
     query = f"(uid={username})"
     return conn.search_s("ou=people,dc=example,dc=com", ldap.SCOPE_SUBTREE, query)
@@ -27,6 +28,7 @@ An attacker can provide input like `*)(|(uid=*))` to change the intended filter.
 ```python
 import ldap
 from ldap.filter import escape_filter_chars
+
 
 def find_user(conn, username):
     safe_username = escape_filter_chars(username)

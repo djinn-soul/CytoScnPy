@@ -20,11 +20,13 @@ However, it is **not** cryptographically secure. Its output is predictable; if a
 import random
 import string
 
+
 def generate_reset_token(length=16):
     # Using random.choice is not secure for generating tokens.
     # An attacker could potentially predict the token.
     chars = string.ascii_letters + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
+    return "".join(random.choice(chars) for _ in range(length))
+
 
 print(f"Insecure reset token: {generate_reset_token()}")
 ```
@@ -37,15 +39,17 @@ For any security-related need for randomness, use the `secrets` module, which wa
 import secrets
 import string
 
+
 def generate_secure_reset_token(length=16):
     # secrets.choice is cryptographically secure.
     chars = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(chars) for _ in range(length))
+    return "".join(secrets.choice(chars) for _ in range(length))
+
 
 print(f"Secure reset token: {generate_secure_reset_token()}")
 
 # For generating a URL-safe text string (e.g., for tokens)
-secure_token = secrets.token_urlsafe(16) # Creates a 16-byte random token
+secure_token = secrets.token_urlsafe(16)  # Creates a 16-byte random token
 print(f"URL-safe token: {secure_token}")
 ```
 

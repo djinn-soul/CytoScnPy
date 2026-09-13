@@ -50,9 +50,9 @@ import os
 fd, path = tempfile.mkstemp()
 
 try:
-    with os.fdopen(fd, 'w') as tmp:
+    with os.fdopen(fd, "w") as tmp:
         # Write to the temporary file
-        tmp.write('This is safe.\n')
+        tmp.write("This is safe.\n")
 finally:
     # You are responsible for cleaning up the file.
     os.remove(path)
@@ -65,9 +65,9 @@ This is a higher-level and often more convenient approach. It creates a file tha
 import tempfile
 
 # The 'delete=True' argument ensures the file is deleted on close.
-with tempfile.NamedTemporaryFile(mode='w', delete=True) as tmp:
+with tempfile.NamedTemporaryFile(mode="w", delete=True) as tmp:
     print(f"Created temporary file: {tmp.name}")
-    tmp.write('This will be automatically cleaned up.')
+    tmp.write("This will be automatically cleaned up.")
     # The file is deleted when the 'with' block exits.
 ```
 

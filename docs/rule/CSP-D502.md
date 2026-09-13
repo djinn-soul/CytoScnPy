@@ -37,7 +37,7 @@ import tarfile
 
 with tarfile.open("archive.tar") as tar:
     # The 'data' filter disallows path traversal and other dangerous features.
-    tar.extractall(path="output_dir", filter='data')
+    tar.extractall(path="output_dir", filter="data")
 ```
 
 ## Safe Code Example (Older Python Versions)

@@ -20,12 +20,13 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-BASE_DIR = '/var/www/uploads'
+BASE_DIR = "/var/www/uploads"
 
-@app.route('/files')
+
+@app.route("/files")
 def get_file():
     # The filename is taken directly from user input.
-    filename = request.args.get('filename')
+    filename = request.args.get("filename")
 
     if not filename:
         return "Please provide a filename.", 400
@@ -35,7 +36,7 @@ def get_file():
     file_path = os.path.join(BASE_DIR, filename)
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             return f.read()
     except FileNotFoundError:
         return "File not found.", 404
@@ -54,11 +55,12 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-BASE_DIR = '/var/www/uploads'
+BASE_DIR = "/var/www/uploads"
 
-@app.route('/files')
+
+@app.route("/files")
 def get_file():
-    filename = request.args.get('filename')
+    filename = request.args.get("filename")
 
     if not filename:
         return "Please provide a filename.", 400
@@ -74,7 +76,7 @@ def get_file():
         return "Path traversal attempt detected.", 400
 
     try:
-        with open(real_file_path, 'r') as f:
+        with open(real_file_path, "r") as f:
             return f.read()
     except FileNotFoundError:
         return "File not found.", 404
@@ -87,8 +89,9 @@ The `pathlib` module provides a more object-oriented and often clearer way to ha
 
 ```python
 from pathlib import Path
+
 # ...
-base_dir = Path('/var/www/uploads').resolve()
+base_dir = Path("/var/www/uploads").resolve()
 user_path = base_dir / filename
 resolved_path = user_path.resolve()
 
@@ -112,6 +115,6 @@ Or, for this specific rule:
 
 ```python
 # ignore: CSP-D501
-with open(validated_path, 'r') as f:
+with open(validated_path, "r") as f:
     ...
 ```

@@ -16,7 +16,7 @@ This rule detects when a SQL query is constructed using unsafe string formatting
 import sqlite3
 
 # Connect to the database
-conn = sqlite3.connect('example.db')
+conn = sqlite3.connect("example.db")
 cursor = conn.cursor()
 
 # Get user input
@@ -37,7 +37,6 @@ except sqlite3.Error as e:
     print(f"Database error: {e}")
 finally:
     conn.close()
-
 ```
 An attacker could enter `1; DROP TABLE users` as the `user_id`, and the query would become `SELECT * FROM users WHERE id = 1; DROP TABLE users`, deleting the `users` table.
 
@@ -49,7 +48,7 @@ To prevent SQL injection, always use parameterized queries (also known as prepar
 import sqlite3
 
 # Connect to the database
-conn = sqlite3.connect('example.db')
+conn = sqlite3.connect("example.db")
 cursor = conn.cursor()
 
 # Get user input

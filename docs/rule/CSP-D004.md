@@ -13,25 +13,26 @@ This rule is a variant of [CSP-D003](./CSP-D003.md) and applies to asynchronous 
 ```python
 import asyncio
 
+
 async def run_command(command):
     # The command is passed to the system's shell, creating a vulnerability
     proc = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
 
     stdout, stderr = await proc.communicate()
 
     if stdout:
-        print(f'[stdout]\n{stdout.decode()}')
+        print(f"[stdout]\n{stdout.decode()}")
     if stderr:
-        print(f'[stderr]\n{stderr.decode()}')
+        print(f"[stderr]\n{stderr.decode()}")
+
 
 async def main():
     user_input = input("Enter a command to run: ")
     # Attacker can input: "echo hello; whoami"
     await run_command(user_input)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -46,20 +47,20 @@ To mitigate this risk, use `asyncio.create_subprocess_exec()` instead. This func
 import asyncio
 import shlex
 
+
 async def run_command(command_parts):
     # The command and arguments are passed as a list
     proc = await asyncio.create_subprocess_exec(
-        *command_parts,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        *command_parts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
 
     stdout, stderr = await proc.communicate()
 
     if stdout:
-        print(f'[stdout]\n{stdout.decode()}')
+        print(f"[stdout]\n{stdout.decode()}")
     if stderr:
-        print(f'[stderr]\n{stderr.decode()}')
+        print(f"[stderr]\n{stderr.decode()}")
+
 
 async def main():
     user_input = input("Enter a file to display: ")
@@ -67,6 +68,7 @@ async def main():
     # It is safely split and quoted
     command_parts = ["cat", shlex.quote(user_input)]
     await run_command(command_parts)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

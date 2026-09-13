@@ -208,4 +208,34 @@ pub enum Commands {
         #[arg(long)]
         lockfile: Option<String>,
     },
+    /// Analyze Python module architecture, import graph, and circular dependencies
+    Graph {
+        /// Path options (paths vs root).
+        #[command(flatten)]
+        paths: PathArgs,
+
+        /// Output JSON format.
+        #[arg(long)]
+        json: bool,
+
+        /// Only show circular dependency cycles.
+        #[arg(long)]
+        cycles_only: bool,
+
+        /// Exit with code 1 if any circular dependencies are detected.
+        #[arg(long)]
+        fail_on_cycles: bool,
+
+        /// Exit with code 1 if any god modules are detected.
+        #[arg(long)]
+        fail_on_god_modules: bool,
+
+        /// Exclude folders.
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
+
+        /// Output file path.
+        #[arg(long, short = 'o')]
+        output_file: Option<String>,
+    },
 }

@@ -94,3 +94,4 @@ benchmark/test_*
 .pytest_tmp/
 .coverage
 coverage.xml
+deslopify/

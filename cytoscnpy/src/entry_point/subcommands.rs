@@ -1,7 +1,7 @@
 use super::config::resolve_scan_flag;
 use super::handlers::{
-    handle_cc, handle_files, handle_hal, handle_mi, handle_raw, handle_stats, CcFlags, DepsCliArgs,
-    DepsFlags, MiFlags,
+    handle_cc, handle_files, handle_graph, handle_hal, handle_mi, handle_raw, handle_stats,
+    CcFlags, DepsCliArgs, DepsFlags, GraphFlags, MiFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -190,5 +190,28 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             crate::commands::run_init_in(&context.analysis_root, writer)?;
             Ok(0)
         }
+        Commands::Graph {
+            paths,
+            json,
+            cycles_only,
+            fail_on_cycles,
+            fail_on_god_modules,
+            exclude,
+            output_file,
+        } => handle_graph(
+            &paths,
+            GraphFlags {
+                json,
+                cycles_only,
+                fail_on_cycles,
+                fail_on_god_modules,
+                verbose,
+            },
+            output_file,
+            exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
     }
 }

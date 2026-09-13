@@ -66,6 +66,9 @@ pub mod output;
 /// Module defining the command-line interface arguments and structs.
 pub mod cli;
 
+/// Module for module architecture and dependency graph analysis.
+pub mod architecture;
+
 /// Module for handling CLI commands and their execution logic.
 pub mod commands;
 /// Module for calculating cyclomatic complexity.

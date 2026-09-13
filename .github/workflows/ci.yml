@@ -51,11 +51,9 @@ jobs:
             target: x86_64-pc-windows-msvc
             binary_name: cytoscnpy-cli-win32.exe
             executable: cytoscnpy-cli.exe
-          # The extension binary and VS Code test host are x86_64. Pin this job
-          # to the Intel runner so the test host does not download ARM Electron.
-          - os: macos-13
-            target: x86_64-apple-darwin
-            binary_name: cytoscnpy-cli-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary_name: cytoscnpy-cli-darwin-arm64
             executable: cytoscnpy-cli
 
     steps:

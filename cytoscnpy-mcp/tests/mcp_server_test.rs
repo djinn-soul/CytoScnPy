@@ -212,7 +212,7 @@ fn test_analyze_code_unused_imports() {
     let text = json["text"].as_str().expect("Expected text field");
     let analysis: AnalysisResult = serde_json::from_str(text).unwrap();
     assert_eq!(analysis.unused_imports.len(), 1);
-    assert_eq!(analysis.unused_imports[0].name, "os");
+    assert_eq!(analysis.unused_imports[0].simple_name, "os");
 }
 
 #[test]

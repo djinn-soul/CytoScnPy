@@ -7,13 +7,20 @@ on:
       - "cytoscnpy/**"
       - "cytoscnpy-mcp/**"
       - "cytoscnpy-cli/**"
+      - "python/**"
       - "editors/vscode/**"
-      - "pyproject.toml"
       - "Cargo.toml"
+      - "Cargo.lock"
+      - "pyproject.toml"
+      - "uv.lock"
       - "docs/**"
       - "mkdocs.yml"
       - "README.md"
-      - ".github/workflows/test-ci.yml"
+      - "action.yml"
+      - "install.sh"
+      - "install.ps1"
+      - ".github/actions/**"
+      - ".github/workflows/ci.yml"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -45,8 +52,8 @@ jobs:
             binary_name: cytoscnpy-cli-win32.exe
             executable: cytoscnpy-cli.exe
           - os: macos-latest
-            target: x86_64-apple-darwin
-            binary_name: cytoscnpy-cli-darwin
+            target: aarch64-apple-darwin
+            binary_name: cytoscnpy-cli-darwin-arm64
             executable: cytoscnpy-cli
 
     steps:
@@ -156,7 +163,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10", "3.14"]
     steps:
       - uses: actions/checkout@v4
 

@@ -14,7 +14,8 @@ def used_function():
 ";
     std::fs::write(&file_path, source).unwrap();
 
-    let def = create_definition("unused_function", "function", file_path.clone(), 3);
+    let mut def = create_definition("unused_function", "function", file_path.clone(), 3);
+    def.start_byte = source.find("unused_function").unwrap();
     let options = DeadCodeFixOptions {
         dry_run: false,
         fix_variables: false,
@@ -31,6 +32,54 @@ def used_function():
     assert!(!content.contains("@decorator"));
     assert!(content.contains("def used_function"));
     assert!(ruff_python_parser::parse_module(&content).is_ok());
+}
+
+#[test]
+fn test_apply_dead_code_fix_skips_nested_definition_with_used_top_level_namesake() {
+    for (item_type, source, signature) in [
+        (
+            "function",
+            "def shared():\n    return 1\n\ndef outer():\n    def shared():\n        return 2\n    return 3\n\nprint(shared(), outer())\n",
+            "def shared",
+        ),
+        (
+            "class",
+            "class Shared:\n    pass\n\ndef outer():\n    class Shared:\n        pass\n    return 3\n\nprint(Shared(), outer())\n",
+            "class Shared",
+        ),
+    ] {
+        let name = signature.split_whitespace().nth(1).unwrap();
+        let source_start = source.rfind(signature).unwrap();
+        let name_start = source_start + signature.find(name).unwrap();
+        for start in [source_start, name_start] {
+            let dir = TempDir::new().unwrap();
+            let file_path = dir.path().join("test.py");
+            std::fs::write(&file_path, source).unwrap();
+
+            let end = source[start..].find('\n').unwrap() + start;
+            let def = create_definition_with_range(name, item_type, file_path.clone(), 5, start, end);
+            let options = DeadCodeFixOptions {
+                dry_run: false,
+                analysis_root: dir.path().to_path_buf(),
+                ..DeadCodeFixOptions::default()
+            };
+
+            let mut buffer = Vec::new();
+            let res = apply_dead_code_fix_to_file(
+                &mut buffer,
+                &file_path,
+                &[(item_type, &def)],
+                &options,
+            )
+            .unwrap();
+
+            // Nested functions/classes are not searched; never fall back to a namesake.
+            assert!(res.is_none(), "{item_type} at byte {start}");
+            let content = std::fs::read_to_string(&file_path).unwrap();
+            assert_eq!(content, source, "{item_type} at byte {start}");
+            assert!(ruff_python_parser::parse_module(&content).is_ok());
+        }
+    }
 }
 
 #[test]

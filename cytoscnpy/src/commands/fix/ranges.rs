@@ -13,10 +13,17 @@ pub(super) struct MethodEdit {
     pub(super) class_would_be_empty: bool,
 }
 
-pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Option<(usize, usize)> {
+pub(super) fn find_def_range(
+    body: &[Stmt],
+    name: &str,
+    def_type: &str,
+    target_start_byte: Option<usize>,
+) -> Option<(usize, usize)> {
     if def_type == "method" {
-        return find_method_edit(body, name, None).map(|edit| (edit.start, edit.end));
+        return find_method_edit(body, name, target_start_byte).map(|edit| (edit.start, edit.end));
     }
+
+    let mut first_match = None;
 
     for stmt in body {
         match stmt {
@@ -29,7 +36,17 @@ pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Optio
                     .min()
                     .unwrap_or(start)
                     .min(start);
-                return Some((start, f.range().end().to_usize()));
+                let range = (start, f.range().end().to_usize());
+                if let Some(target) = target_start_byte {
+                    if target == start
+                        || target == f.range().start().to_usize()
+                        || target == f.name.range().start().to_usize()
+                    {
+                        return Some(range);
+                    }
+                } else if first_match.is_none() {
+                    first_match = Some(range);
+                }
             }
             Stmt::ClassDef(c) if def_type == "class" && c.name.as_str() == name => {
                 let start = c.range().start().to_usize();
@@ -40,7 +57,17 @@ pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Optio
                     .min()
                     .unwrap_or(start)
                     .min(start);
-                return Some((start, c.range().end().to_usize()));
+                let range = (start, c.range().end().to_usize());
+                if let Some(target) = target_start_byte {
+                    if target == start
+                        || target == c.range().start().to_usize()
+                        || target == c.name.range().start().to_usize()
+                    {
+                        return Some(range);
+                    }
+                } else if first_match.is_none() {
+                    first_match = Some(range);
+                }
             }
             Stmt::Import(i) if def_type == "import" => {
                 for alias in &i.names {
@@ -61,7 +88,12 @@ pub(super) fn find_def_range(body: &[Stmt], name: &str, def_type: &str) -> Optio
             _ => {}
         }
     }
-    None
+
+    if target_start_byte.is_none() {
+        first_match
+    } else {
+        None
+    }
 }
 
 pub(super) fn find_method_edit(

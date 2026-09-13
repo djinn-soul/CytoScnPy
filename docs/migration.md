@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Compatibility
+
+- **Python 3.14 Support**: Wheels are built and tested on Linux, Windows, and macOS. The minimum supported version remains Python 3.10.
+
+
 ### Breaking Changes
 
 - **JSON schema**: The CLI JSON output field `clone_findings` has been renamed to `clones`. Update consumers to read `clones` instead.

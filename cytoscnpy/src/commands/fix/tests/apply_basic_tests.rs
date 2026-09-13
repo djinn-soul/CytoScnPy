@@ -10,7 +10,8 @@ def unused_function():
 ";
     std::fs::write(&file_path, source).unwrap();
 
-    let def = create_definition("unused_function", "function", file_path.clone(), 2);
+    let mut def = create_definition("unused_function", "function", file_path.clone(), 2);
+    def.start_byte = source.find("unused_function").unwrap();
 
     let mut results = AnalysisResult::default();
     results.unused_functions.push(def);
@@ -52,7 +53,8 @@ def unused_function():
 ";
     std::fs::write(&file_path, source).unwrap();
 
-    let def = create_definition("unused_function", "function", file_path.clone(), 2);
+    let mut def = create_definition("unused_function", "function", file_path.clone(), 2);
+    def.start_byte = source.find("unused_function").unwrap();
 
     let mut results = AnalysisResult::default();
     results.unused_functions.push(def);

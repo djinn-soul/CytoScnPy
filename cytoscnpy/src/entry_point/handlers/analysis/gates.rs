@@ -210,11 +210,7 @@ fn apply_secrets_gate(
     ) && !result.secrets.is_empty()
     {
         if !context.is_structured {
-            let mut secret_count = 0usize;
-            for _ in &result.secrets {
-                secret_count += 1;
-            }
-            eprintln!("\n[GATE] Secret findings: {secret_count} found - FAILED");
+            eprintln!("\n[GATE] Secret findings detected - FAILED");
         }
         *exit_code = 1;
     }

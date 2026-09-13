@@ -210,10 +210,7 @@ fn apply_secrets_gate(
     ) && !result.secrets.is_empty()
     {
         if !context.is_structured {
-            eprintln!(
-                "\n[GATE] Secret findings: {} found - FAILED",
-                result.secrets.len()
-            );
+            eprintln!("\n[GATE] Secret findings detected - FAILED");
         }
         *exit_code = 1;
     }

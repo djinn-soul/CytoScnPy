@@ -88,7 +88,8 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
             }
             Commands::Stats { paths, .. }
             | Commands::Deps { paths, .. }
-            | Commands::Graph { paths, .. } => {
+            | Commands::Graph { paths, .. }
+            | Commands::Context { paths, .. } => {
                 if let Some(r) = &paths.root {
                     all_target_paths.push(r.clone());
                 } else {

@@ -238,4 +238,42 @@ pub enum Commands {
         #[arg(long, short = 'o')]
         output_file: Option<String>,
     },
+    /// Analyze Git-aware code churn, hotspots, and LLM token budget
+    Context {
+        /// Path options (paths vs root).
+        #[command(flatten)]
+        paths: PathArgs,
+
+        /// Lookback window in months for Git activity (default: auto-scaled to repo age).
+        #[arg(long)]
+        git_months: Option<u32>,
+
+        /// Usable LLM context capacity in tokens (default: 176000).
+        #[arg(long)]
+        context_budget: Option<usize>,
+
+        /// Disable Git history analysis (pure static context estimation).
+        #[arg(long)]
+        no_git: bool,
+
+        /// Output JSON format.
+        #[arg(long)]
+        json: bool,
+
+        /// Only show churn-complexity hotspot files.
+        #[arg(long)]
+        hotspots_only: bool,
+
+        /// Exit with code 1 if severe (Critical or High) hotspots are detected.
+        #[arg(long)]
+        fail_on_hotspots: bool,
+
+        /// Exclude folders.
+        #[arg(long, alias = "exclude-folder")]
+        exclude: Vec<String>,
+
+        /// Output file path.
+        #[arg(long, short = 'o')]
+        output_file: Option<String>,
+    },
 }

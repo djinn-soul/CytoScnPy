@@ -145,6 +145,7 @@ impl CytoScnPy {
     /// Respects .gitignore files in addition to hardcoded defaults.
     #[must_use]
     pub fn count_files(&self, paths: &[std::path::PathBuf]) -> usize {
+        let root = super::traversal::analysis_root_for_paths(paths);
         paths
             .iter()
             .map(|path| {
@@ -157,7 +158,7 @@ impl CytoScnPy {
                 )
                 .0;
                 if !self.include_tests {
-                    files.retain(|file| !crate::utils::is_test_path_relative_to(file, path));
+                    files.retain(|file| !crate::utils::is_test_path_relative_to(file, &root));
                 }
                 files.len()
             })

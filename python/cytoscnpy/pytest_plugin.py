@@ -16,12 +16,16 @@ Or via pytest ini options (pyproject.toml, pytest.ini, setup.cfg):
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import sys
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Iterable, Mapping, TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 
 import pytest
+
+LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -86,6 +90,51 @@ def _is_enabled(config: Config) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _run_scan(scan_path: Path) -> tuple[int, str, str]:
+    """Execute CytoScnPy scan.
+
+    Prefers fast in-process scan when available; falls back to subprocess
+    if subprocess has been patched (e.g. in test suites) or in-process scan fails.
+    """
+    is_mocked = (
+        getattr(subprocess, "__name__", None) != "subprocess"
+        or getattr(subprocess.run, "__module__", "") != "subprocess"
+    )
+
+    if not is_mocked:
+        try:
+            from .cytoscnpy import scan_json
+
+            raw_json = scan_json(paths=[str(scan_path)])
+            return 0, raw_json, ""
+        except ImportError:
+            pass
+        except (FileNotFoundError, ValueError) as exc:
+            return 1, "", str(exc)
+        except (RuntimeError, OSError):
+            LOGGER.debug(
+                "In-process scan failed; falling back to subprocess", exc_info=True
+            )
+
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "cytoscnpy", str(scan_path), "--json"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.returncode, result.stdout, result.stderr
+
+
+def _detect_non_py_findings(by_file: Mapping[str, list[str]]) -> list[str]:
+    """Extract findings for files that are not Python sources."""
+    non_py_findings: list[str] = []
+    for file_str, msgs in by_file.items():
+        if not file_str.endswith(".py"):
+            non_py_findings.extend(f"{file_str}:{msg}" for msg in msgs)
+    return non_py_findings
+
+
 def pytest_sessionstart(session: Session) -> None:
     """Run CytoScnPy once and cache its results on the pytest session."""
     if not _is_enabled(session.config):
@@ -95,13 +144,7 @@ def pytest_sessionstart(session: Session) -> None:
     ini_path = ini_path_value if isinstance(ini_path_value, str) else "."
     scan_path = session.config.rootpath / ini_path
 
-    result = subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "cytoscnpy", str(scan_path), "--json"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    returncode, raw_stdout, raw_stderr = _run_scan(scan_path)
 
     session.stash[SCAN_PATH_KEY] = scan_path
     session.stash[ERROR_KEY] = None
@@ -109,14 +152,12 @@ def pytest_sessionstart(session: Session) -> None:
     session.stash[BY_FILE_KEY] = {}
 
     try:
-        data = cast(object, json.loads(result.stdout))
+        data = cast(object, json.loads(raw_stdout))
     except json.JSONDecodeError:
         session.stash[ERROR_KEY] = (
-            result.stderr.strip()
-            or result.stdout[:200]
-            or "cytoscnpy produced no output"
+            raw_stderr.strip() or raw_stdout[:200] or "cytoscnpy produced no output"
         )
-        session.stash[FORCE_FAIL_KEY] = result.returncode != 0
+        session.stash[FORCE_FAIL_KEY] = returncode != 0
         return
 
     if not isinstance(data, dict):
@@ -125,16 +166,25 @@ def pytest_sessionstart(session: Session) -> None:
         return
 
     session.stash[BY_FILE_KEY] = _group_by_file(cast(JsonObject, data))
+
+    # Findings on non-Python files (e.g. invalid custom secret regex on `.cytoscnpy.toml`)
+    # won't have corresponding items created by `_iter_python_files`.
+    # Explicitly detect these non-file findings so FORCE_FAIL_KEY is set.
+    non_py_findings = _detect_non_py_findings(session.stash[BY_FILE_KEY])
+    if non_py_findings:
+        session.stash[FORCE_FAIL_KEY] = True
+        if session.stash[ERROR_KEY] is None:
+            session.stash[ERROR_KEY] = "\n".join(non_py_findings)
+
     # A non-zero exit with valid JSON still means the analyzer failed (e.g.
     # invalid custom secret regex emits findings on `.cytoscnpy.toml` and
     # exits 1). Those findings are attached to non-`*.py` files and would
     # otherwise be dropped by `_iter_python_files`, letting pytest exit 0.
-    if result.returncode != 0:
+    if returncode != 0:
         session.stash[FORCE_FAIL_KEY] = True
         if session.stash[ERROR_KEY] is None:
-            stderr = result.stderr.strip()
             session.stash[ERROR_KEY] = (
-                stderr or f"cytoscnpy exited with status {result.returncode}"
+                raw_stderr.strip() or f"cytoscnpy exited with status {returncode}"
             )
 
 

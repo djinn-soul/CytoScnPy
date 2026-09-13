@@ -33,6 +33,18 @@ fn common_ancestor(paths: &[PathBuf]) -> Option<PathBuf> {
     Some(acc)
 }
 
+/// Directory inputs establish an explicit shared boundary. File-only inputs
+/// need project discovery so selecting `tests/helpers.py` retains `tests/`.
+/// Use the shared directory as the conservative fallback for unmarked projects.
+pub(super) fn analysis_root_for_paths(paths: &[PathBuf]) -> PathBuf {
+    let shared = common_ancestor(paths).unwrap_or_else(|| PathBuf::from("."));
+    if !paths.is_empty() && paths.iter().all(|path| path.is_file()) {
+        crate::utils::discover_project_root(&shared)
+    } else {
+        shared
+    }
+}
+
 impl CytoScnPy {
     /// Runs the analysis on multiple paths (files or directories).
     ///
@@ -57,6 +69,7 @@ impl CytoScnPy {
         // For multiple paths or individual files, collect all Python files
         let mut all_files: Vec<std::path::PathBuf> = Vec::new();
         let mut total_directories = 0;
+        let inferred_root = analysis_root_for_paths(paths);
 
         for path in paths {
             if path.is_file() {
@@ -64,29 +77,30 @@ impl CytoScnPy {
                 if path
                     .extension()
                     .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
-                    && (self.include_tests || !crate::utils::is_test_path_relative_to(path, path))
+                    && (self.include_tests
+                        || !crate::utils::is_test_path_relative_to(path, &inferred_root))
                 {
                     all_files.push(path.clone());
                 }
             } else if path.is_dir() {
                 // Directory - collect all Python files from it
-                let (dir_files, dir_count) = self.collect_python_files(path);
+                let (dir_files, dir_count) = self.collect_python_files(path, &inferred_root);
                 all_files.extend(dir_files);
                 total_directories += dir_count;
             }
         }
 
-        // Pick a project root that all inputs share. Using `paths[0]` as the
-        // root caused `strip_prefix` to drop the relative path entirely when
-        // the first input was itself a file, which in turn made
-        // `is_test_path` misclassify that file as production code.
-        let inferred_root = common_ancestor(paths).unwrap_or_else(|| PathBuf::from("."));
+        // Filtering and processing must retain the same project-relative context.
         self.analyze_file_list(&all_files, Some(&inferred_root), total_directories)
     }
 
     /// Collects all Python files from a directory, respecting exclusion rules.
     /// Uses gitignore-aware walking (respects .gitignore files) IN ADDITION to hardcoded defaults.
-    fn collect_python_files(&self, root_path: &Path) -> (Vec<std::path::PathBuf>, usize) {
+    fn collect_python_files(
+        &self,
+        root_path: &Path,
+        analysis_root: &Path,
+    ) -> (Vec<std::path::PathBuf>, usize) {
         let (mut files, directory_count) = crate::utils::collect_python_files_gitignore(
             root_path,
             &self.exclude_folders,
@@ -95,7 +109,7 @@ impl CytoScnPy {
             self.verbose,
         );
         if !self.include_tests {
-            files.retain(|path| !crate::utils::is_test_path_relative_to(path, root_path));
+            files.retain(|path| !crate::utils::is_test_path_relative_to(path, analysis_root));
         }
         (files, directory_count)
     }
@@ -176,12 +190,13 @@ impl CytoScnPy {
     /// 7. Returns the final `AnalysisResult`.
     pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
         // Collect files and count directories using shared logic
-        let (files, dir_count) = self.collect_python_files(root_path);
+        let analysis_root = analysis_root_for_paths(&[root_path.to_path_buf()]);
+        let (files, dir_count) = self.collect_python_files(root_path, &analysis_root);
         // println!("FILES{files:?}");
         self.total_files_analyzed = files.len();
 
         // Analyze the collected files
-        self.analyze_file_list(&files, Some(root_path), dir_count)
+        self.analyze_file_list(&files, Some(&analysis_root), dir_count)
     }
 }
 

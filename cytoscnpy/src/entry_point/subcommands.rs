@@ -1,7 +1,8 @@
 use super::config::resolve_scan_flag;
 use super::handlers::{
-    handle_cc, handle_context, handle_files, handle_graph, handle_hal, handle_mi, handle_raw,
-    handle_stats, CcFlags, ContextFlags, DepsCliArgs, DepsFlags, GraphFlags, MiFlags,
+    handle_cc, handle_context, handle_doctor, handle_files, handle_graph, handle_hal, handle_mi,
+    handle_raw, handle_stats, CcFlags, ContextFlags, DepsCliArgs, DepsFlags, DoctorFlags,
+    GraphFlags, MiFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -232,6 +233,25 @@ pub(super) fn run_subcommand<W: std::io::Write>(
                 json,
                 hotspots_only,
                 fail_on_hotspots,
+                verbose,
+            },
+            output_file,
+            exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Doctor {
+            paths,
+            json,
+            fail_on_missing,
+            exclude,
+            output_file,
+        } => handle_doctor(
+            &paths,
+            DoctorFlags {
+                json,
+                fail_on_missing,
                 verbose,
             },
             output_file,

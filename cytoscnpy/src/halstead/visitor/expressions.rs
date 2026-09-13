@@ -208,7 +208,9 @@ fn visit_comprehension_expr(visitor: &mut HalsteadVisitor, expr: &Expr) {
         }
         Expr::DictComp(node) => {
             visitor.add_operator("{}");
-            visitor.visit_expr(&node.key);
+            if let Some(key) = &node.key {
+                visitor.visit_expr(key);
+            }
             visitor.visit_expr(&node.value);
             visit_generators(visitor, &node.generators);
         }

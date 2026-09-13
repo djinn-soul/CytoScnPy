@@ -39,10 +39,7 @@ def login(token="sk_live_abcdefghijklmnopqrstuvwx"):
             || f.message.to_lowercase().contains("stripe")
     });
 
-    assert!(
-        has_stripe,
-        "Should specifically detect Stripe key pattern"
-    );
+    assert!(has_stripe, "Should specifically detect Stripe key pattern");
 }
 
 /// Test: Secrets in keyword-only parameter defaults should be detected.
@@ -71,10 +68,7 @@ def authenticate(*, api_key="ghp_abcdefghijklmnopqrstuvwxyz123456"):
     let has_secret = findings
         .iter()
         .any(|f| f.rule_id == "CSP-S104" || f.rule_id == "CSP-S103");
-    assert!(
-        has_secret,
-        "Should detect API key or GitHub token pattern"
-    );
+    assert!(has_secret, "Should detect API key or GitHub token pattern");
 }
 
 /// Test: Secrets in decorator arguments should be detected.

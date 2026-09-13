@@ -214,9 +214,7 @@ fn apply_secrets_gate(
             for _ in &result.secrets {
                 secret_count += 1;
             }
-            eprintln!(
-                "\n[GATE] Secret findings: {secret_count} found - FAILED"
-            );
+            eprintln!("\n[GATE] Secret findings: {secret_count} found - FAILED");
         }
         *exit_code = 1;
     }

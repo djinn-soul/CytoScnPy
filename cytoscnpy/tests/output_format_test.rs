@@ -59,7 +59,7 @@ fn test_github_output() -> Result<()> {
     let has_valid_command = output.lines().any(|line| re.is_match(line));
     assert!(
         has_valid_command,
-        "Output should contain at least one valid GitHub Actions command: {output}"
+        "Output should contain at least one valid GitHub Actions command"
     );
 
     // Verify paths use forward slashes (no backslashes allowed in file path part)
@@ -68,7 +68,7 @@ fn test_github_output() -> Result<()> {
         .any(|line| line.contains("file=") && line.contains('\\'));
     assert!(
         !has_backslash,
-        "GitHub output should use forward slashes for paths: {output}"
+        "GitHub output should use forward slashes for paths"
     );
 
     Ok(())

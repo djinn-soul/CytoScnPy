@@ -50,8 +50,7 @@ fn test_absolute_path_from_different_cwd() -> anyhow::Result<()> {
     match result {
         Ok(code) => {
             if code != 0 {
-                let output = String::from_utf8_lossy(&buffer);
-                panic!("Command failed with code {code}. Output:\n{output}");
+                panic!("Command failed with code {code}");
             }
         }
         Err(e) => {

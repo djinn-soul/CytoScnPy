@@ -17,7 +17,7 @@ If the `SECRET_KEY` is hardcoded and committed to a version control system (like
 
 ```python
 # settings.py
-SECRET_KEY = 'django-insecure-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+SECRET_KEY = "django-insecure-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 # ... other settings ...
 ```
 Committing this `settings.py` file to a public repository or sharing it would expose the `SECRET_KEY`.
@@ -34,7 +34,9 @@ import os
 
 # Load the secret key from an environment variable.
 # Provide a default for local development if the variable is not set.
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-default-for-local-dev-only')
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY", "django-insecure-default-for-local-dev-only"
+)
 
 # If DJANGO_SECRET_KEY is not set, Django will issue a warning.
 # For production, it's essential that DJANGO_SECRET_KEY is set externally.
@@ -61,7 +63,8 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-default-for-lo
     In your `settings.py` or a startup script:
     ```python
     from dotenv import load_dotenv
-    load_dotenv() # Load variables from .env file
+
+    load_dotenv()  # Load variables from .env file
     # ... then os.environ.get('DJANGO_SECRET_KEY', ...) will work
     ```
 
@@ -73,12 +76,12 @@ You should never hardcode your `SECRET_KEY`. If this finding appears, it means y
 # This is a placeholder for local development ONLY and is NOT committed to VCS.
 # The actual secret is loaded from environment variables in production.
 # ignore
-SECRET_KEY = 'django-insecure-default-for-local-dev-only'
+SECRET_KEY = "django-insecure-default-for-local-dev-only"
 ```
 
 Or, for this specific rule:
 
 ```python
 # ignore: CSP-D902
-SECRET_KEY = 'hardcoded-for-testing-only'
+SECRET_KEY = "hardcoded-for-testing-only"
 ```

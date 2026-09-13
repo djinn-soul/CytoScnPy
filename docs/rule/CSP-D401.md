@@ -24,7 +24,7 @@ try:
         "https://api.example.com/data",
         json=user_data,
         headers={"Authorization": f"Bearer {api_key}"},
-        verify=False
+        verify=False,
     )
     print("Data sent successfully.")
 except requests.exceptions.RequestException as e:
@@ -47,9 +47,9 @@ try:
     response = requests.post(
         "https://api.example.com/data",
         json=user_data,
-        headers={"Authorization": f"Bearer {api_key}"}
+        headers={"Authorization": f"Bearer {api_key}"},
     )
-    response.raise_for_status() # Raise an exception for bad status codes
+    response.raise_for_status()  # Raise an exception for bad status codes
     print("Data sent successfully.")
 except requests.exceptions.RequestException as e:
     print(f"An error occurred: {e}")

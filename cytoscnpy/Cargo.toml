@@ -31,9 +31,9 @@ clap = { version = "4.5", default-features = false, features = [
     "suggestions",
 ] }
 # ruff v0.16.7 (2026-09-10) - latest stable release
-ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", rev = "b5dba861cc38e3f7fb4524c9ceba3e01a474ea13" }
-ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", rev = "b5dba861cc38e3f7fb4524c9ceba3e01a474ea13" }
-ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "b5dba861cc38e3f7fb4524c9ceba3e01a474ea13" }
+ruff_python_parser = "0.0.13"
+ruff_python_ast = "0.0.13"
+ruff_text_size = "0.0.13"
 # Gitignore-aware file walking (same as ripgrep uses)
 # Disable default features to avoid bloat (simd-accel, etc.)
 ignore = { version = "0.4", default-features = false }

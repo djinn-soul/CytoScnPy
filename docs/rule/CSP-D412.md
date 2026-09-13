@@ -13,6 +13,7 @@ This rule flags `StdioServerParameters(command=...)` when the command is not a s
 ```python
 from mcp.client.stdio import StdioServerParameters
 
+
 def connect(server_command):
     return StdioServerParameters(command=server_command, args=["serve"])
 ```

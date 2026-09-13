@@ -15,6 +15,7 @@ CSRF protection prevents another site from causing a user's browser to submit un
 ```python
 from django.views.decorators.csrf import csrf_exempt
 
+
 @csrf_exempt
 def update_email(request):
     request.user.email = request.POST["email"]
@@ -27,6 +28,7 @@ The view accepts a state-changing request without CSRF validation.
 
 ```python
 from django.views.decorators.csrf import csrf_protect
+
 
 @csrf_protect
 def update_email(request):

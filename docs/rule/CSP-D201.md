@@ -24,10 +24,12 @@ import pickle
 import os
 import base64
 
+
 # An attacker crafts a malicious pickle payload
 class Exploit:
     def __reduce__(self):
-        return (os.system, ('rm -rf /',))
+        return (os.system, ("rm -rf /",))
+
 
 malicious_payload = base64.b64encode(pickle.dumps(Exploit()))
 
@@ -47,7 +49,7 @@ The safest approach is to use a secure data format like JSON, MessagePack, or Pr
 import json
 
 # Original data
-my_data = {'name': 'Alice', 'score': 100}
+my_data = {"name": "Alice", "score": 100}
 
 # Serialize to JSON (a safe format)
 serialized_data = json.dumps(my_data)
@@ -70,10 +72,10 @@ import pickle
 import hmac
 import hashlib
 
-SECRET_KEY = b'my-super-secret-key'
+SECRET_KEY = b"my-super-secret-key"
 
 # --- On the trusted side (sender) ---
-data_to_serialize = {'user_id': 123, 'role': 'guest'}
+data_to_serialize = {"user_id": 123, "role": "guest"}
 pickled_data = pickle.dumps(data_to_serialize)
 
 # Create a signature
@@ -82,8 +84,8 @@ signature = hmac.new(SECRET_KEY, pickled_data, hashlib.sha256).hexdigest()
 # Send the pickled_data and the signature together
 
 # --- On the untrusted side (receiver) ---
-received_pickle = pickled_data # from the sender
-received_signature = signature # from the sender
+received_pickle = pickled_data  # from the sender
+received_signature = signature  # from the sender
 
 # Verify the signature
 expected_signature = hmac.new(SECRET_KEY, received_pickle, hashlib.sha256).hexdigest()

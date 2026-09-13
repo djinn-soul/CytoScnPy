@@ -27,16 +27,16 @@ try:
 
     # The password is sent in cleartext.
     tn.read_until(b"login: ")
-    tn.write(user.encode('ascii') + b"\n")
+    tn.write(user.encode("ascii") + b"\n")
     if password:
         tn.read_until(b"Password: ")
-        tn.write(password.encode('ascii') + b"\n")
+        tn.write(password.encode("ascii") + b"\n")
 
     # All commands and their output are sent in cleartext.
     tn.write(b"ls -l\n")
     tn.write(b"exit\n")
 
-    print(tn.read_all().decode('ascii'))
+    print(tn.read_all().decode("ascii"))
 
 except Exception as e:
     print(f"An error occurred: {e}")
@@ -50,15 +50,17 @@ Use a modern, secure protocol like SSH for remote access. The `paramiko` library
 # First, install the library: pip install paramiko
 import paramiko
 
-hostname = 'ssh.example.com'
+hostname = "ssh.example.com"
 port = 22
-username = 'myuser'
-password = 'my-secret-password' # Or preferably, use key-based authentication
+username = "myuser"
+password = "my-secret-password"  # Or preferably, use key-based authentication
 
 try:
     # Create an SSH client
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy()) # Note: Be cautious with AutoAddPolicy in production
+    client.set_missing_host_key_policy(
+        paramiko.AutoAddPolicy()
+    )  # Note: Be cautious with AutoAddPolicy in production
 
     # The entire session is encrypted.
     client.connect(hostname, port=port, username=username, password=password)
@@ -66,7 +68,7 @@ try:
     print("SSH connection successful.")
 
     # Execute a command securely
-    stdin, stdout, stderr = client.exec_command('ls -l')
+    stdin, stdout, stderr = client.exec_command("ls -l")
 
     # Print the output
     print(stdout.read().decode())

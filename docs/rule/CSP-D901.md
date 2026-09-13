@@ -21,8 +21,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 user_id = 12345
-api_key = secrets.token_hex(16) # Generate a random API key
-password = "thisIsASecurePassword123!" # A real password should never be used directly
+api_key = secrets.token_hex(16)  # Generate a random API key
+password = "thisIsASecurePassword123!"  # A real password should never be used directly
 
 # Logging sensitive information directly
 logger.info(f"User ID: {user_id}, API Key: {api_key}, Password: {password}")
@@ -44,14 +44,16 @@ logger = logging.getLogger(__name__)
 
 user_id = 12345
 api_key = secrets.token_hex(16)
-password_plaintext = "thisIsASecurePassword123!" # Never log the plaintext password
+password_plaintext = "thisIsASecurePassword123!"  # Never log the plaintext password
 
 # Masking sensitive data before logging
 # Redact the API Key and Password
 masked_api_key = api_key[:4] + "****" + api_key[-4:]
 masked_password = "*" * len(password_plaintext)
 
-logger.info(f"User ID: {user_id}, API Key: {masked_api_key}, Password: {masked_password}")
+logger.info(
+    f"User ID: {user_id}, API Key: {masked_api_key}, Password: {masked_password}"
+)
 logger.warning("Processing sensitive data for user %s", user_id)
 ```
 

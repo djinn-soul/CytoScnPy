@@ -17,7 +17,7 @@ from jinja2 import Environment, FileSystemLoader, Template
 
 # Disabling autoescaping for the entire environment.
 # This is a dangerous practice if any of the templates render user input.
-env = Environment(loader=FileSystemLoader('/templates'), autoescape=False)
+env = Environment(loader=FileSystemLoader("/templates"), autoescape=False)
 
 # Assume 'user_comment' comes from user input.
 user_comment = "<script>alert('XSS attack!')</script>"
@@ -41,8 +41,8 @@ from jinja2 import Environment, FileSystemLoader
 # Autoescaping is enabled by default for HTML, XML, and CSS.
 # You can explicitly set it or rely on Jinja2's defaults.
 env = Environment(
-    loader=FileSystemLoader('/templates'),
-    autoescape=True # Or rely on Jinja2's default which is True for .html
+    loader=FileSystemLoader("/templates"),
+    autoescape=True,  # Or rely on Jinja2's default which is True for .html
 )
 
 user_comment = "<script>alert('XSS attack!')</script>"
@@ -63,12 +63,15 @@ from jinja2 import Environment, Template
 # If you MUST disable autoescape for a specific template:
 # NEVER do this with user-controlled data.
 template_string = "<div>{{ comment }}</div>"
-template = Template(template_string, autoescape=False) # Explicitly disabled for this template
+template = Template(
+    template_string, autoescape=False
+)  # Explicitly disabled for this template
 
 # If you have trusted HTML that you want to render UNSAFELY (use with extreme caution):
 from jinja2 import Markup
+
 trusted_html = "<b>This is safe HTML</b>"
-rendered_unsafe = template.render(comment=Markup(trusted_html)) # Mark as safe
+rendered_unsafe = template.render(comment=Markup(trusted_html))  # Mark as safe
 
 # If you have user input that you have securely sanitized (e.g. with bleach)
 # and want to render it as HTML:

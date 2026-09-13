@@ -94,14 +94,15 @@ To ignore a specific finding on a line, use any of these formats:
 def legacy_function():  # noqa
     pass  # bare noqa suppresses all
 
+
 unused_var = 1  # ignore
-    # bare ignore also suppresses all
+# bare ignore also suppresses all
 
 secret_key = "..."  # pragma: no cytoscnpy
-    # legacy format, still supported
+# legacy format, still supported
 
 other_var = value  # noqa: E501, CSP
-    # mixed codes: suppresses CytoScnPy because CSP is in the list
+# mixed codes: suppresses CytoScnPy because CSP is in the list
 ```
 
 > [!NOTE]

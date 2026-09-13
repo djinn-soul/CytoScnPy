@@ -19,14 +19,14 @@ from ftplib import FTP
 
 try:
     # The password 'my-secret-password' is sent in cleartext over the network.
-    ftp = FTP('ftp.example.com')
-    ftp.login('myuser', 'my-secret-password')
+    ftp = FTP("ftp.example.com")
+    ftp.login("myuser", "my-secret-password")
 
     print("FTP login successful.")
 
     # Any files transferred will also be in cleartext.
-    with open('file.txt', 'rb') as f:
-        ftp.storbinary('STOR file.txt', f)
+    with open("file.txt", "rb") as f:
+        ftp.storbinary("STOR file.txt", f)
 
     ftp.quit()
 except Exception as e:
@@ -45,10 +45,10 @@ SFTP is a completely different protocol that runs over SSH and provides strong e
 # First, install the library: pip install paramiko
 import paramiko
 
-hostname = 'sftp.example.com'
+hostname = "sftp.example.com"
 port = 22
-username = 'myuser'
-password = 'my-secret-password'
+username = "myuser"
+password = "my-secret-password"
 
 try:
     transport = paramiko.Transport((hostname, port))
@@ -59,7 +59,7 @@ try:
     print("SFTP connection successful.")
 
     # The connection and file transfer are encrypted.
-    sftp.put('local_file.txt', 'remote_file.txt')
+    sftp.put("local_file.txt", "remote_file.txt")
 
     sftp.close()
     transport.close()
@@ -76,14 +76,14 @@ from ftplib import FTP_TLS
 
 try:
     # Use FTP_TLS for an encrypted connection
-    ftps = FTP_TLS('ftps.example.com')
-    ftps.login('myuser', 'my-secret-password')
-    ftps.prot_p() # Switch to data protection mode for encrypted file transfers
+    ftps = FTP_TLS("ftps.example.com")
+    ftps.login("myuser", "my-secret-password")
+    ftps.prot_p()  # Switch to data protection mode for encrypted file transfers
 
     print("FTPS login successful.")
 
-    with open('file.txt', 'rb') as f:
-        ftps.storbinary('STOR file.txt', f)
+    with open("file.txt", "rb") as f:
+        ftps.storbinary("STOR file.txt", f)
 
     ftps.quit()
 except Exception as e:
@@ -99,8 +99,8 @@ from ftplib import FTP
 
 # Connecting to a public, anonymous FTP server. No credentials are sent.
 # ignore
-ftp = FTP('ftp.public-archive.org')
-ftp.login() # Anonymous login
+ftp = FTP("ftp.public-archive.org")
+ftp.login()  # Anonymous login
 # ... download public files ...
 ftp.quit()
 ```
@@ -109,5 +109,5 @@ Or, for this specific rule:
 
 ```python
 # ignore: CSP-D406
-ftp = FTP('ftp.public-archive.org')
+ftp = FTP("ftp.public-archive.org")
 ```

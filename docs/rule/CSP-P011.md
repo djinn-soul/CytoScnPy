@@ -12,7 +12,7 @@ Slicing bytes repeatedly creates copies. Use memoryview for zero-copy slicing.
 
 ```python
 for i in range(0, len(data), 4):
-    chunk = data[i:i+4]
+    chunk = data[i : i + 4]
     handle(chunk)
 ```
 
@@ -21,7 +21,7 @@ for i in range(0, len(data), 4):
 ```python
 view = memoryview(data)
 for i in range(0, len(view), 4):
-    chunk = view[i:i+4]
+    chunk = view[i : i + 4]
     handle(chunk)
 ```
 

@@ -21,7 +21,7 @@ Using the modern `SSLContext` object provides a much more secure and explicit wa
 import socket
 import ssl
 
-hostname = 'www.python.org'
+hostname = "www.python.org"
 
 # Create a standard TCP socket
 sock = socket.create_connection((hostname, 443))
@@ -45,7 +45,7 @@ The recommended approach is to create a secure `SSLContext` and then use its `wr
 import socket
 import ssl
 
-hostname = 'www.python.org'
+hostname = "www.python.org"
 
 # Create a context with secure default settings
 context = ssl.create_default_context()

@@ -18,10 +18,11 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-@app.route('/fetch_image')
+
+@app.route("/fetch_image")
 def fetch_image():
     # The URL is taken directly from a query parameter.
-    image_url = request.args.get('url')
+    image_url = request.args.get("url")
 
     if not image_url:
         return "Please provide a URL.", 400
@@ -30,7 +31,11 @@ def fetch_image():
         # The application makes a request to the user-provided URL.
         # This is a classic SSRF vulnerability.
         response = requests.get(image_url, timeout=5)
-        return response.content, 200, {'Content-Type': response.headers.get('Content-Type')}
+        return (
+            response.content,
+            200,
+            {"Content-Type": response.headers.get("Content-Type")},
+        )
     except requests.exceptions.RequestException as e:
         return f"Error fetching image: {e}", 500
 ```
@@ -51,14 +56,12 @@ from urllib.parse import urlparse
 app = Flask(__name__)
 
 # A strict allowlist of domains the application is allowed to call.
-ALLOWED_DOMAINS = {
-    'images.example.com',
-    'media.trusted-partner.org'
-}
+ALLOWED_DOMAINS = {"images.example.com", "media.trusted-partner.org"}
 
-@app.route('/fetch_image')
+
+@app.route("/fetch_image")
 def fetch_image():
-    image_url = request.args.get('url')
+    image_url = request.args.get("url")
 
     if not image_url:
         return "Please provide a URL.", 400
@@ -67,7 +70,7 @@ def fetch_image():
         parsed_url = urlparse(image_url)
 
         # 1. Validate the scheme
-        if parsed_url.scheme not in ('http', 'https'):
+        if parsed_url.scheme not in ("http", "https"):
             return "Invalid URL scheme.", 400
 
         # 2. Validate the domain against the allowlist
@@ -76,7 +79,11 @@ def fetch_image():
 
         # 3. Make the request
         response = requests.get(image_url, timeout=5)
-        return response.content, 200, {'Content-Type': response.headers.get('Content-Type')}
+        return (
+            response.content,
+            200,
+            {"Content-Type": response.headers.get("Content-Type")},
+        )
     except (requests.exceptions.RequestException, ValueError) as e:
         return f"Error fetching image: {e}", 500
 ```

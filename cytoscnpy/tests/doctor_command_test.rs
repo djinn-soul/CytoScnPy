@@ -190,3 +190,105 @@ fn test_cli_doctor_fail_on_missing_pass() {
 
     assert_eq!(code, 0);
 }
+
+#[test]
+fn test_cli_doctor_respects_exclusions() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let src = root.join("src");
+    let vendor = root.join("vendor");
+    fs::create_dir_all(&src).unwrap();
+    fs::create_dir_all(&vendor).unwrap();
+
+    fs::write(src.join("main.py"), "print('hello')\n").unwrap();
+    fs::write(vendor.join("lib.py"), "print('vendor')\n").unwrap();
+
+    let mut out = Cursor::new(Vec::new());
+    let code = entry_point::run_with_args_to(
+        vec![
+            "doctor".to_owned(),
+            root.to_string_lossy().into_owned(),
+            "--json".to_owned(),
+            "--exclude".to_owned(),
+            "vendor".to_owned(),
+        ],
+        &mut out,
+    )
+    .unwrap();
+
+    assert_eq!(code, 0);
+    let output_str = String::from_utf8(out.into_inner()).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&output_str).unwrap();
+    assert_eq!(json["structure"]["total_files"], 1);
+    assert_eq!(json["structure"]["source_files"], 1);
+}
+
+#[test]
+fn test_cli_doctor_exclusions_do_not_overmatch() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let src = root.join("src");
+    fs::create_dir_all(&src).unwrap();
+    fs::write(src.join("contests.py"), "print('contest')\n").unwrap();
+    fs::write(src.join("library.py"), "print('library')\n").unwrap();
+
+    let tests = root.join("tests");
+    fs::create_dir_all(&tests).unwrap();
+    fs::write(tests.join("test_app.py"), "assert True\n").unwrap();
+
+    let mut out = Cursor::new(Vec::new());
+    let code = entry_point::run_with_args_to(
+        vec![
+            "doctor".to_owned(),
+            root.to_string_lossy().into_owned(),
+            "--json".to_owned(),
+            "--exclude".to_owned(),
+            "tests/".to_owned(),
+            "--exclude".to_owned(),
+            "./lib".to_owned(),
+        ],
+        &mut out,
+    )
+    .unwrap();
+
+    assert_eq!(code, 0);
+    let output_str = String::from_utf8(out.into_inner()).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&output_str).unwrap();
+    assert_eq!(json["structure"]["source_files"], 2);
+    assert_eq!(json["structure"]["total_files"], 2);
+}
+
+#[test]
+fn test_cli_doctor_multiple_targets_fail_on_missing() {
+    let temp = TempDir::new().unwrap();
+    let healthy = temp.path().join("healthy");
+    let broken = temp.path().join("broken");
+    fs::create_dir_all(&healthy).unwrap();
+    fs::create_dir_all(&broken).unwrap();
+
+    let wf = healthy.join(".github").join("workflows");
+    fs::create_dir_all(&wf).unwrap();
+    fs::write(wf.join("ci.yml"), "name: CI\n").unwrap();
+    fs::write(healthy.join("pytest.ini"), "[pytest]\n").unwrap();
+    fs::write(healthy.join(".ruff.toml"), "line-length = 88\n").unwrap();
+    fs::write(healthy.join("README.md"), "# Setup\n").unwrap();
+
+    let mut out = Cursor::new(Vec::new());
+    let code = entry_point::run_with_args_to(
+        vec![
+            "doctor".to_owned(),
+            healthy.to_string_lossy().into_owned(),
+            broken.to_string_lossy().into_owned(),
+            "--fail-on-missing".to_owned(),
+        ],
+        &mut out,
+    )
+    .unwrap();
+
+    assert_eq!(code, 1);
+    let output_str = String::from_utf8(out.into_inner()).unwrap();
+    assert!(output_str.contains("Repository Health:"));
+    assert!(output_str.contains("Setup reliability check failed"));
+}

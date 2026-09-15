@@ -1,5 +1,7 @@
+mod deslop;
 mod loader;
 mod models;
+pub use deslop::DeslopConfig;
 mod security;
 mod whitelist;
 

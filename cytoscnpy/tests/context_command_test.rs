@@ -161,3 +161,74 @@ fn test_cli_context_fail_on_hotspots_clean() {
     // With no Git churn, no severe hotspots exist -> code 0
     assert_eq!(code, 0);
 }
+
+#[test]
+fn test_cli_context_git_months_zero_rejected() {
+    let mut out = Cursor::new(Vec::new());
+    let res = entry_point::run_with_args_to(
+        vec![
+            "context".to_owned(),
+            ".".to_owned(),
+            "--git-months".to_owned(),
+            "0".to_owned(),
+        ],
+        &mut out,
+    );
+
+    let code = res.unwrap_or(2);
+    assert!(code != 0);
+    assert_ne!(code, 101);
+}
+
+#[test]
+fn test_cli_context_individual_file_target_runs_git_analysis() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let init = std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output();
+    if init.is_err() || !init.unwrap().status.success() {
+        return;
+    }
+    let _ = std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output();
+
+    let src = root.join("src");
+    fs::create_dir_all(&src).unwrap();
+    let app = src.join("app.py");
+    fs::write(&app, "def main(): pass\n").unwrap();
+
+    let _ = std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(root)
+        .output();
+
+    let mut out = Cursor::new(Vec::new());
+    let code = entry_point::run_with_args_to(
+        vec![
+            "context".to_owned(),
+            app.to_string_lossy().into_owned(),
+            "--json".to_owned(),
+        ],
+        &mut out,
+    )
+    .unwrap();
+
+    assert_eq!(code, 0);
+    let output_str = String::from_utf8(out.into_inner()).unwrap();
+    let val: serde_json::Value = serde_json::from_str(&output_str).unwrap();
+    assert_eq!(val["git_activity"]["is_git_repo"], true);
+    assert_eq!(val["git_activity"]["active_files"], 1);
+}

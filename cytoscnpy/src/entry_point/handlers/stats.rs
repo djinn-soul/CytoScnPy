@@ -21,7 +21,6 @@ pub(crate) fn handle_stats<W: std::io::Write>(
     if let Err(code) = validate_path_args(paths) {
         return Ok(code);
     }
-    // Use --root if provided, otherwise use positional paths
     let effective_paths = match resolve_subcommand_paths(paths.paths.clone(), paths.root.clone()) {
         Ok(p) => p,
         Err(code) => return Ok(code),
@@ -49,7 +48,6 @@ pub(crate) fn handle_stats<W: std::io::Write>(
         writer,
     )?;
 
-    // Quality gate check (--fail-on-quality) for stats subcommand
     if fail_on_quality && quality_count > 0 {
         if !options.json {
             eprintln!("\n[GATE] Quality issues: {quality_count} found - FAILED");

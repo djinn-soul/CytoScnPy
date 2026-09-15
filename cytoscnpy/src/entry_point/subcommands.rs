@@ -1,8 +1,8 @@
 use super::config::resolve_scan_flag;
 use super::handlers::{
-    handle_cc, handle_context, handle_doctor, handle_files, handle_graph, handle_hal, handle_mi,
-    handle_raw, handle_stats, CcFlags, ContextFlags, DepsCliArgs, DepsFlags, DoctorFlags,
-    GraphFlags, MiFlags,
+    handle_cc, handle_context, handle_deslop, handle_doctor, handle_files, handle_graph,
+    handle_hal, handle_mi, handle_raw, handle_stats, CcFlags, ContextFlags, DepsCliArgs, DepsFlags,
+    DoctorFlags, GraphFlags, MiFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -10,12 +10,12 @@ use anyhow::Result;
 
 pub(super) fn run_subcommand<W: std::io::Write>(
     command: Commands,
-    verbose: bool,
-    fail_on_quality: bool,
-    root_fail_on_any: bool,
+    cli: &crate::cli::Cli,
     context: &RuntimeContext,
     writer: &mut W,
 ) -> Result<i32> {
+    let verbose = cli.output.verbose;
+    let root_fail_on_any = cli.output.fail_on_any;
     match command {
         Commands::Raw { common, summary } => handle_raw(
             common,
@@ -129,10 +129,11 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             &context.analysis_root,
             context.include_tests,
             verbose,
-            fail_on_quality,
+            cli.output.fail_on_quality,
             context.config.clone(),
             writer,
         ),
+        Commands::Deslop { args } => handle_deslop(&args, cli, context, writer),
         Commands::Files { args } => handle_files(
             args,
             &context.exclude_folders,

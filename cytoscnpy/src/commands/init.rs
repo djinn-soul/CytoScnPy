@@ -88,6 +88,14 @@ const DEFAULT_CONFIG: &str = r#"
 # Exit with code 1 when the percentage of unused definitions exceeds this value.
 # fail_threshold = 5.0
 
+# Limits used by deslop --fail-on-any.
+# [cytoscnpy.deslop]
+# max_cycles = 0
+# max_god_modules = 0
+# max_hotspots = 0
+# min_health_score = 70
+# max_navigation_pct = 75.0
+
 
 # ── Inline whitelist ──────────────────────────────────────────────────────────
 # Suppress specific dead-code symbols without a separate whitelist file.
@@ -232,6 +240,14 @@ pub const DEFAULT_PYPROJECT_CONFIG: &str = r#"
 
 # Exit with code 1 when the percentage of unused definitions exceeds this value.
 # fail_threshold = 5.0
+
+# Limits used by deslop --fail-on-any.
+# [tool.cytoscnpy.deslop]
+# max_cycles = 0
+# max_god_modules = 0
+# max_hotspots = 0
+# min_health_score = 70
+# max_navigation_pct = 75.0
 
 
 # ── Inline whitelist ──────────────────────────────────────────────────────────

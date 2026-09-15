@@ -182,8 +182,9 @@ cytoscnpy raw .                    # Raw Metrics (LOC, SLOC, Comments)
 cytoscnpy cc .                     # Cyclomatic Complexity
 cytoscnpy hal .                    # Halstead Metrics
 cytoscnpy mi .                     # Maintainability Index
-cytoscnpy stats . --all            # Full project report (secrets, danger, quality)
-cytoscnpy stats . --all -o report.md  # Save report to file
+cytoscnpy deslop . --json          # DeSlopify architecture, context, and health report
+cytoscnpy deslop . --json --fail-on-any       # CI: fail configured gates
+cytoscnpy deslop . --json -o report.json      # Save the unified report
 cytoscnpy files .                  # Per-file metrics table
 cytoscnpy deps .                   # Dependency analysis
 cytoscnpy init                     # Scaffold config in the current project

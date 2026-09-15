@@ -159,6 +159,47 @@ cytoscnpy stats [OPTIONS] <PATH>
 - `-o`, `--output <FILE>`: Output file path.
 - `--exclude-folders <DIRS>`: Exclude specific folders from analysis.
 
+### `deslop`
+
+Run the DeSlopify-derived architecture, Git context, and repository-health
+analyzers and return one report. Existing CytoScnPy source analyzers such as
+dead code, clones, dependencies, secrets, danger/taint, and quality remain on
+their existing commands and are not included here.
+
+```bash
+cytoscnpy deslop [OPTIONS] <PATH>
+```
+
+- `--fail-on-any`: Exit with code `1` when any configured architecture,
+  hotspot, context-budget, or health gate fails. The global form
+  (`cytoscnpy --fail-on-any deslop ...`) is also supported.
+- `--root <PATH>`: Project root for analysis (use instead of positional path).
+- `--json`: Output one JSON report.
+- `-o`, `--output <FILE>`: Output report file.
+- `--exclude <DIR>`: Exclude a folder or path pattern from analysis.
+- `--no-git`: Disable Git history analysis.
+- `--git-months <N>`: Set the maximum Git lookback.
+- `--context-budget <TOKENS>`: Set usable LLM context capacity.
+
+The JSON result has stable top-level sections: `architecture`, `context`,
+`health`, and `gates`, plus `schema_version`.
+
+```bash
+cytoscnpy deslop . --json
+cytoscnpy deslop . --json --fail-on-any
+```
+
+Gate limits can be set under `[cytoscnpy.deslop]` (or
+`[tool.cytoscnpy.deslop]`):
+
+```toml
+max_cycles = 0
+max_god_modules = 0
+max_hotspots = 0
+min_health_score = 70
+# max_navigation_pct = 75.0
+```
+
 ### `files`
 
 Show per-file metrics table.

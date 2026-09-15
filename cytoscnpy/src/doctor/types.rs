@@ -190,12 +190,14 @@ pub struct SetupReliabilityScore {
 }
 
 /// Configuration options for the doctor analysis.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct DoctorConfig {
     /// Exit with error code 1 if critical setup items (tests, lockfile, linter) are missing.
     pub fail_on_missing: bool,
     /// Enable verbose logging output.
     pub verbose: bool,
+    /// Excluded paths or folder patterns.
+    pub excludes: Vec<String>,
 }
 
 /// Complete result of repository health and setup inspection.

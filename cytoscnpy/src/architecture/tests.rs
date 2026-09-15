@@ -197,3 +197,74 @@ fn test_module_resolver_relative_levels() {
         Some(ResolvedTarget::External("external_lib".to_owned()))
     );
 }
+
+#[test]
+fn test_resolver_file_arguments_detect_cycles() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let dir = root.join("cycle_pkg");
+    fs::create_dir_all(&dir).unwrap();
+
+    let file_a = dir.join("a.py");
+    let file_b = dir.join("b.py");
+
+    fs::write(&file_a, "import b\n").unwrap();
+    fs::write(&file_b, "import a\n").unwrap();
+
+    // Passing the files directly as roots (as CLI positional arguments would)
+    let files = vec![file_a.clone(), file_b.clone()];
+    let roots = vec![file_a, file_b];
+
+    let result = build_architecture_graph(&files, &roots);
+
+    // Both files should resolve to their module names 'a' and 'b', NOT '__main__'
+    assert_eq!(result.stats.total_modules, 2);
+    let names: Vec<&str> = result.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(names.contains(&"a"));
+    assert!(names.contains(&"b"));
+    assert!(!names.contains(&"__main__"));
+
+    // Circular import cycle between a and b must be detected
+    assert_eq!(result.stats.circular_dependency_count, 1);
+    assert_eq!(result.stats.largest_cycle_size, 2);
+}
+
+#[test]
+fn test_resolver_package_directory_scan_preserves_package_and_detects_cycles() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let pkg = root.join("my_package");
+    fs::create_dir_all(&pkg).unwrap();
+    fs::write(pkg.join("__init__.py"), "").unwrap();
+
+    let file_a = pkg.join("a.py");
+    let file_b = pkg.join("b.py");
+
+    fs::write(
+        &file_a,
+        "from my_package.b import b_fn\ndef a_fn(): return b_fn()\n",
+    )
+    .unwrap();
+    fs::write(
+        &file_b,
+        "from my_package.a import a_fn\ndef b_fn(): return a_fn()\n",
+    )
+    .unwrap();
+
+    // Scanning the package directory directly (roots = [pkg])
+    let files = vec![pkg.join("__init__.py"), file_a, file_b];
+    let roots = vec![pkg];
+
+    let result = build_architecture_graph(&files, &roots);
+
+    // Modules should retain canonical names "my_package.a" and "my_package.b"
+    let names: Vec<&str> = result.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(names.contains(&"my_package.a"));
+    assert!(names.contains(&"my_package.b"));
+
+    // Cycle must be detected
+    assert_eq!(result.stats.circular_dependency_count, 1);
+    assert_eq!(result.stats.largest_cycle_size, 2);
+}

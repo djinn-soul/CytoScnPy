@@ -19,6 +19,12 @@ pub struct DeslopConfig {
     pub max_duplicate_filenames: Option<usize>,
     /// Optional maximum allowed function name collisions.
     pub max_function_collisions: Option<usize>,
+    /// Optional minimum naming style consistency ratio (0.0 - 1.0 or 0 - 100).
+    pub min_naming_consistency: Option<f64>,
+    /// Optional maximum allowed total TODO/FIXME/HACK/XXX and debug-print annotations.
+    pub max_todos: Option<usize>,
+    /// Optional maximum allowed mutable global state instances.
+    pub max_global_mutables: Option<usize>,
 }
 
 impl Default for DeslopConfig {
@@ -31,6 +37,9 @@ impl Default for DeslopConfig {
             max_navigation_pct: None,
             max_duplicate_filenames: None,
             max_function_collisions: None,
+            min_naming_consistency: None,
+            max_todos: None,
+            max_global_mutables: None,
         }
     }
 }

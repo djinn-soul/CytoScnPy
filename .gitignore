@@ -95,3 +95,8 @@ benchmark/test_*
 .coverage
 coverage.xml
 deslopify/
+
+# Local agent ledgers
+CONTINUITY.md
+PLANS.md
+MEMORIES.md

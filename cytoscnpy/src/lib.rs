@@ -78,6 +78,15 @@ pub mod doctor;
 /// Module for codebase searchability, name collisions, and generic identifier analysis.
 pub mod searchability;
 
+/// Module for identifier naming style distribution and consistency analysis.
+pub mod naming;
+
+/// Module for TODO/FIXME/HACK/XXX placeholder, debug-print, and commented-code detection.
+pub mod todos;
+
+/// Module for mutable global state analysis across Python and polyglot files.
+pub mod globals;
+
 /// Module for handling CLI commands and their execution logic.
 pub mod commands;
 /// Module for calculating cyclomatic complexity.

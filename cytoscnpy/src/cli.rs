@@ -1,18 +1,24 @@
 mod commands;
 mod deps;
 mod deslop;
+mod globals;
+mod naming;
 mod options;
 mod searchability;
+mod todos;
 pub(crate) mod validators;
 
 pub use commands::Commands;
 pub use deps::DepsArgs;
 pub use deslop::DeslopArgs;
+pub use globals::GlobalsArgs;
+pub use naming::NamingArgs;
 pub use options::{
     ClientKind, FilesArgs, IncludeOptions, MetricArgs, OutputFormat, OutputOptions, PathArgs,
     RankArgs, ScanOptions,
 };
 pub use searchability::SearchabilityArgs;
+pub use todos::TodosArgs;
 
 use clap::Parser;
 use std::path::PathBuf;

@@ -46,6 +46,18 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         cli_var.output.fail_on_any |= args.fail_on_any;
         cli_var.output.json |= args.json;
     }
+    if let Some(crate::cli::Commands::Naming { args }) = &cli_var.command {
+        cli_var.output.fail_on_any |= args.fail_on_inconsistent;
+        cli_var.output.json |= args.json;
+    }
+    if let Some(crate::cli::Commands::Todos { args }) = &cli_var.command {
+        cli_var.output.fail_on_any |= args.fail_on_any;
+        cli_var.output.json |= args.json;
+    }
+    if let Some(crate::cli::Commands::Globals { args }) = &cli_var.command {
+        cli_var.output.fail_on_any |= args.fail_on_any;
+        cli_var.output.json |= args.json;
+    }
     let context = build_runtime_context(&cli_var)?;
     if let Err(err) = settings::initialize(context.config.clone()) {
         if err != crate::settings::SettingsError::AlreadyInitialized {

@@ -152,6 +152,25 @@ pub enum Commands {
         #[command(flatten)]
         args: super::SearchabilityArgs,
     },
+    /// Analyze identifier naming-style distribution, consistency, and outliers
+    Naming {
+        /// Naming analysis options.
+        #[command(flatten)]
+        args: super::NamingArgs,
+    },
+    /// Detect TODO/FIXME/HACK/XXX annotations, debug prints, and commented-out code
+    Todos {
+        /// Todos analysis options.
+        #[command(flatten)]
+        args: super::TodosArgs,
+    },
+    /// Detect mutable global state across Python and polyglot source files
+    #[command(alias = "mutable-globals")]
+    Globals {
+        /// Globals analysis options.
+        #[command(flatten)]
+        args: super::GlobalsArgs,
+    },
     /// Analyze Python module architecture, import graph, and circular dependencies
     Graph {
         /// Path options (paths vs root).

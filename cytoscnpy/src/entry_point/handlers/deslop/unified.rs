@@ -24,6 +24,9 @@ struct ComprehensiveReport {
     context: crate::context::ContextAnalysisResult,
     health: Vec<crate::doctor::DoctorResult>,
     searchability: crate::searchability::SearchabilityResult,
+    naming: crate::naming::NamingDistributionResult,
+    todos: crate::todos::TodosResult,
+    globals: crate::globals::GlobalsResult,
     gates: GateSummary,
 }
 
@@ -66,12 +69,24 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         request.excludes,
         request.cli.output.verbose,
     );
+    let naming =
+        crate::naming::analyze_naming(request.roots, request.excludes, request.cli.output.verbose);
+    let todos =
+        crate::todos::analyze_todos(request.roots, request.excludes, request.cli.output.verbose);
+    let globals = crate::globals::analyze_globals(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
 
     let failures = collect_failures(
         &architecture,
         &context,
         &health,
         &searchability,
+        &naming,
+        &todos,
+        &globals,
         request.config,
         request.cli.output.fail_on_any,
     );
@@ -84,6 +99,9 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             &context,
             &health,
             &searchability,
+            &naming,
+            &todos,
+            &globals,
             &failures,
         )?)
     };
@@ -94,12 +112,15 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         context,
         health,
         searchability,
+        naming,
+        todos,
+        globals,
         gates: GateSummary {
             passed: failures.is_empty(),
             failures,
         },
     };
-    write_report(
+    output::write_report(
         &report,
         human_output.as_deref(),
         request.args,
@@ -141,6 +162,9 @@ fn collect_failures(
     context: &crate::context::ContextAnalysisResult,
     health: &[crate::doctor::DoctorResult],
     searchability: &crate::searchability::SearchabilityResult,
+    naming: &crate::naming::NamingDistributionResult,
+    todos: &crate::todos::TodosResult,
+    globals: &crate::globals::GlobalsResult,
     config: &crate::config::Config,
     fail_on_any: bool,
 ) -> Vec<GateFailure> {
@@ -212,6 +236,27 @@ fn collect_failures(
             limit,
         );
     }
+    if let Some(limit) = deslop.min_naming_consistency {
+        if !naming.is_consistent(limit) {
+            let norm_limit = crate::naming::types::normalize_consistency_threshold(limit);
+            failures.push(failure(
+                "naming_consistency",
+                format!("{:.1}%", naming.stats.consistency_score()),
+                format!(">= {:.1}%", norm_limit * 100.0),
+            ));
+        }
+    }
+    if let Some(limit) = deslop.max_todos {
+        push_over(&mut failures, "todos", todos.stats.total, limit);
+    }
+    if let Some(limit) = deslop.max_global_mutables {
+        push_over(
+            &mut failures,
+            "global_mutables",
+            globals.stats.total_globals,
+            limit,
+        );
+    }
     failures
 }
 
@@ -227,28 +272,4 @@ fn failure(check: &'static str, actual: String, limit: String) -> GateFailure {
         actual,
         limit,
     }
-}
-
-fn write_report<W: Write>(
-    report: &ComprehensiveReport,
-    human_output: Option<&str>,
-    args: &crate::cli::DeslopArgs,
-    analysis_root: &Path,
-    json: bool,
-    writer: &mut W,
-) -> Result<()> {
-    let payload = match human_output {
-        Some(output) => output.to_owned(),
-        None => serde_json::to_string_pretty(report)?,
-    };
-    if let Some(output) = &args.output {
-        let path = crate::utils::validate_output_path(Path::new(output), Some(analysis_root))?;
-        std::fs::write(&path, payload)?;
-        if !json {
-            writeln!(writer, "Report written to: {}", path.display())?;
-        }
-    } else {
-        writeln!(writer, "{payload}")?;
-    }
-    Ok(())
 }

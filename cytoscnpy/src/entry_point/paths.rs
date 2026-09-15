@@ -93,8 +93,17 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
             | Commands::Searchability {
                 args: crate::cli::SearchabilityArgs { paths, .. },
             }
+            | Commands::Naming {
+                args: crate::cli::NamingArgs { paths, .. },
+            }
             | Commands::Deps {
                 args: crate::cli::DepsArgs { paths, .. },
+            }
+            | Commands::Todos {
+                args: crate::cli::TodosArgs { paths, .. },
+            }
+            | Commands::Globals {
+                args: crate::cli::GlobalsArgs { paths, .. },
             }
             | Commands::Graph { paths, .. }
             | Commands::Context { paths, .. }

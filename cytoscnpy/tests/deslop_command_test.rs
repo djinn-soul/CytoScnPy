@@ -35,7 +35,13 @@ fn returns_one_report_with_every_analysis_section() {
     let report: serde_json::Value =
         serde_json::from_slice(&out.into_inner()).expect("report must be valid JSON");
     assert_eq!(report["schema_version"], 1);
-    for section in ["architecture", "context", "health", "gates"] {
+    for section in [
+        "architecture",
+        "context",
+        "health",
+        "searchability",
+        "gates",
+    ] {
         assert!(report.get(section).is_some(), "missing {section}");
     }
     assert!(report.get("analysis").is_none());
@@ -61,6 +67,7 @@ fn without_json_returns_the_combined_human_report() {
         "# Architecture",
         "# Git Context and Hotspots",
         "# Repository Health:",
+        "# Codebase Searchability",
         "# CI Gates",
     ] {
         assert!(report.contains(heading), "missing {heading}");

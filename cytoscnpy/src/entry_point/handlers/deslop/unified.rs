@@ -23,6 +23,7 @@ struct ComprehensiveReport {
     architecture: crate::architecture::ArchitectureGraphResult,
     context: crate::context::ContextAnalysisResult,
     health: Vec<crate::doctor::DoctorResult>,
+    searchability: crate::searchability::SearchabilityResult,
     gates: GateSummary,
 }
 
@@ -60,11 +61,17 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         },
     );
     let health = health_results(request);
+    let searchability = crate::searchability::analyze_searchability(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
 
     let failures = collect_failures(
         &architecture,
         &context,
         &health,
+        &searchability,
         request.config,
         request.cli.output.fail_on_any,
     );
@@ -76,6 +83,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             &architecture,
             &context,
             &health,
+            &searchability,
             &failures,
         )?)
     };
@@ -85,6 +93,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         architecture,
         context,
         health,
+        searchability,
         gates: GateSummary {
             passed: failures.is_empty(),
             failures,
@@ -131,6 +140,7 @@ fn collect_failures(
     architecture: &crate::architecture::ArchitectureGraphResult,
     context: &crate::context::ContextAnalysisResult,
     health: &[crate::doctor::DoctorResult],
+    searchability: &crate::searchability::SearchabilityResult,
     config: &crate::config::Config,
     fail_on_any: bool,
 ) -> Vec<GateFailure> {
@@ -185,6 +195,22 @@ fn collect_failures(
                 format!("<= {limit:.1}"),
             ));
         }
+    }
+    if let Some(limit) = deslop.max_duplicate_filenames {
+        push_over(
+            &mut failures,
+            "duplicate_filenames",
+            searchability.stats.duplicate_filenames,
+            limit,
+        );
+    }
+    if let Some(limit) = deslop.max_function_collisions {
+        push_over(
+            &mut failures,
+            "function_collisions",
+            searchability.stats.function_name_collisions,
+            limit,
+        );
     }
     failures
 }

@@ -75,6 +75,9 @@ pub mod context;
 /// Module for repository health, setup reliability, and configuration inspection.
 pub mod doctor;
 
+/// Module for codebase searchability, name collisions, and generic identifier analysis.
+pub mod searchability;
+
 /// Module for handling CLI commands and their execution logic.
 pub mod commands;
 /// Module for calculating cyclomatic complexity.

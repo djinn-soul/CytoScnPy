@@ -182,7 +182,7 @@ cytoscnpy deslop [OPTIONS] <PATH>
 - `--context-budget <TOKENS>`: Set usable LLM context capacity.
 
 The JSON result has stable top-level sections: `architecture`, `context`,
-`health`, and `gates`, plus `schema_version`.
+`health`, `searchability`, and `gates`, plus `schema_version`.
 
 ```bash
 cytoscnpy deslop . --json
@@ -198,7 +198,28 @@ max_god_modules = 0
 max_hotspots = 0
 min_health_score = 70
 # max_navigation_pct = 75.0
+# max_duplicate_filenames = 0
+# max_function_collisions = 0
 ```
+
+### `searchability`
+
+Analyze codebase searchability, name collisions, and generic identifiers:
+
+- Detect duplicate filenames across directories (excluding package `__init__.py`).
+- Detect function and method name collisions across distinct files (defined in 3+ files, excluding Python dunders, test fixtures, and structural methods).
+- Detect generic, low-information filenames and function names (`utils`, `helpers`, `common`, `handler`, `process`, etc.).
+
+```bash
+cytoscnpy searchability [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats`, `duplicate_files`, `function_collisions`, and `generic_names`.
+- `--fail-on-collisions`: Exit with code `1` if any function collisions (defined in >= 3 distinct files) are detected.
+- `--fail-on-duplicates`: Exit with code `1` if any duplicate filenames are detected.
+- `--fail-on-any`: Exit with code `1` if any searchability issue (duplicate filenames or function collisions) is detected.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders from searchability analysis.
 
 ### `files`
 

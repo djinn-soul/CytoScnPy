@@ -15,6 +15,10 @@ pub struct DeslopConfig {
     pub min_health_score: u32,
     /// Optional maximum percentage of context consumed by navigation.
     pub max_navigation_pct: Option<f64>,
+    /// Optional maximum allowed duplicate filenames.
+    pub max_duplicate_filenames: Option<usize>,
+    /// Optional maximum allowed function name collisions.
+    pub max_function_collisions: Option<usize>,
 }
 
 impl Default for DeslopConfig {
@@ -25,6 +29,8 @@ impl Default for DeslopConfig {
             max_hotspots: 0,
             min_health_score: 70,
             max_navigation_pct: None,
+            max_duplicate_filenames: None,
+            max_function_collisions: None,
         }
     }
 }

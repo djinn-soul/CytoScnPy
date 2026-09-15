@@ -1,8 +1,8 @@
 use super::config::resolve_scan_flag;
 use super::handlers::{
     handle_cc, handle_context, handle_deslop, handle_doctor, handle_files, handle_graph,
-    handle_hal, handle_mi, handle_raw, handle_stats, CcFlags, ContextFlags, DepsCliArgs, DepsFlags,
-    DoctorFlags, GraphFlags, MiFlags,
+    handle_hal, handle_mi, handle_raw, handle_searchability, handle_stats, CcFlags, ContextFlags,
+    DepsCliArgs, DepsFlags, DoctorFlags, GraphFlags, MiFlags, SearchabilityFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -16,6 +16,7 @@ pub(super) fn run_subcommand<W: std::io::Write>(
 ) -> Result<i32> {
     let verbose = cli.output.verbose;
     let root_fail_on_any = cli.output.fail_on_any;
+    let root_json = cli.output.json;
     match command {
         Commands::Raw { common, summary } => handle_raw(
             common,
@@ -141,51 +142,47 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             verbose,
             writer,
         ),
-        Commands::Deps {
-            paths: _,
-            json,
-            requirements,
-            ignore_unused,
-            ignore_missing,
-            exclude,
-            output_file,
-            extra_installed,
-            orphans,
-            include_dev_unused,
-            fail_on_any,
-            fail_on_unused,
-            fail_on_missing,
-            fail_on_extra_installed,
-            fail_on_orphans,
-            impact,
-            venv,
-            lockfile,
-        } => super::handlers::handle_deps(
+        Commands::Deps { args } => super::handlers::handle_deps(
             DepsCliArgs {
                 effective_paths: context.effective_paths.clone(),
                 flags: DepsFlags {
-                    json,
+                    json: root_json || args.json,
                     verbose,
-                    show_extra: extra_installed,
-                    show_orphans: orphans,
-                    fail_on_any: root_fail_on_any || fail_on_any,
-                    fail_on_unused,
-                    fail_on_missing,
-                    fail_on_extra_installed,
-                    fail_on_orphans,
-                    include_dev_unused,
+                    show_extra: args.extra_installed,
+                    show_orphans: args.orphans,
+                    fail_on_any: root_fail_on_any || args.fail_on_any,
+                    fail_on_unused: args.fail_on_unused,
+                    fail_on_missing: args.fail_on_missing,
+                    fail_on_extra_installed: args.fail_on_extra_installed,
+                    fail_on_orphans: args.fail_on_orphans,
+                    include_dev_unused: args.include_dev_unused,
                 },
-                requirements,
-                ignore_unused,
-                ignore_missing,
-                exclude,
-                output_file,
+                requirements: args.requirements,
+                ignore_unused: args.ignore_unused,
+                ignore_missing: args.ignore_missing,
+                exclude: args.exclude,
+                output_file: args.output_file,
                 cli_exclude_folders: context.exclude_folders.clone(),
-                impact_package: impact,
-                venv,
-                lockfile,
+                impact_package: args.impact,
+                venv: args.venv,
+                lockfile: args.lockfile,
             },
             &context.config,
+            writer,
+        ),
+        Commands::Searchability { args } => handle_searchability(
+            &args.paths,
+            SearchabilityFlags {
+                json: root_json || args.json,
+                fail_on_collisions: args.fail_on_collisions,
+                fail_on_duplicates: args.fail_on_duplicates,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
             writer,
         ),
         Commands::Init => {

@@ -66,7 +66,7 @@
 - [x] Detect god modules imported by most module groups.
 - [ ] Detect duplicate-code clusters and duplicate-line totals.
 - [ ] Detect naming-style distribution and consistency.
-- [ ] Detect duplicate filenames, colliding function names, and generic function names.
+- [x] Detect duplicate filenames, colliding function names, and generic function names.
 - [ ] Detect potentially unreferenced large functions in files with no incoming imports.
 
 ## Quality and runtime analysis
@@ -200,7 +200,7 @@ Repository scoring does not require replacing the existing Python parser. Source
 | 45 | God modules | Existing (`cytoscnpy graph`) | Documented high coupling / incoming dependency concentration heuristic. |
 | 46 | Duplicate clusters and line totals | Partial | Clone groups exist; define non-overlapping duplicated-line totals. |
 | 47 | Naming-style distribution | Missing | Add Python-aware naming analysis and exemptions. |
-| 48 | Duplicate filenames/function names | Missing | Add searchability metrics with package/framework exclusions. |
+| 48 | Duplicate filenames/function names | Existing (`cytoscnpy searchability`) | Codebase searchability: duplicate filenames across directories (excluding package `__init__.py`), function name collisions (defined in 3+ distinct files, excluding structural dunders and fixtures), generic identifier detection, terminal report, JSON export, and CI gating. |
 | 49 | Unreferenced large functions | Existing broader foundation | Reuse dead-code findings; optionally add isolation/size summaries. |
 
 The import-binding graph used for re-export reference propagation is not automatically an architecture graph. DeSlopify's dead-code detection uses isolation, text/name matching, size thresholds, and broad framework-name exemptions; reuse CytoScnPy's definitions, references, exports, and framework handling. Sources: [visitor state](cytoscnpy/src/visitor/state.rs), [reference dead-code heuristic](deslopify/src/analysis/dead_code.rs).

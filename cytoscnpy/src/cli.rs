@@ -1,14 +1,18 @@
 mod commands;
+mod deps;
 mod deslop;
 mod options;
+mod searchability;
 pub(crate) mod validators;
 
 pub use commands::Commands;
+pub use deps::DepsArgs;
 pub use deslop::DeslopArgs;
 pub use options::{
     ClientKind, FilesArgs, IncludeOptions, MetricArgs, OutputFormat, OutputOptions, PathArgs,
     RankArgs, ScanOptions,
 };
+pub use searchability::SearchabilityArgs;
 
 use clap::Parser;
 use std::path::PathBuf;

@@ -272,6 +272,8 @@ max_god_modules = 3
 max_hotspots = 4
 min_health_score = 80
 max_navigation_pct = 60.0
+max_duplicate_filenames = 2
+max_function_collisions = 5
 ",
     )
     .unwrap();
@@ -282,4 +284,6 @@ max_navigation_pct = 60.0
     assert_eq!(deslop.max_hotspots, 4);
     assert_eq!(deslop.min_health_score, 80);
     assert_eq!(deslop.max_navigation_pct, Some(60.0));
+    assert_eq!(deslop.max_duplicate_filenames, Some(2));
+    assert_eq!(deslop.max_function_collisions, Some(5));
 }

@@ -9,6 +9,7 @@ pub(super) fn render_human_report(
     architecture: &crate::architecture::ArchitectureGraphResult,
     context: &crate::context::ContextAnalysisResult,
     health: &[crate::doctor::DoctorResult],
+    searchability: &crate::searchability::SearchabilityResult,
     failures: &[GateFailure],
 ) -> Result<String> {
     let mut output = Vec::new();
@@ -25,6 +26,9 @@ pub(super) fn render_human_report(
         )?;
         crate::doctor::print_terminal_report(result, &mut output)?;
     }
+
+    writeln!(output, "\n# Codebase Searchability")?;
+    crate::searchability::print_terminal_report(searchability, None, &mut output)?;
 
     writeln!(output, "\n# CI Gates")?;
     if failures.is_empty() {

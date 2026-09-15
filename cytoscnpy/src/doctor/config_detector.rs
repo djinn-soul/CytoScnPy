@@ -1,4 +1,5 @@
 use super::types::{ConfigCategory, DetectedConfig};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 struct ConfigPattern {
@@ -64,7 +65,6 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
     ConfigPattern {
         names: &[
             ".github/workflows",
-            ".github",
             ".gitlab-ci.yml",
             ".circleci",
             "Jenkinsfile",
@@ -143,6 +143,29 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
     },
 ];
 
+fn is_valid_config_path(category: ConfigCategory, name: &str, path: &Path) -> bool {
+    if !path.exists() {
+        return false;
+    }
+    if category == ConfigCategory::CI {
+        if name == ".github/workflows" {
+            if let Ok(entries) = fs::read_dir(path) {
+                return entries.filter_map(Result::ok).any(|e| {
+                    let p = e.path();
+                    p.is_file()
+                        && p.extension()
+                            .is_some_and(|ext| ext == "yml" || ext == "yaml")
+                });
+            }
+            return false;
+        }
+        if name == ".circleci" {
+            return path.join("config.yml").is_file() || path.join("config.yaml").is_file();
+        }
+    }
+    true
+}
+
 /// Scans the repository root for known configuration, tooling, and setup files.
 pub fn detect_configurations(repo_root: &Path) -> Vec<DetectedConfig> {
     let mut detected = Vec::new();
@@ -150,7 +173,7 @@ pub fn detect_configurations(repo_root: &Path) -> Vec<DetectedConfig> {
     for pattern in CONFIG_PATTERNS {
         for &name in pattern.names {
             let path = repo_root.join(name);
-            if path.exists() {
+            if is_valid_config_path(pattern.category, name, &path) {
                 let display_name = PathBuf::from(name)
                     .file_name()
                     .and_then(|n| n.to_str())

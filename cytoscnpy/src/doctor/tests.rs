@@ -115,7 +115,7 @@ fn test_scan_repo_structure() {
     .unwrap();
     fs::write(root.join("README.md"), "# Title\n").unwrap();
 
-    let stats = scan_repo_structure(root);
+    let stats = scan_repo_structure(root, &[]);
 
     assert_eq!(stats.total_files, 4);
     assert_eq!(stats.source_files, 3); // main.py, lib.py, README.md
@@ -124,6 +124,24 @@ fn test_scan_repo_structure() {
     assert!(stats.languages.iter().any(|l| l.language == "Python"));
     assert!(stats.languages.iter().any(|l| l.language == "Markdown"));
     assert!(stats.max_directory_depth >= 2);
+}
+
+#[test]
+fn test_scan_repo_structure_respects_exclusions() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("vendor")).unwrap();
+
+    fs::write(root.join("src/main.py"), "def run(): pass\n").unwrap();
+    fs::write(root.join("vendor/third_party.py"), "def ext(): pass\n").unwrap();
+
+    let excludes = vec!["vendor".to_owned()];
+    let stats = scan_repo_structure(root, &excludes);
+
+    assert_eq!(stats.total_files, 1);
+    assert_eq!(stats.source_files, 1);
 }
 
 #[test]
@@ -167,4 +185,88 @@ fn test_setup_verdict_bands() {
     let empty_configs = Vec::new();
     let at_risk = evaluate_setup_reliability(root, &empty_configs);
     assert_eq!(at_risk.verdict, SetupVerdict::AtRisk);
+}
+
+#[test]
+fn test_github_without_workflows_does_not_count_as_ci() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    // Create .github/CODEOWNERS only
+    let gh_dir = root.join(".github");
+    fs::create_dir_all(&gh_dir).unwrap();
+    fs::write(gh_dir.join("CODEOWNERS"), "* @dev\n").unwrap();
+
+    let configs = detect_configurations(root);
+    assert!(
+        !configs.iter().any(|c| c.category == ConfigCategory::CI),
+        ".github directory with only CODEOWNERS must not count as CI"
+    );
+
+    let reliability = evaluate_setup_reliability(root, &configs);
+    assert!(!reliability.has_ci);
+
+    // Empty .github/workflows directory must also not count
+    let workflows_dir = gh_dir.join("workflows");
+    fs::create_dir_all(&workflows_dir).unwrap();
+    let configs2 = detect_configurations(root);
+    assert!(
+        !configs2.iter().any(|c| c.category == ConfigCategory::CI),
+        "empty .github/workflows directory must not count as CI"
+    );
+
+    // Actual workflow file should count as CI
+    fs::write(workflows_dir.join("ci.yml"), "name: CI\n").unwrap();
+    let configs3 = detect_configurations(root);
+    assert!(
+        configs3.iter().any(|c| c.category == ConfigCategory::CI),
+        ".github/workflows with ci.yml must count as CI"
+    );
+    let reliability3 = evaluate_setup_reliability(root, &configs3);
+    assert!(reliability3.has_ci);
+}
+
+#[test]
+fn test_doctor_exclusions_do_not_overmatch_unrelated_paths() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let src_dir = root.join("src");
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::write(src_dir.join("contests.py"), "def contest(): pass\n").unwrap();
+    fs::write(src_dir.join("library.py"), "def library(): pass\n").unwrap();
+
+    let tests_dir = root.join("tests");
+    fs::create_dir_all(&tests_dir).unwrap();
+    fs::write(tests_dir.join("test_app.py"), "def test_app(): pass\n").unwrap();
+
+    let stats = scan_repo_structure(root, &["tests".to_owned(), "lib".to_owned()]);
+    // tests/test_app.py excluded; src/contests.py and src/library.py MUST be kept
+    assert_eq!(stats.total_files, 2);
+    assert_eq!(stats.source_files, 2);
+    assert_eq!(stats.test_files, 0);
+}
+
+#[test]
+fn test_doctor_exclusions_with_trailing_and_leading_slashes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let src_dir = root.join("src");
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::write(src_dir.join("main.py"), "def main(): pass\n").unwrap();
+
+    let tests_dir = root.join("tests");
+    fs::create_dir_all(&tests_dir).unwrap();
+    fs::write(tests_dir.join("test_main.py"), "def test_main(): pass\n").unwrap();
+
+    // Trailing slash "tests/"
+    let stats1 = scan_repo_structure(root, &["tests/".to_owned()]);
+    assert_eq!(stats1.total_files, 1);
+    assert_eq!(stats1.source_files, 1);
+
+    // Leading dot-slash "./tests"
+    let stats2 = scan_repo_structure(root, &["./tests".to_owned()]);
+    assert_eq!(stats2.total_files, 1);
+    assert_eq!(stats2.source_files, 1);
 }

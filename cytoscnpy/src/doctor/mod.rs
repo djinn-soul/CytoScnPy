@@ -33,7 +33,7 @@ use std::path::Path;
 
 /// Runs repository health and setup reliability analysis on the target path.
 #[must_use]
-pub fn run_doctor(repo_root: &Path, _config: DoctorConfig) -> DoctorResult {
+pub fn run_doctor(repo_root: &Path, config: &DoctorConfig) -> DoctorResult {
     let mut configs = detect_configurations(repo_root);
 
     let pyproject = inspect_pyproject(repo_root);
@@ -41,7 +41,7 @@ pub fn run_doctor(repo_root: &Path, _config: DoctorConfig) -> DoctorResult {
         supplement_configs_with_pyproject(&mut configs, p, &repo_root.join("pyproject.toml"));
     }
 
-    let structure = scan_repo_structure(repo_root);
+    let structure = scan_repo_structure(repo_root, &config.excludes);
     let reliability = evaluate_setup_reliability(repo_root, &configs);
 
     DoctorResult {

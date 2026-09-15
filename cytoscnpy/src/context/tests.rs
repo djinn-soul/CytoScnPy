@@ -153,3 +153,80 @@ fn test_individual_token_estimators() {
     let trace = estimate_tracing_tokens(3.5);
     assert_eq!(trace, 2 * 3 * 50);
 }
+
+#[test]
+fn test_auto_window_days_zero_max_days_no_panic() {
+    let days = auto_window_days(100, 0);
+    assert_eq!(days, 7);
+}
+
+#[test]
+fn test_scan_git_activity_subdirectory_matches_activity() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let root = temp.path();
+
+    let init = std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output();
+    if init.is_err() || !init.unwrap().status.success() {
+        return;
+    }
+    let _ = std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output();
+
+    let pkg_dir = root.join("pkg");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let file = pkg_dir.join("a.py");
+    std::fs::write(&file, "x = 1\n").unwrap();
+
+    let _ = std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output();
+    let commit = std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(root)
+        .output();
+    if commit.is_err() || !commit.unwrap().status.success() {
+        return;
+    }
+
+    let files = vec![ScannedFileInfo {
+        path: file.clone(),
+        lines: 1,
+        bytes: 6,
+    }];
+
+    let (activity, commit_map) = scan_git_activity(&pkg_dir, &files, Some(1), false);
+    assert_eq!(activity.active_files, 1);
+    assert_eq!(activity.frozen_files, 0);
+    assert_eq!(commit_map.get(&file).copied(), Some(1));
+
+    // When the target itself is a file (e.g. context pkg/a.py)
+    let (file_activity, file_commit_map) = scan_git_activity(&file, &files, Some(1), false);
+    assert!(file_activity.is_git_repo);
+    assert_eq!(file_activity.active_files, 1);
+    assert_eq!(file_activity.frozen_files, 0);
+    assert_eq!(file_commit_map.get(&file).copied(), Some(1));
+}
+
+#[test]
+fn test_git_working_dir_normalizes_empty_parent() {
+    use super::git_scanner::{git_working_dir, is_git_repository, resolve_git_root};
+
+    assert_eq!(git_working_dir(Path::new("app.py")), Path::new("."));
+    assert_eq!(git_working_dir(Path::new("")), Path::new("."));
+    assert_eq!(git_working_dir(Path::new("src/app.py")), Path::new("src"));
+    assert_eq!(git_working_dir(Path::new(".")), Path::new("."));
+
+    // Bare filenames in repository root must correctly resolve Git repo and Git root
+    assert!(is_git_repository(Path::new("Cargo.toml")));
+    assert!(resolve_git_root(Path::new("Cargo.toml")).is_some());
+}

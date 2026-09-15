@@ -28,7 +28,7 @@ pub fn run_with_args(args: Vec<String>) -> Result<i32> {
 ///
 /// Returns an error if argument parsing fails, or if the command execution fails.
 pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) -> Result<i32> {
-    let cli_var = match parse_cli_or_exit(args, writer)? {
+    let mut cli_var = match parse_cli_or_exit(args, writer)? {
         Ok(cli) => cli,
         Err(code) => return Ok(code),
     };
@@ -38,6 +38,10 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
         return Ok(code);
     }
 
+    if let Some(crate::cli::Commands::Deslop { args }) = &cli_var.command {
+        cli_var.output.fail_on_any |= args.fail_on_any;
+        cli_var.output.json |= args.json;
+    }
     let context = build_runtime_context(&cli_var)?;
     if let Err(err) = settings::initialize(context.config.clone()) {
         if err != crate::settings::SettingsError::AlreadyInitialized {
@@ -47,15 +51,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
     print_runtime_messages(&cli_var, &context);
 
-    if let Some(command) = cli_var.command {
-        super::subcommands::run_subcommand(
-            command,
-            cli_var.output.verbose,
-            cli_var.output.fail_on_quality,
-            cli_var.output.fail_on_any,
-            &context,
-            writer,
-        )
+    if let Some(command) = cli_var.command.take() {
+        super::subcommands::run_subcommand(command, &cli_var, &context, writer)
     } else {
         handle_analysis(
             &context.effective_paths,

@@ -28,8 +28,8 @@ pub(crate) fn handle_doctor<W: Write>(
     paths: &PathArgs,
     flags: DoctorFlags,
     output: Option<String>,
-    _exclude: Vec<String>,
-    _exclude_folders: &[String],
+    exclude: Vec<String>,
+    exclude_folders: &[String],
     analysis_root: &std::path::Path,
     writer: &mut W,
 ) -> Result<i32> {
@@ -40,42 +40,69 @@ pub(crate) fn handle_doctor<W: Write>(
         Ok(p) => p,
         Err(code) => return Ok(code),
     };
-    let target_path = effective_paths
-        .first()
-        .map_or(analysis_root, std::convert::AsRef::as_ref);
+    let targets = if effective_paths.is_empty() {
+        vec![analysis_root.to_path_buf()]
+    } else {
+        effective_paths
+    };
+    let excludes = crate::entry_point::paths::merge_excludes(exclude, exclude_folders);
     let output_file = prepare_output_path(output, analysis_root)?;
 
     let config = DoctorConfig {
         fail_on_missing: flags.fail_on_missing,
         verbose: flags.verbose,
+        excludes,
     };
 
-    let result = run_doctor(target_path, config);
+    let mut any_failed = false;
+    let mut total_failed_recs = 0usize;
+    let mut results = Vec::with_capacity(targets.len());
+
+    for target in &targets {
+        let result = run_doctor(target, &config);
+        if flags.fail_on_missing
+            && matches!(
+                result.reliability.verdict,
+                SetupVerdict::Incomplete | SetupVerdict::AtRisk
+            )
+        {
+            any_failed = true;
+            total_failed_recs += result.reliability.recommendations.len();
+        }
+        results.push(result);
+    }
+
+    let write_output = |w: &mut dyn Write| -> Result<()> {
+        if flags.json {
+            if results.len() == 1 {
+                print_json_report(&results[0], w)?;
+            } else {
+                serde_json::to_writer_pretty(&mut *w, &results)?;
+                writeln!(w)?;
+            }
+        } else {
+            for (idx, result) in results.iter().enumerate() {
+                if targets.len() > 1 {
+                    writeln!(w, "\n=== Repository Health: {} ===", targets[idx].display())?;
+                }
+                print_terminal_report(result, &mut *w)?;
+            }
+        }
+        Ok(())
+    };
 
     if let Some(file_path) = output_file {
         let mut file = fs::File::create(&file_path)?;
-        if flags.json {
-            print_json_report(&result, &mut file)?;
-        } else {
-            print_terminal_report(&result, &mut file)?;
-        }
-    } else if flags.json {
-        print_json_report(&result, &mut *writer)?;
+        write_output(&mut file)?;
     } else {
-        print_terminal_report(&result, &mut *writer)?;
+        write_output(&mut *writer)?;
     }
 
-    if flags.fail_on_missing
-        && matches!(
-            result.reliability.verdict,
-            SetupVerdict::Incomplete | SetupVerdict::AtRisk
-        )
-    {
+    if any_failed {
         if !flags.json {
             writeln!(
                 writer,
-                "\n[GATE] Setup reliability check failed: {} recommendation(s) - FAILED",
-                result.reliability.recommendations.len()
+                "\n[GATE] Setup reliability check failed: {total_failed_recs} recommendation(s) - FAILED"
             )?;
         }
         return Ok(1);

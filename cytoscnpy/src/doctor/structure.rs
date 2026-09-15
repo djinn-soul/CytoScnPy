@@ -66,17 +66,52 @@ fn is_test_file(path: &Path) -> bool {
     false
 }
 
+/// Checks whether a relative path matches any exclusion pattern by component or path prefix.
+fn is_path_excluded(rel: &Path, excludes: &[String]) -> bool {
+    let rel_str = rel.to_string_lossy().replace('\\', "/");
+    for ex in excludes {
+        let clean = ex.trim_start_matches("./").trim_end_matches('/');
+        if clean.is_empty() {
+            continue;
+        }
+        if clean.starts_with("*.") {
+            if rel_str.ends_with(&clean[1..]) {
+                return true;
+            }
+        } else if clean.contains('/') {
+            if rel_str == clean || rel_str.starts_with(&format!("{clean}/")) {
+                return true;
+            }
+        } else {
+            for comp in rel.components() {
+                if let Some(comp_str) = comp.as_os_str().to_str() {
+                    if comp_str == clean {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Scans the repository structure, calculating polyglot language breakdown and test ratio.
-pub fn scan_repo_structure(repo_root: &Path) -> RepoStructureStats {
+pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructureStats {
+    let clean_excludes: Vec<String> = excludes
+        .iter()
+        .map(|ex| ex.trim_start_matches("./").trim_end_matches('/').to_owned())
+        .filter(|s| !s.is_empty())
+        .collect();
+
     let walker = WalkBuilder::new(repo_root)
         .standard_filters(true)
         .hidden(false)
-        .filter_entry(|entry| {
-            if entry.file_type().is_some_and(|ft| ft.is_dir()) {
-                if let Some(name) = entry.file_name().to_str() {
-                    if SKIP_DIR_NAMES.contains(&name) {
-                        return false;
-                    }
+        .filter_entry(move |entry| {
+            if let Some(name) = entry.file_name().to_str() {
+                if SKIP_DIR_NAMES.contains(&name)
+                    || crate::utils::is_excluded(name, &clean_excludes)
+                {
+                    return false;
                 }
             }
             true
@@ -105,6 +140,16 @@ pub fn scan_repo_structure(repo_root: &Path) -> RepoStructureStats {
         let path = entry.path();
         if !path.is_file() {
             continue;
+        }
+
+        if let Ok(rel) = path.strip_prefix(repo_root) {
+            if is_path_excluded(rel, excludes) {
+                continue;
+            }
+        } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            if crate::utils::is_excluded(name, excludes) {
+                continue;
+            }
         }
 
         let ext = path

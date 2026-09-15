@@ -1,8 +1,10 @@
 mod commands;
+mod deslop;
 mod options;
 pub(crate) mod validators;
 
 pub use commands::Commands;
+pub use deslop::DeslopArgs;
 pub use options::{
     ClientKind, FilesArgs, IncludeOptions, MetricArgs, OutputFormat, OutputOptions, PathArgs,
     RankArgs, ScanOptions,

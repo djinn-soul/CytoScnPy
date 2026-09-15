@@ -87,6 +87,9 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
                 }
             }
             Commands::Stats { paths, .. }
+            | Commands::Deslop {
+                args: crate::cli::DeslopArgs { paths, .. },
+            }
             | Commands::Deps { paths, .. }
             | Commands::Graph { paths, .. }
             | Commands::Context { paths, .. }

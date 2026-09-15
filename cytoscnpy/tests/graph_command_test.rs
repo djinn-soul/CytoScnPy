@@ -179,3 +179,76 @@ fn test_cli_graph_god_module_gate_failure() {
     assert!(output_str.contains("hub_pkg.god"));
     assert!(output_str.contains("[GATE] God modules: 1 module(s) found - FAILED"));
 }
+
+#[test]
+fn test_cli_graph_file_arguments_detect_cycles() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let pkg = root.join("cycle_files");
+    fs::create_dir_all(&pkg).unwrap();
+    let file_a = pkg.join("a.py");
+    let file_b = pkg.join("b.py");
+    fs::write(&file_a, "import b\ndef a(): pass\n").unwrap();
+    fs::write(&file_b, "import a\ndef b(): pass\n").unwrap();
+
+    let mut out = Cursor::new(Vec::new());
+    let code = entry_point::run_with_args_to(
+        vec![
+            "graph".to_owned(),
+            file_a.to_string_lossy().into_owned(),
+            file_b.to_string_lossy().into_owned(),
+            "--fail-on-cycles".to_owned(),
+        ],
+        &mut out,
+    )
+    .unwrap();
+
+    assert_eq!(code, 1);
+    let output_str = String::from_utf8(out.into_inner()).unwrap();
+    assert!(output_str.contains("circular dependency component(s)"));
+    assert!(output_str.contains("Cycle #1"));
+    assert!(output_str.contains("[GATE] Circular dependencies: 1 cycle(s) found - FAILED"));
+}
+
+#[test]
+fn test_cli_graph_namespace_package_detects_cycles() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let ns_dir = root.join("ns");
+    let pkg_dir = ns_dir.join("pkg");
+    fs::create_dir_all(&pkg_dir).unwrap();
+    fs::write(pkg_dir.join("__init__.py"), "").unwrap();
+
+    let file_a = pkg_dir.join("a.py");
+    let file_b = pkg_dir.join("b.py");
+    fs::write(
+        &file_a,
+        "from ns.pkg.b import b_fn\ndef a_fn(): return b_fn()\n",
+    )
+    .unwrap();
+    fs::write(
+        &file_b,
+        "from ns.pkg.a import a_fn\ndef b_fn(): return a_fn()\n",
+    )
+    .unwrap();
+
+    let mut out = Cursor::new(Vec::new());
+    let code = entry_point::run_with_args_to(
+        vec![
+            "graph".to_owned(),
+            root.to_string_lossy().into_owned(),
+            "--fail-on-cycles".to_owned(),
+        ],
+        &mut out,
+    )
+    .unwrap();
+
+    assert_eq!(code, 1);
+    let output_str = String::from_utf8(out.into_inner()).unwrap();
+    assert!(output_str.contains("ns.pkg.a"));
+    assert!(output_str.contains("ns.pkg.b"));
+    assert!(output_str.contains("circular dependency component(s)"));
+    assert!(output_str.contains("[GATE] Circular dependencies: 1 cycle(s) found - FAILED"));
+}

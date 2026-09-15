@@ -37,6 +37,10 @@ pub(crate) fn handle_context<W: Write>(
     if let Err(code) = validate_path_args(paths) {
         return Ok(code);
     }
+    if let Some(0) = flags.git_months {
+        eprintln!("Error: --git-months must be at least 1.");
+        return Ok(1);
+    }
     let effective_paths = match resolve_subcommand_paths(paths.paths.clone(), paths.root.clone()) {
         Ok(p) => p,
         Err(code) => return Ok(code),

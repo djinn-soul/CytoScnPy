@@ -14,6 +14,7 @@ pub mod cycles;
 pub mod layering;
 pub mod reporter;
 pub mod resolver;
+pub mod resolver_paths;
 pub mod types;
 
 #[cfg(test)]

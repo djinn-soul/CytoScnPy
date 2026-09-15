@@ -1,8 +1,11 @@
 //! Resolves Python source files and import statements to canonical module identities.
 
+use super::resolver_paths::{
+    count_lines, extract_package_group, find_best_relative_path, path_to_module_name,
+};
 use super::types::ModuleNode;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Outcome of attempting to resolve an import in the context of the project.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +64,9 @@ impl ModuleResolver {
                     .module_to_id
                     .entry(stripped.to_owned())
                     .or_insert(id);
+            }
+            if let Some((_, last)) = module_name.rsplit_once('.') {
+                resolver.module_to_id.entry(last.to_owned()).or_insert(id);
             }
 
             resolver.nodes.push(node);
@@ -180,55 +186,4 @@ impl ModuleResolver {
     fn find_module_id(&self, name: &str) -> Option<&usize> {
         self.module_to_id.get(name)
     }
-}
-
-fn find_best_relative_path(file: &Path, roots: &[PathBuf]) -> PathBuf {
-    for root in roots {
-        if let Ok(rel) = file.strip_prefix(root) {
-            return rel.to_path_buf();
-        }
-    }
-    file.to_path_buf()
-}
-
-fn path_to_module_name(path: &Path) -> (String, bool) {
-    let mut parts: Vec<String> = Vec::new();
-    let mut is_init = false;
-
-    for comp in path.components() {
-        let s = comp.as_os_str().to_string_lossy();
-        if s.ends_with(".py") {
-            let stem = s.trim_end_matches(".py");
-            if stem == "__init__" {
-                is_init = true;
-            } else {
-                parts.push(stem.to_owned());
-            }
-        } else {
-            parts.push(s.into_owned());
-        }
-    }
-
-    let name = if parts.is_empty() {
-        "__main__".to_owned()
-    } else {
-        parts.join(".")
-    };
-
-    (name, is_init)
-}
-
-fn extract_package_group(module_name: &str) -> String {
-    let first = module_name.split('.').next().unwrap_or(module_name);
-    if first.is_empty() {
-        "<root>".to_owned()
-    } else {
-        first.to_owned()
-    }
-}
-
-fn count_lines(path: &Path) -> usize {
-    std::fs::read_to_string(path)
-        .map(|s| s.lines().count())
-        .unwrap_or(0)
 }

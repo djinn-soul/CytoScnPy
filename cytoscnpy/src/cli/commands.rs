@@ -94,7 +94,7 @@ pub enum Commands {
     McpServer,
     /// Initialize CytoScnPy configuration (pyproject.toml/.cytoscnpy.toml and .gitignore)
     Init,
-    /// Generate comprehensive project statistics report
+    /// Generate project statistics report
     Stats {
         /// Path options (path vs root).
         #[command(flatten)]
@@ -127,6 +127,12 @@ pub enum Commands {
         /// Exclude folders.
         #[arg(long, alias = "exclude-folder")]
         exclude: Vec<String>,
+    },
+    /// Run the unified DeSlopify-compatible assessment
+    Deslop {
+        /// Unified analysis and CI options.
+        #[command(flatten)]
+        args: super::DeslopArgs,
     },
     /// Show per-file metrics table
     Files {
@@ -238,7 +244,7 @@ pub enum Commands {
         #[command(flatten)]
         paths: PathArgs,
         /// Lookback window in months for Git activity (default: auto-scaled to repo age).
-        #[arg(long)]
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
         git_months: Option<u32>,
         /// Usable LLM context capacity in tokens (default: 176000).
         #[arg(long)]

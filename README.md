@@ -182,10 +182,13 @@ cytoscnpy raw .                    # Raw Metrics (LOC, SLOC, Comments)
 cytoscnpy cc .                     # Cyclomatic Complexity
 cytoscnpy hal .                    # Halstead Metrics
 cytoscnpy mi .                     # Maintainability Index
-cytoscnpy deslop . --json          # DeSlopify architecture, context, health, and searchability report
+cytoscnpy deslop . --json          # DeSlopify architecture, context, health, searchability, naming, todos, and globals report
 cytoscnpy deslop . --json --fail-on-any       # CI: fail configured gates
 cytoscnpy deslop . --json -o report.json      # Save the unified report
 cytoscnpy searchability .           # Codebase searchability & name collisions
+cytoscnpy naming .                  # Naming-style distribution & consistency
+cytoscnpy todos .                   # TODO/FIXME annotations, debug prints & commented-out code
+cytoscnpy globals .                 # Mutable global state & class variables
 cytoscnpy files .                  # Per-file metrics table
 cytoscnpy deps .                   # Dependency analysis
 cytoscnpy init                     # Scaffold config in the current project

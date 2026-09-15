@@ -52,6 +52,26 @@ pub struct FunctionDefinition {
     pub line: usize,
 }
 
+/// A raw class definition extracted from Python AST.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassDefinition {
+    /// Class name.
+    pub name: String,
+    /// File containing the definition.
+    pub file: PathBuf,
+    /// 1-indexed source line.
+    pub line: usize,
+}
+
+/// Extracted functions and classes from Python source code.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ExtractedDefinitions {
+    /// Function and method definitions.
+    pub functions: Vec<FunctionDefinition>,
+    /// Class definitions.
+    pub classes: Vec<ClassDefinition>,
+}
+
 /// Checks if a function name is structural/idiomatic and should be excluded from collision detection.
 #[must_use]
 pub fn is_structural_name(name: &str) -> bool {
@@ -64,31 +84,44 @@ pub fn is_structural_name(name: &str) -> bool {
     STRUCTURAL_NAMES.contains(&name)
 }
 
-/// Extracts all function and method definitions from a Python source file.
+/// Extracts all function definitions from a Python source file.
 #[must_use]
 pub fn extract_functions_from_file(file: &Path) -> Vec<FunctionDefinition> {
+    extract_definitions_from_file(file).functions
+}
+
+/// Extracts all function and class definitions from a Python source file.
+#[must_use]
+pub fn extract_definitions_from_file(file: &Path) -> ExtractedDefinitions {
     let Ok(content) = std::fs::read_to_string(file) else {
-        return Vec::new();
+        return ExtractedDefinitions::default();
     };
-    extract_functions_from_source(&content, file)
+    extract_definitions_from_source(&content, file)
 }
 
 /// Extracts function definitions from Python source code content.
 #[must_use]
 pub fn extract_functions_from_source(source: &str, file: &Path) -> Vec<FunctionDefinition> {
+    extract_definitions_from_source(source, file).functions
+}
+
+/// Extracts function and class definitions from Python source code content.
+#[must_use]
+pub fn extract_definitions_from_source(source: &str, file: &Path) -> ExtractedDefinitions {
     let Ok(parsed) = parse_module(source) else {
-        return Vec::new();
+        return ExtractedDefinitions::default();
     };
 
     let line_index = LineIndex::new(source);
-    let mut functions = Vec::new();
+    let mut defs = ExtractedDefinitions::default();
     traverse_stmts(
         &parsed.into_syntax().body,
         file,
         &line_index,
-        &mut functions,
+        &mut defs.functions,
+        &mut defs.classes,
     );
-    functions
+    defs
 }
 
 fn traverse_stmts(
@@ -96,6 +129,7 @@ fn traverse_stmts(
     file: &Path,
     line_index: &LineIndex,
     functions: &mut Vec<FunctionDefinition>,
+    classes: &mut Vec<ClassDefinition>,
 ) {
     for stmt in stmts {
         match stmt {
@@ -106,40 +140,46 @@ fn traverse_stmts(
                     file: file.to_path_buf(),
                     line,
                 });
-                traverse_stmts(&f.body, file, line_index, functions);
+                traverse_stmts(&f.body, file, line_index, functions, classes);
             }
             Stmt::ClassDef(c) => {
-                traverse_stmts(&c.body, file, line_index, functions);
+                let line = line_index.line_index(c.range().start());
+                classes.push(ClassDefinition {
+                    name: c.name.to_string(),
+                    file: file.to_path_buf(),
+                    line,
+                });
+                traverse_stmts(&c.body, file, line_index, functions, classes);
             }
             Stmt::If(i) => {
-                traverse_stmts(&i.body, file, line_index, functions);
+                traverse_stmts(&i.body, file, line_index, functions, classes);
                 for clause in &i.elif_else_clauses {
-                    traverse_stmts(&clause.body, file, line_index, functions);
+                    traverse_stmts(&clause.body, file, line_index, functions, classes);
                 }
             }
             Stmt::Try(t) => {
-                traverse_stmts(&t.body, file, line_index, functions);
+                traverse_stmts(&t.body, file, line_index, functions, classes);
                 for h in &t.handlers {
                     let ast::ExceptHandler::ExceptHandler(handler) = h;
-                    traverse_stmts(&handler.body, file, line_index, functions);
+                    traverse_stmts(&handler.body, file, line_index, functions, classes);
                 }
-                traverse_stmts(&t.orelse, file, line_index, functions);
-                traverse_stmts(&t.finalbody, file, line_index, functions);
+                traverse_stmts(&t.orelse, file, line_index, functions, classes);
+                traverse_stmts(&t.finalbody, file, line_index, functions, classes);
             }
             Stmt::For(f) => {
-                traverse_stmts(&f.body, file, line_index, functions);
-                traverse_stmts(&f.orelse, file, line_index, functions);
+                traverse_stmts(&f.body, file, line_index, functions, classes);
+                traverse_stmts(&f.orelse, file, line_index, functions, classes);
             }
             Stmt::While(w) => {
-                traverse_stmts(&w.body, file, line_index, functions);
-                traverse_stmts(&w.orelse, file, line_index, functions);
+                traverse_stmts(&w.body, file, line_index, functions, classes);
+                traverse_stmts(&w.orelse, file, line_index, functions, classes);
             }
             Stmt::With(w) => {
-                traverse_stmts(&w.body, file, line_index, functions);
+                traverse_stmts(&w.body, file, line_index, functions, classes);
             }
             Stmt::Match(m) => {
                 for case in &m.cases {
-                    traverse_stmts(&case.body, file, line_index, functions);
+                    traverse_stmts(&case.body, file, line_index, functions, classes);
                 }
             }
             _ => {}

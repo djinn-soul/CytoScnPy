@@ -65,20 +65,20 @@
 - [x] Detect bidirectional dependencies between module groups.
 - [x] Detect god modules imported by most module groups.
 - [ ] Detect duplicate-code clusters and duplicate-line totals.
-- [ ] Detect naming-style distribution and consistency.
+- [x] Detect naming-style distribution and consistency.
 - [x] Detect duplicate filenames, colliding function names, and generic function names.
 - [ ] Detect potentially unreferenced large functions in files with no incoming imports.
 
 ## Quality and runtime analysis
 
-- [ ] Detect likely mutable global state.
+- [x] Detect likely mutable global state.
 - [ ] Detect module-level side effects in Python and JavaScript/TypeScript.
 - [ ] Detect singleton patterns, mutable class variables, and global event listeners.
-- [ ] Detect TODO/FIXME/HACK/XXX placeholders.
-- [ ] Detect debug prints and commented-out code.
+- [x] Detect TODO/FIXME/HACK/XXX placeholders.
+- [x] Detect debug prints and commented-out code.
 - [ ] Detect bare exception/catch blocks and empty exception handlers.
 - [ ] Detect wildcard imports, magic numbers, and deeply nested callbacks.
-- [ ] Avoid context-sensitive false positives in tests and output-related files.
+- [x] Avoid context-sensitive false positives in tests and output-related files.
 
 ## Git-aware context analysis
 
@@ -199,7 +199,7 @@ Repository scoring does not require replacing the existing Python parser. Source
 | 44 | Bidirectional group dependencies | Existing (`cytoscnpy graph`) | Top-level package group aggregation and cross-boundary cycle detection. |
 | 45 | God modules | Existing (`cytoscnpy graph`) | Documented high coupling / incoming dependency concentration heuristic. |
 | 46 | Duplicate clusters and line totals | Partial | Clone groups exist; define non-overlapping duplicated-line totals. |
-| 47 | Naming-style distribution | Missing | Add Python-aware naming analysis and exemptions. |
+| 47 | Naming-style distribution | Existing (`cytoscnpy naming`) | Python-aware identifier naming distribution, consistency percentage, dominant style badge, structural dunder exemptions, private/mangled prefix handling, terminal and JSON reports, and unified `deslop` gate integration. |
 | 48 | Duplicate filenames/function names | Existing (`cytoscnpy searchability`) | Codebase searchability: duplicate filenames across directories (excluding package `__init__.py`), function name collisions (defined in 3+ distinct files, excluding structural dunders and fixtures), generic identifier detection, terminal report, JSON export, and CI gating. |
 | 49 | Unreferenced large functions | Existing broader foundation | Reuse dead-code findings; optionally add isolation/size summaries. |
 
@@ -209,14 +209,14 @@ The import-binding graph used for re-export reference propagation is not automat
 
 | # | Roadmap item | Current status | Remaining work |
 |---|---|---|---|
-| 50 | Mutable global state | Partial related analysis | Global usage in loops exists; dedicated mutable-global inventory is new. |
+| 50 | Mutable global state | Existing (`cytoscnpy globals`) | Python AST module collections, class variables, and `global` mutations; Rust `static mut` and JS/TS top-level mutables; CLI subcommand and `deslop` gate. |
 | 51 | Module-level side effects | Missing dedicated feature | Add Python import-time analysis; JS/TS requires broader language support. |
 | 52 | Singletons/class mutables/event listeners | Missing dedicated feature | Split into language-specific checks. |
-| 53 | TODO/FIXME/HACK/XXX | Missing dedicated feature | Add comment-aware detection. |
-| 54 | Debug prints/commented-out code | Missing dedicated feature | Add contextual checks and suppressions. |
+| 53 | TODO/FIXME/HACK/XXX | Existing (`cytoscnpy todos`) | Fast line-by-line annotation scanner for TODO, FIXME, HACK, XXX with token boundary checks. |
+| 54 | Debug prints/commented-out code | Existing (`cytoscnpy todos`) | Debug print statement detection (`print(`, `console.log(`, `println!(`, etc.) and commented-out code blocks (`# if`, `# def`, etc.). |
 | 55 | Bare exceptions and empty handlers | Partial | Bare `except` exists; distinguish empty handlers and broad catches. |
 | 56 | Wildcards/magic numbers/nested callbacks | Partial related analysis | Import resolution and nesting analysis are not the same as these diagnostics. |
-| 57 | Test/output false-positive handling | Partial | Reuse test/framework handling and define detector-specific exemptions. |
+| 57 | Test/output false-positive handling | Existing (`cytoscnpy todos`) | Context-sensitive suppression skipping debug print detection in test files and output-oriented modules (`cli`, `main`, `output`, `views`, etc.). |
 
 Mutable default arguments differ from mutable class variables. Recognizing wildcard imports for reference resolution does not mean reporting them as quality problems. Sources: [best-practice rules](cytoscnpy/src/rules/quality/best_practices.rs), [global usage rule](cytoscnpy/src/rules/quality/performance/global_usage.rs).
 

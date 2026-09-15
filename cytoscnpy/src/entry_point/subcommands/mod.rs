@@ -1,8 +1,11 @@
+mod metrics;
+
 use super::config::resolve_scan_flag;
 use super::handlers::{
-    handle_cc, handle_context, handle_deslop, handle_doctor, handle_files, handle_graph,
-    handle_hal, handle_mi, handle_raw, handle_searchability, handle_stats, CcFlags, ContextFlags,
-    DepsCliArgs, DepsFlags, DoctorFlags, GraphFlags, MiFlags, SearchabilityFlags,
+    handle_context, handle_deps, handle_deslop, handle_doctor, handle_files, handle_globals,
+    handle_graph, handle_naming, handle_searchability, handle_stats, handle_todos, ContextFlags,
+    DepsCliArgs, DepsFlags, DoctorFlags, GlobalsFlags, GraphFlags, NamingFlags, SearchabilityFlags,
+    TodosFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -17,75 +20,11 @@ pub(super) fn run_subcommand<W: std::io::Write>(
     let verbose = cli.output.verbose;
     let root_fail_on_any = cli.output.fail_on_any;
     let root_json = cli.output.json;
+
     match command {
-        Commands::Raw { common, summary } => handle_raw(
-            common,
-            summary,
-            &context.exclude_folders,
-            &context.analysis_root,
-            context.include_tests,
-            verbose,
-            writer,
-        ),
-        Commands::Cc {
-            common,
-            rank,
-            average,
-            total_average,
-            show_complexity,
-            order,
-            no_assert,
-            xml,
-            fail_threshold,
-        } => handle_cc(
-            common,
-            rank,
-            CcFlags {
-                average,
-                total_average,
-                show_complexity,
-                order,
-                no_assert,
-                xml,
-                fail_threshold,
-            },
-            &context.exclude_folders,
-            &context.analysis_root,
-            context.include_tests,
-            verbose,
-            writer,
-        ),
-        Commands::Hal { common, functions } => handle_hal(
-            common,
-            functions,
-            &context.exclude_folders,
-            &context.analysis_root,
-            context.include_tests,
-            verbose,
-            writer,
-        ),
-        Commands::Mi {
-            common,
-            rank,
-            multi,
-            show,
-            average,
-            fail_threshold,
-        } => handle_mi(
-            common,
-            rank,
-            MiFlags {
-                multi,
-                show_hooks: show,
-                average,
-                fail_threshold,
-            },
-            &context.exclude_folders,
-            &context.analysis_root,
-            context.include_tests,
-            verbose,
-            writer,
-        ),
+        Commands::Raw { .. } | Commands::Cc { .. } | Commands::Hal { .. } | Commands::Mi { .. } => {
+            metrics::handle_metric_command(command, context, verbose, writer)
+        }
         Commands::McpServer => {
             eprintln!("Error: mcp-server command should be handled by cytoscnpy-cli directly.");
             eprintln!("If you're seeing this, please use the cytoscnpy-cli binary.");
@@ -142,7 +81,7 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             verbose,
             writer,
         ),
-        Commands::Deps { args } => super::handlers::handle_deps(
+        Commands::Deps { args } => handle_deps(
             DepsCliArgs {
                 effective_paths: context.effective_paths.clone(),
                 flags: DepsFlags {
@@ -177,6 +116,47 @@ pub(super) fn run_subcommand<W: std::io::Write>(
                 fail_on_collisions: args.fail_on_collisions,
                 fail_on_duplicates: args.fail_on_duplicates,
                 fail_on_any: root_fail_on_any || args.fail_on_any,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Naming { args } => handle_naming(
+            &args.paths,
+            NamingFlags {
+                json: root_json || args.json,
+                min_consistency: args.min_consistency,
+                fail_on_inconsistent: root_fail_on_any || args.fail_on_inconsistent,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Todos { args } => handle_todos(
+            &args.paths,
+            TodosFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Globals { args } => handle_globals(
+            &args.paths,
+            GlobalsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_globals: args.max_globals,
                 verbose,
             },
             args.output_file,

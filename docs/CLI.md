@@ -182,7 +182,7 @@ cytoscnpy deslop [OPTIONS] <PATH>
 - `--context-budget <TOKENS>`: Set usable LLM context capacity.
 
 The JSON result has stable top-level sections: `architecture`, `context`,
-`health`, `searchability`, and `gates`, plus `schema_version`.
+`health`, `searchability`, `naming`, `todos`, and `gates`, plus `schema_version`.
 
 ```bash
 cytoscnpy deslop . --json
@@ -200,6 +200,8 @@ min_health_score = 70
 # max_navigation_pct = 75.0
 # max_duplicate_filenames = 0
 # max_function_collisions = 0
+# min_naming_consistency = 0.85
+# max_todos = 0
 ```
 
 ### `searchability`
@@ -220,6 +222,64 @@ cytoscnpy searchability [OPTIONS] [PATHS]...
 - `--fail-on-any`: Exit with code `1` if any searchability issue (duplicate filenames or function collisions) is detected.
 - `-o`, `--output-file <FILE>`: Save report to file.
 - `--exclude <DIRS>`: Exclude folders from searchability analysis.
+
+### `naming`
+
+Analyze Python identifier naming style distribution and consistency:
+
+- Classifies function and method identifiers into `snake_case`, `camelCase`, `PascalCase`, `SCREAMING_SNAKE_CASE`, or `mixed`.
+- Python-aware rules: trims leading private/mangled underscores (`_private`, `__mangled`), trims trailing keyword collision underscores (`class_`), exempts structural dunder methods (`__init__`) and unittest fixtures (`setUp`), and ignores anonymous/lambda functions.
+- Calculates dominant style, distribution breakdown, consistency ratio (0-100%), and identifies non-conforming outliers with source locations.
+
+```bash
+cytoscnpy naming [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `outliers`.
+- `--min-consistency <RATIO>`: Minimum consistency ratio required (e.g. `0.85` or `85.0`).
+- `--fail-on-inconsistent`: Exit with code `1` if naming consistency falls below threshold (default: 0.85 or `--min-consistency`).
+- `--fail-on-any`: Exit with code `1` if naming consistency falls below threshold (alias for `--fail-on-inconsistent`).
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders from naming analysis.
+
+### `todos`
+
+Detect `TODO`, `FIXME`, `HACK`, and `XXX` annotations, debug print statements, and commented-out code blocks:
+
+- Scans source files with word-boundary awareness for annotation markers.
+- Detects debug prints (`print(`, `console.log(`, `println!(`, `puts `, `dbg!(`, etc.) while automatically suppressing them in test files and output-oriented directories (`cli`, `main`, `output`, `views`, etc.).
+- Detects commented-out code blocks (`# if`, `# def`, `// for`, etc.).
+- Outputs human-readable terminal summary or machine-readable JSON.
+
+```bash
+cytoscnpy todos [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `matches`.
+- `--fail-on-any`: Exit with code `1` when any annotation or debug print is detected.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
+### `globals`
+
+Detect mutable global state across Python and polyglot source files:
+
+- Detects module-level mutable data structures (`list`, `dict`, `set`, `defaultdict`, `deque`, `Counter`, etc.).
+- Detects class-level mutable variables shared across all instances.
+- Detects functions mutating module globals via `global`.
+- Polyglot detection for Rust `static mut` and JavaScript/TypeScript top-level mutable `var` and collection `let` declarations.
+- Automatically suppresses test files (`tests/`, `test_*.py`, `conftest.py`, etc.).
+- Outputs human-readable terminal summary or machine-readable JSON.
+
+```bash
+cytoscnpy globals [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `matches`.
+- `--fail-on-any`: Exit with code `1` when any mutable global state is detected.
+- `--max-globals <N>`: Fail if total mutable globals exceed `N`.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
 
 ### `files`
 

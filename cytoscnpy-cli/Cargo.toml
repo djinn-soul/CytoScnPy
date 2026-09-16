@@ -9,7 +9,7 @@ cytoscnpy = { path = "../cytoscnpy", default-features = false }      # use libra
 cytoscnpy-mcp = { path = "../cytoscnpy-mcp" }                        # MCP server integration
 anyhow = "1.0"
 tokio = { version = "1", features = ["io-std", "rt-multi-thread"] }
-rmcp = { version = "1.7.0", features = ["server", "transport-io"] }
+rmcp = { version = "2.0.0", features = ["server", "transport-io"] }
 
 # Inherit lints from workspace
 [lints]

@@ -84,6 +84,27 @@ pub mod naming;
 /// Module for TODO/FIXME/HACK/XXX placeholder, debug-print, and commented-code detection.
 pub mod todos;
 
+/// Module for bare-except and empty exception-handler anti-pattern detection.
+pub mod exceptions;
+
+/// Module for wildcard-import (`from module import *`) detection.
+pub mod wildcards;
+
+/// Module for module-level import-time side-effects analysis.
+pub mod side_effects;
+
+/// Module for singleton pattern detection.
+pub mod singletons;
+
+/// Module for anti-pattern detection (magic numbers and deeply nested callbacks).
+pub mod anti_patterns;
+
+/// Module for duplicate-code clusters and non-overlapping duplicate-line totals.
+pub mod duplicates;
+
+/// Module for unreferenced large functions in isolated files analysis.
+pub mod unreferenced;
+
 /// Module for mutable global state analysis across Python and polyglot files.
 pub mod globals;
 

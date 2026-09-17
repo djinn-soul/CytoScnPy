@@ -85,19 +85,25 @@ pub fn collect_files(roots: &[PathBuf], excludes: &[String]) -> Vec<PathBuf> {
             continue;
         }
 
+        let root_buf = root.clone();
         let mut builder = WalkBuilder::new(root);
         builder.hidden(true).git_ignore(true).git_global(true);
-
-        for entry in builder.build().flatten() {
-            let path = entry.path();
+        builder.filter_entry(move |entry| {
+            if entry.path() == root_buf {
+                return true;
+            }
             if entry.file_type().is_some_and(|ft| ft.is_dir()) {
-                if let Some(dir_name) = path.file_name().and_then(|n| n.to_str()) {
+                if let Some(dir_name) = entry.file_name().to_str() {
                     if SKIP_DIR_NAMES.contains(&dir_name) {
-                        continue;
+                        return false;
                     }
                 }
             }
+            true
+        });
 
+        for entry in builder.build().flatten() {
+            let path = entry.path();
             if !entry.file_type().is_some_and(|ft| ft.is_file()) {
                 continue;
             }

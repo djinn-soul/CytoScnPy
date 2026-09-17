@@ -1,24 +1,42 @@
+mod anti_patterns;
 mod commands;
 mod deps;
 mod deslop;
+mod doctor;
+mod duplicates;
+mod exceptions;
 mod globals;
+mod graph;
 mod naming;
 mod options;
 mod searchability;
+mod side_effects;
+mod singletons;
 mod todos;
+mod unreferenced;
 pub(crate) mod validators;
+mod wildcards;
 
+pub use anti_patterns::AntiPatternsArgs;
 pub use commands::Commands;
 pub use deps::DepsArgs;
 pub use deslop::DeslopArgs;
+pub use doctor::DoctorArgs;
+pub use duplicates::DuplicatesArgs;
+pub use exceptions::ExceptionsArgs;
 pub use globals::GlobalsArgs;
+pub use graph::GraphArgs;
 pub use naming::NamingArgs;
 pub use options::{
     ClientKind, FilesArgs, IncludeOptions, MetricArgs, OutputFormat, OutputOptions, PathArgs,
     RankArgs, ScanOptions,
 };
 pub use searchability::SearchabilityArgs;
+pub use side_effects::SideEffectsArgs;
+pub use singletons::SingletonsArgs;
 pub use todos::TodosArgs;
+pub use unreferenced::UnreferencedArgs;
+pub use wildcards::WildcardsArgs;
 
 use clap::Parser;
 use std::path::PathBuf;

@@ -25,6 +25,32 @@ pub struct DeslopConfig {
     pub max_todos: Option<usize>,
     /// Optional maximum allowed mutable global state instances.
     pub max_global_mutables: Option<usize>,
+    /// Optional maximum allowed bare-except blocks.
+    pub max_bare_excepts: Option<usize>,
+    /// Optional maximum allowed empty exception handlers.
+    pub max_empty_handlers: Option<usize>,
+    /// Optional maximum allowed wildcard imports (`from module import *`).
+    pub max_wildcard_imports: Option<usize>,
+    /// Optional maximum allowed module-level side effects.
+    pub max_side_effects: Option<usize>,
+    /// Optional maximum allowed singleton patterns.
+    pub max_singletons: Option<usize>,
+    /// Optional maximum allowed anti-patterns.
+    pub max_anti_patterns: Option<usize>,
+    /// Optional maximum allowed magic numbers.
+    pub max_magic_numbers: Option<usize>,
+    /// Optional maximum allowed deeply nested callbacks.
+    pub max_nested_callbacks: Option<usize>,
+    /// Optional maximum allowed duplicate-code clusters.
+    pub max_duplicate_clusters: Option<usize>,
+    /// Optional maximum allowed non-overlapping duplicate lines.
+    pub max_duplicate_lines: Option<usize>,
+    /// Optional maximum allowed duplicate code percentage (0.0 - 100.0).
+    pub max_duplicate_pct: Option<f64>,
+    /// Optional maximum allowed unreferenced large functions in isolated files.
+    pub max_unreferenced_functions: Option<usize>,
+    /// Optional maximum allowed lines in unreferenced large functions.
+    pub max_unreferenced_lines: Option<usize>,
 }
 
 impl Default for DeslopConfig {
@@ -40,6 +66,19 @@ impl Default for DeslopConfig {
             min_naming_consistency: None,
             max_todos: None,
             max_global_mutables: None,
+            max_bare_excepts: None,
+            max_empty_handlers: None,
+            max_wildcard_imports: None,
+            max_side_effects: None,
+            max_singletons: None,
+            max_anti_patterns: None,
+            max_magic_numbers: None,
+            max_nested_callbacks: None,
+            max_duplicate_clusters: None,
+            max_duplicate_lines: None,
+            max_duplicate_pct: None,
+            max_unreferenced_functions: None,
+            max_unreferenced_lines: None,
         }
     }
 }

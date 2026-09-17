@@ -13,6 +13,13 @@ pub(super) fn render_human_report(
     naming: &crate::naming::NamingDistributionResult,
     todos: &crate::todos::TodosResult,
     globals: &crate::globals::GlobalsResult,
+    exceptions: &crate::exceptions::ExceptionsResult,
+    wildcards: &crate::wildcards::WildcardsResult,
+    side_effects: &crate::side_effects::SideEffectsResult,
+    singletons: &crate::singletons::SingletonsResult,
+    anti_patterns: &crate::anti_patterns::AntiPatternsResult,
+    duplicates: &crate::duplicates::DuplicatesResult,
+    unreferenced: &crate::unreferenced::UnreferencedResult,
     failures: &[GateFailure],
 ) -> Result<String> {
     let mut output = Vec::new();
@@ -41,6 +48,27 @@ pub(super) fn render_human_report(
 
     writeln!(output, "\n# Mutable Global State")?;
     crate::globals::print_terminal_report(globals, None, &mut output)?;
+
+    writeln!(output, "\n# Exception Handler Anti-Patterns")?;
+    crate::exceptions::print_terminal_report(exceptions, None, &mut output)?;
+
+    writeln!(output, "\n# Wildcard Imports")?;
+    crate::wildcards::print_terminal_report(wildcards, None, &mut output)?;
+
+    writeln!(output, "\n# Module-Level Side Effects")?;
+    crate::side_effects::print_terminal_report(side_effects, None, &mut output)?;
+
+    writeln!(output, "\n# Singleton Patterns")?;
+    crate::singletons::print_terminal_report(singletons, None, &mut output)?;
+
+    writeln!(output, "\n# Anti-Patterns")?;
+    crate::anti_patterns::print_terminal_report(anti_patterns, None, &mut output)?;
+
+    writeln!(output, "\n# Duplicate Code Clusters")?;
+    crate::duplicates::print_terminal_report(duplicates, None, &mut output)?;
+
+    writeln!(output, "\n# Unreferenced Large Functions in Isolated Files")?;
+    crate::unreferenced::print_terminal_report(unreferenced, None, &mut output)?;
 
     writeln!(output, "\n# CI Gates")?;
     if failures.is_empty() {

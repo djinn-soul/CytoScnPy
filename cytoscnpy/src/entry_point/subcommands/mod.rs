@@ -1,11 +1,10 @@
 mod metrics;
+mod quality;
 
 use super::config::resolve_scan_flag;
 use super::handlers::{
-    handle_context, handle_deps, handle_deslop, handle_doctor, handle_files, handle_globals,
-    handle_graph, handle_naming, handle_searchability, handle_stats, handle_todos, ContextFlags,
-    DepsCliArgs, DepsFlags, DoctorFlags, GlobalsFlags, GraphFlags, NamingFlags, SearchabilityFlags,
-    TodosFlags,
+    handle_context, handle_deps, handle_deslop, handle_doctor, handle_files, handle_graph,
+    handle_stats, ContextFlags, DepsCliArgs, DepsFlags, DoctorFlags, GraphFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -109,85 +108,39 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             &context.config,
             writer,
         ),
-        Commands::Searchability { args } => handle_searchability(
-            &args.paths,
-            SearchabilityFlags {
-                json: root_json || args.json,
-                fail_on_collisions: args.fail_on_collisions,
-                fail_on_duplicates: args.fail_on_duplicates,
-                fail_on_any: root_fail_on_any || args.fail_on_any,
-                verbose,
-            },
-            args.output_file,
-            args.exclude,
-            &context.exclude_folders,
-            &context.analysis_root,
-            writer,
-        ),
-        Commands::Naming { args } => handle_naming(
-            &args.paths,
-            NamingFlags {
-                json: root_json || args.json,
-                min_consistency: args.min_consistency,
-                fail_on_inconsistent: root_fail_on_any || args.fail_on_inconsistent,
-                verbose,
-            },
-            args.output_file,
-            args.exclude,
-            &context.exclude_folders,
-            &context.analysis_root,
-            writer,
-        ),
-        Commands::Todos { args } => handle_todos(
-            &args.paths,
-            TodosFlags {
-                json: root_json || args.json,
-                fail_on_any: root_fail_on_any || args.fail_on_any,
-                verbose,
-            },
-            args.output_file,
-            args.exclude,
-            &context.exclude_folders,
-            &context.analysis_root,
-            writer,
-        ),
-        Commands::Globals { args } => handle_globals(
-            &args.paths,
-            GlobalsFlags {
-                json: root_json || args.json,
-                fail_on_any: root_fail_on_any || args.fail_on_any,
-                max_globals: args.max_globals,
-                verbose,
-            },
-            args.output_file,
-            args.exclude,
-            &context.exclude_folders,
-            &context.analysis_root,
+        Commands::Searchability { .. }
+        | Commands::Naming { .. }
+        | Commands::Todos { .. }
+        | Commands::Globals { .. }
+        | Commands::Exceptions { .. }
+        | Commands::Wildcards { .. }
+        | Commands::SideEffects { .. }
+        | Commands::Singletons { .. }
+        | Commands::AntiPatterns { .. }
+        | Commands::Duplicates { .. }
+        | Commands::Unreferenced { .. } => quality::handle_quality_command(
+            command,
+            root_json,
+            root_fail_on_any,
+            verbose,
+            context,
             writer,
         ),
         Commands::Init => {
             crate::commands::run_init_in(&context.analysis_root, writer)?;
             Ok(0)
         }
-        Commands::Graph {
-            paths,
-            json,
-            cycles_only,
-            fail_on_cycles,
-            fail_on_god_modules,
-            exclude,
-            output_file,
-        } => handle_graph(
-            &paths,
+        Commands::Graph { args } => handle_graph(
+            &args.paths,
             GraphFlags {
-                json,
-                cycles_only,
-                fail_on_cycles,
-                fail_on_god_modules,
+                json: args.json,
+                cycles_only: args.cycles_only,
+                fail_on_cycles: args.fail_on_cycles,
+                fail_on_god_modules: args.fail_on_god_modules,
                 verbose,
             },
-            output_file,
-            exclude,
+            args.output_file,
+            args.exclude,
             &context.exclude_folders,
             &context.analysis_root,
             writer,
@@ -219,21 +172,15 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             &context.analysis_root,
             writer,
         ),
-        Commands::Doctor {
-            paths,
-            json,
-            fail_on_missing,
-            exclude,
-            output_file,
-        } => handle_doctor(
-            &paths,
+        Commands::Doctor { args } => handle_doctor(
+            &args.paths,
             DoctorFlags {
-                json,
-                fail_on_missing,
+                json: args.json,
+                fail_on_missing: args.fail_on_missing,
                 verbose,
             },
-            output_file,
-            exclude,
+            args.output_file,
+            args.exclude,
             &context.exclude_folders,
             &context.analysis_root,
             writer,

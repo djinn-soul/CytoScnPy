@@ -171,29 +171,65 @@ pub enum Commands {
         #[command(flatten)]
         args: super::GlobalsArgs,
     },
+    /// Detect bare-except and empty exception-handler anti-patterns
+    #[command(alias = "bare-except")]
+    Exceptions {
+        /// Exceptions analysis options.
+        #[command(flatten)]
+        args: super::ExceptionsArgs,
+    },
+    /// Detect wildcard imports (`from module import *`) across Python source files
+    #[command(alias = "star-imports")]
+    Wildcards {
+        /// Wildcards analysis options.
+        #[command(flatten)]
+        args: super::WildcardsArgs,
+    },
+    /// Detect module-level import-time side effects
+    #[command(alias = "side-effects")]
+    SideEffects {
+        /// Side effects analysis options.
+        #[command(flatten)]
+        args: super::SideEffectsArgs,
+    },
+    /// Detect singleton patterns in Python classes
+    #[command(alias = "singleton")]
+    Singletons {
+        /// Singletons analysis options.
+        #[command(flatten)]
+        args: super::SingletonsArgs,
+    },
+    /// Detect anti-patterns (magic numbers and deeply nested callbacks) in Python code
+    #[command(
+        name = "anti-patterns",
+        alias = "antipatterns",
+        alias = "magic-numbers",
+        alias = "callbacks"
+    )]
+    AntiPatterns {
+        /// Anti-patterns analysis options.
+        #[command(flatten)]
+        args: super::AntiPatternsArgs,
+    },
+    /// Analyze duplicate-code clusters and non-overlapping duplicate-line totals
+    #[command(alias = "dupes", alias = "clones-summary")]
+    Duplicates {
+        /// Duplicates analysis options.
+        #[command(flatten)]
+        args: super::DuplicatesArgs,
+    },
     /// Analyze Python module architecture, import graph, and circular dependencies
     Graph {
-        /// Path options (paths vs root).
+        /// Graph analysis options.
         #[command(flatten)]
-        paths: PathArgs,
-        /// Output JSON format.
-        #[arg(long)]
-        json: bool,
-        /// Only show circular dependency cycles.
-        #[arg(long)]
-        cycles_only: bool,
-        /// Exit with code 1 if any circular dependencies are detected.
-        #[arg(long)]
-        fail_on_cycles: bool,
-        /// Exit with code 1 if any god modules are detected.
-        #[arg(long)]
-        fail_on_god_modules: bool,
-        /// Exclude folders.
-        #[arg(long, alias = "exclude-folder")]
-        exclude: Vec<String>,
-        /// Output file path.
-        #[arg(long, short = 'o')]
-        output_file: Option<String>,
+        args: super::GraphArgs,
+    },
+    /// Analyze potentially unreferenced large functions in files with no incoming imports
+    #[command(alias = "dead-functions", alias = "isolated-functions")]
+    Unreferenced {
+        /// Unreferenced functions analysis options.
+        #[command(flatten)]
+        args: super::UnreferencedArgs,
     },
     /// Analyze Git-aware code churn, hotspots, and LLM token budget
     Context {
@@ -228,20 +264,8 @@ pub enum Commands {
     /// Check repository health, setup reliability, and configuration metadata
     #[command(alias = "health")]
     Doctor {
-        /// Path options (paths vs root).
+        /// Doctor analysis options.
         #[command(flatten)]
-        paths: PathArgs,
-        /// Output JSON format.
-        #[arg(long)]
-        json: bool,
-        /// Exit with code 1 if critical or recommended setup items are missing or failing.
-        #[arg(long)]
-        fail_on_missing: bool,
-        /// Exclude folders.
-        #[arg(long, alias = "exclude-folder")]
-        exclude: Vec<String>,
-        /// Output file path.
-        #[arg(long, short = 'o')]
-        output_file: Option<String>,
+        args: super::DoctorArgs,
     },
 }

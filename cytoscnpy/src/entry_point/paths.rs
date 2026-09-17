@@ -105,9 +105,34 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
             | Commands::Globals {
                 args: crate::cli::GlobalsArgs { paths, .. },
             }
-            | Commands::Graph { paths, .. }
+            | Commands::Exceptions {
+                args: crate::cli::ExceptionsArgs { paths, .. },
+            }
+            | Commands::Wildcards {
+                args: crate::cli::WildcardsArgs { paths, .. },
+            }
+            | Commands::SideEffects {
+                args: crate::cli::SideEffectsArgs { paths, .. },
+            }
+            | Commands::Singletons {
+                args: crate::cli::SingletonsArgs { paths, .. },
+            }
+            | Commands::AntiPatterns {
+                args: crate::cli::AntiPatternsArgs { paths, .. },
+            }
+            | Commands::Duplicates {
+                args: crate::cli::DuplicatesArgs { paths, .. },
+            }
+            | Commands::Unreferenced {
+                args: crate::cli::UnreferencedArgs { paths, .. },
+            }
+            | Commands::Graph {
+                args: crate::cli::GraphArgs { paths, .. },
+            }
             | Commands::Context { paths, .. }
-            | Commands::Doctor { paths, .. } => {
+            | Commands::Doctor {
+                args: crate::cli::DoctorArgs { paths, .. },
+            } => {
                 if let Some(r) = &paths.root {
                     all_target_paths.push(r.clone());
                 } else {

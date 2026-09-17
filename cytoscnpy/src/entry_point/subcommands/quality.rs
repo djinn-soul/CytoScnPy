@@ -1,0 +1,192 @@
+//! Quality and runtime analysis subcommand handlers.
+
+use anyhow::Result;
+use std::io::Write;
+
+use crate::cli::Commands;
+use crate::entry_point::handlers::{
+    handle_anti_patterns, handle_duplicates, handle_exceptions, handle_globals, handle_naming,
+    handle_searchability, handle_side_effects, handle_singletons, handle_todos,
+    handle_unreferenced, handle_wildcards, AntiPatternsFlags, DuplicatesFlags, ExceptionsFlags,
+    GlobalsFlags, NamingFlags, SearchabilityFlags, SideEffectsFlags, SingletonsFlags, TodosFlags,
+    UnreferencedFlags, WildcardsFlags,
+};
+use crate::entry_point::run::RuntimeContext;
+
+pub(super) fn handle_quality_command<W: Write>(
+    command: Commands,
+    root_json: bool,
+    root_fail_on_any: bool,
+    verbose: bool,
+    context: &RuntimeContext,
+    writer: &mut W,
+) -> Result<i32> {
+    match command {
+        Commands::Searchability { args } => handle_searchability(
+            &args.paths,
+            SearchabilityFlags {
+                json: root_json || args.json,
+                fail_on_collisions: args.fail_on_collisions,
+                fail_on_duplicates: args.fail_on_duplicates,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Naming { args } => handle_naming(
+            &args.paths,
+            NamingFlags {
+                json: root_json || args.json,
+                min_consistency: args.min_consistency,
+                fail_on_inconsistent: root_fail_on_any || args.fail_on_inconsistent,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Todos { args } => handle_todos(
+            &args.paths,
+            TodosFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Globals { args } => handle_globals(
+            &args.paths,
+            GlobalsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_globals: args.max_globals,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Exceptions { args } => handle_exceptions(
+            &args.paths,
+            ExceptionsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_bare_excepts: args.max_bare_excepts,
+                max_empty_handlers: args.max_empty_handlers,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Wildcards { args } => handle_wildcards(
+            &args.paths,
+            WildcardsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_wildcards: args.max_wildcards,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::SideEffects { args } => handle_side_effects(
+            &args.paths,
+            SideEffectsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_side_effects: args.max_side_effects,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Singletons { args } => handle_singletons(
+            &args.paths,
+            SingletonsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_singletons: args.max_singletons,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::AntiPatterns { args } => handle_anti_patterns(
+            &args.paths,
+            AntiPatternsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_anti_patterns: args.max_anti_patterns,
+                max_magic_numbers: args.max_magic_numbers,
+                max_nested_callbacks: args.max_nested_callbacks,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Duplicates { args } => handle_duplicates(
+            &args.paths,
+            DuplicatesFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_clusters: args.max_clusters,
+                max_duplicate_lines: args.max_duplicate_lines,
+                max_duplicate_pct: args.max_duplicate_pct,
+                min_similarity: args.min_similarity,
+                min_lines: args.min_lines,
+                include_tests: args.include_tests,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Unreferenced { args } => handle_unreferenced(
+            &args.paths,
+            UnreferencedFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                max_unreferenced: args.max_unreferenced,
+                max_unreferenced_lines: args.max_unreferenced_lines,
+                min_lines: args.min_lines,
+                include_tests: args.include_tests,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        _ => unreachable!("handle_quality_command called with non-quality command"),
+    }
+}

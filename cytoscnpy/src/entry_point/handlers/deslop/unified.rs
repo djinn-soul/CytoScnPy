@@ -6,7 +6,10 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+mod gates;
 mod output;
+
+use gates::{collect_failures, GateFailure, GateSummary};
 
 pub(super) struct ComprehensiveRequest<'a> {
     pub roots: &'a [PathBuf],
@@ -27,20 +30,14 @@ struct ComprehensiveReport {
     naming: crate::naming::NamingDistributionResult,
     todos: crate::todos::TodosResult,
     globals: crate::globals::GlobalsResult,
+    exceptions: crate::exceptions::ExceptionsResult,
+    wildcards: crate::wildcards::WildcardsResult,
+    side_effects: crate::side_effects::SideEffectsResult,
+    singletons: crate::singletons::SingletonsResult,
+    anti_patterns: crate::anti_patterns::AntiPatternsResult,
+    duplicates: crate::duplicates::DuplicatesResult,
+    unreferenced: crate::unreferenced::UnreferencedResult,
     gates: GateSummary,
-}
-
-#[derive(Serialize)]
-struct GateSummary {
-    passed: bool,
-    failures: Vec<GateFailure>,
-}
-
-#[derive(Serialize)]
-struct GateFailure {
-    check: &'static str,
-    actual: String,
-    limit: String,
 }
 
 pub(super) fn run_comprehensive_deslop<W: Write>(
@@ -78,6 +75,51 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         request.excludes,
         request.cli.output.verbose,
     );
+    let exceptions = crate::exceptions::analyze_exceptions(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
+    let wildcards = crate::wildcards::analyze_wildcards(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
+    let side_effects = crate::side_effects::analyze_side_effects(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
+    let singletons = crate::singletons::analyze_singletons(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
+    let anti_patterns = crate::anti_patterns::analyze_anti_patterns(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
+    let include_tests = request.cli.include.include_tests
+        || request.config.cytoscnpy.include_tests.unwrap_or(false);
+    let duplicates = crate::duplicates::analyze_duplicates(
+        request.roots,
+        request.excludes,
+        &crate::duplicates::DuplicatesOptions {
+            include_tests,
+            ..crate::duplicates::DuplicatesOptions::default()
+        },
+        request.cli.output.verbose,
+    );
+    let unreferenced = crate::unreferenced::analyze_unreferenced(
+        request.roots,
+        request.excludes,
+        &crate::unreferenced::UnreferencedOptions {
+            include_tests,
+            ..crate::unreferenced::UnreferencedOptions::default()
+        },
+        request.cli.output.verbose,
+    );
 
     let failures = collect_failures(
         &architecture,
@@ -87,6 +129,13 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         &naming,
         &todos,
         &globals,
+        &exceptions,
+        &wildcards,
+        &side_effects,
+        &singletons,
+        &anti_patterns,
+        &duplicates,
+        &unreferenced,
         request.config,
         request.cli.output.fail_on_any,
     );
@@ -102,6 +151,13 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             &naming,
             &todos,
             &globals,
+            &exceptions,
+            &wildcards,
+            &side_effects,
+            &singletons,
+            &anti_patterns,
+            &duplicates,
+            &unreferenced,
             &failures,
         )?)
     };
@@ -115,6 +171,13 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         naming,
         todos,
         globals,
+        exceptions,
+        wildcards,
+        side_effects,
+        singletons,
+        anti_patterns,
+        duplicates,
+        unreferenced,
         gates: GateSummary {
             passed: failures.is_empty(),
             failures,
@@ -155,121 +218,4 @@ fn health_results(request: &ComprehensiveRequest<'_>) -> Vec<crate::doctor::Doct
             )
         })
         .collect()
-}
-
-fn collect_failures(
-    architecture: &crate::architecture::ArchitectureGraphResult,
-    context: &crate::context::ContextAnalysisResult,
-    health: &[crate::doctor::DoctorResult],
-    searchability: &crate::searchability::SearchabilityResult,
-    naming: &crate::naming::NamingDistributionResult,
-    todos: &crate::todos::TodosResult,
-    globals: &crate::globals::GlobalsResult,
-    config: &crate::config::Config,
-    fail_on_any: bool,
-) -> Vec<GateFailure> {
-    let mut failures = Vec::new();
-    if !fail_on_any {
-        return failures;
-    }
-
-    let deslop = &config.cytoscnpy.deslop;
-    push_over(
-        &mut failures,
-        "circular_dependencies",
-        architecture.stats.circular_dependency_count,
-        deslop.max_cycles,
-    );
-    push_over(
-        &mut failures,
-        "god_modules",
-        architecture.stats.god_modules.len(),
-        deslop.max_god_modules,
-    );
-    let severe_hotspots = context
-        .hotspots
-        .iter()
-        .filter(|item| {
-            matches!(
-                item.risk_level,
-                crate::context::HotspotRiskLevel::High | crate::context::HotspotRiskLevel::Critical
-            )
-        })
-        .count();
-    push_over(
-        &mut failures,
-        "severe_hotspots",
-        severe_hotspots,
-        deslop.max_hotspots,
-    );
-    for result in health {
-        if result.reliability.score < deslop.min_health_score {
-            failures.push(failure(
-                "health_score",
-                result.reliability.score.to_string(),
-                format!(">= {}", deslop.min_health_score),
-            ));
-        }
-    }
-    if let Some(limit) = deslop.max_navigation_pct {
-        if context.token_budget.navigation_pct > limit {
-            failures.push(failure(
-                "navigation_pct",
-                format!("{:.1}", context.token_budget.navigation_pct),
-                format!("<= {limit:.1}"),
-            ));
-        }
-    }
-    if let Some(limit) = deslop.max_duplicate_filenames {
-        push_over(
-            &mut failures,
-            "duplicate_filenames",
-            searchability.stats.duplicate_filenames,
-            limit,
-        );
-    }
-    if let Some(limit) = deslop.max_function_collisions {
-        push_over(
-            &mut failures,
-            "function_collisions",
-            searchability.stats.function_name_collisions,
-            limit,
-        );
-    }
-    if let Some(limit) = deslop.min_naming_consistency {
-        if !naming.is_consistent(limit) {
-            let norm_limit = crate::naming::types::normalize_consistency_threshold(limit);
-            failures.push(failure(
-                "naming_consistency",
-                format!("{:.1}%", naming.stats.consistency_score()),
-                format!(">= {:.1}%", norm_limit * 100.0),
-            ));
-        }
-    }
-    if let Some(limit) = deslop.max_todos {
-        push_over(&mut failures, "todos", todos.stats.total, limit);
-    }
-    if let Some(limit) = deslop.max_global_mutables {
-        push_over(
-            &mut failures,
-            "global_mutables",
-            globals.stats.total_globals,
-            limit,
-        );
-    }
-    failures
-}
-
-fn push_over(failures: &mut Vec<GateFailure>, check: &'static str, actual: usize, limit: usize) {
-    if actual > limit {
-        failures.push(failure(check, actual.to_string(), format!("<= {limit}")));
-    }
-}
-
-fn failure(check: &'static str, actual: String, limit: String) -> GateFailure {
-    GateFailure {
-        check,
-        actual,
-        limit,
-    }
 }

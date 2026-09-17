@@ -281,6 +281,168 @@ cytoscnpy globals [OPTIONS] [PATHS]...
 - `-o`, `--output-file <FILE>`: Save report to file.
 - `--exclude <DIRS>`: Exclude folders or patterns from scan.
 
+### `exceptions`
+
+Detect bare-except and empty exception-handler anti-patterns (alias `bare-except`):
+
+- Detects `except:` statements with no specific exception type (`BareExcept`).
+- Detects handlers whose bodies only contain `pass`, `...`, or bare string comments (`EmptyHandler`).
+- Recursively scans modules, functions, classes, loops, with-blocks, and match statements.
+- Outputs human-readable terminal summary or machine-readable JSON.
+
+```bash
+cytoscnpy exceptions [OPTIONS] [PATHS]...
+# Or alias
+cytoscnpy bare-except [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `matches`.
+- `--fail-on-any`: Exit with code `1` when any exception anti-pattern is detected.
+- `--max-bare-excepts <N>`: Fail if total bare-except blocks exceed `N`.
+- `--max-empty-handlers <N>`: Fail if total empty exception handlers exceed `N`.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
+### `wildcards`
+
+Detect wildcard imports across Python source files (alias `star-imports`):
+
+- Detects `from <module> import *` statements polluting module or function namespaces.
+- Recursively inspects module level and nested block scopes.
+- Captures the imported module name (including relative dots like `.`, `..`).
+- Outputs human-readable terminal summary or machine-readable JSON.
+
+```bash
+cytoscnpy wildcards [OPTIONS] [PATHS]...
+# Or alias
+cytoscnpy star-imports [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `matches`.
+- `--fail-on-any`: Exit with code `1` when any wildcard import is detected.
+- `--max-wildcards <N>`: Fail if total wildcard imports exceed `N`.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
+### `side-effects`
+
+Detect module-level import-time side effects:
+
+- Detects top-level function calls, loops (`for`/`while`), and `with` statements executed on import.
+- Automatically exempts safe logging/warnings setup and entrypoint files (`setup.py`, `conftest.py`, etc.).
+- Detects polyglot JavaScript/TypeScript top-level network/server calls and global event listeners.
+- Outputs human-readable terminal summary or machine-readable JSON.
+
+```bash
+cytoscnpy side-effects [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `matches`.
+- `--fail-on-any`: Exit with code `1` when any import-time side effect is detected.
+- `--max-side-effects <N>`: Fail if total module-level side effects exceed `N`.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
+### `singletons`
+
+Detect Python singleton patterns (alias `singleton`):
+
+- Detects instance caching in overridden `__new__` methods.
+- Detects `_instance` class attribute caches paired with `get_instance()` / `getInstance()` accessors.
+- Detects `@singleton` / `@Singleton` class decorators.
+- Detects `metaclass=Singleton` class declarations.
+- Outputs human-readable terminal summary or machine-readable JSON.
+
+```bash
+cytoscnpy singletons [OPTIONS] [PATHS]...
+# Or alias
+cytoscnpy singleton [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `matches`.
+- `--fail-on-any`: Exit with code `1` when any singleton pattern is detected.
+- `--max-singletons <N>`: Fail if total singleton patterns exceed `N`.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
+### `anti-patterns`
+
+Detect code-quality anti-patterns (magic numbers and deeply nested callbacks; aliases `antipatterns`, `magic-numbers`, `callbacks`):
+
+- Detects hardcoded magic numbers (3+ digits) in comparisons, conditional tests, and loop expressions (exempting module/class level constant declarations like `MAX_SIZE = 500`).
+- Detects deeply nested callbacks, closures, lambdas, or control structures nested 4+ levels deep (>= 16 spaces indentation).
+- Automatically suppresses test files (`test_*.py`, `conftest.py`, `tests/`).
+- Outputs human-readable terminal summary or machine-readable JSON.
+
+```bash
+cytoscnpy anti-patterns [OPTIONS] [PATHS]...
+# Or aliases
+cytoscnpy antipatterns [OPTIONS] [PATHS]...
+cytoscnpy magic-numbers [OPTIONS] [PATHS]...
+cytoscnpy callbacks [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `stats` and `matches`.
+- `--fail-on-any`: Exit with code `1` when any anti-pattern is detected.
+- `--max-anti-patterns <N>`: Fail if total anti-patterns exceed `N`.
+- `--max-magic-numbers <N>`: Fail if magic numbers exceed `N`.
+- `--max-nested-callbacks <N>`: Fail if deeply nested callbacks exceed `N`.
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
+### `duplicates`
+
+Analyze duplicate-code clusters and non-overlapping duplicate-line totals (aliases: `dupes`, `clones-summary`):
+
+- Groups duplicate code fragments into clusters across Python source files (Type-1 exact, Type-2 renamed, Type-3 similar).
+- Computes non-overlapping physical duplicate lines per file and project-wide using interval unions to eliminate double-counting.
+- Reports duplication percentage, top affected files, and cluster code locations.
+- Supports CI gates on cluster count, total duplicate lines, and duplication percentage.
+
+```bash
+cytoscnpy duplicates [OPTIONS] [PATHS]...
+# Or aliases
+cytoscnpy dupes [OPTIONS] [PATHS]...
+cytoscnpy clones-summary [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `clusters`, `stats`, and `file_stats`.
+- `--fail-on-any`: Exit with code `1` when any duplicate code cluster is detected.
+- `--max-clusters <N>`: Fail if total duplicate clusters exceed `N`.
+- `--max-duplicate-lines <N>`: Fail if total non-overlapping duplicate lines exceed `N`.
+- `--max-duplicate-pct <PCT>`: Fail if duplicate line percentage exceeds `PCT` (e.g. `5.0`).
+- `--min-similarity <VAL>`: Similarity threshold (0.0 - 1.0, default: `0.85`).
+- `--min-lines <N>`: Minimum line threshold for code fragments (default: `4`).
+- `--include-tests`: Include test files in duplication analysis (excluded by default).
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
+### `unreferenced`
+
+Detect potentially unreferenced large functions in files with no incoming imports (aliases: `dead-functions`, `isolated-functions`):
+
+- Identifies isolated Python files that have no incoming imports or incoming references from any other files in the project.
+- Scans functions in isolated files for large implementations (15+ lines by default) with specific non-trivial names.
+- Filters out short helper names (<8 chars), test functions, dunder methods, and common framework hook prefixes (`get`, `set`, `on`, `handle`, `render`, `validate`, `resolve`, etc.).
+- Verifies that candidate functions are not referenced anywhere else across the codebase.
+- Supports CI gates on unreferenced function count and total unreferenced lines.
+
+```bash
+cytoscnpy unreferenced [OPTIONS] [PATHS]...
+# Or aliases
+cytoscnpy dead-functions [OPTIONS] [PATHS]...
+cytoscnpy isolated-functions [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report with `items`, `isolated_files`, and `stats`.
+- `--fail-on-any`: Exit with code `1` when any unreferenced large function is detected.
+- `--max-unreferenced <N>`: Fail if total unreferenced functions exceed `N`.
+- `--max-unreferenced-lines <N>`: Fail if total unreferenced lines exceed `N`.
+- `--min-lines <N>`: Minimum line threshold for large functions (default: `15`).
+- `--include-tests`: Include test files in analysis (excluded by default).
+- `-o`, `--output-file <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from scan.
+
 ### `files`
 
 Show per-file metrics table.

@@ -100,3 +100,8 @@ deslopify/
 CONTINUITY.md
 PLANS.md
 MEMORIES.md
+
+# External benchmark and test artifacts
+.desloppify/
+scorecard.png
+

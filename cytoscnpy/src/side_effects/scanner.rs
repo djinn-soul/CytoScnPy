@@ -1,4 +1,4 @@
-//! File scanning and discovery for mutable global state analysis.
+//! Parallel file scanner and discovery for module-level side-effects analysis.
 
 use ignore::WalkBuilder;
 use rayon::prelude::*;
@@ -6,9 +6,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::polyglot::{detect_js_globals, detect_rust_globals};
-use super::python::detect_python_globals;
-use super::types::{GlobalKind, GlobalMatch, GlobalsResult};
+use super::polyglot::detect_js_side_effects;
+use super::python::detect_python_side_effects;
+use super::types::{SideEffectMatch, SideEffectStats, SideEffectsResult};
 
 const SKIP_DIR_NAMES: &[&str] = &[
     ".git",
@@ -54,11 +54,9 @@ pub fn is_test_file(path: &Path) -> bool {
     false
 }
 
-/// Identifies the file type for analysis dispatch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceFileType {
     Python,
-    Rust,
     JavaScript,
 }
 
@@ -66,7 +64,6 @@ fn classify_file_type(path: &Path) -> Option<SourceFileType> {
     let ext = path.extension().and_then(|e| e.to_str())?;
     match ext {
         "py" | "pyi" => Some(SourceFileType::Python),
-        "rs" => Some(SourceFileType::Rust),
         "js" | "jsx" | "mjs" | "cjs" | "ts" | "tsx" => Some(SourceFileType::JavaScript),
         _ => None,
     }
@@ -104,11 +101,7 @@ pub fn collect_files(roots: &[PathBuf], excludes: &[String]) -> Vec<PathBuf> {
 
         for entry in builder.build().flatten() {
             let path = entry.path();
-            if !entry.file_type().is_some_and(|ft| ft.is_file()) {
-                continue;
-            }
-
-            if is_test_file(path) {
+            if !entry.file_type().is_some_and(|ft| ft.is_file()) || is_test_file(path) {
                 continue;
             }
 
@@ -128,45 +121,37 @@ pub fn collect_files(roots: &[PathBuf], excludes: &[String]) -> Vec<PathBuf> {
     files
 }
 
-/// Scans the given files in parallel for mutable global state.
+/// Scans source files in parallel for module-level side effects.
 #[must_use]
-pub fn scan_files(files: &[PathBuf], target_root: &Path) -> GlobalsResult {
-    let matches: Vec<GlobalMatch> = files
+pub fn scan_files(files: &[PathBuf]) -> SideEffectsResult {
+    let mut matches: Vec<SideEffectMatch> = files
         .par_iter()
         .filter_map(|path| {
             let file_type = classify_file_type(path)?;
             let content = fs::read_to_string(path).ok()?;
             let file_matches = match file_type {
-                SourceFileType::Python => detect_python_globals(&content, path),
-                SourceFileType::Rust => detect_rust_globals(&content, path),
-                SourceFileType::JavaScript => detect_js_globals(&content, path),
+                SourceFileType::Python => detect_python_side_effects(&content, path),
+                SourceFileType::JavaScript => detect_js_side_effects(&content, path),
             };
             Some(file_matches)
         })
         .flatten()
         .collect();
 
-    let mut result = GlobalsResult::new(target_root.to_path_buf());
-    result.files_scanned = files.len();
+    matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
+    let mut stats = SideEffectStats::default();
     let mut affected_files = HashSet::new();
+
     for m in &matches {
+        stats.record(m.kind);
         affected_files.insert(&m.file);
-        match m.kind {
-            GlobalKind::ModuleCollection => result.stats.module_collection_count += 1,
-            GlobalKind::ClassVariable => result.stats.class_variable_count += 1,
-            GlobalKind::GlobalMutation => result.stats.global_mutation_count += 1,
-            GlobalKind::RustStaticMut => result.stats.rust_static_mut_count += 1,
-            GlobalKind::JsTopLevelMutable => result.stats.js_toplevel_count += 1,
-        }
     }
+    stats.affected_files = affected_files.len();
 
-    result.stats.total_globals = matches.len();
-    result.stats.affected_files = affected_files.len();
-    result.matches = matches;
-    result
-        .matches
-        .sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
-
-    result
+    SideEffectsResult {
+        stats,
+        files_scanned: files.len(),
+        matches,
+    }
 }

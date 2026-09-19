@@ -1,6 +1,7 @@
 //! Handler for the `score` (slop-index) subcommand.
 
 use anyhow::Result;
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -43,6 +44,7 @@ pub(crate) fn handle_score<W: Write>(
     flags: ScoreFlags,
     output: Option<String>,
     exclude: Vec<String>,
+    ignore: Vec<String>,
     exclude_folders: &[String],
     analysis_root: &Path,
     writer: &mut W,
@@ -59,7 +61,9 @@ pub(crate) fn handle_score<W: Write>(
     } else {
         effective_paths
     };
-    let excludes = crate::entry_point::paths::merge_excludes(exclude, exclude_folders);
+    let mut combined_excludes = exclude;
+    combined_excludes.extend(ignore);
+    let excludes = crate::entry_point::paths::merge_excludes(combined_excludes, exclude_folders);
     let output_file = prepare_output_path(output, analysis_root)?;
 
     let result = run_score_pipeline(&targets, &excludes, analysis_root, &flags);
@@ -71,7 +75,7 @@ pub(crate) fn handle_score<W: Write>(
         } else if flags.llm {
             crate::scoring::reporter::print_llm_report(&result, &mut file)?;
         } else {
-            print_terminal_report(&result, &mut file)?;
+            print_terminal_report(&result, flags.verbose, &mut file)?;
         }
         if !flags.json {
             writeln!(writer, "Report written to: {out_path}")?;
@@ -81,7 +85,7 @@ pub(crate) fn handle_score<W: Write>(
     } else if flags.llm {
         crate::scoring::reporter::print_llm_report(&result, &mut *writer)?;
     } else {
-        print_terminal_report(&result, &mut *writer)?;
+        print_terminal_report(&result, flags.verbose, &mut *writer)?;
     }
 
     if result.passed_gate {
@@ -111,12 +115,14 @@ fn run_score_pipeline(
         },
     );
 
+    let mut seen = HashSet::new();
     let doctor_results: Vec<crate::doctor::DoctorResult> = targets
         .iter()
+        .map(|path| crate::doctor::resolve_doctor_target(path, analysis_root))
+        .filter(|path| seen.insert(path.clone()))
         .map(|path| {
-            let p = crate::doctor::resolve_doctor_target(path, analysis_root);
             crate::doctor::run_doctor(
-                &p,
+                &path,
                 &crate::doctor::DoctorConfig {
                     excludes: excludes.to_vec(),
                     verbose: flags.verbose,

@@ -2,11 +2,13 @@
 //!
 //! This module provides various utility functions used across the codebase.
 
+mod ignore_match;
 mod paths;
 
 pub(crate) use paths::discover_project_root;
 
-// Re-export path utilities for backward compatibility
+// Re-export path and ignore utilities
+pub use ignore_match::{is_name_or_pattern_ignored, is_path_ignored};
 pub use paths::{
     collect_python_files_gitignore, is_excluded, normalize_display_path, validate_output_path,
     validate_path_within_root,

@@ -24,7 +24,7 @@ pub(super) fn render_human_report(
     failures: &[GateFailure],
 ) -> Result<String> {
     let mut output = Vec::new();
-    crate::scoring::print_terminal_report(scoring, &mut output)?;
+    crate::scoring::print_terminal_report(scoring, false, &mut output)?;
     writeln!(output, "\n# Architecture")?;
     crate::architecture::print_terminal_report(architecture, false, &mut output)?;
     writeln!(output, "\n# Git Context and Hotspots")?;

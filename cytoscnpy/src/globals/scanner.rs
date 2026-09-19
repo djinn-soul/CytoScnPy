@@ -112,8 +112,7 @@ pub fn collect_files(roots: &[PathBuf], excludes: &[String]) -> Vec<PathBuf> {
                 continue;
             }
 
-            let path_str = path.to_string_lossy();
-            if excludes.iter().any(|ex| path_str.contains(ex)) {
+            if crate::utils::is_path_ignored(path, excludes) {
                 continue;
             }
 

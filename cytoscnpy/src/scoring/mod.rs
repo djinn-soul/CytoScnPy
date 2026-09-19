@@ -14,6 +14,8 @@ pub mod dimensions;
 pub mod recommendations;
 /// Human-readable ASCII terminal tables and JSON reporting.
 pub mod reporter;
+/// Repository summary, language breakdown, test/source counts, and configuration inventory.
+pub mod summary;
 #[cfg(test)]
 mod tests;
 /// Core data types, verdict bands, and score models.
@@ -26,6 +28,7 @@ pub use calculator::{
 pub use dimensions::{compute_all, ScoringContext};
 pub use recommendations::{format_llm_report, Effort, Recommendation};
 pub use reporter::{format_terminal_report, print_json_report, print_terminal_report};
+pub use summary::{LanguageBreakdown, RepoSummary};
 pub use types::{DimensionScore, ScoreResult, ScoringOptions, Verdict};
 
 /// Compute the complete `ScoreResult` from all repository analysis artifacts.
@@ -51,5 +54,9 @@ pub fn score_repository(ctx: &ScoringContext<'_>, options: &ScoringOptions) -> S
     let recommendations =
         recommendations::generate_recommendations(ctx, &dimensions, size_multiplier);
 
-    finalize_score_result(dimensions, recommendations, size_multiplier, options)
+    let mut result = finalize_score_result(dimensions, recommendations, size_multiplier, options);
+    if let Some(doc) = ctx.doctor {
+        result.summary = Some(RepoSummary::from_doctor(doc));
+    }
+    result
 }

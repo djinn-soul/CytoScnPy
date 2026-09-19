@@ -16,6 +16,30 @@ pub fn format_llm_report(result: &ScoreResult) -> String {
         "- **Active Context Size Multiplier**: {:.2}x\n",
         result.size_multiplier
     ));
+    if let Some(summary) = &result.summary {
+        out.push_str(&format!(
+            "- **Codebase Totals**: {} files, {} lines ({} source files / {} test files, test ratio: {:.1}%)\n",
+            summary.total_files,
+            summary.total_lines,
+            summary.source_files,
+            summary.test_files,
+            summary.test_to_source_ratio * 100.0
+        ));
+        if !summary.languages.is_empty() {
+            let langs: Vec<String> = summary
+                .languages
+                .iter()
+                .map(|l| format!("{} ({})", l.name, l.files))
+                .collect();
+            out.push_str(&format!("- **Languages**: {}\n", langs.join(", ")));
+        }
+        if !summary.detected_configs.is_empty() {
+            out.push_str(&format!(
+                "- **Detected Configuration**: {}\n",
+                summary.detected_configs.join(", ")
+            ));
+        }
+    }
     out.push_str(&format!(
         "- **Total Remediations**: {}\n\n",
         result.recommendations.len()

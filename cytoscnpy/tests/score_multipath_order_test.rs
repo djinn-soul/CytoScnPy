@@ -8,6 +8,65 @@ use tempfile::TempDir;
 use cytoscnpy::entry_point;
 
 #[test]
+fn test_file_targets_do_not_duplicate_parent_health() {
+    let temp = TempDir::new().unwrap();
+    let dir_a = temp.path().join("a");
+    let dir_b = temp.path().join("b");
+    fs::create_dir_all(&dir_a).unwrap();
+    fs::create_dir_all(&dir_b).unwrap();
+    for (path, name) in [
+        (dir_a.join("x.py"), "alpha"),
+        (dir_a.join("y.py"), "beta"),
+        (dir_b.join("z.py"), "gamma"),
+    ] {
+        fs::write(
+            path,
+            format!(
+                "def {name}():\n{}    return 1\n",
+                "    # padding\n".repeat(8)
+            ),
+        )
+        .unwrap();
+    }
+    fs::write(
+        dir_b.join("test_z.py"),
+        format!(
+            "def test_gamma():\n{}    assert True\n",
+            "    # padding\n".repeat(18)
+        ),
+    )
+    .unwrap();
+
+    let score = |paths: Vec<std::path::PathBuf>| {
+        let mut args = vec!["score".to_owned()];
+        args.extend(paths.iter().map(|p| p.to_string_lossy().into_owned()));
+        args.extend(
+            [
+                "--json",
+                "--no-git",
+                "--context-budget",
+                "1",
+                "--max-score",
+                "35",
+            ]
+            .map(str::to_owned),
+        );
+        let mut out = Cursor::new(Vec::new());
+        let code = entry_point::run_with_args_to(args, &mut out).unwrap();
+        let report: serde_json::Value = serde_json::from_slice(out.get_ref()).unwrap();
+        (code, report)
+    };
+    let (directory_code, directory_report) = score(vec![dir_a.clone(), dir_b.clone()]);
+    let (file_code, file_report) = score(vec![dir_a.join("x.py"), dir_a.join("y.py"), dir_b]);
+
+    assert_eq!(directory_code, 0);
+    assert_eq!(file_code, directory_code);
+    assert_eq!(file_report["dimensions"], directory_report["dimensions"]);
+    assert_eq!(file_report["slop_index"], directory_report["slop_index"]);
+    assert_eq!(file_report["passed_gate"], directory_report["passed_gate"]);
+}
+
+#[test]
 fn test_ci_honors_explicit_max_score_ceiling() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -173,6 +232,7 @@ fn test_llm_report_unhealthy_empty_recommendations() {
             evidence: "naming inconsistencies".to_owned(),
         }],
         recommendations: vec![],
+        summary: None,
         passed_gate: true,
         failure_reason: None,
     };
@@ -193,6 +253,7 @@ fn test_llm_report_unhealthy_empty_recommendations() {
             evidence: "Clean".to_owned(),
         }],
         recommendations: vec![],
+        summary: None,
         passed_gate: true,
         failure_reason: None,
     };

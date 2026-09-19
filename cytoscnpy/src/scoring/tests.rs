@@ -228,11 +228,12 @@ fn test_terminal_report_format() {
             action_steps: vec!["Refactor".to_owned()],
             affected_files: vec!["a.py".to_owned(), "b.py".to_owned()],
         }],
+        summary: None,
         passed_gate: true,
         failure_reason: None,
     };
 
-    let text = format_terminal_report(&result);
+    let text = format_terminal_report(&result, false);
     assert!(text.contains("DESLOPIFY SLOP INDEX REPORT"));
     assert!(text.contains("15 / 100"));
     assert!(text.contains("[CLEAN"));
@@ -261,6 +262,7 @@ fn test_llm_report_format() {
             action_steps: vec!["Wrap in dataclass".to_owned()],
             affected_files: vec!["config.py".to_owned()],
         }],
+        summary: None,
         passed_gate: true,
         failure_reason: None,
     };

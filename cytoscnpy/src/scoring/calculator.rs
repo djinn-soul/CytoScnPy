@@ -119,6 +119,7 @@ pub fn finalize_score_result(
         verdict,
         dimensions,
         recommendations,
+        summary: None,
         passed_gate,
         failure_reason,
     }

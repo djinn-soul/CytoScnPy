@@ -50,16 +50,7 @@ pub fn normalize_display_path(path: &std::path::Path) -> String {
 /// Supports exact matching and wildcard patterns starting with `*.`.
 #[must_use]
 pub fn is_excluded(name: &str, excludes: &[String]) -> bool {
-    for exclude in excludes {
-        if exclude.starts_with("*.") {
-            if name.ends_with(&exclude[1..]) {
-                return true;
-            }
-        } else if name == exclude {
-            return true;
-        }
-    }
-    false
+    super::is_name_or_pattern_ignored(name, excludes)
 }
 
 /// Validates that a path is contained within an allowed root directory.
@@ -264,9 +255,15 @@ pub fn collect_python_files_gitignore(
                 return true;
             }
 
-            // Check if directory name matches any exclusion pattern
+            // Check if directory matches any exclusion or ignore pattern
             if let Some(name) = entry.file_name().to_str() {
-                if is_excluded(name, &excludes_for_filter) {
+                let rel_entry = entry
+                    .path()
+                    .strip_prefix(&root_for_filter)
+                    .unwrap_or(entry.path());
+                if is_excluded(name, &excludes_for_filter)
+                    || super::is_path_ignored(rel_entry, &excludes_for_filter)
+                {
                     return false;
                 }
             }
@@ -295,6 +292,11 @@ pub fn collect_python_files_gitignore(
             let is_notebook = include_ipynb && path.extension().is_some_and(|ext| ext == "ipynb");
 
             if !is_python && !is_notebook {
+                continue;
+            }
+
+            let rel_path = path.strip_prefix(root).unwrap_or(path);
+            if super::is_path_ignored(rel_path, &all_excludes) {
                 continue;
             }
 

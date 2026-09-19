@@ -20,10 +20,12 @@ pub(super) fn render_human_report(
     anti_patterns: &crate::anti_patterns::AntiPatternsResult,
     duplicates: &crate::duplicates::DuplicatesResult,
     unreferenced: &crate::unreferenced::UnreferencedResult,
+    scoring: &crate::scoring::ScoreResult,
     failures: &[GateFailure],
 ) -> Result<String> {
     let mut output = Vec::new();
-    writeln!(output, "# Architecture")?;
+    crate::scoring::print_terminal_report(scoring, &mut output)?;
+    writeln!(output, "\n# Architecture")?;
     crate::architecture::print_terminal_report(architecture, false, &mut output)?;
     writeln!(output, "\n# Git Context and Hotspots")?;
     crate::context::print_terminal_report(context, false, &mut output)?;

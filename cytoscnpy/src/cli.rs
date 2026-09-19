@@ -1,5 +1,6 @@
 mod anti_patterns;
 mod commands;
+mod context;
 mod deps;
 mod deslop;
 mod doctor;
@@ -9,6 +10,7 @@ mod globals;
 mod graph;
 mod naming;
 mod options;
+mod score;
 mod searchability;
 mod side_effects;
 mod singletons;
@@ -19,6 +21,7 @@ mod wildcards;
 
 pub use anti_patterns::AntiPatternsArgs;
 pub use commands::Commands;
+pub use context::ContextArgs;
 pub use deps::DepsArgs;
 pub use deslop::DeslopArgs;
 pub use doctor::DoctorArgs;
@@ -31,6 +34,7 @@ pub use options::{
     ClientKind, FilesArgs, IncludeOptions, MetricArgs, OutputFormat, OutputOptions, PathArgs,
     RankArgs, ScanOptions,
 };
+pub use score::ScoreArgs;
 pub use searchability::SearchabilityArgs;
 pub use side_effects::SideEffectsArgs;
 pub use singletons::SingletonsArgs;

@@ -6,6 +6,8 @@
 //! - Polyglot language breakdown and test-to-source ratios
 //! - Weighted setup reliability scoring (0-100) and actionable setup guidance
 
+/// Module for aggregating doctor health results across scan targets.
+pub mod aggregation;
 /// Module for detecting repository configuration files and tooling.
 pub mod config_detector;
 /// Module for deep inspection of `pyproject.toml`.
@@ -22,6 +24,7 @@ pub mod types;
 #[cfg(test)]
 mod tests;
 
+pub use aggregation::*;
 pub use config_detector::*;
 pub use pyproject::*;
 pub use reliability::*;
@@ -50,5 +53,28 @@ pub fn run_doctor(repo_root: &Path, config: &DoctorConfig) -> DoctorResult {
         pyproject,
         structure,
         reliability,
+    }
+}
+
+/// Resolves a target path consistently to a directory for repository health analysis.
+/// For file targets, resolves to the parent directory (using canonicalization when available).
+#[must_use]
+pub fn resolve_doctor_target(path: &Path, fallback: &Path) -> std::path::PathBuf {
+    if path.is_file() {
+        if let Ok(abs) = path.canonicalize() {
+            if let Some(parent) = abs.parent() {
+                return parent.to_path_buf();
+            }
+        }
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                return parent.to_path_buf();
+            }
+        }
+        fallback.to_path_buf()
+    } else if let Ok(abs) = path.canonicalize() {
+        abs
+    } else {
+        path.to_path_buf()
     }
 }

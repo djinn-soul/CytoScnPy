@@ -443,6 +443,50 @@ cytoscnpy isolated-functions [OPTIONS] [PATHS]...
 - `-o`, `--output-file <FILE>`: Save report to file.
 - `--exclude <DIRS>`: Exclude folders or patterns from scan.
 
+### `score`
+
+Calculate the repository Weighted Slop Index (0–100), Verdict band, context size multiplier, and the 10-dimension health breakdown.
+
+```bash
+cytoscnpy score [OPTIONS] [PATHS]...
+# Or aliases
+cytoscnpy slop-index [OPTIONS] [PATHS]...
+cytoscnpy slop [OPTIONS] [PATHS]...
+```
+
+- `--json`: Output structured JSON report including `slop_index`, `raw_score`, `size_multiplier`, `verdict`, `dimensions`, and `recommendations`.
+- `--format <FORMAT>`: Output format: `terminal` (default ASCII summary table with top fixes), `json`, or `llm` (markdown prompt instructions for AI coding agents).
+- `--ci`: CI mode. Exits with code `1` if `slop_index` exceeds `--max-score` (default max score threshold: `50.0`).
+- `--max-score <N>`: Maximum allowable Slop Index before failing the gate.
+- `--context-budget <TOKENS>`: Effective LLM context window in tokens (default: `176000`) for active-surface scaling.
+- `--no-git`: Disable Git commit history analysis (uses full byte count rather than active surface).
+- `--git-months <N>`: Lookback window in months for Git active-surface detection (default: `1`).
+- `-o`, `--output <FILE>`: Save report to file.
+- `--exclude <DIRS>`: Exclude folders or patterns from analysis.
+
+#### Verdict Bands
+
+| Band | Slop Index Range | Description |
+|---|---|---|
+| **Clean** | 0 – 20 | Excellent health, negligible LLM friction |
+| **Acceptable** | 21 – 40 | Normal codebase with minor slop within reasonable boundaries |
+| **Messy** | 41 – 60 | Moderate structural friction, refactoring recommended |
+| **Sloppy** | 61 – 80 | High friction, difficult navigation and maintenance |
+| **Disaster** | 81 – 100 | Severe debt, high risk of LLM hallucinations and errors |
+
+#### 10-Dimension Scoring Model (Weights sum to 100)
+
+1. **Setup reliability** (weight 10): Build scripts, lockfile freshness, Docker, and environment configuration.
+2. **Architecture clarity** (weight 15): Directory depth, file sizes, god modules, and naming searchability.
+3. **Coupling / blast radius** (weight 15): Fan-in/out, circular import cycles, and cross-package dependencies.
+4. **Style consistency** (weight 10): Naming convention compliance percentage, linter and formatter adoption.
+5. **Test safety net** (weight 15): Test-to-source file and line ratios, framework configuration.
+6. **Runtime predictability** (weight 10): Mutable globals, import side effects, singletons, bare excepts, anti-patterns.
+7. **Feedback loop speed** (weight 5): Test runner, linter configuration, and CI workflow responsiveness.
+8. **Documentation** (weight 10): README quality, setup instructions, architecture docs, and contributing guides.
+9. **Dependency boundaries** (weight 5): Lockfiles, `.gitignore` hygiene, and vendor/generated code separation.
+10. **Context pressure** (weight 5): Token consumption relative to context budget, active surface, and dead code.
+
 ### `files`
 
 Show per-file metrics table.

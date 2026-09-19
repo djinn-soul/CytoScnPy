@@ -5,22 +5,22 @@
 ## Product and CLI
 
 - [ ] Provide a local, static LLM-friction/codebase-health analyzer with no cloud or LLM calls.
-- [ ] Calculate a weighted Slop Index from 0 to 100.
-- [ ] Show verdict bands: Clean, Acceptable, Messy, Sloppy, and Disaster.
+- [x] Calculate a weighted Slop Index from 0 to 100.
+- [x] Show verdict bands: Clean, Acceptable, Messy, Sloppy, and Disaster.
 - [ ] Support scanning the current directory and multiple supplied paths.
-- [ ] Add `--format terminal`, `--format json`, and `--format llm`.
+- [x] Add `--format terminal`, `--format json`, and `--format llm`.
 - [ ] Add `--verbose` for complete dimension output.
 - [x] Add `--context-budget` for token-cost details.
 - [ ] Add repeatable `--ignore` patterns.
 - [x] Add Git controls: `--no-git` and `--git-months`.
-- [ ] Add CI mode with `--ci` and an allowed-score gate using `--max-score`.
+- [x] Add CI mode with `--ci` and an allowed-score gate using `--max-score`.
 
 ## Reports and integrations
 
-- [ ] Create a readable terminal report with score, verdict, dimensions, evidence, and top fixes.
-- [ ] Create a stable JSON report for automation and CI/CD.
-- [ ] Create LLM-consumable, prioritized remediation instructions.
-- [ ] Include score, raw score, verdict, size multiplier, and weighted dimension ratings in reports.
+- [x] Create a readable terminal report with score, verdict, dimensions, evidence, and top fixes.
+- [x] Create a stable JSON report for automation and CI/CD.
+- [x] Create LLM-consumable, prioritized remediation instructions.
+- [x] Include score, raw score, verdict, size multiplier, and weighted dimension ratings in reports.
 - [ ] Include repository totals, language breakdown, test/source counts, and detected configuration.
 - [x] Include duplicate-code statistics.
 - [x] Include active-surface and hot-file data when Git history is available.
@@ -28,15 +28,15 @@
 ## Scoring model
 
 - [x] Score setup reliability from dependency manager, lockfile, Docker, build scripts, and `.gitignore`.
-- [ ] Score architecture clarity from project depth, file sizes, organization, layering, and searchability.
-- [ ] Score coupling/blast radius from import fan-in, fan-out, and cycles.
-- [ ] Score style consistency from formatter, linter, and naming signals.
-- [ ] Score test safety from test ratios, test files, and framework configuration.
-- [ ] Score runtime predictability from global state, code smells, and runtime hazards.
-- [ ] Score feedback-loop speed from build-time, test-runner, CI, and build-script signals.
-- [ ] Score documentation from README quality, setup guidance, architecture docs, and contribution docs.
-- [ ] Score dependency boundaries from ignore rules, lockfiles, and generated/vendor-code separation.
-- [ ] Score context pressure from estimated tokens, function size, nesting, active surface, and dead code.
+- [x] Score architecture clarity from project depth, file sizes, organization, layering, and searchability.
+- [x] Score coupling/blast radius from import fan-in, fan-out, and cycles.
+- [x] Score style consistency from formatter, linter, and naming signals.
+- [x] Score test safety from test ratios, test files, and framework configuration.
+- [x] Score runtime predictability from global state, code smells, and runtime hazards.
+- [x] Score feedback-loop speed from build-time, test-runner, CI, and build-script signals.
+- [x] Score documentation from README quality, setup guidance, architecture docs, and contribution docs.
+- [x] Score dependency boundaries from ignore rules, lockfiles, and generated/vendor-code separation.
+- [x] Score context pressure from estimated tokens, function size, nesting, active surface, and dead code.
 
 ## Scanning and metadata
 
@@ -93,15 +93,15 @@
 
 ## Recommendation engine
 
-- [ ] Generate prioritized recommendations with estimated score reduction.
-- [ ] Recommend splitting large logic-heavy files and simplifying complex functions.
+- [x] Generate prioritized recommendations with estimated score reduction.
+- [x] Recommend splitting large logic-heavy files and simplifying complex functions.
 - [x] Recommend adding tests, formatters, linters, and type checking.
 - [x] Recommend README, architecture documentation, and CI configuration.
-- [ ] Recommend resolving circular dependencies and enforcing module layering.
-- [ ] Recommend removing anti-patterns and reducing mutable global state.
-- [ ] Recommend extracting stable code into libraries to reduce active context surface.
-- [ ] Recommend improving filename/function-name searchability.
-- [ ] Recommend auditing potentially dead code.
+- [x] Recommend resolving circular dependencies and enforcing module layering.
+- [x] Recommend removing anti-patterns and reducing mutable global state.
+- [x] Recommend extracting stable code into libraries to reduce active context surface.
+- [x] Recommend improving filename/function-name searchability.
+- [x] Recommend auditing potentially dead code.
 
 ---
 
@@ -118,15 +118,15 @@ This is a source-level audit of all 73 checklist items, not a runtime validation
 | # | Roadmap item | Current status | Remaining work |
 |---|---|---|---|
 | 1 | Local static LLM-friction analyzer | Partial | Local static analysis exists; add repository-friction assessment. |
-| 2 | Weighted Slop Index | Missing | Implement scoring, weights, normalization, and evidence. |
-| 3 | Verdict bands | Missing | Add score-to-verdict mapping. |
+| 2 | Weighted Slop Index | Existing (`cytoscnpy score`) | Weighted Slop Index (0-100), raw score, size multiplier, and simulation. |
+| 3 | Verdict bands | Existing (`cytoscnpy score`) | Clean (0-20), Acceptable (21-40), Messy (41-60), Sloppy (61-80), Disaster (81-100). |
 | 4 | Current directory and multiple paths | Existing | Reuse existing path handling. |
-| 5 | Terminal, JSON, LLM formats | Partial | Text and JSON exist; add health content and LLM instructions. |
+| 5 | Terminal, JSON, LLM formats | Partial | Terminal and JSON reports implemented; add LLM prioritized instruction format. |
 | 6 | Verbose dimension output | Partial | Verbose diagnostics exist; add health-dimension details. |
-| 7 | Context-budget flag | Missing | Add the estimator and CLI interface. |
+| 7 | Context-budget flag | Existing (`cytoscnpy context`, `cytoscnpy score`) | Configurable `--context-budget` across context and scoring pipelines. |
 | 8 | Repeatable ignore patterns | Partial | Folder exclusions exist; metric commands expose `--ignore`. Define consistent filtering for health analysis. |
-| 9 | Git controls | Missing | Add history enable/disable and lookback configuration. |
-| 10 | CI and maximum-score gate | Partial | CI gates exist; add a health-score threshold. |
+| 9 | Git controls | Existing (`cytoscnpy context`, `cytoscnpy score`) | `--no-git` and `--git-months` lookback window support. |
+| 10 | CI and maximum-score gate | Existing (`cytoscnpy score`, `cytoscnpy deslop`) | `--ci` and `--max-score` threshold evaluation and exit codes. |
 
 CytoScnPy supports text, JSON, JUnit, GitHub, GitLab, Markdown, and SARIF output. Preserve `text`; `terminal` could be an alias if needed. Source: [CLI options](cytoscnpy/src/cli/options.rs).
 
@@ -134,32 +134,32 @@ CytoScnPy supports text, JSON, JUnit, GitHub, GitLab, Markdown, and SARIF output
 
 | # | Roadmap item | Current status | Remaining work |
 |---|---|---|---|
-| 11 | Terminal score, dimensions, top fixes | Partial | Reuse output infrastructure; add the health report model. |
-| 12 | JSON reporting | Existing foundation | Define a health schema and compatibility tests over existing serialization. |
-| 13 | Prioritized LLM remediation instructions | Missing | Add a renderer over structured recommendations. |
-| 14 | Score, raw score, multiplier, dimensions | Missing | Add health-specific result fields. |
+| 11 | Terminal score, dimensions, top fixes | Existing (`cytoscnpy score`) | Terminal ASCII table with score, verdict, multiplier, dimension breakdown, and top prioritized remediations. |
+| 12 | JSON reporting | Existing (`cytoscnpy score`) | ScoreResult JSON output with dimension ratings, raw scores, and evidence. |
+| 13 | Prioritized LLM remediation instructions | Existing (`cytoscnpy score --format llm`) | Markdown prompt instructions with ordered action items, affected files, and verification steps. |
+| 14 | Score, raw score, multiplier, dimensions | Existing (`cytoscnpy score`, `cytoscnpy deslop`) | Populated in ScoreResult and unified ComprehensiveReport. |
 | 15 | Repository/language/test/config summary | Partial | Existing file, line, size, directory, and metric totals need language/config inventories and test ratios. |
-| 16 | Duplicate statistics | Partial | Clone results and statistics exist; add repository health aggregates. |
-| 17 | Active surface and hot-file reporting | Missing | Depends on Git-history analysis. |
+| 16 | Duplicate statistics | Existing (`cytoscnpy duplicates`) | Clone results and duplicate statistics aggregated into repository health. |
+| 17 | Active surface and hot-file reporting | Existing (`cytoscnpy context`, `cytoscnpy score`) | Git history analysis, active surface byte weighting in context pressure. |
 
 Existing results include per-file metrics, clones, average complexity, maintainability, raw metrics, and Halstead metrics. Sources: [result types](cytoscnpy/src/analyzer/types.rs), [clone statistics](cytoscnpy/src/commands/clones/stats.rs).
 
 ### 3. Scoring model
 
-All ten repository scoring dimensions are new, but several measurements are reusable.
+All ten repository scoring dimensions are implemented in `cytoscnpy/src/scoring/`.
 
 | # | Dimension | Reusable CytoScnPy inputs | Missing inputs or logic |
 |---|---|---|---|
-| 18 | Setup reliability | Existing (`cytoscnpy doctor`) | Setup reliability 0-100 scoring, tooling inventory, lockfile/CI/docker/test/linter checks |
-| 19 | Architecture clarity | File metrics, complexity, class cohesion | Directory organization, layering, searchability scoring |
-| 20 | Coupling/blast radius | Import bindings and references | Module graph statistics, cycle reports, scoring |
-| 21 | Style consistency | Python definitions | Naming distribution and formatter/linter detection |
-| 22 | Test safety | Test identification and inclusion policy | Test/source ratios, framework inventory, scoring |
-| 23 | Runtime predictability | Quality findings, bare-except detection | Dedicated global-state and import-time hazard analysis |
-| 24 | Feedback-loop speed | Existing integration infrastructure | Inspect the target project's tooling and estimate feedback cost |
-| 25 | Documentation | No equivalent health assessment found | README/setup/architecture/contribution checks |
-| 26 | Dependency boundaries | Missing/unused dependencies and development dependencies used in production | Vendor/generated separation, lockfile signals, scoring |
-| 27 | Context pressure | Complexity, length, nesting, dead-code findings | Token estimates, active surface, aggregation, scoring |
+| 18 | Setup reliability | Existing (`cytoscnpy score`, `cytoscnpy doctor`) | Setup reliability 0-100 scoring (weight 10): lockfile, CI, Docker, test runner, linter/formatter. |
+| 19 | Architecture clarity | Existing (`cytoscnpy score`, `cytoscnpy graph`) | Architecture clarity 0-100 scoring (weight 15): depth, file size, organization, layering, searchability. |
+| 20 | Coupling/blast radius | Existing (`cytoscnpy score`, `cytoscnpy graph`) | Coupling/blast radius 0-100 scoring (weight 15): fan-in, fan-out, circular imports, god modules. |
+| 21 | Style consistency | Existing (`cytoscnpy score`, `cytoscnpy naming`) | Style consistency 0-100 scoring (weight 10): naming consistency %, linter, formatter presence. |
+| 22 | Test safety | Existing (`cytoscnpy score`, `cytoscnpy doctor`) | Test safety 0-100 scoring (weight 15): test ratio, test files, framework configuration. |
+| 23 | Runtime predictability | Existing (`cytoscnpy score`, `cytoscnpy quality`) | Runtime predictability 0-100 scoring (weight 10): globals, side-effects, singletons, bare excepts, anti-patterns. |
+| 24 | Feedback-loop speed | Existing (`cytoscnpy score`, `cytoscnpy doctor`) | Feedback-loop speed 0-100 scoring (weight 5): build/test runner configuration, CI workflow presence. |
+| 25 | Documentation | Existing (`cytoscnpy score`, `cytoscnpy doctor`) | Documentation 0-100 scoring (weight 10): README quality, setup guidance, architecture/contributing docs. |
+| 26 | Dependency boundaries | Existing (`cytoscnpy score`, `cytoscnpy doctor`) | Dependency boundaries 0-100 scoring (weight 5): lockfile, gitignore, vendor/generated separation. |
+| 27 | Context pressure | Existing (`cytoscnpy score`, `cytoscnpy context`) | Context pressure 0-100 scoring (weight 5): token estimates, active code surface, dead code, complexity. |
 
 CytoScnPy's own CI integration does not imply detection of CI configuration in scanned repositories. Maintainability Index is not equivalent to Slop Index. Sources: [analysis metrics](cytoscnpy/src/analyzer/types.rs), [reference dimensions](deslopify/src/scoring/dimensions.rs).
 
@@ -239,15 +239,15 @@ Git ignore handling and Git-history analysis are separate capabilities. DeSlopif
 
 | # | Roadmap item | Current status | Remaining work |
 |---|---|---|---|
-| 65 | Prioritized score-reduction recommendations | Missing | Add simulation, ranking, and recommendation schema. |
-| 66 | Split files/simplify functions | Partial | Turn existing length/complexity findings into repository recommendations. |
-| 67 | Tests/formatters/linters/type checking | Missing | Depends on tooling and test inventories. |
-| 68 | README/architecture docs/CI | Missing | Depends on repository configuration inspection. |
-| 69 | Resolve cycles/enforce layering | Missing | Depends on architecture analysis. |
-| 70 | Anti-patterns/global state | Partial | Aggregate existing and new findings into health recommendations. |
-| 71 | Extract stable libraries | Missing | Depends on activity and architecture metrics. |
-| 72 | Improve searchability | Missing | Depends on filename/name-collision analysis. |
-| 73 | Audit dead code | Existing foundation | Add health impact and ranking to existing findings and fixes. |
+| 65 | Prioritized score-reduction recommendations | Existing (`cytoscnpy score`) | Simulated score reduction (`simulate_reduction`), ranking, and schema in `recommendations/`. |
+| 66 | Split files/simplify functions | Existing (`cytoscnpy score`) | Recommends decomposing god modules and simplifying churn-complexity hotspots. |
+| 67 | Tests/formatters/linters/type checking | Existing (`cytoscnpy score`) | Recommends configuring pytest, Ruff/Black, and type checking based on doctor signals. |
+| 68 | README/architecture docs/CI | Existing (`cytoscnpy score`) | Recommends setup instructions, architecture docs, and CI workflows based on doctor inspection. |
+| 69 | Resolve cycles/enforce layering | Existing (`cytoscnpy score`) | Recommends breaking circular import cycles and enforcing package layering. |
+| 70 | Anti-patterns/global state | Existing (`cytoscnpy score`) | Recommends encapsulating mutable globals, replacing bare/empty excepts, and removing side effects. |
+| 71 | Extract stable libraries | Existing (`cytoscnpy score`) | Recommends deduplicating code clusters and isolating high-churn modules. |
+| 72 | Improve searchability | Existing (`cytoscnpy score`) | Recommends disambiguating duplicate filenames and qualifying colliding function names. |
+| 73 | Audit dead code | Existing (`cytoscnpy score`) | Recommends auditing and pruning unreferenced large functions in isolated files. |
 
 Reuse contextual clone-refactoring suggestions. DeSlopify sorts recommendations by estimated reduction and returns at most ten. Sources: [clone suggestions](cytoscnpy/src/commands/clones/suggestions.rs), [reference ranking](deslopify/src/recommendations/mod.rs).
 

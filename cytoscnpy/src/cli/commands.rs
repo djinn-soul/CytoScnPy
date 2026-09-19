@@ -233,33 +233,16 @@ pub enum Commands {
     },
     /// Analyze Git-aware code churn, hotspots, and LLM token budget
     Context {
-        /// Path options (paths vs root).
+        /// Context analysis options.
         #[command(flatten)]
-        paths: PathArgs,
-        /// Lookback window in months for Git activity (default: auto-scaled to repo age).
-        #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
-        git_months: Option<u32>,
-        /// Usable LLM context capacity in tokens (default: 176000).
-        #[arg(long)]
-        context_budget: Option<usize>,
-        /// Disable Git history analysis (pure static context estimation).
-        #[arg(long)]
-        no_git: bool,
-        /// Output JSON format.
-        #[arg(long)]
-        json: bool,
-        /// Only show churn-complexity hotspot files.
-        #[arg(long)]
-        hotspots_only: bool,
-        /// Exit with code 1 if severe (Critical or High) hotspots are detected.
-        #[arg(long)]
-        fail_on_hotspots: bool,
-        /// Exclude folders.
-        #[arg(long, alias = "exclude-folder")]
-        exclude: Vec<String>,
-        /// Output file path.
-        #[arg(long, short = 'o')]
-        output_file: Option<String>,
+        args: super::ContextArgs,
+    },
+    /// Calculate weighted Slop Index (0-100), verdict bands, and dimension breakdown
+    #[command(alias = "slop-index", alias = "slop")]
+    Score {
+        /// Scoring options.
+        #[command(flatten)]
+        args: super::ScoreArgs,
     },
     /// Check repository health, setup reliability, and configuration metadata
     #[command(alias = "health")]

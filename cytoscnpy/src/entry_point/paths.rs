@@ -129,7 +129,12 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
             | Commands::Graph {
                 args: crate::cli::GraphArgs { paths, .. },
             }
-            | Commands::Context { paths, .. }
+            | Commands::Context {
+                args: crate::cli::ContextArgs { paths, .. },
+            }
+            | Commands::Score {
+                args: crate::cli::ScoreArgs { paths, .. },
+            }
             | Commands::Doctor {
                 args: crate::cli::DoctorArgs { paths, .. },
             } => {

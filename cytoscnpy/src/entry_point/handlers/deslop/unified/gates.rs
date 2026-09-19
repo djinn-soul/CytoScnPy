@@ -30,6 +30,7 @@ pub(super) fn collect_failures(
     anti_patterns: &crate::anti_patterns::AntiPatternsResult,
     duplicates: &crate::duplicates::DuplicatesResult,
     unreferenced: &crate::unreferenced::UnreferencedResult,
+    scoring: &crate::scoring::ScoreResult,
     config: &crate::config::Config,
     fail_on_any: bool,
 ) -> Vec<GateFailure> {
@@ -221,6 +222,15 @@ pub(super) fn collect_failures(
             unreferenced.stats.total_unreferenced_lines,
             limit,
         );
+    }
+    if let Some(limit) = deslop.max_slop_index {
+        if scoring.slop_index > limit {
+            failures.push(failure(
+                "slop_index",
+                scoring.slop_index.to_string(),
+                format!("<= {limit}"),
+            ));
+        }
     }
     failures
 }

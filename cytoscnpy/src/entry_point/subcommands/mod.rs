@@ -118,7 +118,8 @@ pub(super) fn run_subcommand<W: std::io::Write>(
         | Commands::Singletons { .. }
         | Commands::AntiPatterns { .. }
         | Commands::Duplicates { .. }
-        | Commands::Unreferenced { .. } => quality::handle_quality_command(
+        | Commands::Unreferenced { .. }
+        | Commands::Score { .. } => quality::handle_quality_command(
             command,
             root_json,
             root_fail_on_any,
@@ -145,29 +146,19 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             &context.analysis_root,
             writer,
         ),
-        Commands::Context {
-            paths,
-            git_months,
-            context_budget,
-            no_git,
-            json,
-            hotspots_only,
-            fail_on_hotspots,
-            exclude,
-            output_file,
-        } => handle_context(
-            &paths,
+        Commands::Context { args } => handle_context(
+            &args.paths,
             ContextFlags {
-                git_months,
-                context_budget: context_budget.unwrap_or(176_000),
-                no_git,
-                json,
-                hotspots_only,
-                fail_on_hotspots,
+                git_months: args.git_months,
+                context_budget: args.context_budget.unwrap_or(176_000),
+                no_git: args.no_git,
+                json: args.json,
+                hotspots_only: args.hotspots_only,
+                fail_on_hotspots: args.fail_on_hotspots,
                 verbose,
             },
-            output_file,
-            exclude,
+            args.output_file,
+            args.exclude,
             &context.exclude_folders,
             &context.analysis_root,
             writer,

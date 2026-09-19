@@ -26,6 +26,12 @@ pub fn find_python_files_with_options(
         if !include_tests {
             files.retain(|path| !crate::utils::is_test_path_relative_to(path, root));
         }
+        if !exclude.is_empty() {
+            files.retain(|path| {
+                let rel = path.strip_prefix(root).unwrap_or(path);
+                !crate::utils::is_path_ignored(rel, exclude)
+            });
+        }
         all_files.extend(files);
     }
     all_files

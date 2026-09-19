@@ -78,6 +78,9 @@ pub struct ScoreResult {
     pub dimensions: Vec<DimensionScore>,
     /// Prioritized remediation recommendations ranked by estimated score reduction.
     pub recommendations: Vec<super::recommendations::Recommendation>,
+    /// Summary of repository structure, languages, test files, and configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<super::summary::RepoSummary>,
     /// Whether the score satisfies all configured gates and thresholds.
     pub passed_gate: bool,
     /// Failure reason if gate failed.

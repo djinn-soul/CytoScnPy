@@ -9,9 +9,9 @@
 - [x] Show verdict bands: Clean, Acceptable, Messy, Sloppy, and Disaster.
 - [ ] Support scanning the current directory and multiple supplied paths.
 - [x] Add `--format terminal`, `--format json`, and `--format llm`.
-- [ ] Add `--verbose` for complete dimension output.
+- [x] Add `--verbose` for complete dimension output.
 - [x] Add `--context-budget` for token-cost details.
-- [ ] Add repeatable `--ignore` patterns.
+- [x] Add repeatable `--ignore` patterns.
 - [x] Add Git controls: `--no-git` and `--git-months`.
 - [x] Add CI mode with `--ci` and an allowed-score gate using `--max-score`.
 
@@ -21,7 +21,7 @@
 - [x] Create a stable JSON report for automation and CI/CD.
 - [x] Create LLM-consumable, prioritized remediation instructions.
 - [x] Include score, raw score, verdict, size multiplier, and weighted dimension ratings in reports.
-- [ ] Include repository totals, language breakdown, test/source counts, and detected configuration.
+- [x] Include repository totals, language breakdown, test/source counts, and detected configuration.
 - [x] Include duplicate-code statistics.
 - [x] Include active-surface and hot-file data when Git history is available.
 
@@ -122,9 +122,9 @@ This is a source-level audit of all 73 checklist items, not a runtime validation
 | 3 | Verdict bands | Existing (`cytoscnpy score`) | Clean (0-20), Acceptable (21-40), Messy (41-60), Sloppy (61-80), Disaster (81-100). |
 | 4 | Current directory and multiple paths | Existing | Reuse existing path handling. |
 | 5 | Terminal, JSON, LLM formats | Partial | Terminal and JSON reports implemented; add LLM prioritized instruction format. |
-| 6 | Verbose dimension output | Partial | Verbose diagnostics exist; add health-dimension details. |
+| 6 | Verbose dimension output | Existing (`cytoscnpy score --verbose`) | Complete dimension output with sorted contribution priority, health-dimension diagnostics, and expanded remediations. |
 | 7 | Context-budget flag | Existing (`cytoscnpy context`, `cytoscnpy score`) | Configurable `--context-budget` across context and scoring pipelines. |
-| 8 | Repeatable ignore patterns | Partial | Folder exclusions exist; metric commands expose `--ignore`. Define consistent filtering for health analysis. |
+| 8 | Repeatable ignore patterns | Existing (`cytoscnpy score --ignore`, `cytoscnpy deslop --ignore`) | Standardized path and glob pattern matching (`is_path_ignored`) across scanner, score, and deslop CLI. |
 | 9 | Git controls | Existing (`cytoscnpy context`, `cytoscnpy score`) | `--no-git` and `--git-months` lookback window support. |
 | 10 | CI and maximum-score gate | Existing (`cytoscnpy score`, `cytoscnpy deslop`) | `--ci` and `--max-score` threshold evaluation and exit codes. |
 
@@ -138,7 +138,7 @@ CytoScnPy supports text, JSON, JUnit, GitHub, GitLab, Markdown, and SARIF output
 | 12 | JSON reporting | Existing (`cytoscnpy score`) | ScoreResult JSON output with dimension ratings, raw scores, and evidence. |
 | 13 | Prioritized LLM remediation instructions | Existing (`cytoscnpy score --format llm`) | Markdown prompt instructions with ordered action items, affected files, and verification steps. |
 | 14 | Score, raw score, multiplier, dimensions | Existing (`cytoscnpy score`, `cytoscnpy deslop`) | Populated in ScoreResult and unified ComprehensiveReport. |
-| 15 | Repository/language/test/config summary | Partial | Existing file, line, size, directory, and metric totals need language/config inventories and test ratios. |
+| 15 | Repository/language/test/config summary | Existing (`cytoscnpy score`, `cytoscnpy deslop`) | `RepoSummary` included in `ScoreResult`, terminal ASCII output, LLM markdown report, and JSON schemas. |
 | 16 | Duplicate statistics | Existing (`cytoscnpy duplicates`) | Clone results and duplicate statistics aggregated into repository health. |
 | 17 | Active surface and hot-file reporting | Existing (`cytoscnpy context`, `cytoscnpy score`) | Git history analysis, active surface byte weighting in context pressure. |
 
@@ -293,3 +293,135 @@ Split compound tasks into existing capabilities and unfinished integration work 
 - [x] Detect Python dead code across modules.
 - [ ] Include dead-code metrics in repository health reports.
 - [ ] Rank dead-code remediation alongside other health recommendations.
+
+---
+
+## Fresh implementation verification (2026-09-19)
+
+This is a strict source-and-test audit of the current working tree, including
+uncommitted implementation work. It does not replace or remove the earlier
+source-level audit.
+
+### Corrected feature count
+
+The top-level checklist contains **74 feature rows**, not 73. The earlier
+detailed audit combines wildcard-import detection and magic-number/nested-
+callback detection into one numbered row, while the top-level checklist lists
+them separately.
+
+| Status | Count | Percentage |
+|---|---:|---:|
+| Fully implemented | **57 / 74** | **77%** |
+| Partially implemented | **14 / 74** | **19%** |
+| Missing | **3 / 74** | **4%** |
+
+"Fully implemented" means the complete wording of the checklist item is
+represented in the current source. "Partial" means useful implementation
+exists but at least one stated input, language, aggregate, or recommendation
+is absent. A partial or full implementation exists for 71 of 74 rows.
+
+### Verification by section
+
+| Section | Complete | Partial | Missing |
+|---|---:|---:|---:|
+| Product and CLI | 10 | 0 | 0 |
+| Reports and integrations | 7 | 0 | 0 |
+| Scoring model | 6 | 4 | 0 |
+| Scanning and metadata | 5 | 2 | 0 |
+| Language and AST analysis | 1 | 3 | 2 |
+| Architecture and searchability | 9 | 0 | 0 |
+| Quality and runtime analysis | 8 | 1 | 0 |
+| Git-aware context analysis | 7 | 0 | 0 |
+| Recommendation engine | 4 | 4 | 1 |
+| **Total** | **57** | **14** | **3** |
+
+### Partially implemented items
+
+1. **Architecture clarity scoring:** directory depth, file count, layering,
+   god modules, duplicate filenames, and function collisions affect the
+   rating, but file-size and broader organization signals do not.
+2. **Coupling/blast-radius scoring:** fan-in is calculated and reported, but
+   only fan-out and cycles currently change the rating.
+3. **Dependency-boundary scoring:** lockfile and `.gitignore` signals are
+   scored; vendor/generated-code separation is not.
+4. **Context-pressure scoring:** active tokens, navigation load, hotspots,
+   duplicate code, and unreferenced functions are used; function length and
+   nesting are not direct scoring inputs.
+5. **Default directory skipping:** dependency, build, cache, editor, virtual-
+   environment, and vendor paths have filtering support, but arbitrary
+   generated-code directories are not universally skipped unless ignored or
+   excluded.
+6. **Top-level-directory metrics:** repository depth and architecture package
+   groups exist, but there is no explicit top-level-directory count/breakdown
+   in the repository summary.
+7. **Language/configuration detection:** common source, configuration, and
+   documentation extensions are recognized, but the requested language set is
+   incomplete, including Ruby and PHP.
+8. **Per-function metric extraction:** Python foundations provide names,
+   locations, complexity, length-related rules, and nesting analysis, but
+   there is no unified per-function record across all requested languages.
+9. **Average/maximum function metrics:** complexity aggregation exists, but
+   complete function-length and nesting averages/maxima are not exposed in the
+   unified health report.
+10. **Exception/catch analysis:** Python bare and empty exception handlers are
+    analyzed; general JavaScript/TypeScript catch-block analysis is absent.
+11. **Tooling recommendations:** test, formatter, and linter recommendations
+    exist, but no dedicated missing-type-checker recommendation is generated.
+12. **Documentation/CI recommendations:** README setup guidance is generated;
+    missing architecture-documentation and CI recommendations are not.
+13. **Runtime recommendations:** mutable globals, bare/empty exceptions, and
+    module side effects are covered, but recommendations are not generated for
+    every detected runtime anti-pattern.
+14. **Searchability recommendations:** duplicate filenames are covered, but
+    function-name collisions and generic-name findings do not receive their
+    own recommendations.
+
+### Missing items
+
+1. Full tree-sitter analysis for Python, JavaScript/JSX, TypeScript/TSX, Rust,
+   Go, Java, C/C++, Ruby, and PHP. The existing optional tree-sitter support is
+   Python-only and is used for CST/fix functionality, not this complete
+   multi-language health-analysis model.
+2. Detection and exclusion of likely minified source files from AST-oriented
+   analysis.
+3. A recommendation specifically identifying stable/frozen code that should
+   be extracted into a library to reduce active context pressure.
+
+### Checklist discrepancies confirmed by source
+
+- Current-directory defaults and multiple positional paths are implemented by
+  `PathArgs` and path resolution even though the top checklist leaves this
+  item unchecked.
+- `Dockerfile` and `Makefile` are explicitly recognized by repository
+  configuration detection even though the top checklist leaves this item
+  unchecked.
+- Repository totals, language breakdown, source/test counts, and detected
+  configuration are represented by `RepoSummary` in score output even though
+  the top checklist leaves this item unchecked.
+- Some recommendation rows marked `Existing` in the earlier detailed audit
+  are only partial under their full checklist wording, particularly type
+  checking, architecture documentation/CI, generic/function-name
+  searchability, and stable-library extraction.
+
+### Validation evidence
+
+Commands were run with Rust 1.98.1, `clang`, and `mold`, using an isolated
+temporary Cargo target directory.
+
+- `cargo test -p cytoscnpy --lib`: **439 passed, 0 failed, 1 ignored**.
+- Selected score, ignore, deslop, doctor, graph, and context integration tests:
+  **37 passed, 0 failed**.
+- A combined run that also included `score_verbose_test` and
+  `score_multipath_order_test` did not compile because four test-only
+  `ScoreResult` initializers omit the newly required `summary` field:
+  `score_verbose_test.rs` has two occurrences and
+  `score_multipath_order_test.rs` has two occurrences.
+- Container validation was attempted first. Rust 1.94 was too old for the
+  current Ruff parser crates, and the Rust 1.98 base image lacked the `clang`
+  and `mold` linkers required by the repository Cargo configuration. The
+  matching existing host toolchain was therefore used without installing any
+  packages.
+
+The source audit therefore confirms the counts above, while complete
+integration-suite acceptance remains blocked by the four stale test
+initializers.

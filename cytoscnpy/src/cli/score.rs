@@ -35,6 +35,12 @@ pub struct ScoreArgs {
     /// Exclude folders matching names.
     #[arg(long, alias = "exclude-folder")]
     pub exclude: Vec<String>,
+    /// Patterns or directory names to ignore during analysis (repeatable).
+    #[arg(long, short = 'i')]
+    pub ignore: Vec<String>,
+    /// Show detailed metrics and all scoring dimensions.
+    #[arg(long, short = 'v')]
+    pub verbose: bool,
     /// Output file path.
     #[arg(long, short = 'o')]
     pub output_file: Option<String>,

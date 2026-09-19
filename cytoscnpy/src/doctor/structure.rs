@@ -68,31 +68,7 @@ fn is_test_file(path: &Path) -> bool {
 
 /// Checks whether a relative path matches any exclusion pattern by component or path prefix.
 fn is_path_excluded(rel: &Path, excludes: &[String]) -> bool {
-    let rel_str = rel.to_string_lossy().replace('\\', "/");
-    for ex in excludes {
-        let clean = ex.trim_start_matches("./").trim_end_matches('/');
-        if clean.is_empty() {
-            continue;
-        }
-        if clean.starts_with("*.") {
-            if rel_str.ends_with(&clean[1..]) {
-                return true;
-            }
-        } else if clean.contains('/') {
-            if rel_str == clean || rel_str.starts_with(&format!("{clean}/")) {
-                return true;
-            }
-        } else {
-            for comp in rel.components() {
-                if let Some(comp_str) = comp.as_os_str().to_str() {
-                    if comp_str == clean {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    false
+    crate::utils::is_path_ignored(rel, excludes)
 }
 
 /// Scans the repository structure, calculating polyglot language breakdown and test ratio.

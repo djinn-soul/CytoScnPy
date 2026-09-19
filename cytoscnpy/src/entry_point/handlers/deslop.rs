@@ -17,7 +17,9 @@ pub(crate) fn handle_deslop<W: std::io::Write>(
         Ok(paths) => paths,
         Err(code) => return Ok(code),
     };
-    let excludes = merge_excludes(args.exclude.clone(), &runtime.exclude_folders);
+    let mut all_excludes = args.exclude.clone();
+    all_excludes.extend(args.ignore.clone());
+    let excludes = merge_excludes(all_excludes, &runtime.exclude_folders);
 
     unified::run_comprehensive_deslop(
         &unified::ComprehensiveRequest {

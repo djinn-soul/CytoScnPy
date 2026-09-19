@@ -18,6 +18,9 @@ pub struct DeslopArgs {
     /// Exclude folders.
     #[arg(long, alias = "exclude-folder")]
     pub exclude: Vec<String>,
+    /// Patterns or directory names to ignore during analysis (repeatable).
+    #[arg(long, short = 'i')]
+    pub ignore: Vec<String>,
     /// Disable Git history analysis.
     #[arg(long)]
     pub no_git: bool,

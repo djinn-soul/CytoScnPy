@@ -6,10 +6,10 @@ use std::io::Write;
 use crate::cli::Commands;
 use crate::entry_point::handlers::{
     handle_anti_patterns, handle_duplicates, handle_exceptions, handle_globals, handle_naming,
-    handle_searchability, handle_side_effects, handle_singletons, handle_todos,
+    handle_score, handle_searchability, handle_side_effects, handle_singletons, handle_todos,
     handle_unreferenced, handle_wildcards, AntiPatternsFlags, DuplicatesFlags, ExceptionsFlags,
-    GlobalsFlags, NamingFlags, SearchabilityFlags, SideEffectsFlags, SingletonsFlags, TodosFlags,
-    UnreferencedFlags, WildcardsFlags,
+    GlobalsFlags, NamingFlags, ScoreFlags, SearchabilityFlags, SideEffectsFlags, SingletonsFlags,
+    TodosFlags, UnreferencedFlags, WildcardsFlags,
 };
 use crate::entry_point::run::RuntimeContext;
 
@@ -179,6 +179,25 @@ pub(super) fn handle_quality_command<W: Write>(
                 max_unreferenced_lines: args.max_unreferenced_lines,
                 min_lines: args.min_lines,
                 include_tests: args.include_tests,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Score { args } => handle_score(
+            &args.paths,
+            ScoreFlags {
+                max_score: args.max_score,
+                ci: args.ci,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                json: root_json || args.json || args.format.as_deref() == Some("json"),
+                llm: args.format.as_deref() == Some("llm"),
+                no_git: args.no_git,
+                git_months: args.git_months,
+                context_budget: args.context_budget,
                 verbose,
             },
             args.output_file,

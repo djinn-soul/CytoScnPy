@@ -51,6 +51,8 @@ pub struct DeslopConfig {
     pub max_unreferenced_functions: Option<usize>,
     /// Optional maximum allowed lines in unreferenced large functions.
     pub max_unreferenced_lines: Option<usize>,
+    /// Optional maximum allowed weighted Slop Index (0-100).
+    pub max_slop_index: Option<u32>,
 }
 
 impl Default for DeslopConfig {
@@ -79,6 +81,7 @@ impl Default for DeslopConfig {
             max_duplicate_pct: None,
             max_unreferenced_functions: None,
             max_unreferenced_lines: None,
+            max_slop_index: None,
         }
     }
 }

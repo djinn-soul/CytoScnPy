@@ -105,6 +105,9 @@ pub mod duplicates;
 /// Module for unreferenced large functions in isolated files analysis.
 pub mod unreferenced;
 
+/// Module for weighted Slop Index, verdict bands, and repository scoring.
+pub mod scoring;
+
 /// Module for mutable global state analysis across Python and polyglot files.
 pub mod globals;
 

@@ -23,6 +23,13 @@ pub(super) struct ComprehensiveRequest<'a> {
 #[derive(Serialize)]
 struct ComprehensiveReport {
     schema_version: u32,
+    slop_index: u32,
+    verdict: crate::scoring::Verdict,
+    raw_score: f64,
+    size_multiplier: f64,
+    dimensions: Vec<crate::scoring::DimensionScore>,
+    recommendations: Vec<crate::scoring::Recommendation>,
+    scoring: crate::scoring::ScoreResult,
     architecture: crate::architecture::ArchitectureGraphResult,
     context: crate::context::ContextAnalysisResult,
     health: Vec<crate::doctor::DoctorResult>,
@@ -121,6 +128,44 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         request.cli.output.verbose,
     );
 
+    let doc_root = health
+        .first()
+        .map_or(request.analysis_root, |d| d.root_path.as_path());
+    let aggregated_health = crate::doctor::aggregate_doctor_results(&health, doc_root);
+
+    let scoring_ctx = crate::scoring::ScoringContext {
+        architecture: &architecture,
+        context: &context,
+        doctor: aggregated_health.as_ref(),
+        searchability: &searchability,
+        naming: &naming,
+        todos: &todos,
+        globals: &globals,
+        exceptions: &exceptions,
+        wildcards: &wildcards,
+        side_effects: &side_effects,
+        singletons: &singletons,
+        anti_patterns: &anti_patterns,
+        duplicates: &duplicates,
+        unreferenced: &unreferenced,
+    };
+    let max_score = if request.cli.output.fail_on_any {
+        request.config.cytoscnpy.deslop.max_slop_index
+    } else {
+        None
+    };
+    let scoring = crate::scoring::score_repository(
+        &scoring_ctx,
+        &crate::scoring::ScoringOptions {
+            max_score,
+            fail_on_any: false,
+            ci: false,
+            context_budget: request.args.context_budget,
+            no_git: request.args.no_git,
+            git_months: request.args.git_months,
+        },
+    );
+
     let failures = collect_failures(
         &architecture,
         &context,
@@ -136,6 +181,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         &anti_patterns,
         &duplicates,
         &unreferenced,
+        &scoring,
         request.config,
         request.cli.output.fail_on_any,
     );
@@ -158,12 +204,20 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             &anti_patterns,
             &duplicates,
             &unreferenced,
+            &scoring,
             &failures,
         )?)
     };
 
     let report = ComprehensiveReport {
         schema_version: 1,
+        slop_index: scoring.slop_index,
+        verdict: scoring.verdict,
+        raw_score: scoring.raw_score,
+        size_multiplier: scoring.size_multiplier,
+        dimensions: scoring.dimensions.clone(),
+        recommendations: scoring.recommendations.clone(),
+        scoring,
         architecture,
         context,
         health,
@@ -199,17 +253,11 @@ fn health_results(request: &ComprehensiveRequest<'_>) -> Vec<crate::doctor::Doct
     request
         .roots
         .iter()
-        .map(|path| {
-            if path.is_file() {
-                path.parent().unwrap_or(request.analysis_root)
-            } else {
-                path.as_path()
-            }
-        })
-        .filter(|path| seen.insert((*path).to_path_buf()))
+        .map(|path| crate::doctor::resolve_doctor_target(path, request.analysis_root))
+        .filter(|path| seen.insert(path.clone()))
         .map(|path| {
             crate::doctor::run_doctor(
-                path,
+                &path,
                 &crate::doctor::DoctorConfig {
                     excludes: request.excludes.to_vec(),
                     verbose: request.cli.output.verbose,

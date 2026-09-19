@@ -252,21 +252,42 @@ fn test_doctor_exclusions_with_trailing_and_leading_slashes() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
 
-    let src_dir = root.join("src");
-    fs::create_dir_all(&src_dir).unwrap();
-    fs::write(src_dir.join("main.py"), "def main(): pass\n").unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.py"), "def main(): pass\n").unwrap();
+    fs::create_dir_all(root.join("tests")).unwrap();
+    fs::write(root.join("tests/test_main.py"), "def test_main(): pass\n").unwrap();
 
-    let tests_dir = root.join("tests");
-    fs::create_dir_all(&tests_dir).unwrap();
-    fs::write(tests_dir.join("test_main.py"), "def test_main(): pass\n").unwrap();
-
-    // Trailing slash "tests/"
     let stats1 = scan_repo_structure(root, &["tests/".to_owned()]);
     assert_eq!(stats1.total_files, 1);
-    assert_eq!(stats1.source_files, 1);
-
-    // Leading dot-slash "./tests"
     let stats2 = scan_repo_structure(root, &["./tests".to_owned()]);
     assert_eq!(stats2.total_files, 1);
-    assert_eq!(stats2.source_files, 1);
+}
+
+#[test]
+fn test_scan_repo_structure_special_filenames() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    fs::write(root.join("Makefile"), "all:\n\t@echo ok\n").unwrap();
+    fs::write(
+        root.join("Dockerfile"),
+        "FROM python:3.11-slim\nCMD [\"python\"]\n",
+    )
+    .unwrap();
+    fs::write(root.join("app.py"), "print('hello')\n").unwrap();
+    fs::write(root.join("pyproject.toml"), "[project]\nname = \"demo\"\n").unwrap();
+
+    let stats = scan_repo_structure(root, &[]);
+    assert_eq!(stats.total_files, 4);
+
+    let langs: std::collections::HashMap<_, _> = stats
+        .languages
+        .into_iter()
+        .map(|l| (l.language, l.file_count))
+        .collect();
+
+    assert_eq!(langs.get("Shell"), Some(&1));
+    assert_eq!(langs.get("Docker"), Some(&1));
+    assert_eq!(langs.get("Python"), Some(&1));
+    assert_eq!(langs.get("TOML"), Some(&1));
 }

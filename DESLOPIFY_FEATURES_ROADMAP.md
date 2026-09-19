@@ -51,7 +51,7 @@
 ## Language and AST analysis
 
 - [ ] Detect supported source languages and common configuration/document formats.
-- [ ] Recognize special filenames such as `Makefile` and `Dockerfile`.
+- [x] Recognize special filenames such as `Makefile` and `Dockerfile`.
 - [ ] Add tree-sitter analysis for Python, JavaScript/JSX, TypeScript/TSX, Rust, Go, Java, C/C++, Ruby, and PHP.
 - [ ] Extract function names, locations, length, cyclomatic complexity, and nesting depth.
 - [ ] Calculate average and maximum function complexity, length, and nesting metrics.
@@ -182,7 +182,7 @@ The scanner already respects `.gitignore`, global ignore, and `.git/info/exclude
 | # | Roadmap item | Current status | Remaining work |
 |---|---|---|---|
 | 35 | Multiple languages/config formats | Scope expansion | Separate lightweight inventory from full language analysis. |
-| 36 | Makefile/Dockerfile recognition | Missing as health inventory | Read as setup metadata. |
+| 36 | Makefile/Dockerfile recognition | Existing (`cytoscnpy doctor`, `cytoscnpy score`) | Recognized as setup build script/container config metadata and indexed into structure language/file inventories. |
 | 37 | Multilanguage tree-sitter analysis | Scope expansion | CytoScnPy uses Ruff's Python AST; broader parsing needs a separate scope decision. |
 | 38 | Function names, locations, length, complexity, nesting | Existing Python foundation | Normalize health metrics; exact per-function nesting export may need adding. |
 | 39 | Average/maximum function metrics | Partial | Average complexity exists; complete length/nesting aggregates need verification and extension. |

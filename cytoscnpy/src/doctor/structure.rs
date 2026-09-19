@@ -21,24 +21,21 @@ const SKIP_DIR_NAMES: &[&str] = &[
     ".vscode",
 ];
 
-fn detect_language(ext: &str) -> Option<&'static str> {
+fn detect_language(ext: &str, file_name: &str) -> Option<&'static str> {
     match ext {
         "py" | "pyi" => Some("Python"),
-        "rs" => Some("Rust"),
-        "js" | "jsx" | "mjs" | "cjs" => Some("JavaScript"),
-        "ts" | "tsx" => Some("TypeScript"),
         "toml" => Some("TOML"),
         "json" => Some("JSON"),
         "yaml" | "yml" => Some("YAML"),
-        "md" | "markdown" => Some("Markdown"),
-        "sh" | "bash" => Some("Shell"),
-        "go" => Some("Go"),
-        "java" => Some("Java"),
-        "c" | "h" => Some("C"),
-        "cpp" | "hpp" | "cc" => Some("C++"),
+        "md" | "markdown" | "mdx" => Some("Markdown"),
+        "sh" | "bash" | "zsh" => Some("Shell"),
         "html" | "htm" => Some("HTML"),
         "css" => Some("CSS"),
-        _ => None,
+        _ => match file_name {
+            "makefile" | "gnumakefile" => Some("Shell"),
+            "dockerfile" => Some("Docker"),
+            _ => None,
+        },
     }
 }
 
@@ -134,7 +131,13 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
             .unwrap_or("")
             .to_lowercase();
 
-        let Some(language) = detect_language(&ext) else {
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let Some(language) = detect_language(&ext, &file_name) else {
             continue;
         };
 

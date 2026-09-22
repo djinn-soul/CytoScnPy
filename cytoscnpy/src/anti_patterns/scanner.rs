@@ -52,6 +52,7 @@ pub fn scan_files(files: &[PathBuf]) -> AntiPatternsResult {
                 .and_then(|e| e.to_str())
                 .is_some_and(|e| e == "py" || e == "pyi")
                 && !is_test_file(p)
+                && !crate::utils::is_likely_minified(p, None)
         })
         .collect();
 

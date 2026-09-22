@@ -79,6 +79,7 @@ impl CytoScnPy {
                     .is_some_and(|ext| ext == "py" || (self.include_ipynb && ext == "ipynb"))
                     && (self.include_tests
                         || !crate::utils::is_test_path_relative_to(path, &inferred_root))
+                    && !crate::utils::is_likely_minified(path, None)
                 {
                     all_files.push(path.clone());
                 }
@@ -111,6 +112,7 @@ impl CytoScnPy {
         if !self.include_tests {
             files.retain(|path| !crate::utils::is_test_path_relative_to(path, analysis_root));
         }
+        files.retain(|path| !crate::utils::is_likely_minified(path, None));
         (files, directory_count)
     }
 

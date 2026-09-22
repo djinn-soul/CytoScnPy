@@ -59,6 +59,7 @@ pub fn analyze_duplicates_files(
                 .and_then(|e| e.to_str())
                 .is_some_and(|e| e == "py" || e == "pyi")
                 && (options.include_tests || !crate::utils::is_test_path(&p.to_string_lossy()))
+                && !crate::utils::is_likely_minified(p, None)
         })
         .cloned()
         .collect();

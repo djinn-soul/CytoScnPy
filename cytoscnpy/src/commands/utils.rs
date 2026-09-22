@@ -32,6 +32,7 @@ pub fn find_python_files_with_options(
                 !crate::utils::is_path_ignored(rel, exclude)
             });
         }
+        files.retain(|path| !crate::utils::is_likely_minified(path, None));
         all_files.extend(files);
     }
     all_files

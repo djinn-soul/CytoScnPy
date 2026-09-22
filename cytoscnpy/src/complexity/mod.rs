@@ -6,3 +6,4 @@ pub use analysis::{
     analyze_complexity, calculate_module_complexity, calculate_module_complexity_ast,
     ComplexityFinding,
 };
+pub use block::calculate_complexity;

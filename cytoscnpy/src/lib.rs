@@ -111,6 +111,9 @@ pub mod scoring;
 /// Module for mutable global state analysis across Python and polyglot files.
 pub mod globals;
 
+/// Module for function and method metric extraction (names, locations, length, complexity, nesting).
+pub mod functions;
+
 /// Module for handling CLI commands and their execution logic.
 pub mod commands;
 /// Module for calculating cyclomatic complexity.

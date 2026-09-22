@@ -251,4 +251,11 @@ pub enum Commands {
         #[command(flatten)]
         args: super::DoctorArgs,
     },
+    /// Extract function names, locations, length, cyclomatic complexity, and nesting depth
+    #[command(alias = "fns", alias = "func")]
+    Functions {
+        /// Functions analysis options.
+        #[command(flatten)]
+        args: super::FunctionsArgs,
+    },
 }

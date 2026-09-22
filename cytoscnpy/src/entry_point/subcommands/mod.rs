@@ -119,7 +119,8 @@ pub(super) fn run_subcommand<W: std::io::Write>(
         | Commands::AntiPatterns { .. }
         | Commands::Duplicates { .. }
         | Commands::Unreferenced { .. }
-        | Commands::Score { .. } => quality::handle_quality_command(
+        | Commands::Score { .. }
+        | Commands::Functions { .. } => quality::handle_quality_command(
             command,
             root_json,
             root_fail_on_any,

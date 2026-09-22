@@ -5,11 +5,11 @@ use std::io::Write;
 
 use crate::cli::Commands;
 use crate::entry_point::handlers::{
-    handle_anti_patterns, handle_duplicates, handle_exceptions, handle_globals, handle_naming,
-    handle_score, handle_searchability, handle_side_effects, handle_singletons, handle_todos,
-    handle_unreferenced, handle_wildcards, AntiPatternsFlags, DuplicatesFlags, ExceptionsFlags,
-    GlobalsFlags, NamingFlags, ScoreFlags, SearchabilityFlags, SideEffectsFlags, SingletonsFlags,
-    TodosFlags, UnreferencedFlags, WildcardsFlags,
+    handle_anti_patterns, handle_duplicates, handle_exceptions, handle_functions, handle_globals,
+    handle_naming, handle_score, handle_searchability, handle_side_effects, handle_singletons,
+    handle_todos, handle_unreferenced, handle_wildcards, AntiPatternsFlags, DuplicatesFlags,
+    ExceptionsFlags, FunctionsFlags, GlobalsFlags, NamingFlags, ScoreFlags, SearchabilityFlags,
+    SideEffectsFlags, SingletonsFlags, TodosFlags, UnreferencedFlags, WildcardsFlags,
 };
 use crate::entry_point::run::RuntimeContext;
 
@@ -203,6 +203,25 @@ pub(super) fn handle_quality_command<W: Write>(
             args.output_file,
             args.exclude,
             args.ignore,
+            &context.exclude_folders,
+            &context.analysis_root,
+            writer,
+        ),
+        Commands::Functions { args } => handle_functions(
+            &args.paths,
+            FunctionsFlags {
+                json: root_json || args.json,
+                fail_on_any: root_fail_on_any || args.fail_on_any,
+                min_complexity: args.min_complexity,
+                min_lines: args.min_lines,
+                min_nesting: args.min_nesting,
+                max_complexity: args.max_complexity,
+                max_lines: args.max_lines,
+                max_nesting: args.max_nesting,
+                verbose,
+            },
+            args.output_file,
+            args.exclude,
             &context.exclude_folders,
             &context.analysis_root,
             writer,

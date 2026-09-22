@@ -24,6 +24,13 @@ impl CytoScnPy {
             Err(error) => return FileAnalysisResult::error(file_path, error),
         };
 
+        if crate::utils::is_likely_minified(file_path, Some(&source)) {
+            if self.verbose {
+                eprintln!("Skipping likely minified file: {}", file_path.display());
+            }
+            return FileAnalysisResult::empty();
+        }
+
         let file_size = source.len();
         let line_index = LineIndex::new(&source);
         let ignored_lines = crate::utils::get_ignored_lines(&source);

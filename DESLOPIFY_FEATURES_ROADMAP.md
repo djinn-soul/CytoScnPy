@@ -53,9 +53,9 @@
 - [ ] Detect supported source languages and common configuration/document formats.
 - [x] Recognize special filenames such as `Makefile` and `Dockerfile`.
 - [ ] Add tree-sitter analysis for Python, JavaScript/JSX, TypeScript/TSX, Rust, Go, Java, C/C++, Ruby, and PHP.
-- [ ] Extract function names, locations, length, cyclomatic complexity, and nesting depth.
+- [x] Extract function names, locations, length, cyclomatic complexity, and nesting depth.
 - [ ] Calculate average and maximum function complexity, length, and nesting metrics.
-- [ ] Exclude likely minified files from AST-oriented analysis.
+- [x] Exclude likely minified files from AST-oriented analysis.
 
 ## Architecture and searchability analysis
 
@@ -184,9 +184,9 @@ The scanner already respects `.gitignore`, global ignore, and `.git/info/exclude
 | 35 | Multiple languages/config formats | Scope expansion | Separate lightweight inventory from full language analysis. |
 | 36 | Makefile/Dockerfile recognition | Existing (`cytoscnpy doctor`, `cytoscnpy score`) | Recognized as setup build script/container config metadata and indexed into structure language/file inventories. |
 | 37 | Multilanguage tree-sitter analysis | Scope expansion | CytoScnPy uses Ruff's Python AST; broader parsing needs a separate scope decision. |
-| 38 | Function names, locations, length, complexity, nesting | Existing Python foundation | Normalize health metrics; exact per-function nesting export may need adding. |
+| 38 | Function names, locations, length, complexity, nesting | Existing (`cytoscnpy functions`) | Unified AST extraction (`FunctionInfo`) with qualified names, file/start/end locations, line counts, McCabe cyclomatic complexity, and control-flow max nesting depth; CLI subcommand (`cytoscnpy functions`, aliases `fns`, `func`) and JSON export. |
 | 39 | Average/maximum function metrics | Partial | Average complexity exists; complete length/nesting aggregates need verification and extension. |
-| 40 | Skip minified source | Missing | Primarily relevant to JavaScript/multilanguage expansion. |
+| 40 | Skip minified source | Existing (`cytoscnpy`) | Excluded based on naming (*.min.py, *-min.py, etc.) and size/line heuristics (<=3 lines >1KB or avg line length >200 chars) across AST analysis pipelines. |
 
 Repository scoring does not require replacing the existing Python parser. Sources: [complexity rules](cytoscnpy/src/rules/quality/complexity.rs), [length and nesting rules](cytoscnpy/src/rules/quality/maintainability.rs).
 
@@ -311,14 +311,14 @@ them separately.
 
 | Status | Count | Percentage |
 |---|---:|---:|
-| Fully implemented | **57 / 74** | **77%** |
-| Partially implemented | **14 / 74** | **19%** |
-| Missing | **3 / 74** | **4%** |
+| Fully implemented | **59 / 74** | **80%** |
+| Partially implemented | **13 / 74** | **17%** |
+| Missing | **2 / 74** | **3%** |
 
 "Fully implemented" means the complete wording of the checklist item is
 represented in the current source. "Partial" means useful implementation
 exists but at least one stated input, language, aggregate, or recommendation
-is absent. A partial or full implementation exists for 71 of 74 rows.
+is absent. A partial or full implementation exists for 72 of 74 rows.
 
 ### Verification by section
 
@@ -328,12 +328,12 @@ is absent. A partial or full implementation exists for 71 of 74 rows.
 | Reports and integrations | 7 | 0 | 0 |
 | Scoring model | 6 | 4 | 0 |
 | Scanning and metadata | 5 | 2 | 0 |
-| Language and AST analysis | 1 | 3 | 2 |
+| Language and AST analysis | 3 | 1 | 2 |
 | Architecture and searchability | 9 | 0 | 0 |
 | Quality and runtime analysis | 8 | 1 | 0 |
 | Git-aware context analysis | 7 | 0 | 0 |
 | Recommendation engine | 4 | 4 | 1 |
-| **Total** | **57** | **14** | **3** |
+| **Total** | **59** | **13** | **2** |
 
 ### Partially implemented items
 

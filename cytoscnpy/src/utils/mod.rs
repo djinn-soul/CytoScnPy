@@ -3,12 +3,14 @@
 //! This module provides various utility functions used across the codebase.
 
 mod ignore_match;
+mod minified;
 mod paths;
 
 pub(crate) use paths::discover_project_root;
 
-// Re-export path and ignore utilities
+// Re-export path, ignore, and minification utilities
 pub use ignore_match::{is_name_or_pattern_ignored, is_path_ignored};
+pub use minified::{is_likely_minified, is_likely_minified_content, is_likely_minified_path};
 pub use paths::{
     collect_python_files_gitignore, is_excluded, normalize_display_path, validate_output_path,
     validate_path_within_root,

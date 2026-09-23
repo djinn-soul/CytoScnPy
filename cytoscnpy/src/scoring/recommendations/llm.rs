@@ -40,6 +40,23 @@ pub fn format_llm_report(result: &ScoreResult) -> String {
             ));
         }
     }
+    let fn_stats = result.function_stats.as_ref().or_else(|| {
+        result
+            .summary
+            .as_ref()
+            .and_then(|s| s.function_stats.as_ref())
+    });
+    if let Some(stats) = fn_stats {
+        out.push_str(&format!(
+            "- **Function Metrics**: {} functions, avg {:.1} lines (max {}), avg complexity {:.1} (max {}), max nesting depth {}\n",
+            stats.total_functions,
+            stats.avg_lines,
+            stats.max_lines,
+            stats.avg_complexity,
+            stats.max_complexity,
+            stats.max_nesting
+        ));
+    }
     out.push_str(&format!(
         "- **Total Remediations**: {}\n\n",
         result.recommendations.len()

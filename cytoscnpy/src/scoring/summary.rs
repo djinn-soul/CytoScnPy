@@ -29,6 +29,12 @@ pub struct RepoSummary {
     pub languages: Vec<LanguageBreakdown>,
     /// Detected repository tooling and configuration files.
     pub detected_configs: Vec<String>,
+    /// Top-level directories found in repository.
+    #[serde(default)]
+    pub top_level_dirs: Vec<String>,
+    /// Aggregate function metrics across codebase (complexity, length, nesting).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_stats: Option<crate::functions::FunctionStats>,
 }
 
 /// Breakdown of code volume for a specific language.
@@ -83,7 +89,16 @@ impl RepoSummary {
             test_to_source_ratio: doc.structure.test_to_source_ratio,
             languages,
             detected_configs: configs,
+            top_level_dirs: doc.structure.top_level_dirs.clone(),
+            function_stats: None,
         }
+    }
+
+    /// Attach function metrics to this summary.
+    #[must_use]
+    pub fn with_functions(mut self, stats: crate::functions::FunctionStats) -> Self {
+        self.function_stats = Some(stats);
+        self
     }
 
     /// Format summary section for terminal reporting.
@@ -103,6 +118,25 @@ impl RepoSummary {
             self.test_lines,
             self.test_to_source_ratio * 100.0
         ));
+
+        if let Some(stats) = &self.function_stats {
+            out.push_str(&format!(
+                "  Functions: {:<6} Avg Lines: {:<5.1} Max Lines: {:<5} Avg Complexity: {:<5.1} Max Complexity: {:<3} Max Nesting: {}\n",
+                stats.total_functions,
+                stats.avg_lines,
+                stats.max_lines,
+                stats.avg_complexity,
+                stats.max_complexity,
+                stats.max_nesting
+            ));
+        }
+
+        if !self.top_level_dirs.is_empty() {
+            out.push_str(&format!(
+                "  Top-Level Dirs: {}\n",
+                self.top_level_dirs.join(", ")
+            ));
+        }
 
         if !self.languages.is_empty() {
             let lang_parts: Vec<String> = self
@@ -163,6 +197,8 @@ mod tests {
                 "Formatter: Black".to_owned(),
                 "Lockfile: poetry.lock".to_owned(),
             ],
+            top_level_dirs: vec!["src".to_owned(), "tests".to_owned()],
+            function_stats: None,
         };
 
         let formatted = summary.format_terminal_summary();
@@ -172,6 +208,7 @@ mod tests {
         assert!(formatted.contains("Source Files: 30"));
         assert!(formatted.contains("Test Files: 12"));
         assert!(formatted.contains("Test Ratio: 35.0%"));
+        assert!(formatted.contains("Top-Level Dirs: src, tests"));
         assert!(formatted.contains("Python (35 files, 4800 lines)"));
         assert!(formatted.contains("Tooling Detected: Linter: Ruff, Formatter: Black"));
     }
@@ -197,11 +234,14 @@ mod tests {
                 bytes: 35000,
             }],
             detected_configs: vec!["CI: GitHub Actions".to_owned()],
+            top_level_dirs: vec!["pkg".to_owned()],
+            function_stats: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
         assert!(json.contains("\"total_files\":10"));
         assert!(json.contains("\"test_to_source_ratio\":0.25"));
+        assert!(json.contains("\"top_level_dirs\":[\"pkg\"]"));
         assert!(json.contains("\"Python\""));
     }
 }

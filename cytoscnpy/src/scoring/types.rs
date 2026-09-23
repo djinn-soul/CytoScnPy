@@ -81,6 +81,9 @@ pub struct ScoreResult {
     /// Summary of repository structure, languages, test files, and configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<super::summary::RepoSummary>,
+    /// Aggregate function metrics across codebase (complexity, length, nesting).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_stats: Option<crate::functions::FunctionStats>,
     /// Whether the score satisfies all configured gates and thresholds.
     pub passed_gate: bool,
     /// Failure reason if gate failed.

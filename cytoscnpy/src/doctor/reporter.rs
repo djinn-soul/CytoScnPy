@@ -185,6 +185,13 @@ fn print_structure_table<W: Write>(result: &DoctorResult, writer: &mut W) -> std
         table.add_row(vec!["Languages".to_owned(), lang_summary]);
     }
 
+    if !s.top_level_dirs.is_empty() {
+        table.add_row(vec![
+            "Top-Level Dirs".to_owned(),
+            s.top_level_dirs.join(", "),
+        ]);
+    }
+
     writeln!(writer, "{table}")
 }
 

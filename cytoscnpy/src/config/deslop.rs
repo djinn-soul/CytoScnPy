@@ -51,6 +51,12 @@ pub struct DeslopConfig {
     pub max_unreferenced_functions: Option<usize>,
     /// Optional maximum allowed lines in unreferenced large functions.
     pub max_unreferenced_lines: Option<usize>,
+    /// Optional maximum allowed physical lines in any single function.
+    pub max_function_lines: Option<usize>,
+    /// Optional maximum allowed cyclomatic complexity in any single function.
+    pub max_function_complexity: Option<usize>,
+    /// Optional maximum allowed control flow nesting depth in any single function.
+    pub max_nesting_depth: Option<usize>,
     /// Optional maximum allowed weighted Slop Index (0-100).
     pub max_slop_index: Option<u32>,
 }
@@ -81,6 +87,9 @@ impl Default for DeslopConfig {
             max_duplicate_pct: None,
             max_unreferenced_functions: None,
             max_unreferenced_lines: None,
+            max_function_lines: None,
+            max_function_complexity: None,
+            max_nesting_depth: None,
             max_slop_index: None,
         }
     }

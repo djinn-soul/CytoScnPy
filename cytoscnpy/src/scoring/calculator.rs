@@ -120,6 +120,7 @@ pub fn finalize_score_result(
         dimensions,
         recommendations,
         summary: None,
+        function_stats: None,
         passed_gate,
         failure_reason,
     }

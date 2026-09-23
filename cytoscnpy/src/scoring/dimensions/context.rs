@@ -41,6 +41,21 @@ pub fn context_pressure(ctx: &ScoringContext<'_>) -> DimensionScore {
         rating += 1;
     }
 
+    let fn_stats = &ctx.functions.stats;
+    if fn_stats.max_lines > 300 {
+        rating += 2;
+    } else if fn_stats.max_lines > 100 {
+        rating += 1;
+    }
+
+    if fn_stats.max_nesting > 8 {
+        rating += 1;
+    }
+
+    if ctx.context.git_activity.frozen_files > 0 && ctx.context.git_activity.frozen_lines > 500 {
+        rating += 1;
+    }
+
     rating = rating.min(5);
 
     let mut evidence_parts = vec![format!(
@@ -50,12 +65,25 @@ pub fn context_pressure(ctx: &ScoringContext<'_>) -> DimensionScore {
         budget.status_verdict
     )];
 
+    if fn_stats.total_functions > 0 {
+        evidence_parts.push(format!(
+            "avg function {:.1} lines (max {}), max nesting depth {}",
+            fn_stats.avg_lines, fn_stats.max_lines, fn_stats.max_nesting
+        ));
+    }
+
     if hotspot_count > 0 {
         evidence_parts.push(format!("{hotspot_count} churn-complexity hotspots"));
     }
     if dead_fn_count > 0 {
         evidence_parts.push(format!(
             "{dead_fn_count} unreferenced large functions in isolated files"
+        ));
+    }
+    if ctx.context.git_activity.frozen_files > 0 && ctx.context.git_activity.frozen_lines > 0 {
+        evidence_parts.push(format!(
+            "{} frozen files ({} lines)",
+            ctx.context.git_activity.frozen_files, ctx.context.git_activity.frozen_lines
         ));
     }
     let dup_pct = ctx.duplicates.stats.duplicate_pct;

@@ -132,6 +132,9 @@ pub struct RepoStructureStats {
     pub max_directory_depth: usize,
     /// Language volume breakdown.
     pub languages: Vec<LanguageStats>,
+    /// Top-level project directories found in repository.
+    #[serde(default)]
+    pub top_level_dirs: Vec<String>,
 }
 
 /// Verdict on repository setup readiness.

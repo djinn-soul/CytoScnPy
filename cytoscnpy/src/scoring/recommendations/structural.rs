@@ -21,6 +21,7 @@ pub fn collect_structural_candidates(
     collect_architecture(ctx, dimensions, out);
     collect_coupling(ctx, dimensions, out);
     collect_searchability(ctx, dimensions, out);
+    collect_context_recommendations(ctx, dimensions, out);
 }
 
 fn collect_architecture(
@@ -158,6 +159,72 @@ fn collect_searchability(
                 "Update import statements to reflect the renamed files.".to_owned(),
             ],
             affected_files: dup_files,
+        });
+    }
+
+    if !ctx.searchability.function_collisions.is_empty() {
+        let mut affected = Vec::new();
+        for col in &ctx.searchability.function_collisions {
+            for loc in &col.locations {
+                let p = loc.file.to_string_lossy().into_owned();
+                if !affected.contains(&p) {
+                    affected.push(p);
+                }
+            }
+        }
+        affected.truncate(5);
+
+        let current = get_rating(dimensions, "Architecture clarity");
+        out.push(CandidateRecommendation {
+            id: "disambiguate-function-names".to_owned(),
+            title: format!(
+                "Disambiguate {} colliding function name(s)",
+                ctx.searchability.function_collisions.len()
+            ),
+            dimension: "Architecture clarity".to_owned(),
+            target_rating: current.saturating_sub(1),
+            effort: Effort::Medium,
+            description: "Functions sharing identical names across multiple files create ambiguity for LLMs and human maintainers.".to_owned(),
+            action_steps: vec![
+                "Prefix generic function names with domain or submodule identifiers.".to_owned(),
+                "Encapsulate duplicate procedural routines into distinct classes or helper modules.".to_owned(),
+                "Consolidate truly identical utility functions into a single shared module.".to_owned(),
+            ],
+            affected_files: affected,
+        });
+    }
+}
+
+fn collect_context_recommendations(
+    ctx: &ScoringContext<'_>,
+    dimensions: &[DimensionScore],
+    out: &mut Vec<CandidateRecommendation>,
+) {
+    if ctx.context.git_activity.frozen_files > 0
+        && (ctx.context.git_activity.frozen_lines >= 100
+            || ctx.context.git_activity.frozen_bytes >= 5_000
+            || ctx.context.token_budget.navigation_pct > 25.0)
+    {
+        let current = get_rating(dimensions, "Context pressure");
+        out.push(CandidateRecommendation {
+            id: "extract-stable-library".to_owned(),
+            title: format!(
+                "Extract {} stable/frozen file(s) into independent package(s)",
+                ctx.context.git_activity.frozen_files
+            ),
+            dimension: "Context pressure".to_owned(),
+            target_rating: current.saturating_sub(1),
+            effort: Effort::High,
+            description: "Mature modules untouched in recent development consume agent token context and inflate navigation load.".to_owned(),
+            action_steps: vec![
+                "Identify frozen domain utilities, client SDKs, or math/helper packages.".to_owned(),
+                "Extract them into distinct standalone packages or internal namespace libraries.".to_owned(),
+                "Reference the extracted libraries as pinned version dependencies to reclaim LLM context window.".to_owned(),
+            ],
+            affected_files: vec![format!(
+                "{} frozen files ({} lines)",
+                ctx.context.git_activity.frozen_files, ctx.context.git_activity.frozen_lines
+            )],
         });
     }
 }

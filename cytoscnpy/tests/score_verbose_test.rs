@@ -112,6 +112,7 @@ fn test_verbose_prioritizes_friction_dimensions() {
         dimensions,
         recommendations: vec![],
         summary: None,
+        function_stats: None,
         passed_gate: true,
         failure_reason: None,
     };
@@ -170,6 +171,7 @@ fn test_verbose_expands_recommendations_and_files() {
         dimensions: vec![],
         recommendations: recs,
         summary: None,
+        function_stats: None,
         passed_gate: true,
         failure_reason: None,
     };

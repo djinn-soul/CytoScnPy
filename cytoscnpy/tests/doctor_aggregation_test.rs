@@ -38,6 +38,7 @@ fn test_aggregate_doctor_results_symmetry() {
             largest_file_lines: 50,
             max_directory_depth: 2,
             languages: vec![],
+            top_level_dirs: vec![name.to_owned()],
         },
         reliability: SetupReliabilityScore {
             score: 20,
@@ -66,6 +67,7 @@ fn test_aggregate_doctor_results_symmetry() {
     assert_eq!(agg12, agg21);
     assert_eq!(agg12.structure.total_files, 10);
     assert_eq!(agg12.structure.total_lines, 200);
+    assert_eq!(agg12.structure.top_level_dirs, vec!["dir_a", "dir_b"]);
     assert!(agg12.reliability.has_lockfile);
     assert!(agg12.reliability.has_ci);
 }

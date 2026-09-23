@@ -55,8 +55,10 @@ pub fn score_repository(ctx: &ScoringContext<'_>, options: &ScoringOptions) -> S
         recommendations::generate_recommendations(ctx, &dimensions, size_multiplier);
 
     let mut result = finalize_score_result(dimensions, recommendations, size_multiplier, options);
+    result.function_stats = Some(ctx.functions.stats.clone());
     if let Some(doc) = ctx.doctor {
-        result.summary = Some(RepoSummary::from_doctor(doc));
+        let summary = RepoSummary::from_doctor(doc).with_functions(ctx.functions.stats.clone());
+        result.summary = Some(summary);
     }
     result
 }

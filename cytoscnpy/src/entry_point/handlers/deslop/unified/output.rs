@@ -20,6 +20,7 @@ pub(super) fn render_human_report(
     anti_patterns: &crate::anti_patterns::AntiPatternsResult,
     duplicates: &crate::duplicates::DuplicatesResult,
     unreferenced: &crate::unreferenced::UnreferencedResult,
+    functions: &crate::functions::FunctionsResult,
     scoring: &crate::scoring::ScoreResult,
     failures: &[GateFailure],
 ) -> Result<String> {
@@ -71,6 +72,9 @@ pub(super) fn render_human_report(
 
     writeln!(output, "\n# Unreferenced Large Functions in Isolated Files")?;
     crate::unreferenced::print_terminal_report(unreferenced, None, &mut output)?;
+
+    writeln!(output, "\n# Python Function Metrics")?;
+    crate::functions::reporter::print_terminal_report(functions, None, &mut output)?;
 
     writeln!(output, "\n# CI Gates")?;
     if failures.is_empty() {

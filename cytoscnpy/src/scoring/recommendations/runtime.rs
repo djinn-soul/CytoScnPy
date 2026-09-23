@@ -218,4 +218,57 @@ fn collect_context_pressure(
             affected_files: hotspot_files,
         });
     }
+
+    if ctx.functions.stats.max_lines > 100
+        || ctx.functions.stats.max_complexity > 15
+        || ctx.functions.stats.max_nesting > 6
+    {
+        let mut complex_funcs: Vec<&crate::functions::FunctionInfo> = ctx
+            .functions
+            .functions
+            .iter()
+            .filter(|f| f.cyclomatic_complexity > 10 || f.line_count > 60 || f.max_nesting > 4)
+            .collect();
+        complex_funcs.sort_by(|a, b| {
+            b.cyclomatic_complexity
+                .cmp(&a.cyclomatic_complexity)
+                .then_with(|| b.line_count.cmp(&a.line_count))
+        });
+
+        let worst_files: Vec<String> = complex_funcs
+            .iter()
+            .map(|f| f.file.to_string_lossy().into_owned())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .take(5)
+            .collect();
+
+        let current = get_rating(dimensions, "Context pressure");
+        let worst_desc = if let Some(worst) = complex_funcs.first() {
+            format!(
+                " (worst: `{}` with complexity {}, {} lines, nesting depth {})",
+                worst.name, worst.cyclomatic_complexity, worst.line_count, worst.max_nesting
+            )
+        } else {
+            String::new()
+        };
+
+        out.push(CandidateRecommendation {
+            id: "simplify-complex-functions".to_owned(),
+            title: format!(
+                "Simplify {} complex or oversized function(s){worst_desc}",
+                complex_funcs.len()
+            ),
+            dimension: "Context pressure".to_owned(),
+            target_rating: current.saturating_sub(1),
+            effort: Effort::Medium,
+            description: "Oversized and deeply nested functions increase cognitive burden and LLM context pressure.".to_owned(),
+            action_steps: vec![
+                "Break large functions into smaller, single-responsibility helper functions.".to_owned(),
+                "Flatten nested control flow using early returns and guard clauses.".to_owned(),
+                "Add targeted unit tests before refactoring complex logic.".to_owned(),
+            ],
+            affected_files: worst_files,
+        });
+    }
 }

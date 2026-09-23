@@ -44,6 +44,7 @@ struct ComprehensiveReport {
     anti_patterns: crate::anti_patterns::AntiPatternsResult,
     duplicates: crate::duplicates::DuplicatesResult,
     unreferenced: crate::unreferenced::UnreferencedResult,
+    functions: crate::functions::FunctionsResult,
     gates: GateSummary,
 }
 
@@ -127,6 +128,11 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         },
         request.cli.output.verbose,
     );
+    let functions = crate::functions::analyze_functions(
+        request.roots,
+        request.excludes,
+        request.cli.output.verbose,
+    );
 
     let doc_root = health
         .first()
@@ -148,6 +154,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         anti_patterns: &anti_patterns,
         duplicates: &duplicates,
         unreferenced: &unreferenced,
+        functions: &functions,
     };
     let max_score = if request.cli.output.fail_on_any {
         request.config.cytoscnpy.deslop.max_slop_index
@@ -181,6 +188,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         &anti_patterns,
         &duplicates,
         &unreferenced,
+        &functions,
         &scoring,
         request.config,
         request.cli.output.fail_on_any,
@@ -204,6 +212,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             &anti_patterns,
             &duplicates,
             &unreferenced,
+            &functions,
             &scoring,
             &failures,
         )?)
@@ -232,6 +241,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         anti_patterns,
         duplicates,
         unreferenced,
+        functions,
         gates: GateSummary {
             passed: failures.is_empty(),
             failures,
@@ -250,20 +260,16 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
 
 fn health_results(request: &ComprehensiveRequest<'_>) -> Vec<crate::doctor::DoctorResult> {
     let mut seen = HashSet::new();
+    let cfg = crate::doctor::DoctorConfig {
+        excludes: request.excludes.to_vec(),
+        verbose: request.cli.output.verbose,
+        fail_on_missing: false,
+    };
     request
         .roots
         .iter()
-        .map(|path| crate::doctor::resolve_doctor_target(path, request.analysis_root))
-        .filter(|path| seen.insert(path.clone()))
-        .map(|path| {
-            crate::doctor::run_doctor(
-                &path,
-                &crate::doctor::DoctorConfig {
-                    excludes: request.excludes.to_vec(),
-                    verbose: request.cli.output.verbose,
-                    fail_on_missing: false,
-                },
-            )
-        })
+        .map(|p| crate::doctor::resolve_doctor_target(p, request.analysis_root))
+        .filter(|p| seen.insert(p.clone()))
+        .map(|p| crate::doctor::run_doctor(&p, &cfg))
         .collect()
 }

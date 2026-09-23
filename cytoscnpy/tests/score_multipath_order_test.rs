@@ -233,6 +233,7 @@ fn test_llm_report_unhealthy_empty_recommendations() {
         }],
         recommendations: vec![],
         summary: None,
+        function_stats: None,
         passed_gate: true,
         failure_reason: None,
     };
@@ -254,6 +255,7 @@ fn test_llm_report_unhealthy_empty_recommendations() {
         }],
         recommendations: vec![],
         summary: None,
+        function_stats: None,
         passed_gate: true,
         failure_reason: None,
     };

@@ -131,6 +131,13 @@ pub fn aggregate_doctor_results(
             .then_with(|| a.language.cmp(&b.language))
     });
 
+    let mut top_level_dirs: Vec<String> = results
+        .iter()
+        .flat_map(|r| r.structure.top_level_dirs.iter().cloned())
+        .collect();
+    top_level_dirs.sort();
+    top_level_dirs.dedup();
+
     let structure = RepoStructureStats {
         total_files,
         total_lines,
@@ -145,6 +152,7 @@ pub fn aggregate_doctor_results(
         largest_file_lines: largest.1,
         max_directory_depth,
         languages,
+        top_level_dirs,
     };
 
     // 4. Merge setup reliability

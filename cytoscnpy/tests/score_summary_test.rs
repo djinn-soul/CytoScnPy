@@ -75,6 +75,7 @@ fn test_score_includes_repository_summary_and_languages() {
         &cytoscnpy::unreferenced::UnreferencedOptions::default(),
         false,
     );
+    let functions = cytoscnpy::functions::analyze_functions(&[root.to_path_buf()], &[], false);
 
     let ctx = ScoringContext {
         architecture: &architecture,
@@ -91,6 +92,7 @@ fn test_score_includes_repository_summary_and_languages() {
         anti_patterns: &anti_patterns,
         duplicates: &duplicates,
         unreferenced: &unreferenced,
+        functions: &functions,
     };
 
     let result = score_repository(&ctx, &ScoringOptions::default());
@@ -102,12 +104,20 @@ fn test_score_includes_repository_summary_and_languages() {
     assert!(summary.source_files >= 1);
     assert!(summary.test_to_source_ratio > 0.0);
     assert!(summary.languages.iter().any(|l| l.name == "Python"));
+    assert!(summary.function_stats.is_some());
+    let fn_stats = summary.function_stats.as_ref().unwrap();
+    assert!(fn_stats.total_functions >= 2);
+    assert!(fn_stats.avg_lines > 0.0);
+    assert!(fn_stats.max_lines > 0);
+    assert!(fn_stats.avg_complexity >= 1.0);
+    assert!(fn_stats.max_complexity >= 1);
 
-    // Verify terminal output formatting contains summary block
+    // Verify terminal output formatting contains summary block and functions
     let terminal = cytoscnpy::scoring::format_terminal_report(&result, false);
     assert!(terminal.contains("Codebase Summary:"));
     assert!(terminal.contains("Source Files:"));
     assert!(terminal.contains("Test Files:"));
+    assert!(terminal.contains("Functions:"));
     assert!(terminal.contains("Python"));
 
     // Verify LLM output formatting contains summary block

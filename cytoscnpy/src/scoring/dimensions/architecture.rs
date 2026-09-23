@@ -35,11 +35,15 @@ pub fn architecture_clarity(ctx: &ScoringContext<'_>) -> DimensionScore {
 
     let duplicate_files = ctx.searchability.stats.duplicate_filenames;
     if duplicate_files > 10 {
+        rating += 2;
+    } else if duplicate_files > 0 {
         rating += 1;
     }
 
     let collisions = ctx.searchability.stats.function_name_collisions;
-    if collisions > 15 {
+    if collisions > 10 {
+        rating += 2;
+    } else if collisions > 0 {
         rating += 1;
     }
 

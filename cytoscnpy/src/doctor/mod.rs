@@ -10,6 +10,8 @@
 pub mod aggregation;
 /// Module for detecting repository configuration files and tooling.
 pub mod config_detector;
+/// Module for polyglot source language and configuration format detection.
+pub mod language;
 /// Module for deep inspection of `pyproject.toml`.
 pub mod pyproject;
 /// Module for calculating setup reliability scores and recommendations.
@@ -26,6 +28,7 @@ mod tests;
 
 pub use aggregation::*;
 pub use config_detector::*;
+pub use language::{detect_language, SupportedLanguage};
 pub use pyproject::*;
 pub use reliability::*;
 pub use reporter::{print_json_report, print_terminal_report};

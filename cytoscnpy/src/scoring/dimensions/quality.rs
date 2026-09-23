@@ -10,11 +10,17 @@ pub fn style_consistency(ctx: &ScoringContext<'_>) -> DimensionScore {
 
     let has_formatter = ctx.doctor.is_some_and(|doc| doc.reliability.has_formatter);
     let has_linter = ctx.doctor.is_some_and(|doc| doc.reliability.has_linter);
+    let has_type_checker = ctx
+        .doctor
+        .is_some_and(|doc| doc.reliability.has_type_checker);
 
     if has_formatter {
-        rating = rating.saturating_sub(2);
+        rating = rating.saturating_sub(1);
     }
     if has_linter {
+        rating = rating.saturating_sub(1);
+    }
+    if has_type_checker {
         rating = rating.saturating_sub(1);
     }
 
@@ -25,11 +31,15 @@ pub fn style_consistency(ctx: &ScoringContext<'_>) -> DimensionScore {
         rating = (rating + 1).min(5);
     }
 
-    let config_label = match (has_formatter, has_linter) {
-        (true, true) => "formatter + linter configured",
-        (true, false) => "formatter configured",
-        (false, true) => "linter configured",
-        (false, false) => "no formatter/linter",
+    let config_label = match (has_formatter, has_linter, has_type_checker) {
+        (true, true, true) => "formatter + linter + type checker configured",
+        (true, true, false) => "formatter + linter configured (no type checker)",
+        (true, false, true) => "formatter + type checker configured (no linter)",
+        (true, false, false) => "formatter configured (no linter/type checker)",
+        (false, true, true) => "linter + type checker configured (no formatter)",
+        (false, true, false) => "linter configured (no formatter/type checker)",
+        (false, false, true) => "type checker configured (no formatter/linter)",
+        (false, false, false) => "no formatter/linter/type-checker",
     };
 
     let evidence = format!(

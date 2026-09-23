@@ -1,8 +1,9 @@
 use ignore::WalkBuilder;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::Path;
 
+use super::language::detect_language;
 use super::types::{LanguageStats, RepoStructureStats};
 
 const SKIP_DIR_NAMES: &[&str] = &[
@@ -20,24 +21,6 @@ const SKIP_DIR_NAMES: &[&str] = &[
     ".idea",
     ".vscode",
 ];
-
-fn detect_language(ext: &str, file_name: &str) -> Option<&'static str> {
-    match ext {
-        "py" | "pyi" => Some("Python"),
-        "toml" => Some("TOML"),
-        "json" => Some("JSON"),
-        "yaml" | "yml" => Some("YAML"),
-        "md" | "markdown" | "mdx" => Some("Markdown"),
-        "sh" | "bash" | "zsh" => Some("Shell"),
-        "html" | "htm" => Some("HTML"),
-        "css" => Some("CSS"),
-        _ => match file_name {
-            "makefile" | "gnumakefile" => Some("Shell"),
-            "dockerfile" => Some("Docker"),
-            _ => None,
-        },
-    }
-}
 
 fn is_test_file(path: &Path) -> bool {
     let path_str = path.to_string_lossy().to_lowercase();
@@ -104,6 +87,7 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
     let mut largest_file_lines = 0usize;
 
     let mut lang_map: HashMap<&'static str, (usize, usize, u64)> = HashMap::new();
+    let mut top_dirs_set = BTreeSet::new();
 
     for result in walker {
         let Ok(entry) = result else {
@@ -170,6 +154,15 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
             if depth > max_depth {
                 max_depth = depth;
             }
+            let mut comps = rel.components();
+            if let (Some(std::path::Component::Normal(first)), Some(_second)) =
+                (comps.next(), comps.next())
+            {
+                let name = first.to_string_lossy();
+                if !name.starts_with('.') && !SKIP_DIR_NAMES.contains(&name.as_ref()) {
+                    top_dirs_set.insert(name.into_owned());
+                }
+            }
         }
 
         if is_test_file(path) {
@@ -220,5 +213,6 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
         largest_file_lines,
         max_directory_depth: max_depth,
         languages,
+        top_level_dirs: top_dirs_set.into_iter().collect(),
     }
 }

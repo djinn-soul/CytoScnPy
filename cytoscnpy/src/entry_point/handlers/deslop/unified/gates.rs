@@ -30,6 +30,7 @@ pub(super) fn collect_failures(
     anti_patterns: &crate::anti_patterns::AntiPatternsResult,
     duplicates: &crate::duplicates::DuplicatesResult,
     unreferenced: &crate::unreferenced::UnreferencedResult,
+    functions: &crate::functions::FunctionsResult,
     scoring: &crate::scoring::ScoreResult,
     config: &crate::config::Config,
     fail_on_any: bool,
@@ -220,6 +221,30 @@ pub(super) fn collect_failures(
             &mut failures,
             "unreferenced_lines",
             unreferenced.stats.total_unreferenced_lines,
+            limit,
+        );
+    }
+    if let Some(limit) = deslop.max_function_lines {
+        push_over(
+            &mut failures,
+            "max_function_lines",
+            functions.stats.max_lines,
+            limit,
+        );
+    }
+    if let Some(limit) = deslop.max_function_complexity {
+        push_over(
+            &mut failures,
+            "max_function_complexity",
+            functions.stats.max_complexity,
+            limit,
+        );
+    }
+    if let Some(limit) = deslop.max_nesting_depth {
+        push_over(
+            &mut failures,
+            "max_nesting_depth",
+            functions.stats.max_nesting,
             limit,
         );
     }

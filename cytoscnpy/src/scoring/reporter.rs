@@ -35,6 +35,17 @@ pub fn format_terminal_report(result: &ScoreResult, verbose: bool) -> String {
 
     if let Some(summary) = &result.summary {
         out.push_str(&summary.format_terminal_summary());
+    } else if let Some(stats) = &result.function_stats {
+        out.push_str("Function Metrics:\n");
+        out.push_str(&format!(
+            "  Functions: {:<6} Avg Lines: {:<5.1} Max Lines: {:<5} Avg Complexity: {:<5.1} Max Complexity: {:<3} Max Nesting: {}\n\n",
+            stats.total_functions,
+            stats.avg_lines,
+            stats.max_lines,
+            stats.avg_complexity,
+            stats.max_complexity,
+            stats.max_nesting,
+        ));
     }
 
     if verbose {

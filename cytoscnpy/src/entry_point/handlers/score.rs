@@ -159,6 +159,7 @@ fn run_score_pipeline(
         &crate::unreferenced::UnreferencedOptions::default(),
         flags.verbose,
     );
+    let functions = crate::functions::analyze_functions(targets, excludes, flags.verbose);
 
     let ctx = ScoringContext {
         architecture: &architecture,
@@ -175,6 +176,7 @@ fn run_score_pipeline(
         anti_patterns: &anti_patterns,
         duplicates: &duplicates,
         unreferenced: &unreferenced,
+        functions: &functions,
     };
 
     let options = ScoringOptions {

@@ -94,4 +94,61 @@ pub fn collect_infrastructure_candidates(
             affected_files: vec!["README.md".to_owned()],
         });
     }
+
+    if !doc.reliability.has_type_checker {
+        let current = get_rating(dimensions, "Style consistency");
+        out.push(CandidateRecommendation {
+            id: "configure-type-checker".to_owned(),
+            title: "Configure static type checking (mypy / pyright)".to_owned(),
+            dimension: "Style consistency".to_owned(),
+            target_rating: current.saturating_sub(1),
+            effort: Effort::Low,
+            description: "Static type checking with mypy or pyright detects type inconsistencies, invalid calls, and missing None checks before runtime.".to_owned(),
+            action_steps: vec![
+                "Add [tool.mypy] or [tool.pyright] configuration to pyproject.toml.".to_owned(),
+                "Add type annotations to function signatures in core modules.".to_owned(),
+                "Run mypy or pyright to verify type consistency across the codebase.".to_owned(),
+            ],
+            affected_files: vec!["pyproject.toml".to_owned()],
+        });
+    }
+
+    if !doc.reliability.has_ci {
+        let current = get_rating(dimensions, "Feedback loop speed");
+        out.push(CandidateRecommendation {
+            id: "configure-ci-pipeline".to_owned(),
+            title: "Configure CI workflow automation (.github/workflows)".to_owned(),
+            dimension: "Feedback loop speed".to_owned(),
+            target_rating: current.saturating_sub(1),
+            effort: Effort::Low,
+            description: "Continuous integration ensures tests, linters, and type checkers run automatically on every pull request.".to_owned(),
+            action_steps: vec![
+                "Create .github/workflows/ci.yml with test and lint steps.".to_owned(),
+                "Configure workflow triggers on push and pull_request to main branch.".to_owned(),
+                "Verify workflow runs and passes in GitHub Actions.".to_owned(),
+            ],
+            affected_files: vec![".github/workflows/ci.yml".to_owned()],
+        });
+    }
+
+    let has_arch = doc.configs.iter().any(|c| {
+        c.category == crate::doctor::ConfigCategory::Documentation
+            && c.name.to_lowercase().contains("arch")
+    });
+    if !has_arch {
+        let current = get_rating(dimensions, "Documentation");
+        out.push(CandidateRecommendation {
+            id: "document-architecture".to_owned(),
+            title: "Document architecture in docs/ARCHITECTURE.md".to_owned(),
+            dimension: "Documentation".to_owned(),
+            target_rating: current.saturating_sub(2),
+            effort: Effort::Medium,
+            description: "Architecture documentation details component boundaries, data flow, and layering principles for contributors and AI agents.".to_owned(),
+            action_steps: vec![
+                "Create docs/ARCHITECTURE.md describing high-level design and package layout.".to_owned(),
+                "Document module dependency hierarchy and core component lifecycles.".to_owned(),
+            ],
+            affected_files: vec!["docs/ARCHITECTURE.md".to_owned()],
+        });
+    }
 }

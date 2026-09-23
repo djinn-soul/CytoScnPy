@@ -35,6 +35,8 @@ pub struct ScoringContext<'a> {
     pub duplicates: &'a crate::duplicates::DuplicatesResult,
     /// Potentially unreferenced large functions in isolated files results.
     pub unreferenced: &'a crate::unreferenced::UnreferencedResult,
+    /// Function metrics, locations, cyclomatic complexity, and nesting depth results.
+    pub functions: &'a crate::functions::FunctionsResult,
 }
 
 /// Compute all 10 `DeSlopify` dimensions using the unified repository analysis results.

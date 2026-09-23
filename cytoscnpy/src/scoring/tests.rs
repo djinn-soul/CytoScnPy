@@ -229,6 +229,7 @@ fn test_terminal_report_format() {
             affected_files: vec!["a.py".to_owned(), "b.py".to_owned()],
         }],
         summary: None,
+        function_stats: None,
         passed_gate: true,
         failure_reason: None,
     };
@@ -263,6 +264,7 @@ fn test_llm_report_format() {
             affected_files: vec!["config.py".to_owned()],
         }],
         summary: None,
+        function_stats: None,
         passed_gate: true,
         failure_reason: None,
     };

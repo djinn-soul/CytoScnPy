@@ -161,28 +161,44 @@ cytoscnpy stats [OPTIONS] <PATH>
 
 ### `deslop`
 
-Run the DeSlopify-derived architecture, Git context, and repository-health
-analyzers and return one report. Existing CytoScnPy source analyzers such as
-dead code, clones, dependencies, secrets, danger/taint, and quality remain on
-their existing commands and are not included here.
+Run the unified repository assessment. It includes architecture, Git context,
+health, searchability, naming, TODOs, globals, exceptions, wildcard imports,
+side effects, singletons, anti-patterns, duplicates, unreferenced functions,
+function metrics, and the Slop Index. Dead code, dependency, secret, danger,
+and general quality scans remain on their existing commands.
+The default text report shows the Slop Index, its dimension breakdown, up to
+15 prioritized fixes, and gate status. It ends at the gate status on passing runs. Use
+`--verbose` for all analysis sections and file locations; `--json` always
+includes the complete structured results. The short tooling line lists up to six
+detected configurations and shows how many more are available in the full report.
+The report also includes `scan_integrity` with discovered and checked file counts
+and any unreadable or invalid Python files. An incomplete scan exits with code `1`
+even without `--fail-on-any`, so CI cannot treat partial results as a pass.
 
 ```bash
 cytoscnpy deslop [OPTIONS] <PATH>
 ```
 
 - `--fail-on-any`: Exit with code `1` when any configured architecture,
-  hotspot, context-budget, or health gate fails. The global form
+  hotspot, context-budget, health, or analysis gate fails. The global form
   (`cytoscnpy --fail-on-any deslop ...`) is also supported.
+- `--ci`: Apply the Slop Index ceiling (40 unless `--max-score` or config sets one).
+- `--max-score <N>`: Maximum allowed Slop Index (0–100).
 - `--root <PATH>`: Project root for analysis (use instead of positional path).
 - `--json`: Output one JSON report.
+- `--format <terminal|json|llm>`: Select the text report, JSON report,
+  or LLM remediation plan.
+- `--verbose`, `-v`: Show every analysis section and complete scoring diagnostics.
 - `-o`, `--output <FILE>`: Output report file.
 - `--exclude <DIR>`: Exclude a folder or path pattern from analysis.
+- `--ignore <PATTERN>`, `-i`: Repeatable path or directory ignore pattern.
 - `--no-git`: Disable Git history analysis.
 - `--git-months <N>`: Set the maximum Git lookback.
 - `--context-budget <TOKENS>`: Set usable LLM context capacity.
 
-The JSON result has stable top-level sections: `architecture`, `context`,
-`health`, `searchability`, `naming`, `todos`, and `gates`, plus `schema_version`.
+The JSON result includes the analyses listed above, `scan_integrity`, `gates`, and
+`schema_version`. Use `--fail-on-any` with limits in the configuration file
+to enforce CI gates.
 
 ```bash
 cytoscnpy deslop . --json
@@ -204,265 +220,9 @@ min_health_score = 70
 # max_todos = 0
 ```
 
-### `searchability`
-
-Analyze codebase searchability, name collisions, and generic identifiers:
-
-- Detect duplicate filenames across directories (excluding package `__init__.py`).
-- Detect function and method name collisions across distinct files (defined in 3+ files, excluding Python dunders, test fixtures, and structural methods).
-- Detect generic, low-information filenames and function names (`utils`, `helpers`, `common`, `handler`, `process`, etc.).
-
-```bash
-cytoscnpy searchability [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats`, `duplicate_files`, `function_collisions`, and `generic_names`.
-- `--fail-on-collisions`: Exit with code `1` if any function collisions (defined in >= 3 distinct files) are detected.
-- `--fail-on-duplicates`: Exit with code `1` if any duplicate filenames are detected.
-- `--fail-on-any`: Exit with code `1` if any searchability issue (duplicate filenames or function collisions) is detected.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders from searchability analysis.
-
-### `naming`
-
-Analyze Python identifier naming style distribution and consistency:
-
-- Classifies function and method identifiers into `snake_case`, `camelCase`, `PascalCase`, `SCREAMING_SNAKE_CASE`, or `mixed`.
-- Python-aware rules: trims leading private/mangled underscores (`_private`, `__mangled`), trims trailing keyword collision underscores (`class_`), exempts structural dunder methods (`__init__`) and unittest fixtures (`setUp`), and ignores anonymous/lambda functions.
-- Calculates dominant style, distribution breakdown, consistency ratio (0-100%), and identifies non-conforming outliers with source locations.
-
-```bash
-cytoscnpy naming [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `outliers`.
-- `--min-consistency <RATIO>`: Minimum consistency ratio required (e.g. `0.85` or `85.0`).
-- `--fail-on-inconsistent`: Exit with code `1` if naming consistency falls below threshold (default: 0.85 or `--min-consistency`).
-- `--fail-on-any`: Exit with code `1` if naming consistency falls below threshold (alias for `--fail-on-inconsistent`).
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders from naming analysis.
-
-### `todos`
-
-Detect `TODO`, `FIXME`, `HACK`, and `XXX` annotations, debug print statements, and commented-out code blocks:
-
-- Scans source files with word-boundary awareness for annotation markers.
-- Detects debug prints (`print(`, `console.log(`, `println!(`, `puts `, `dbg!(`, etc.) while automatically suppressing them in test files and output-oriented directories (`cli`, `main`, `output`, `views`, etc.).
-- Detects commented-out code blocks (`# if`, `# def`, `// for`, etc.).
-- Outputs human-readable terminal summary or machine-readable JSON.
-
-```bash
-cytoscnpy todos [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `matches`.
-- `--fail-on-any`: Exit with code `1` when any annotation or debug print is detected.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `globals`
-
-Detect mutable global state across Python and polyglot source files:
-
-- Detects module-level mutable data structures (`list`, `dict`, `set`, `defaultdict`, `deque`, `Counter`, etc.).
-- Detects class-level mutable variables shared across all instances.
-- Detects functions mutating module globals via `global`.
-- Polyglot detection for Rust `static mut` and JavaScript/TypeScript top-level mutable `var` and collection `let` declarations.
-- Automatically suppresses test files (`tests/`, `test_*.py`, `conftest.py`, etc.).
-- Outputs human-readable terminal summary or machine-readable JSON.
-
-```bash
-cytoscnpy globals [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `matches`.
-- `--fail-on-any`: Exit with code `1` when any mutable global state is detected.
-- `--max-globals <N>`: Fail if total mutable globals exceed `N`.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `exceptions`
-
-Detect bare-except and empty exception-handler anti-patterns (alias `bare-except`):
-
-- Detects `except:` statements with no specific exception type (`BareExcept`).
-- Detects handlers whose bodies only contain `pass`, `...`, or bare string comments (`EmptyHandler`).
-- Recursively scans modules, functions, classes, loops, with-blocks, and match statements.
-- Outputs human-readable terminal summary or machine-readable JSON.
-
-```bash
-cytoscnpy exceptions [OPTIONS] [PATHS]...
-# Or alias
-cytoscnpy bare-except [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `matches`.
-- `--fail-on-any`: Exit with code `1` when any exception anti-pattern is detected.
-- `--max-bare-excepts <N>`: Fail if total bare-except blocks exceed `N`.
-- `--max-empty-handlers <N>`: Fail if total empty exception handlers exceed `N`.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `wildcards`
-
-Detect wildcard imports across Python source files (alias `star-imports`):
-
-- Detects `from <module> import *` statements polluting module or function namespaces.
-- Recursively inspects module level and nested block scopes.
-- Captures the imported module name (including relative dots like `.`, `..`).
-- Outputs human-readable terminal summary or machine-readable JSON.
-
-```bash
-cytoscnpy wildcards [OPTIONS] [PATHS]...
-# Or alias
-cytoscnpy star-imports [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `matches`.
-- `--fail-on-any`: Exit with code `1` when any wildcard import is detected.
-- `--max-wildcards <N>`: Fail if total wildcard imports exceed `N`.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `side-effects`
-
-Detect module-level import-time side effects:
-
-- Detects top-level function calls, loops (`for`/`while`), and `with` statements executed on import.
-- Automatically exempts safe logging/warnings setup and entrypoint files (`setup.py`, `conftest.py`, etc.).
-- Detects polyglot JavaScript/TypeScript top-level network/server calls and global event listeners.
-- Outputs human-readable terminal summary or machine-readable JSON.
-
-```bash
-cytoscnpy side-effects [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `matches`.
-- `--fail-on-any`: Exit with code `1` when any import-time side effect is detected.
-- `--max-side-effects <N>`: Fail if total module-level side effects exceed `N`.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `singletons`
-
-Detect Python singleton patterns (alias `singleton`):
-
-- Detects instance caching in overridden `__new__` methods.
-- Detects `_instance` class attribute caches paired with `get_instance()` / `getInstance()` accessors.
-- Detects `@singleton` / `@Singleton` class decorators.
-- Detects `metaclass=Singleton` class declarations.
-- Outputs human-readable terminal summary or machine-readable JSON.
-
-```bash
-cytoscnpy singletons [OPTIONS] [PATHS]...
-# Or alias
-cytoscnpy singleton [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `matches`.
-- `--fail-on-any`: Exit with code `1` when any singleton pattern is detected.
-- `--max-singletons <N>`: Fail if total singleton patterns exceed `N`.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `anti-patterns`
-
-Detect code-quality anti-patterns (magic numbers and deeply nested callbacks; aliases `antipatterns`, `magic-numbers`, `callbacks`):
-
-- Detects hardcoded magic numbers (3+ digits) in comparisons, conditional tests, and loop expressions (exempting module/class level constant declarations like `MAX_SIZE = 500`).
-- Detects deeply nested callbacks, closures, lambdas, or control structures nested 4+ levels deep (>= 16 spaces indentation).
-- Automatically suppresses test files (`test_*.py`, `conftest.py`, `tests/`).
-- Outputs human-readable terminal summary or machine-readable JSON.
-
-```bash
-cytoscnpy anti-patterns [OPTIONS] [PATHS]...
-# Or aliases
-cytoscnpy antipatterns [OPTIONS] [PATHS]...
-cytoscnpy magic-numbers [OPTIONS] [PATHS]...
-cytoscnpy callbacks [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `stats` and `matches`.
-- `--fail-on-any`: Exit with code `1` when any anti-pattern is detected.
-- `--max-anti-patterns <N>`: Fail if total anti-patterns exceed `N`.
-- `--max-magic-numbers <N>`: Fail if magic numbers exceed `N`.
-- `--max-nested-callbacks <N>`: Fail if deeply nested callbacks exceed `N`.
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `duplicates`
-
-Analyze duplicate-code clusters and non-overlapping duplicate-line totals (aliases: `dupes`, `clones-summary`):
-
-- Groups duplicate code fragments into clusters across Python source files (Type-1 exact, Type-2 renamed, Type-3 similar).
-- Computes non-overlapping physical duplicate lines per file and project-wide using interval unions to eliminate double-counting.
-- Reports duplication percentage, top affected files, and cluster code locations.
-- Supports CI gates on cluster count, total duplicate lines, and duplication percentage.
-
-```bash
-cytoscnpy duplicates [OPTIONS] [PATHS]...
-# Or aliases
-cytoscnpy dupes [OPTIONS] [PATHS]...
-cytoscnpy clones-summary [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `clusters`, `stats`, and `file_stats`.
-- `--fail-on-any`: Exit with code `1` when any duplicate code cluster is detected.
-- `--max-clusters <N>`: Fail if total duplicate clusters exceed `N`.
-- `--max-duplicate-lines <N>`: Fail if total non-overlapping duplicate lines exceed `N`.
-- `--max-duplicate-pct <PCT>`: Fail if duplicate line percentage exceeds `PCT` (e.g. `5.0`).
-- `--min-similarity <VAL>`: Similarity threshold (0.0 - 1.0, default: `0.85`).
-- `--min-lines <N>`: Minimum line threshold for code fragments (default: `4`).
-- `--include-tests`: Include test files in duplication analysis (excluded by default).
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `unreferenced`
-
-Detect potentially unreferenced large functions in files with no incoming imports (aliases: `dead-functions`, `isolated-functions`):
-
-- Identifies isolated Python files that have no incoming imports or incoming references from any other files in the project.
-- Scans functions in isolated files for large implementations (15+ lines by default) with specific non-trivial names.
-- Filters out short helper names (<8 chars), test functions, dunder methods, and common framework hook prefixes (`get`, `set`, `on`, `handle`, `render`, `validate`, `resolve`, etc.).
-- Verifies that candidate functions are not referenced anywhere else across the codebase.
-- Supports CI gates on unreferenced function count and total unreferenced lines.
-
-```bash
-cytoscnpy unreferenced [OPTIONS] [PATHS]...
-# Or aliases
-cytoscnpy dead-functions [OPTIONS] [PATHS]...
-cytoscnpy isolated-functions [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report with `items`, `isolated_files`, and `stats`.
-- `--fail-on-any`: Exit with code `1` when any unreferenced large function is detected.
-- `--max-unreferenced <N>`: Fail if total unreferenced functions exceed `N`.
-- `--max-unreferenced-lines <N>`: Fail if total unreferenced lines exceed `N`.
-- `--min-lines <N>`: Minimum line threshold for large functions (default: `15`).
-- `--include-tests`: Include test files in analysis (excluded by default).
-- `-o`, `--output-file <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from scan.
-
-### `score`
-
-Calculate the repository Weighted Slop Index (0–100), Verdict band, context size multiplier, and the 10-dimension health breakdown.
-
-```bash
-cytoscnpy score [OPTIONS] [PATHS]...
-# Or aliases
-cytoscnpy slop-index [OPTIONS] [PATHS]...
-cytoscnpy slop [OPTIONS] [PATHS]...
-```
-
-- `--json`: Output structured JSON report including `slop_index`, `raw_score`, `size_multiplier`, `verdict`, `dimensions`, and `recommendations`.
-- `--format <FORMAT>`: Output format: `terminal` (default ASCII summary table with top fixes), `json`, or `llm` (markdown prompt instructions for AI coding agents).
-- `--ci`: CI mode. Exits with code `1` if `slop_index` exceeds `--max-score` (default max score threshold: `50.0`).
-- `--max-score <N>`: Maximum allowable Slop Index before failing the gate.
-- `--context-budget <TOKENS>`: Effective LLM context window in tokens (default: `176000`) for active-surface scaling.
-- `--no-git`: Disable Git commit history analysis (uses full byte count rather than active surface).
-- `--git-months <N>`: Lookback window in months for Git active-surface detection (default: `1`).
-- `-o`, `--output <FILE>`: Save report to file.
-- `--exclude <DIRS>`: Exclude folders or patterns from analysis.
+The individual analysis results are included in `deslop`; they do not require
+separate commands. Use the JSON fields or configure `[cytoscnpy.deslop]` gates
+for targeted automation.
 
 #### Verdict Bands
 
@@ -479,7 +239,7 @@ cytoscnpy slop [OPTIONS] [PATHS]...
 1. **Setup reliability** (weight 10): Build scripts, lockfile freshness, Docker, and environment configuration.
 2. **Architecture clarity** (weight 15): Directory depth, file sizes, god modules, and naming searchability.
 3. **Coupling / blast radius** (weight 15): Fan-in/out, circular import cycles, and cross-package dependencies.
-4. **Style consistency** (weight 10): Naming convention compliance percentage, linter and formatter adoption.
+4. **Style consistency** (weight 10): Naming convention compliance percentage, linter, formatter, and type checker adoption.
 5. **Test safety net** (weight 15): Test-to-source file and line ratios, framework configuration.
 6. **Runtime predictability** (weight 10): Mutable globals, import side effects, singletons, bare excepts, anti-patterns.
 7. **Feedback loop speed** (weight 5): Test runner, linter configuration, and CI workflow responsiveness.

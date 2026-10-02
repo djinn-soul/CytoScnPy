@@ -74,6 +74,18 @@ pub struct PyProjectInspection {
     pub has_mypy: bool,
     /// Whether Pyright is configured under `[tool.pyright]`.
     pub has_pyright: bool,
+    /// Type checker tool sections found under `[tool.*]`.
+    #[serde(default)]
+    pub type_checkers: Vec<String>,
+    /// Formatter tool sections found under `[tool.*]`.
+    #[serde(default)]
+    pub formatters: Vec<String>,
+    /// Linter tool sections found under `[tool.*]`.
+    #[serde(default)]
+    pub linters: Vec<String>,
+    /// Task runner sections found under `[tool.*]`.
+    #[serde(default)]
+    pub task_runners: Vec<String>,
     /// Whether pytest is configured under `[tool.pytest.ini_options]`.
     pub has_pytest: bool,
     /// Whether Pylint is configured under `[tool.pylint]`.
@@ -133,8 +145,11 @@ pub struct RepoStructureStats {
     /// Language volume breakdown.
     pub languages: Vec<LanguageStats>,
     /// Top-level project directories found in repository.
+    #[serde(default, alias = "top_level_dirs")]
+    pub top_level_directories: Vec<String>,
+    /// Number of top-level project directories.
     #[serde(default)]
-    pub top_level_dirs: Vec<String>,
+    pub top_level_directory_count: usize,
 }
 
 /// Verdict on repository setup readiness.

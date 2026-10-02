@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use std::io::Write;
 
 use super::GateFailure;
+use super::ScanIntegrity;
 
 pub(super) fn render_human_report(
     architecture: &crate::architecture::ArchitectureGraphResult,
@@ -23,9 +24,30 @@ pub(super) fn render_human_report(
     functions: &crate::functions::FunctionsResult,
     scoring: &crate::scoring::ScoreResult,
     failures: &[GateFailure],
+    integrity: &ScanIntegrity,
+    verbose: bool,
 ) -> Result<String> {
     let mut output = Vec::new();
-    crate::scoring::print_terminal_report(scoring, false, &mut output)?;
+    if !verbose {
+        let mut gate_scoring = scoring.clone();
+        if !failures.is_empty() {
+            gate_scoring.passed_gate = false;
+            if gate_scoring.failure_reason.is_none() {
+                gate_scoring.failure_reason = Some(format!(
+                    "{} configured DeSlopify gate(s) failed",
+                    failures.len()
+                ));
+            }
+        }
+        crate::scoring::print_terminal_report(&gate_scoring, false, &mut output)?;
+        if !failures.is_empty() {
+            write_gates(&mut output, failures)?;
+        }
+        write_integrity(&mut output, integrity)?;
+        return String::from_utf8(output).context("summary report contained invalid UTF-8");
+    }
+
+    crate::scoring::print_terminal_report(scoring, verbose, &mut output)?;
     writeln!(output, "\n# Architecture")?;
     crate::architecture::print_terminal_report(architecture, false, &mut output)?;
     writeln!(output, "\n# Git Context and Hotspots")?;
@@ -76,6 +98,28 @@ pub(super) fn render_human_report(
     writeln!(output, "\n# Python Function Metrics")?;
     crate::functions::reporter::print_terminal_report(functions, None, &mut output)?;
 
+    write_gates(&mut output, failures)?;
+    write_integrity(&mut output, integrity)?;
+
+    String::from_utf8(output).context("comprehensive report contained invalid UTF-8")
+}
+
+fn write_integrity(output: &mut Vec<u8>, integrity: &ScanIntegrity) -> Result<()> {
+    if integrity.complete {
+        return Ok(());
+    }
+    writeln!(
+        output,
+        "\n# Incomplete Scan ({} of {} files checked)",
+        integrity.files_checked, integrity.files_discovered
+    )?;
+    for issue in &integrity.issues {
+        writeln!(output, "- {}: {}", issue.path.display(), issue.reason)?;
+    }
+    Ok(())
+}
+
+fn write_gates(output: &mut Vec<u8>, failures: &[GateFailure]) -> Result<()> {
     writeln!(output, "\n# CI Gates")?;
     if failures.is_empty() {
         writeln!(output, "PASSED")?;
@@ -89,8 +133,7 @@ pub(super) fn render_human_report(
             )?;
         }
     }
-
-    String::from_utf8(output).context("comprehensive report contained invalid UTF-8")
+    Ok(())
 }
 
 pub(super) fn write_report<W: Write, T: serde::Serialize>(

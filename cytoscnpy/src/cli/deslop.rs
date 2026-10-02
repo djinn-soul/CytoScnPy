@@ -9,9 +9,21 @@ pub struct DeslopArgs {
     /// Fail if any configured `DeSlopify` gate fails.
     #[arg(long)]
     pub fail_on_any: bool,
+    /// Fail when the Slop Index exceeds the configured or default CI ceiling.
+    #[arg(long)]
+    pub ci: bool,
+    /// Maximum allowed Slop Index (0-100).
+    #[arg(long, value_parser = clap::value_parser!(u32).range(0..=100))]
+    pub max_score: Option<u32>,
     /// Output one JSON report.
     #[arg(long)]
     pub json: bool,
+    /// Output format: terminal, JSON, or LLM remediation instructions.
+    #[arg(long, value_parser = ["terminal", "json", "llm"])]
+    pub format: Option<String>,
+    /// Show the full analysis report and detailed scoring diagnostics.
+    #[arg(long, short = 'v')]
+    pub verbose: bool,
     /// Output report file.
     #[arg(long, short = 'o')]
     pub output: Option<String>,

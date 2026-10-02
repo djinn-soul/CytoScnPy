@@ -97,6 +97,9 @@ pub struct FunctionsResult {
     pub stats: FunctionStats,
     /// Total Python files scanned.
     pub files_scanned: usize,
+    /// Files that could not be read or parsed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scan_issues: Vec<String>,
 }
 
 impl FunctionsResult {

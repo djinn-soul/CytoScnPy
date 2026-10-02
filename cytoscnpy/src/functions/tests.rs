@@ -208,6 +208,7 @@ fn test_function_stats_aggregation() {
         functions: vec![f1, f2],
         stats: stats.clone(),
         files_scanned: 2,
+        scan_issues: Vec::new(),
     };
     assert!(!result.is_empty());
 

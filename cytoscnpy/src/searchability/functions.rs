@@ -112,10 +112,20 @@ pub fn extract_definitions_from_source(source: &str, file: &Path) -> ExtractedDe
         return ExtractedDefinitions::default();
     };
 
+    extract_definitions_from_ast(&parsed.into_syntax(), source, file)
+}
+
+/// Extract definitions from an already parsed Python module.
+#[must_use]
+pub fn extract_definitions_from_ast(
+    module: &ruff_python_ast::ModModule,
+    source: &str,
+    file: &Path,
+) -> ExtractedDefinitions {
     let line_index = LineIndex::new(source);
     let mut defs = ExtractedDefinitions::default();
     traverse_stmts(
-        &parsed.into_syntax().body,
+        &module.body,
         file,
         &line_index,
         &mut defs.functions,

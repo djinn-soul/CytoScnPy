@@ -1,4 +1,4 @@
-//! Integration tests for repeatable `--ignore` patterns in `cytoscnpy score` and `cytoscnpy deslop`.
+//! Integration tests for repeatable `--ignore` patterns in `cytoscnpy deslop`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::fmt::Write as _;
@@ -46,7 +46,7 @@ def gen_func():
     let mut out_all = Cursor::new(Vec::new());
     let code_all = entry_point::run_with_args_to(
         vec![
-            "score".to_owned(),
+            "deslop".to_owned(),
             root.to_string_lossy().into_owned(),
             "--json".to_owned(),
             "--no-git".to_owned(),
@@ -63,7 +63,7 @@ def gen_func():
     let mut out_ignored = Cursor::new(Vec::new());
     let code_ignored = entry_point::run_with_args_to(
         vec![
-            "score".to_owned(),
+            "deslop".to_owned(),
             root.to_string_lossy().into_owned(),
             "--ignore".to_owned(),
             "legacy".to_owned(),

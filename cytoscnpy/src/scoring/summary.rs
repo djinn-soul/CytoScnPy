@@ -30,8 +30,11 @@ pub struct RepoSummary {
     /// Detected repository tooling and configuration files.
     pub detected_configs: Vec<String>,
     /// Top-level directories found in repository.
+    #[serde(default, alias = "top_level_dirs")]
+    pub top_level_directories: Vec<String>,
+    /// Number of top-level project directories.
     #[serde(default)]
-    pub top_level_dirs: Vec<String>,
+    pub top_level_directory_count: usize,
     /// Aggregate function metrics across codebase (complexity, length, nesting).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_stats: Option<crate::functions::FunctionStats>,
@@ -89,7 +92,8 @@ impl RepoSummary {
             test_to_source_ratio: doc.structure.test_to_source_ratio,
             languages,
             detected_configs: configs,
-            top_level_dirs: doc.structure.top_level_dirs.clone(),
+            top_level_directories: doc.structure.top_level_directories.clone(),
+            top_level_directory_count: doc.structure.top_level_directory_count,
             function_stats: None,
         }
     }
@@ -131,10 +135,11 @@ impl RepoSummary {
             ));
         }
 
-        if !self.top_level_dirs.is_empty() {
+        if !self.top_level_directories.is_empty() {
             out.push_str(&format!(
-                "  Top-Level Dirs: {}\n",
-                self.top_level_dirs.join(", ")
+                "  Top-Level Dirs ({}): {}\n",
+                self.top_level_directory_count,
+                self.top_level_directories.join(", ")
             ));
         }
 
@@ -150,8 +155,17 @@ impl RepoSummary {
 
         if !self.detected_configs.is_empty() {
             let config_parts: Vec<String> = self.detected_configs.iter().take(6).cloned().collect();
+            let remaining = self
+                .detected_configs
+                .len()
+                .saturating_sub(config_parts.len());
+            let suffix = if remaining > 0 {
+                format!(" (+{remaining} more; see --verbose or --json)")
+            } else {
+                String::new()
+            };
             out.push_str(&format!(
-                "  Tooling Detected: {}\n",
+                "  Tooling Detected: {}{suffix}\n",
                 config_parts.join(", ")
             ));
         }
@@ -197,7 +211,8 @@ mod tests {
                 "Formatter: Black".to_owned(),
                 "Lockfile: poetry.lock".to_owned(),
             ],
-            top_level_dirs: vec!["src".to_owned(), "tests".to_owned()],
+            top_level_directories: vec!["src".to_owned(), "tests".to_owned()],
+            top_level_directory_count: 2,
             function_stats: None,
         };
 
@@ -208,7 +223,7 @@ mod tests {
         assert!(formatted.contains("Source Files: 30"));
         assert!(formatted.contains("Test Files: 12"));
         assert!(formatted.contains("Test Ratio: 35.0%"));
-        assert!(formatted.contains("Top-Level Dirs: src, tests"));
+        assert!(formatted.contains("Top-Level Dirs (2): src, tests"));
         assert!(formatted.contains("Python (35 files, 4800 lines)"));
         assert!(formatted.contains("Tooling Detected: Linter: Ruff, Formatter: Black"));
     }
@@ -234,14 +249,16 @@ mod tests {
                 bytes: 35000,
             }],
             detected_configs: vec!["CI: GitHub Actions".to_owned()],
-            top_level_dirs: vec!["pkg".to_owned()],
+            top_level_directories: vec!["pkg".to_owned()],
+            top_level_directory_count: 1,
             function_stats: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
         assert!(json.contains("\"total_files\":10"));
         assert!(json.contains("\"test_to_source_ratio\":0.25"));
-        assert!(json.contains("\"top_level_dirs\":[\"pkg\"]"));
+        assert!(json.contains("\"top_level_directories\":[\"pkg\"]"));
+        assert!(json.contains("\"top_level_directory_count\":1"));
         assert!(json.contains("\"Python\""));
     }
 }

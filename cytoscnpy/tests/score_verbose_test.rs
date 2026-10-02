@@ -1,4 +1,4 @@
-//! Integration tests for `--verbose` complete dimension output in `cytoscnpy score`.
+//! Integration tests for `--verbose` complete dimension output in `cytoscnpy deslop`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::fs;
@@ -30,23 +30,27 @@ def calculate(x, y):
     // 1. Default non-verbose run
     let mut out_default = Cursor::new(Vec::new());
     let code_default = entry_point::run_with_args_to(
-        vec!["score".to_owned(), root.to_string_lossy().into_owned()],
+        vec!["deslop".to_owned(), root.to_string_lossy().into_owned()],
         &mut out_default,
     )
     .unwrap();
     assert_eq!(code_default, 0);
     let str_default = String::from_utf8(out_default.into_inner()).unwrap();
 
+    assert!(str_default.contains("DESLOPIFY SLOP INDEX REPORT"));
     assert!(str_default.contains("Dimension Breakdown:\n"));
     assert!(!str_default.contains("Dimension Breakdown (Complete):\n"));
     assert!(!str_default.contains("Health Diagnostics Summary:"));
     assert!(!str_default.contains("-> Health Diagnostic:"));
+    assert!(str_default
+        .trim_end()
+        .ends_with("[GATE PASSED] Codebase satisfies slop index and threshold requirements."));
 
     // 2. Verbose run with --verbose
     let mut out_verbose = Cursor::new(Vec::new());
     let code_verbose = entry_point::run_with_args_to(
         vec![
-            "score".to_owned(),
+            "deslop".to_owned(),
             root.to_string_lossy().into_owned(),
             "--verbose".to_owned(),
         ],
@@ -65,7 +69,7 @@ def calculate(x, y):
     let mut out_short_v = Cursor::new(Vec::new());
     let code_short_v = entry_point::run_with_args_to(
         vec![
-            "score".to_owned(),
+            "deslop".to_owned(),
             root.to_string_lossy().into_owned(),
             "-v".to_owned(),
         ],
@@ -143,7 +147,7 @@ fn test_verbose_prioritizes_friction_dimensions() {
 #[test]
 fn test_verbose_expands_recommendations_and_files() {
     let mut recs = Vec::new();
-    for i in 1..=8 {
+    for i in 1..=16 {
         recs.push(cytoscnpy::scoring::Recommendation {
             id: format!("rec-{i}"),
             title: format!("Fix item {i}"),
@@ -176,18 +180,17 @@ fn test_verbose_expands_recommendations_and_files() {
         failure_reason: None,
     };
 
-    // Non-verbose: capped at 5 remediations, preview at 3 files
+    // Both modes show at most 15 remediations; default previews 3 files.
     let default_report = format_terminal_report(&result, false);
     assert!(default_report.contains("1. [-2 pts] Fix item 1"));
-    assert!(default_report.contains("5. [-2 pts] Fix item 5"));
-    assert!(!default_report.contains("6. [-2 pts] Fix item 6"));
+    assert!(default_report.contains("15. [-2 pts] Fix item 15"));
+    assert!(!default_report.contains("16. [-2 pts] Fix item 16"));
     assert!(default_report.contains("f1.py, f2.py, f3.py (+2 more)"));
 
-    // Verbose: shows up to 10 remediations, preview up to 5 files
+    // Verbose previews up to 5 files per remediation.
     let verbose_report = format_terminal_report(&result, true);
     assert!(verbose_report.contains("1. [-2 pts] Fix item 1"));
-    assert!(verbose_report.contains("5. [-2 pts] Fix item 5"));
-    assert!(verbose_report.contains("6. [-2 pts] Fix item 6"));
-    assert!(verbose_report.contains("8. [-2 pts] Fix item 8"));
+    assert!(verbose_report.contains("15. [-2 pts] Fix item 15"));
+    assert!(!verbose_report.contains("16. [-2 pts] Fix item 16"));
     assert!(verbose_report.contains("f1.py, f2.py, f3.py, f4.py, f5.py"));
 }

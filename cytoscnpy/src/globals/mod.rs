@@ -6,7 +6,7 @@
 //! - Functions mutating module globals via `global`.
 //! - Polyglot mutable globals: Rust `static mut` and JavaScript/TypeScript top-level mutable vars.
 //! - Automatic test context suppression.
-//! - Subcommand `cytoscnpy globals` with JSON output and CI threshold gating.
+//! - Included in `cytoscnpy deslop` reports and configurable CI gates.
 
 pub mod polyglot;
 pub mod python;

@@ -10,6 +10,7 @@
 pub mod aggregation;
 /// Module for detecting repository configuration files and tooling.
 pub mod config_detector;
+mod config_extras;
 /// Module for polyglot source language and configuration format detection.
 pub mod language;
 /// Module for deep inspection of `pyproject.toml`.

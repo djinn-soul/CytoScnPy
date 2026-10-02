@@ -1,3 +1,6 @@
+use super::config_extras::{
+    detect_ini_tool_configs, detect_named_pylock_files, detect_requirements_files,
+};
 use super::types::{ConfigCategory, DetectedConfig};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,6 +15,9 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
         names: &[
             "ruff.toml",
             ".ruff.toml",
+            ".isort.cfg",
+            ".style.yapf",
+            ".pep8",
             ".prettierrc",
             ".prettierrc.json",
             ".prettierrc.yml",
@@ -29,6 +35,7 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
             "ruff.toml",
             ".ruff.toml",
             ".flake8",
+            ".pep8",
             ".pylintrc",
             "pylintrc",
             ".eslintrc",
@@ -46,6 +53,11 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
             "mypy.ini",
             ".mypy.ini",
             "pyrightconfig.json",
+            ".pyre_configuration",
+            ".pyre_configuration.local",
+            "pytype.cfg",
+            "ty.toml",
+            "pyrefly.toml",
             "tsconfig.json",
             "jsconfig.json",
         ],
@@ -66,10 +78,18 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
         names: &[
             ".github/workflows",
             ".gitlab-ci.yml",
+            ".gitlab-ci.yaml",
             ".circleci",
+            ".buildkite",
+            "bitbucket-pipelines.yml",
+            "bitbucket-pipelines.yaml",
             "Jenkinsfile",
             "azure-pipelines.yml",
+            "azure-pipelines.yaml",
             ".travis.yml",
+            ".travis.yaml",
+            "appveyor.yml",
+            ".drone.yml",
         ],
         category: ConfigCategory::CI,
     },
@@ -86,10 +106,12 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
     },
     ConfigPattern {
         names: &[
+            "environment.yml",
+            "environment.yaml",
+            "pixi.toml",
             "pyproject.toml",
             "setup.py",
             "setup.cfg",
-            "requirements.txt",
             "Pipfile",
             "Cargo.toml",
             "package.json",
@@ -103,6 +125,11 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
             "poetry.lock",
             "Pipfile.lock",
             "requirements.lock",
+            "pdm.lock",
+            "pylock.toml",
+            "pixi.lock",
+            "conda-lock.yml",
+            "conda-lock.yaml",
             "Cargo.lock",
             "package-lock.json",
             "pnpm-lock.yaml",
@@ -117,7 +144,9 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
             "Justfile",
             "justfile",
             "Taskfile.yml",
+            "Taskfile.yaml",
             "build.py",
+            "noxfile.py",
         ],
         category: ConfigCategory::BuildScript,
     },
@@ -141,15 +170,12 @@ const CONFIG_PATTERNS: &[ConfigPattern] = &[
         category: ConfigCategory::GitIgnore,
     },
     ConfigPattern {
-        names: &[".editorconfig", ".vscode"],
+        names: &[".editorconfig", ".vscode", ".zed"],
         category: ConfigCategory::Editor,
     },
 ];
 
 fn is_valid_config_path(category: ConfigCategory, name: &str, path: &Path) -> bool {
-    if !path.exists() {
-        return false;
-    }
     if category == ConfigCategory::CI {
         if name == ".github/workflows" {
             if let Ok(entries) = fs::read_dir(path) {
@@ -165,8 +191,15 @@ fn is_valid_config_path(category: ConfigCategory, name: &str, path: &Path) -> bo
         if name == ".circleci" {
             return path.join("config.yml").is_file() || path.join("config.yaml").is_file();
         }
+        if name == ".buildkite" {
+            return path.join("pipeline.yml").is_file() || path.join("pipeline.yaml").is_file();
+        }
     }
-    true
+    if matches!(name, "docs" | ".vscode" | ".zed") {
+        path.is_dir()
+    } else {
+        path.is_file()
+    }
 }
 
 /// Scans the repository root for known configuration, tooling, and setup files.
@@ -192,6 +225,10 @@ pub fn detect_configurations(repo_root: &Path) -> Vec<DetectedConfig> {
             }
         }
     }
+
+    detected.extend(detect_ini_tool_configs(repo_root));
+    detected.extend(detect_requirements_files(repo_root));
+    detected.extend(detect_named_pylock_files(repo_root));
 
     detected
 }

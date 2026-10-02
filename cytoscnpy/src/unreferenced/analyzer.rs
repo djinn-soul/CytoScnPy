@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use rayon::prelude::*;
 
-use super::extractor::{extract_python_file, ExtractedFile};
+use super::extractor::{try_extract_python_file, ExtractedFile};
 use super::heuristics::{contains_as_word, should_skip_function, UnreferencedOptions};
 use super::types::{
     IsolatedFileSummary, UnreferencedFunction, UnreferencedResult, UnreferencedStats,
@@ -33,7 +33,7 @@ pub fn analyze_unreferenced_files(
     files: &[PathBuf],
     options: &UnreferencedOptions,
 ) -> UnreferencedResult {
-    let valid_files: Vec<PathBuf> = files
+    let candidate_files: Vec<PathBuf> = files
         .iter()
         .filter(|p| {
             p.extension()
@@ -45,17 +45,30 @@ pub fn analyze_unreferenced_files(
         .cloned()
         .collect();
 
-    let extracted_list: Vec<(PathBuf, ExtractedFile)> = valid_files
+    let scanned: Vec<Result<(PathBuf, ExtractedFile), String>> = candidate_files
         .par_iter()
         .map(|path| {
-            let content = fs::read_to_string(path).unwrap_or_default();
-            let extracted = extract_python_file(&content, path);
-            (path.clone(), extracted)
+            let content = fs::read_to_string(path)
+                .map_err(|error| format!("{}: read error: {error}", path.display()))?;
+            let extracted = try_extract_python_file(&content)
+                .map_err(|error| format!("{}: Python parse error: {error}", path.display()))?;
+            Ok((path.clone(), extracted))
         })
         .collect();
-
-    let total_scanned_lines: usize = extracted_list.iter().map(|(_, e)| e.total_lines).sum();
-    let extracted_files: HashMap<PathBuf, ExtractedFile> = extracted_list.into_iter().collect();
+    let mut valid_files = Vec::new();
+    let mut extracted_files = HashMap::new();
+    let mut scan_issues = Vec::new();
+    let mut total_scanned_lines = 0;
+    for result in scanned {
+        match result {
+            Ok((path, extracted)) => {
+                total_scanned_lines += extracted.total_lines;
+                valid_files.push(path.clone());
+                extracted_files.insert(path, extracted);
+            }
+            Err(issue) => scan_issues.push(issue),
+        }
+    }
 
     let connected_files = find_connected_files(&valid_files, &extracted_files);
 
@@ -138,6 +151,7 @@ pub fn analyze_unreferenced_files(
         isolated_files,
         stats,
         roots: Vec::new(),
+        scan_issues,
     }
 }
 

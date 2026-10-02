@@ -114,18 +114,19 @@ fn print_tooling_table<W: Write>(result: &DoctorResult, writer: &mut W) -> std::
     table.set_header(vec!["Category", "Tool / Name", "Location / Details"]);
 
     for config in &result.configs {
-        let details = config.details.as_deref().unwrap_or_else(|| {
-            config
-                .path
-                .file_name()
-                .and_then(|f| f.to_str())
-                .unwrap_or("")
-        });
+        let path = config
+            .path
+            .strip_prefix(&result.root_path)
+            .unwrap_or(&config.path);
+        let location = match &config.details {
+            Some(details) => format!("{} ({details})", path.display()),
+            None => path.display().to_string(),
+        };
 
         table.add_row(vec![
             Cell::new(config.category.to_string()),
             Cell::new(&config.name),
-            Cell::new(details),
+            Cell::new(location),
         ]);
     }
 
@@ -185,10 +186,14 @@ fn print_structure_table<W: Write>(result: &DoctorResult, writer: &mut W) -> std
         table.add_row(vec!["Languages".to_owned(), lang_summary]);
     }
 
-    if !s.top_level_dirs.is_empty() {
+    if !s.top_level_directories.is_empty() {
         table.add_row(vec![
             "Top-Level Dirs".to_owned(),
-            s.top_level_dirs.join(", "),
+            format!(
+                "{} ({})",
+                s.top_level_directories.join(", "),
+                s.top_level_directory_count
+            ),
         ]);
     }
 

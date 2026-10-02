@@ -43,20 +43,28 @@ pub fn analyze_searchability(
 /// Analyzes searchability over an explicit slice of file paths.
 #[must_use]
 pub fn analyze_searchability_files(files: &[PathBuf]) -> SearchabilityResult {
-    let (duplicate_filenames, worst_duplicate_filename, duplicate_files) =
-        filenames::find_duplicate_filenames(files);
-
     let mut all_functions = Vec::new();
     for file in files {
         let mut file_funcs = functions::extract_functions_from_file(file);
         all_functions.append(&mut file_funcs);
     }
+    analyze_searchability_with_functions(files, &all_functions)
+}
+
+/// Analyze file names and pre-extracted function definitions.
+#[must_use]
+pub fn analyze_searchability_with_functions(
+    files: &[PathBuf],
+    all_functions: &[FunctionDefinition],
+) -> SearchabilityResult {
+    let (duplicate_filenames, worst_duplicate_filename, duplicate_files) =
+        filenames::find_duplicate_filenames(files);
 
     let total_functions = all_functions.len();
     let (function_name_collisions, worst_function_collision, function_collisions) =
-        functions::find_function_collisions(&all_functions);
+        functions::find_function_collisions(all_functions);
 
-    let (generic_name_count, generic_names) = generic::find_generic_names(files, &all_functions);
+    let (generic_name_count, generic_names) = generic::find_generic_names(files, all_functions);
 
     SearchabilityResult {
         stats: SearchabilityStats {

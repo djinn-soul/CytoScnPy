@@ -10,6 +10,7 @@
 pub mod estimator;
 /// Module for scanning Git commit history and classifying active vs frozen files.
 pub mod git_scanner;
+mod git_tracked;
 /// Module for detecting high-churn, complex hotspot files.
 pub mod hotspots;
 /// Module for printing terminal tables and JSON reports.

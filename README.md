@@ -55,6 +55,15 @@ pip install maturin
 maturin develop -m cytoscnpy/Cargo.toml
 ```
 
+**With Podman:**
+
+```bash
+podman build -t cytoscnpy:local .
+podman run --rm -v "$PWD:/workspace:z,ro" cytoscnpy:local /workspace --json
+```
+
+The image also accepts the same CLI arguments as the installed `cytoscnpy` command.
+
 ### MCP Server (for AI Assistants)
 
 CytoScnPy includes an MCP server for AI assistant integration via the standalone CLI binary (install script or `cytoscnpy-cli` build). The Python package does not run `mcp-server`.
@@ -175,20 +184,26 @@ cytoscnpy . --html --secrets --danger
 | `--max-args <N>`       | Exit code 1 if any function has > N args   |
 | `--max-lines <N>`      | Exit code 1 if any function has > N lines  |
 
-### Metric Subcommands
+### Unified Repository Assessment
+
+```bash
+cytoscnpy deslop .                 # Slop Index report through gate status
+cytoscnpy deslop . --verbose       # Full analysis details and file locations
+cytoscnpy deslop . --json          # Machine-readable results for every analysis
+cytoscnpy deslop . --json --fail-on-any       # CI: fail configured gates
+cytoscnpy deslop . --json -o report.json      # Save the unified report
+```
+
+`deslop` reports unreadable or invalid Python files under `scan_integrity` and
+exits with code 1 when a scan is incomplete.
+
+Other tools remain available for raw metrics, dependency checks, and setup:
 
 ```bash
 cytoscnpy raw .                    # Raw Metrics (LOC, SLOC, Comments)
 cytoscnpy cc .                     # Cyclomatic Complexity
 cytoscnpy hal .                    # Halstead Metrics
 cytoscnpy mi .                     # Maintainability Index
-cytoscnpy deslop . --json          # DeSlopify architecture, context, health, searchability, naming, todos, and globals report
-cytoscnpy deslop . --json --fail-on-any       # CI: fail configured gates
-cytoscnpy deslop . --json -o report.json      # Save the unified report
-cytoscnpy searchability .           # Codebase searchability & name collisions
-cytoscnpy naming .                  # Naming-style distribution & consistency
-cytoscnpy todos .                   # TODO/FIXME annotations, debug prints & commented-out code
-cytoscnpy globals .                 # Mutable global state & class variables
 cytoscnpy files .                  # Per-file metrics table
 cytoscnpy deps .                   # Dependency analysis
 cytoscnpy init                     # Scaffold config in the current project

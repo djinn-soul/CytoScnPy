@@ -61,6 +61,9 @@ pub struct UnreferencedResult {
     pub stats: UnreferencedStats,
     /// Root paths analyzed.
     pub roots: Vec<PathBuf>,
+    /// Files that could not be read or parsed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scan_issues: Vec<String>,
 }
 
 impl UnreferencedResult {

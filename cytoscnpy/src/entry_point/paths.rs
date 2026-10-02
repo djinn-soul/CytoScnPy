@@ -90,56 +90,8 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
             | Commands::Deslop {
                 args: crate::cli::DeslopArgs { paths, .. },
             }
-            | Commands::Searchability {
-                args: crate::cli::SearchabilityArgs { paths, .. },
-            }
-            | Commands::Naming {
-                args: crate::cli::NamingArgs { paths, .. },
-            }
             | Commands::Deps {
                 args: crate::cli::DepsArgs { paths, .. },
-            }
-            | Commands::Todos {
-                args: crate::cli::TodosArgs { paths, .. },
-            }
-            | Commands::Globals {
-                args: crate::cli::GlobalsArgs { paths, .. },
-            }
-            | Commands::Exceptions {
-                args: crate::cli::ExceptionsArgs { paths, .. },
-            }
-            | Commands::Wildcards {
-                args: crate::cli::WildcardsArgs { paths, .. },
-            }
-            | Commands::SideEffects {
-                args: crate::cli::SideEffectsArgs { paths, .. },
-            }
-            | Commands::Singletons {
-                args: crate::cli::SingletonsArgs { paths, .. },
-            }
-            | Commands::AntiPatterns {
-                args: crate::cli::AntiPatternsArgs { paths, .. },
-            }
-            | Commands::Duplicates {
-                args: crate::cli::DuplicatesArgs { paths, .. },
-            }
-            | Commands::Unreferenced {
-                args: crate::cli::UnreferencedArgs { paths, .. },
-            }
-            | Commands::Graph {
-                args: crate::cli::GraphArgs { paths, .. },
-            }
-            | Commands::Context {
-                args: crate::cli::ContextArgs { paths, .. },
-            }
-            | Commands::Score {
-                args: crate::cli::ScoreArgs { paths, .. },
-            }
-            | Commands::Doctor {
-                args: crate::cli::DoctorArgs { paths, .. },
-            }
-            | Commands::Functions {
-                args: crate::cli::FunctionsArgs { paths, .. },
             } => {
                 if let Some(r) = &paths.root {
                     all_target_paths.push(r.clone());

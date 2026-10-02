@@ -1,3 +1,4 @@
+use super::context;
 use super::infrastructure;
 use super::runtime;
 use super::structural;
@@ -26,6 +27,7 @@ pub fn collect_candidates(
 
     structural::collect_structural_candidates(ctx, dimensions, &mut candidates);
     runtime::collect_runtime_candidates(ctx, dimensions, &mut candidates);
+    context::collect_context_candidates(ctx, dimensions, &mut candidates);
     infrastructure::collect_infrastructure_candidates(ctx, dimensions, &mut candidates);
 
     candidates

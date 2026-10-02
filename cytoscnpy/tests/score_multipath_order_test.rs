@@ -38,7 +38,7 @@ fn test_file_targets_do_not_duplicate_parent_health() {
     .unwrap();
 
     let score = |paths: Vec<std::path::PathBuf>| {
-        let mut args = vec!["score".to_owned()];
+        let mut args = vec!["deslop".to_owned()];
         args.extend(paths.iter().map(|p| p.to_string_lossy().into_owned()));
         args.extend(
             [
@@ -63,7 +63,10 @@ fn test_file_targets_do_not_duplicate_parent_health() {
     assert_eq!(file_code, directory_code);
     assert_eq!(file_report["dimensions"], directory_report["dimensions"]);
     assert_eq!(file_report["slop_index"], directory_report["slop_index"]);
-    assert_eq!(file_report["passed_gate"], directory_report["passed_gate"]);
+    assert_eq!(
+        file_report["scoring"]["passed_gate"],
+        directory_report["scoring"]["passed_gate"]
+    );
 }
 
 #[test]
@@ -92,7 +95,7 @@ def execute():
     let mut out = Cursor::new(Vec::new());
     let code = entry_point::run_with_args_to(
         vec![
-            "score".to_owned(),
+            "deslop".to_owned(),
             root.to_string_lossy().into_owned(),
             "--ci".to_owned(),
             "--max-score".to_owned(),

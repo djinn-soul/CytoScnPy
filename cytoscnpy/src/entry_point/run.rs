@@ -40,59 +40,8 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
     if let Some(crate::cli::Commands::Deslop { args }) = &cli_var.command {
         cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Searchability { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Naming { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_inconsistent;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Todos { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Globals { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Exceptions { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Wildcards { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::SideEffects { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Singletons { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::AntiPatterns { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Duplicates { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Unreferenced { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Score { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
-    }
-    if let Some(crate::cli::Commands::Functions { args }) = &cli_var.command {
-        cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json;
+        cli_var.output.json |= args.json || args.format.as_deref() == Some("json");
+        cli_var.output.verbose |= args.verbose;
     }
     let context = build_runtime_context(&cli_var)?;
     if let Err(err) = settings::initialize(context.config.clone()) {

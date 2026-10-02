@@ -23,6 +23,18 @@ pub fn architecture_clarity(ctx: &ScoringContext<'_>) -> DimensionScore {
         rating += 1;
     }
 
+    if let Some(doc) = ctx.doctor {
+        if doc.structure.largest_file_lines > 1200 {
+            rating += 1;
+        }
+        if doc.structure.avg_file_lines > 300 {
+            rating += 1;
+        }
+        if doc.structure.top_level_directory_count > 12 {
+            rating += 1;
+        }
+    }
+
     let layer_violations = ctx.architecture.stats.bidirectional_group_deps.len();
     if layer_violations > 0 {
         rating += 1;
@@ -50,6 +62,15 @@ pub fn architecture_clarity(ctx: &ScoringContext<'_>) -> DimensionScore {
     rating = rating.min(5);
 
     let mut evidence_parts = vec![format!("{} files, max depth {}", total_files, max_depth)];
+
+    if let Some(doc) = ctx.doctor {
+        if doc.structure.largest_file_lines > 0 {
+            evidence_parts.push(format!(
+                "largest file {} lines",
+                doc.structure.largest_file_lines
+            ));
+        }
+    }
 
     if layer_violations > 0 {
         evidence_parts.push(format!("{layer_violations} bidirectional group deps"));
@@ -90,6 +111,16 @@ pub fn coupling_blast_radius(ctx: &ScoringContext<'_>) -> DimensionScore {
     }
 
     if stats.max_fan_out > 30 {
+        rating += 1;
+    }
+
+    if stats.avg_fan_in > 15.0 {
+        rating += 2;
+    } else if stats.avg_fan_in > 8.0 {
+        rating += 1;
+    }
+
+    if stats.max_fan_in > 30 {
         rating += 1;
     }
 

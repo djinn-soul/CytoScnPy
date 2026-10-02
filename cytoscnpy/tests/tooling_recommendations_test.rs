@@ -42,7 +42,7 @@ line-length = 88
     let mut out = Cursor::new(Vec::new());
     let code = entry_point::run_with_args_to(
         vec![
-            "score".to_owned(),
+            "deslop".to_owned(),
             root.to_string_lossy().into_owned(),
             "--format".to_owned(),
             "llm".to_owned(),
@@ -72,6 +72,8 @@ line-length = 88
     assert!(output_str.contains("pyproject.toml"));
     assert!(output_str.contains(".github/workflows/ci.yml"));
     assert!(output_str.contains("docs/ARCHITECTURE.md"));
+    assert!(output_str.contains("Add [tool.mypy] or [tool.pyright] configuration"));
+    assert!(output_str.contains("Create .github/workflows/ci.yml with test and lint steps"));
 }
 
 #[test]
@@ -138,7 +140,7 @@ minversion = "7.0"
     let mut out = Cursor::new(Vec::new());
     let code = entry_point::run_with_args_to(
         vec![
-            "score".to_owned(),
+            "deslop".to_owned(),
             root.to_string_lossy().into_owned(),
             "--format".to_owned(),
             "llm".to_owned(),
@@ -163,4 +165,77 @@ minversion = "7.0"
         !output_str.contains("Document architecture in docs/ARCHITECTURE.md"),
         "Unexpected architecture recommendation when configured"
     );
+}
+
+#[test]
+fn test_type_checker_and_ci_estimates_match_scored_changes_with_build_script() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let pyproject = "[project]\nname = \"sample\"\nversion = \"0.1.0\"\n\n[tool.ruff]\nline-length = 88\n\n[tool.pytest.ini_options]\nminversion = \"7.0\"\n";
+    fs::write(root.join("pyproject.toml"), pyproject).unwrap();
+    fs::write(root.join("Makefile"), "test:\n\tpytest\n").unwrap();
+    fs::write(
+        root.join("main.py"),
+        "def calculate(value: int) -> int:\n    return value + 1\n",
+    )
+    .unwrap();
+
+    let score = || {
+        let mut out = Cursor::new(Vec::new());
+        let code = entry_point::run_with_args_to(
+            vec![
+                "deslop".to_owned(),
+                root.to_string_lossy().into_owned(),
+                "--json".to_owned(),
+                "--context-budget".to_owned(),
+                "1".to_owned(),
+            ],
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(code, 0);
+        serde_json::from_slice::<serde_json::Value>(out.get_ref()).unwrap()
+    };
+
+    let before = score();
+    let recommendations = before["recommendations"].as_array().unwrap();
+    for (id, dimension, expected_points) in [
+        ("configure-type-checking", "Style consistency", 2),
+        ("configure-ci-pipeline", "Feedback loop speed", 1),
+    ] {
+        let recommendation = recommendations
+            .iter()
+            .find(|rec| rec["id"] == id)
+            .expect("missing tooling recommendation");
+        assert_eq!(recommendation["estimated_reduction"], expected_points);
+        assert_eq!(recommendation["dimension"], dimension);
+    }
+
+    fs::write(
+        root.join("pyproject.toml"),
+        format!("{pyproject}\n[tool.mypy]\nstrict = true\n"),
+    )
+    .unwrap();
+    let workflow_dir = root.join(".github/workflows");
+    fs::create_dir_all(&workflow_dir).unwrap();
+    fs::write(
+        workflow_dir.join("ci.yml"),
+        "name: CI\non: [push, pull_request]\n",
+    )
+    .unwrap();
+
+    let after = score();
+    for (dimension, expected_drop) in [("Style consistency", 1), ("Feedback loop speed", 1)] {
+        let rating = |report: &serde_json::Value| {
+            report["dimensions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["name"] == dimension)
+                .unwrap()["rating"]
+                .as_u64()
+                .unwrap()
+        };
+        assert_eq!(rating(&before) - rating(&after), expected_drop);
+    }
 }

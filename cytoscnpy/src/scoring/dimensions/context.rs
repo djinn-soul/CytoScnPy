@@ -52,7 +52,10 @@ pub fn context_pressure(ctx: &ScoringContext<'_>) -> DimensionScore {
         rating += 1;
     }
 
-    if ctx.context.git_activity.frozen_files > 0 && ctx.context.git_activity.frozen_lines > 500 {
+    if ctx.context.git_activity.is_git_repo
+        && ctx.context.git_activity.frozen_files > 0
+        && ctx.context.git_activity.frozen_lines > 500
+    {
         rating += 1;
     }
 
@@ -80,7 +83,10 @@ pub fn context_pressure(ctx: &ScoringContext<'_>) -> DimensionScore {
             "{dead_fn_count} unreferenced large functions in isolated files"
         ));
     }
-    if ctx.context.git_activity.frozen_files > 0 && ctx.context.git_activity.frozen_lines > 0 {
+    if ctx.context.git_activity.is_git_repo
+        && ctx.context.git_activity.frozen_files > 0
+        && ctx.context.git_activity.frozen_lines > 0
+    {
         evidence_parts.push(format!(
             "{} frozen files ({} lines)",
             ctx.context.git_activity.frozen_files, ctx.context.git_activity.frozen_lines

@@ -51,6 +51,14 @@ pub fn aggregate_doctor_results(
                     existing.has_black |= p.has_black;
                     existing.has_mypy |= p.has_mypy;
                     existing.has_pyright |= p.has_pyright;
+                    for checker in &p.type_checkers {
+                        if !existing.type_checkers.contains(checker) {
+                            existing.type_checkers.push(checker.clone());
+                        }
+                    }
+                    merge_tool_names(&mut existing.formatters, &p.formatters);
+                    merge_tool_names(&mut existing.linters, &p.linters);
+                    merge_tool_names(&mut existing.task_runners, &p.task_runners);
                     existing.has_pytest |= p.has_pytest;
                     existing.has_pylint |= p.has_pylint;
                     existing.has_poetry |= p.has_poetry;
@@ -131,12 +139,12 @@ pub fn aggregate_doctor_results(
             .then_with(|| a.language.cmp(&b.language))
     });
 
-    let mut top_level_dirs: Vec<String> = results
+    let mut top_level_directories: Vec<String> = results
         .iter()
-        .flat_map(|r| r.structure.top_level_dirs.iter().cloned())
+        .flat_map(|r| r.structure.top_level_directories.iter().cloned())
         .collect();
-    top_level_dirs.sort();
-    top_level_dirs.dedup();
+    top_level_directories.sort();
+    top_level_directories.dedup();
 
     let structure = RepoStructureStats {
         total_files,
@@ -152,7 +160,8 @@ pub fn aggregate_doctor_results(
         largest_file_lines: largest.1,
         max_directory_depth,
         languages,
-        top_level_dirs,
+        top_level_directory_count: top_level_directories.len(),
+        top_level_directories,
     };
 
     // 4. Merge setup reliability
@@ -250,4 +259,12 @@ pub fn aggregate_doctor_results(
         structure,
         reliability,
     })
+}
+
+fn merge_tool_names(existing: &mut Vec<String>, incoming: &[String]) {
+    for name in incoming {
+        if !existing.contains(name) {
+            existing.push(name.clone());
+        }
+    }
 }

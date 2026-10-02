@@ -86,16 +86,22 @@ pub fn runtime_predictability(ctx: &ScoringContext<'_>) -> DimensionScore {
 
     let singletons_count = ctx.singletons.stats.total;
     if singletons_count > 3 {
+        rating += 2;
+    } else if singletons_count > 0 {
         rating += 1;
     }
 
     let wildcards_count = ctx.wildcards.stats.total;
     if wildcards_count > 5 {
+        rating += 2;
+    } else if wildcards_count > 0 {
         rating += 1;
     }
 
     let anti_patterns_count = ctx.anti_patterns.stats.total;
     if anti_patterns_count > 10 {
+        rating += 2;
+    } else if anti_patterns_count > 0 {
         rating += 1;
     }
 

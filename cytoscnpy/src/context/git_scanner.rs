@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::SystemTime;
 
+use super::git_tracked::tracked_paths;
 use super::types::{GitActivity, HotFile};
 
 /// File metadata collected during repository scanning.
@@ -224,6 +225,8 @@ pub fn scan_git_activity(
 
     let git_root =
         resolve_git_root(repo_path).unwrap_or_else(|| git_working_dir(repo_path).to_path_buf());
+    // If Git cannot list committed files, do not classify any file as mature/frozen.
+    let tracked = tracked_paths(&git_root).unwrap_or_default();
     let file_commits = git_file_frequency_days(repo_path, window_days).unwrap_or_default();
     let total_commits = count_commits_days(repo_path, window_days).unwrap_or(0);
 
@@ -233,6 +236,7 @@ pub fn scan_git_activity(
     let mut frozen_files = 0usize;
     let mut frozen_lines = 0usize;
     let mut frozen_bytes = 0u64;
+    let mut frozen_paths = Vec::new();
     let mut hot_files: Vec<HotFile> = Vec::new();
     let mut commit_map_by_path: HashMap<PathBuf, usize> = HashMap::new();
 
@@ -258,15 +262,17 @@ pub fn scan_git_activity(
                 lines: file.lines,
                 bytes: file.bytes,
             });
-        } else {
+        } else if tracked.contains(&git_rel_path) {
             frozen_files += 1;
             frozen_lines += file.lines;
             frozen_bytes += file.bytes;
+            frozen_paths.push(scan_rel_path);
         }
     }
 
     hot_files.sort_by_key(|a| std::cmp::Reverse(a.commit_count));
     hot_files.truncate(10);
+    frozen_paths.sort();
 
     (
         GitActivity {
@@ -277,6 +283,7 @@ pub fn scan_git_activity(
             frozen_files,
             frozen_lines,
             frozen_bytes,
+            frozen_paths,
             total_commits,
             window_days,
             window_label: format_window_label(window_days),

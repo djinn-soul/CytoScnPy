@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 /// Additional limits applied by `deslop --fail-on-any`.
-/// These limits apply only to DeSlopify-derived architecture, context, and health checks.
+/// These limits apply to the unified architecture, context, health, and code checks.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct DeslopConfig {

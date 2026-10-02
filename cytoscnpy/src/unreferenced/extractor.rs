@@ -40,15 +40,20 @@ pub struct ExtractedFile {
 /// Parses a Python source file and extracts its functions, imports, and total lines.
 #[must_use]
 pub fn extract_python_file(content: &str, _path: &Path) -> ExtractedFile {
+    // Preserve the existing infallible library API; scanners use the fallible
+    // variant below so parse failures remain visible in analysis results.
+    try_extract_python_file(content).unwrap_or_else(|_| ExtractedFile {
+        functions: Vec::new(),
+        imports: Vec::new(),
+        total_lines: content.lines().count(),
+        content: content.to_owned(),
+    })
+}
+
+/// Extracts metadata while preserving Python parse failures for scanners.
+pub(crate) fn try_extract_python_file(content: &str) -> Result<ExtractedFile, String> {
+    let parsed = parse_module(content).map_err(|error| error.to_string())?;
     let total_lines = content.lines().count();
-    let Ok(parsed) = parse_module(content) else {
-        return ExtractedFile {
-            functions: Vec::new(),
-            imports: Vec::new(),
-            total_lines,
-            content: content.to_owned(),
-        };
-    };
 
     let line_index = LineIndex::new(content);
     let mut functions = Vec::new();
@@ -62,12 +67,12 @@ pub fn extract_python_file(content: &str, _path: &Path) -> ExtractedFile {
         &mut imports,
     );
 
-    ExtractedFile {
+    Ok(ExtractedFile {
         functions,
         imports,
         total_lines,
         content: content.to_owned(),
-    }
+    })
 }
 
 fn visit_statements(

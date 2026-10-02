@@ -9,9 +9,7 @@
 //!   string literal (`EmptyHandler`).
 //! - Recursive detection inside functions, class methods, nested `try` blocks,
 //!   `if` branches, `for`/`while` loops, `with` blocks, and `match` cases.
-//! - Exposed as `cytoscnpy exceptions` CLI subcommand with `--json`,
-//!   `--fail-on-any`, `--max-bare-excepts`, `--max-empty-handlers`, `-o`,
-//!   and `--exclude`.
+//! - Included in `cytoscnpy deslop` reports and configurable CI gates.
 
 pub mod reporter;
 pub mod scanner;

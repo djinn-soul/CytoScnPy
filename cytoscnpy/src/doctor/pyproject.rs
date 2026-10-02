@@ -19,8 +19,47 @@ pub fn inspect_pyproject(repo_root: &Path) -> Option<PyProjectInspection> {
     if let Some(tool_table) = value.get("tool").and_then(Value::as_table) {
         inspection.has_ruff = tool_table.contains_key("ruff");
         inspection.has_black = tool_table.contains_key("black");
+        inspection.formatters = [
+            ("ruff", "Ruff"),
+            ("black", "Black"),
+            ("isort", "isort"),
+            ("yapf", "YAPF"),
+            ("autopep8", "autopep8"),
+        ]
+        .into_iter()
+        .filter(|(key, _)| tool_table.contains_key(*key))
+        .map(|(_, name)| name.to_owned())
+        .collect();
+        inspection.linters = [
+            ("ruff", "Ruff"),
+            ("flake8", "Flake8"),
+            ("pylint", "Pylint"),
+            ("pycodestyle", "pycodestyle"),
+        ]
+        .into_iter()
+        .filter(|(key, _)| tool_table.contains_key(*key))
+        .map(|(_, name)| name.to_owned())
+        .collect();
+        inspection.task_runners = ["tox", "nox"]
+            .into_iter()
+            .filter(|key| tool_table.contains_key(*key))
+            .map(str::to_owned)
+            .collect();
         inspection.has_mypy = tool_table.contains_key("mypy");
         inspection.has_pyright = tool_table.contains_key("pyright");
+        inspection.type_checkers = [
+            ("mypy", "mypy"),
+            ("pyright", "Pyright"),
+            ("basedpyright", "BasedPyright"),
+            ("pyre", "Pyre"),
+            ("pytype", "pytype"),
+            ("ty", "ty"),
+            ("pyrefly", "Pyrefly"),
+        ]
+        .into_iter()
+        .filter(|(key, _)| tool_table.contains_key(*key))
+        .map(|(_, name)| name.to_owned())
+        .collect();
         inspection.has_pylint = tool_table.contains_key("pylint");
         inspection.has_pytest = tool_table.contains_key("pytest");
         inspection.has_poetry = tool_table.contains_key("poetry");
@@ -61,70 +100,56 @@ pub fn supplement_configs_with_pyproject(
     pyproject: &PyProjectInspection,
     pyproject_path: &Path,
 ) {
-    if pyproject.has_ruff || pyproject.has_black {
-        let name = if pyproject.has_ruff {
-            "Ruff (pyproject.toml)"
-        } else {
-            "Black (pyproject.toml)"
-        };
-        if !configs
-            .iter()
-            .any(|c| c.category == ConfigCategory::Formatter)
-        {
-            configs.push(DetectedConfig {
-                category: ConfigCategory::Formatter,
-                name: name.to_owned(),
-                path: pyproject_path.to_path_buf(),
-                details: Some("Configured under [tool.*]".to_owned()),
-            });
-        }
-    }
+    append_pyproject_tools(
+        configs,
+        &pyproject.formatters,
+        ConfigCategory::Formatter,
+        pyproject_path,
+    );
+    append_pyproject_tools(
+        configs,
+        &pyproject.linters,
+        ConfigCategory::Linter,
+        pyproject_path,
+    );
+    append_pyproject_tools(
+        configs,
+        &pyproject.type_checkers,
+        ConfigCategory::TypeChecker,
+        pyproject_path,
+    );
+    append_pyproject_tools(
+        configs,
+        &pyproject.task_runners,
+        ConfigCategory::BuildScript,
+        pyproject_path,
+    );
 
-    if pyproject.has_ruff || pyproject.has_pylint {
-        let name = if pyproject.has_ruff {
-            "Ruff (pyproject.toml)"
-        } else {
-            "Pylint (pyproject.toml)"
-        };
-        if !configs.iter().any(|c| c.category == ConfigCategory::Linter) {
-            configs.push(DetectedConfig {
-                category: ConfigCategory::Linter,
-                name: name.to_owned(),
-                path: pyproject_path.to_path_buf(),
-                details: Some("Configured under [tool.*]".to_owned()),
-            });
-        }
-    }
-
-    if pyproject.has_mypy || pyproject.has_pyright {
-        let name = if pyproject.has_mypy {
-            "mypy (pyproject.toml)"
-        } else {
-            "pyright (pyproject.toml)"
-        };
-        if !configs
-            .iter()
-            .any(|c| c.category == ConfigCategory::TypeChecker)
-        {
-            configs.push(DetectedConfig {
-                category: ConfigCategory::TypeChecker,
-                name: name.to_owned(),
-                path: pyproject_path.to_path_buf(),
-                details: Some("Configured under [tool.*]".to_owned()),
-            });
-        }
-    }
-
-    if pyproject.has_pytest
-        && !configs
-            .iter()
-            .any(|c| c.category == ConfigCategory::TestFramework)
-    {
+    if pyproject.has_pytest {
         configs.push(DetectedConfig {
             category: ConfigCategory::TestFramework,
             name: "pytest (pyproject.toml)".to_owned(),
             path: pyproject_path.to_path_buf(),
             details: Some("Configured under [tool.pytest]".to_owned()),
+        });
+    }
+}
+
+fn append_pyproject_tools(
+    configs: &mut Vec<DetectedConfig>,
+    tools: &[String],
+    category: ConfigCategory,
+    pyproject_path: &Path,
+) {
+    for tool in tools {
+        configs.push(DetectedConfig {
+            category,
+            name: format!("{tool} (pyproject.toml)"),
+            path: pyproject_path.to_path_buf(),
+            details: Some(format!(
+                "Configured under [tool.{}]",
+                tool.to_ascii_lowercase()
+            )),
         });
     }
 }

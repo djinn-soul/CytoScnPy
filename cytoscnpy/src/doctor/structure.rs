@@ -20,6 +20,11 @@ const SKIP_DIR_NAMES: &[&str] = &[
     ".mypy_cache",
     ".idea",
     ".vscode",
+    "vendor",
+    "third_party",
+    "generated",
+    ".generated",
+    "codegen",
 ];
 
 fn is_test_file(path: &Path) -> bool {
@@ -199,6 +204,7 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
 
     let avg_file_lines = total_lines.checked_div(total_files).unwrap_or(0);
 
+    let top_level_directories: Vec<String> = top_dirs_set.into_iter().collect();
     RepoStructureStats {
         total_files,
         total_lines,
@@ -213,6 +219,7 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
         largest_file_lines,
         max_directory_depth: max_depth,
         languages,
-        top_level_dirs: top_dirs_set.into_iter().collect(),
+        top_level_directory_count: top_level_directories.len(),
+        top_level_directories,
     }
 }

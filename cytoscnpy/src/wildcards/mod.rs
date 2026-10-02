@@ -9,8 +9,7 @@
 //!   `for`/`while` loops, `with` blocks, `try`/`except`, and `match` cases.
 //! - Captures the imported module name and source snippet.
 //! - Parallel file scanning via Rayon.
-//! - Exposed as `cytoscnpy wildcards` CLI subcommand with `--json`,
-//!   `--fail-on-any`, `--max-wildcards`, `-o`, and `--exclude`.
+//! - Included in `cytoscnpy deslop` reports and configurable CI gates.
 
 pub mod reporter;
 pub mod scanner;

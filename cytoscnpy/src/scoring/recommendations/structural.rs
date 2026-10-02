@@ -22,6 +22,7 @@ pub fn collect_structural_candidates(
     collect_coupling(ctx, dimensions, out);
     collect_searchability(ctx, dimensions, out);
     collect_context_recommendations(ctx, dimensions, out);
+    collect_tooling(ctx, dimensions, out);
 }
 
 fn collect_architecture(
@@ -122,7 +123,7 @@ fn collect_coupling(
             action_steps: vec![
                 "Move shared data types or interfaces to a leaf module.".to_owned(),
                 "Convert top-level mutual imports into TYPE_CHECKING guards or local imports.".to_owned(),
-                "Verify import order with cytoscnpy graph --cycles .".to_owned(),
+                "Verify import cycles with cytoscnpy deslop .".to_owned(),
             ],
             affected_files: cycle_files,
         });
@@ -200,31 +201,85 @@ fn collect_context_recommendations(
     dimensions: &[DimensionScore],
     out: &mut Vec<CandidateRecommendation>,
 ) {
-    if ctx.context.git_activity.frozen_files > 0
-        && (ctx.context.git_activity.frozen_lines >= 100
-            || ctx.context.git_activity.frozen_bytes >= 5_000
-            || ctx.context.token_budget.navigation_pct > 25.0)
+    let git = &ctx.context.git_activity;
+    let active_tokens = (git.active_bytes as f64 / 3.5) as usize;
+    let frozen_tokens = (git.frozen_bytes as f64 / 3.5) as usize;
+    if git.is_git_repo
+        && git.total_commits > 0
+        && git.active_files > 0
+        && active_tokens >= 100_000
+        && ctx.context.token_budget.navigation_pct >= 25.0
+        && frozen_tokens >= 10_000
+        && git.frozen_lines > 500
+        && !git.frozen_paths.is_empty()
     {
         let current = get_rating(dimensions, "Context pressure");
         out.push(CandidateRecommendation {
             id: "extract-stable-library".to_owned(),
             title: format!(
                 "Extract {} stable/frozen file(s) into independent package(s)",
-                ctx.context.git_activity.frozen_files
+                git.frozen_files
             ),
             dimension: "Context pressure".to_owned(),
             target_rating: current.saturating_sub(1),
             effort: Effort::High,
-            description: "Mature modules untouched in recent development consume agent token context and inflate navigation load.".to_owned(),
+            description: format!(
+                "Mature modules untouched in recent Git history account for about {frozen_tokens} tokens while {active_tokens} active tokens and {:.1}% navigation load pressure the context window.",
+                ctx.context.token_budget.navigation_pct
+            ),
             action_steps: vec![
                 "Identify frozen domain utilities, client SDKs, or math/helper packages.".to_owned(),
                 "Extract them into distinct standalone packages or internal namespace libraries.".to_owned(),
                 "Reference the extracted libraries as pinned version dependencies to reclaim LLM context window.".to_owned(),
             ],
-            affected_files: vec![format!(
-                "{} frozen files ({} lines)",
-                ctx.context.git_activity.frozen_files, ctx.context.git_activity.frozen_lines
-            )],
+            affected_files: git
+                .frozen_paths
+                .iter()
+                .take(5)
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
+        });
+    }
+}
+
+fn collect_tooling(
+    ctx: &ScoringContext<'_>,
+    dimensions: &[DimensionScore],
+    out: &mut Vec<CandidateRecommendation>,
+) {
+    let Some(doc) = ctx.doctor else { return };
+    if !doc.reliability.has_type_checker {
+        let current = get_rating(dimensions, "Style consistency");
+        out.push(CandidateRecommendation {
+            id: "configure-type-checking".to_owned(),
+            title: "Configure static type checking (mypy / pyright)".to_owned(),
+            dimension: "Style consistency".to_owned(),
+            target_rating: current.saturating_sub(1),
+            effort: Effort::Low,
+            description: "Static type checking with mypy or pyright detects type inconsistencies, invalid calls, and missing None checks before runtime.".to_owned(),
+            action_steps: vec![
+                "Add [tool.mypy] or [tool.pyright] configuration to pyproject.toml.".to_owned(),
+                "Add type annotations to function signatures in core modules.".to_owned(),
+                "Run mypy or pyright to verify type consistency across the codebase.".to_owned(),
+            ],
+            affected_files: vec!["pyproject.toml".to_owned()],
+        });
+    }
+    if !doc.reliability.has_ci {
+        let current = get_rating(dimensions, "Feedback loop speed");
+        out.push(CandidateRecommendation {
+            id: "configure-ci-pipeline".to_owned(),
+            title: "Configure CI workflow automation (.github/workflows)".to_owned(),
+            dimension: "Feedback loop speed".to_owned(),
+            target_rating: current.saturating_sub(1),
+            effort: Effort::Low,
+            description: "Continuous integration ensures tests, linters, and type checkers run automatically on every pull request.".to_owned(),
+            action_steps: vec![
+                "Create .github/workflows/ci.yml with test and lint steps.".to_owned(),
+                "Configure workflow triggers on push and pull_request to main branch.".to_owned(),
+                "Verify workflow runs and passes in GitHub Actions.".to_owned(),
+            ],
+            affected_files: vec![".github/workflows/ci.yml".to_owned()],
         });
     }
 }

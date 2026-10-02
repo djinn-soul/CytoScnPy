@@ -1,6 +1,7 @@
 //! Prioritized recommendations engine for codebase remediation.
 
 mod builder;
+mod context;
 mod infrastructure;
 pub mod llm;
 mod prioritizer;
@@ -10,6 +11,8 @@ pub mod types;
 
 pub use llm::format_llm_report;
 pub use types::{Effort, Recommendation};
+
+pub(crate) const MAX_RECOMMENDATIONS: usize = 15;
 
 use crate::scoring::dimensions::ScoringContext;
 use crate::scoring::types::DimensionScore;
@@ -22,5 +25,10 @@ pub fn generate_recommendations(
     size_multiplier: f64,
 ) -> Vec<Recommendation> {
     let candidates = builder::collect_candidates(ctx, dimensions);
-    prioritizer::prioritize_recommendations(candidates, dimensions, size_multiplier, 10)
+    prioritizer::prioritize_recommendations(
+        candidates,
+        dimensions,
+        size_multiplier,
+        MAX_RECOMMENDATIONS,
+    )
 }

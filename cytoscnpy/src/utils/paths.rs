@@ -220,6 +220,19 @@ pub fn collect_python_files_gitignore(
     include_ipynb: bool,
     verbose: bool,
 ) -> (Vec<std::path::PathBuf>, usize) {
+    let (files, directories, _) =
+        collect_python_files_gitignore_with_errors(root, exclude, include, include_ipynb, verbose);
+    (files, directories)
+}
+
+/// Discover Python files while returning traversal failures to callers that enforce scan integrity.
+pub fn collect_python_files_gitignore_with_errors(
+    root: &std::path::Path,
+    exclude: &[String],
+    include: &[String],
+    include_ipynb: bool,
+    verbose: bool,
+) -> (Vec<std::path::PathBuf>, usize, Vec<String>) {
     use ignore::WalkBuilder;
 
     // Merge user excludes with default excludes
@@ -274,6 +287,7 @@ pub fn collect_python_files_gitignore(
 
     let mut files = Vec::new();
     let mut dir_count = 0;
+    let mut errors = Vec::new();
 
     for result in walker {
         if let Ok(entry) = result {
@@ -301,15 +315,15 @@ pub fn collect_python_files_gitignore(
             }
 
             files.push(path.to_path_buf());
-        } else if verbose {
-            // Ignore walk errors silently unless verbose
-            if let Err(e) = result {
+        } else if let Err(e) = result {
+            if verbose {
                 eprintln!("Walk error: {e}");
             }
+            errors.push(e.to_string());
         }
     }
 
-    (files, dir_count)
+    (files, dir_count, errors)
 }
 
 #[cfg(test)]

@@ -9,8 +9,7 @@
 //! - Detects commented-out code blocks (`# if …`, `// for …`, …).
 //! - Context-sensitive suppression: skips debug-print detection in test files
 //!   and output-oriented modules (`cli`, `main`, `output`, `views`, …).
-//! - Exposed as `cytoscnpy todos` CLI subcommand with `--json`,
-//!   `--fail-on-any`, `-o`, and `--exclude`.
+//! - Included in `cytoscnpy deslop` reports and configurable CI gates.
 
 pub mod reporter;
 pub mod scanner;

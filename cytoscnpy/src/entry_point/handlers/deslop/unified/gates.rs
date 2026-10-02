@@ -34,9 +34,11 @@ pub(super) fn collect_failures(
     scoring: &crate::scoring::ScoreResult,
     config: &crate::config::Config,
     fail_on_any: bool,
+    max_score: Option<u32>,
 ) -> Vec<GateFailure> {
     let mut failures = Vec::new();
     if !fail_on_any {
+        check_score(&mut failures, scoring.slop_index, max_score);
         return failures;
     }
 
@@ -248,16 +250,20 @@ pub(super) fn collect_failures(
             limit,
         );
     }
-    if let Some(limit) = deslop.max_slop_index {
-        if scoring.slop_index > limit {
+    check_score(&mut failures, scoring.slop_index, max_score);
+    failures
+}
+
+fn check_score(failures: &mut Vec<GateFailure>, score: u32, max_score: Option<u32>) {
+    if let Some(limit) = max_score {
+        if score > limit {
             failures.push(failure(
                 "slop_index",
-                scoring.slop_index.to_string(),
+                score.to_string(),
                 format!("<= {limit}"),
             ));
         }
     }
-    failures
 }
 
 fn push_over(failures: &mut Vec<GateFailure>, check: &'static str, actual: usize, limit: usize) {

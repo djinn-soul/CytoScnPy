@@ -1,10 +1,8 @@
 mod metrics;
-mod quality;
 
 use super::config::resolve_scan_flag;
 use super::handlers::{
-    handle_context, handle_deps, handle_deslop, handle_doctor, handle_files, handle_graph,
-    handle_stats, ContextFlags, DepsCliArgs, DepsFlags, DoctorFlags, GraphFlags,
+    handle_deps, handle_deslop, handle_files, handle_stats, DepsCliArgs, DepsFlags,
 };
 use super::run::RuntimeContext;
 use crate::cli::Commands;
@@ -108,74 +106,9 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             &context.config,
             writer,
         ),
-        Commands::Searchability { .. }
-        | Commands::Naming { .. }
-        | Commands::Todos { .. }
-        | Commands::Globals { .. }
-        | Commands::Exceptions { .. }
-        | Commands::Wildcards { .. }
-        | Commands::SideEffects { .. }
-        | Commands::Singletons { .. }
-        | Commands::AntiPatterns { .. }
-        | Commands::Duplicates { .. }
-        | Commands::Unreferenced { .. }
-        | Commands::Score { .. }
-        | Commands::Functions { .. } => quality::handle_quality_command(
-            command,
-            root_json,
-            root_fail_on_any,
-            verbose,
-            context,
-            writer,
-        ),
         Commands::Init => {
             crate::commands::run_init_in(&context.analysis_root, writer)?;
             Ok(0)
         }
-        Commands::Graph { args } => handle_graph(
-            &args.paths,
-            GraphFlags {
-                json: args.json,
-                cycles_only: args.cycles_only,
-                fail_on_cycles: args.fail_on_cycles,
-                fail_on_god_modules: args.fail_on_god_modules,
-                verbose,
-            },
-            args.output_file,
-            args.exclude,
-            &context.exclude_folders,
-            &context.analysis_root,
-            writer,
-        ),
-        Commands::Context { args } => handle_context(
-            &args.paths,
-            ContextFlags {
-                git_months: args.git_months,
-                context_budget: args.context_budget.unwrap_or(176_000),
-                no_git: args.no_git,
-                json: args.json,
-                hotspots_only: args.hotspots_only,
-                fail_on_hotspots: args.fail_on_hotspots,
-                verbose,
-            },
-            args.output_file,
-            args.exclude,
-            &context.exclude_folders,
-            &context.analysis_root,
-            writer,
-        ),
-        Commands::Doctor { args } => handle_doctor(
-            &args.paths,
-            DoctorFlags {
-                json: args.json,
-                fail_on_missing: args.fail_on_missing,
-                verbose,
-            },
-            args.output_file,
-            args.exclude,
-            &context.exclude_folders,
-            &context.analysis_root,
-            writer,
-        ),
     }
 }

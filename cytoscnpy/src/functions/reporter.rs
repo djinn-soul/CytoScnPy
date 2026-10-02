@@ -24,6 +24,10 @@ pub fn print_terminal_report<W: Write>(
         "═══════════════════════════════════════════════════════════"
     )?;
 
+    for issue in &result.scan_issues {
+        writeln!(writer, "  Scan incomplete: {issue}")?;
+    }
+
     if result.is_empty() {
         writeln!(writer, "  No functions detected.")?;
         writeln!(

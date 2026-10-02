@@ -107,7 +107,7 @@ pub fn format_llm_report(result: &ScoreResult) -> String {
         "After completing the action items, verify the changes and score reduction with:\n",
     );
     out.push_str("```bash\n");
-    out.push_str("cytoscnpy score .\n");
+    out.push_str("cytoscnpy deslop .\n");
     out.push_str("pytest\n");
     out.push_str("```\n");
 

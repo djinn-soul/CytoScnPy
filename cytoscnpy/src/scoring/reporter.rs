@@ -112,8 +112,12 @@ pub fn format_terminal_report(result: &ScoreResult, verbose: bool) -> String {
 
     if !result.recommendations.is_empty() {
         out.push_str("Top Prioritized Remediations:\n");
-        let rec_limit = if verbose { 10 } else { 5 };
-        for (i, rec) in result.recommendations.iter().take(rec_limit).enumerate() {
+        for (i, rec) in result
+            .recommendations
+            .iter()
+            .take(super::recommendations::MAX_RECOMMENDATIONS)
+            .enumerate()
+        {
             out.push_str(&format!(
                 "  {}. [-{} pts] {} ({}, Effort: {})\n",
                 i + 1,

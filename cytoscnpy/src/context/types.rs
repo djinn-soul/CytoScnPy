@@ -75,6 +75,9 @@ pub struct GitActivity {
     pub frozen_lines: usize,
     /// Total bytes in frozen files.
     pub frozen_bytes: u64,
+    /// Repository-relative paths of files untouched in the lookback window.
+    #[serde(default)]
+    pub frozen_paths: Vec<PathBuf>,
     /// Total commits in the repository within lookback window.
     pub total_commits: usize,
     /// Lookback window in days.
@@ -95,6 +98,7 @@ impl Default for GitActivity {
             frozen_files: 0,
             frozen_lines: 0,
             frozen_bytes: 0,
+            frozen_paths: Vec::new(),
             total_commits: 0,
             window_days: 30,
             window_label: "30 days".to_owned(),

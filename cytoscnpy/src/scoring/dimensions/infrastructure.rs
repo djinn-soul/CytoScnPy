@@ -147,7 +147,8 @@ pub fn feedback_loop_speed(ctx: &ScoringContext<'_>) -> DimensionScore {
     if !has_test_runner {
         rating += 1;
     }
-    if !has_ci && !has_build {
+    // A local build script does not replace validation on pull requests.
+    if !has_ci {
         rating += 1;
     }
 
@@ -263,6 +264,17 @@ pub fn dependency_boundaries(ctx: &ScoringContext<'_>) -> DimensionScore {
             evidence_parts.push("lockfile present".to_owned());
         } else {
             evidence_parts.push("no lockfile".to_owned());
+        }
+
+        let has_vendor = doc
+            .structure
+            .top_level_directories
+            .iter()
+            .any(|d| d == "vendor" || d == "third_party");
+        if has_vendor {
+            evidence_parts.push("vendor directory present".to_owned());
+        } else {
+            evidence_parts.push("clean vendor/source separation".to_owned());
         }
     } else {
         evidence_parts.push("no doctor data".to_owned());

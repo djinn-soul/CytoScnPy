@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::python::detect_anti_patterns;
-use super::types::{AntiPatternMatch, AntiPatternStats, AntiPatternsResult};
+use super::types::{AntiPatternMatch, AntiPatternStats, AntiPatternsResult, ScanError};
 use crate::commands::utils::find_python_files;
 
 fn is_test_file(path: &Path) -> bool {
@@ -22,6 +22,7 @@ fn aggregate(
     mut matches: Vec<AntiPatternMatch>,
     files_scanned: usize,
     roots: Vec<PathBuf>,
+    scan_errors: Vec<ScanError>,
 ) -> AntiPatternsResult {
     matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
@@ -39,6 +40,7 @@ fn aggregate(
         stats,
         files_scanned,
         roots,
+        scan_errors,
     }
 }
 
@@ -56,16 +58,38 @@ pub fn scan_files(files: &[PathBuf]) -> AntiPatternsResult {
         })
         .collect();
 
-    let matches: Vec<AntiPatternMatch> = python_files
+    let (matches, mut scan_errors): (Vec<AntiPatternMatch>, Vec<ScanError>) = python_files
         .par_iter()
-        .filter_map(|path| {
-            let content = fs::read_to_string(path).ok()?;
-            Some(detect_anti_patterns(&content, path))
+        .map(|path| match fs::read_to_string(path) {
+            Ok(content) => (detect_anti_patterns(&content, path), None),
+            Err(error) => (
+                Vec::new(),
+                Some(ScanError {
+                    file: (*path).clone(),
+                    error: error.to_string(),
+                }),
+            ),
         })
-        .flatten()
-        .collect();
+        .fold(
+            || (Vec::new(), Vec::new()),
+            |(mut matches, mut errors), (file_matches, error)| {
+                matches.extend(file_matches);
+                errors.extend(error);
+                (matches, errors)
+            },
+        )
+        .reduce(
+            || (Vec::new(), Vec::new()),
+            |(mut matches_a, mut errors_a), (matches_b, errors_b)| {
+                matches_a.extend(matches_b);
+                errors_a.extend(errors_b);
+                (matches_a, errors_a)
+            },
+        );
 
-    aggregate(matches, python_files.len(), Vec::new())
+    scan_errors.sort_by(|a, b| a.file.cmp(&b.file));
+    let files_scanned = python_files.len() - scan_errors.len();
+    aggregate(matches, files_scanned, Vec::new(), scan_errors)
 }
 
 /// Scans roots for Python files and detects anti-patterns.

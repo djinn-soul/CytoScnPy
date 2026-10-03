@@ -18,6 +18,7 @@ fn run(path: &str, content: &str) -> TodosResult {
     let mut result = TodosResult {
         stats: super::types::TodoStats::default(),
         matches: Vec::new(),
+        scan_errors: Vec::new(),
     };
     use std::collections::HashSet;
     let mut affected: HashSet<std::path::PathBuf> = HashSet::new();
@@ -190,6 +191,16 @@ fn affected_files_counted_across_multiple_files() {
     let result = scan_files(&[a, b]);
     assert_eq!(result.stats.affected_files, 2);
     assert_eq!(result.stats.total, 2);
+}
+
+#[test]
+fn reports_files_that_cannot_be_read() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let missing = dir.path().join("missing.py");
+    let result = scan_files(&[missing.clone()]);
+    assert_eq!(result.scan_errors.len(), 1);
+    assert_eq!(result.scan_errors[0].file, missing);
+    assert!(!result.scan_errors[0].error.is_empty());
 }
 
 // ---------------------------------------------------------------------------

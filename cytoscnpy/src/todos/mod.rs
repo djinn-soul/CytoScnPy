@@ -20,7 +20,7 @@ mod tests;
 
 pub use reporter::{print_json_report, print_terminal_report};
 pub use scanner::{scan_file_content, scan_files, scan_todos};
-pub use types::{TodoKind, TodoMatch, TodoStats, TodosResult};
+pub use types::{ScanError, TodoKind, TodoMatch, TodoStats, TodosResult};
 
 use crate::commands::utils::find_python_files;
 use std::path::PathBuf;

@@ -21,7 +21,9 @@ mod tests;
 pub use python::detect_anti_patterns;
 pub use reporter::{print_json_report, print_terminal_report};
 pub use scanner::{scan_anti_patterns, scan_files};
-pub use types::{AntiPatternKind, AntiPatternMatch, AntiPatternStats, AntiPatternsResult};
+pub use types::{
+    AntiPatternKind, AntiPatternMatch, AntiPatternStats, AntiPatternsResult, ScanError,
+};
 
 use std::path::PathBuf;
 

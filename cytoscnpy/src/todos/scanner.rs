@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::commands::utils::find_python_files;
 
-use super::types::{TodoKind, TodoMatch, TodoStats, TodosResult};
+use super::types::{ScanError, TodoKind, TodoMatch, TodoStats, TodosResult};
 
 const OUTPUT_STEMS: &[&str] = &["main", "cli", "cmd", "output", "console", "render"];
 
@@ -256,18 +256,41 @@ pub fn scan_file_content(path: &Path, content: &str, skip_ctx: bool, out: &mut V
 
 /// Scans a set of source files in parallel and returns an aggregated `TodosResult`.
 pub fn scan_files(paths: &[PathBuf]) -> TodosResult {
-    let mut all_matches: Vec<TodoMatch> = paths
+    let (mut all_matches, mut scan_errors): (Vec<TodoMatch>, Vec<ScanError>) = paths
         .par_iter()
-        .filter_map(|path| {
-            let content = std::fs::read_to_string(path).ok()?;
-            let mut matches = Vec::new();
-            scan_file_content(path, &content, skip_context_sensitive(path), &mut matches);
-            Some(matches)
+        .map(|path| match std::fs::read_to_string(path) {
+            Ok(content) => {
+                let mut matches = Vec::new();
+                scan_file_content(path, &content, skip_context_sensitive(path), &mut matches);
+                (matches, None)
+            }
+            Err(error) => (
+                Vec::new(),
+                Some(ScanError {
+                    file: path.clone(),
+                    error: error.to_string(),
+                }),
+            ),
         })
-        .flatten()
-        .collect();
+        .fold(
+            || (Vec::new(), Vec::new()),
+            |(mut matches, mut errors), (file_matches, error)| {
+                matches.extend(file_matches);
+                errors.extend(error);
+                (matches, errors)
+            },
+        )
+        .reduce(
+            || (Vec::new(), Vec::new()),
+            |(mut matches_a, mut errors_a), (matches_b, errors_b)| {
+                matches_a.extend(matches_b);
+                errors_a.extend(errors_b);
+                (matches_a, errors_a)
+            },
+        );
 
     all_matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+    scan_errors.sort_by(|a, b| a.file.cmp(&b.file));
 
     let mut stats = TodoStats::default();
     let mut affected = HashSet::new();
@@ -279,6 +302,7 @@ pub fn scan_files(paths: &[PathBuf]) -> TodosResult {
     TodosResult {
         stats,
         matches: all_matches,
+        scan_errors,
     }
 }
 

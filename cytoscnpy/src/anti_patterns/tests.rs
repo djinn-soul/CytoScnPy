@@ -1,8 +1,24 @@
 //! Unit tests for anti-pattern detection.
 
 use super::python::detect_anti_patterns;
+use super::scanner::scan_files;
 use super::types::AntiPatternKind;
 use std::path::Path;
+
+#[test]
+fn reports_read_failures_and_counts_only_scanned_files() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let readable = dir.path().join("readable.py");
+    let missing = dir.path().join("missing.py");
+    std::fs::write(&readable, "def example():\n    return 404\n").unwrap();
+
+    let result = scan_files(&[readable, missing.clone()]);
+
+    assert_eq!(result.files_scanned, 1);
+    assert_eq!(result.scan_errors.len(), 1);
+    assert_eq!(result.scan_errors[0].file, missing);
+    assert!(!result.scan_errors[0].error.is_empty());
+}
 
 #[test]
 fn test_magic_number_in_comparison() {

@@ -25,11 +25,29 @@ pub fn print_terminal_report<W: Write>(
         "═══════════════════════════════════════════════════════════"
     )?;
 
-    if result.is_clean() {
+    if result.is_clean() && result.scan_errors.is_empty() {
         writeln!(
             writer,
             "  ✓ No TODO/FIXME/HACK/XXX or debug prints detected."
         )?;
+        writeln!(
+            writer,
+            "═══════════════════════════════════════════════════════════"
+        )?;
+        return Ok(());
+    }
+
+    for error in &result.scan_errors {
+        writeln!(
+            writer,
+            "  Could not scan {}: {}",
+            error.file.display(),
+            error.error
+        )?;
+    }
+
+    if result.is_clean() {
+        writeln!(writer, "  No annotations detected in readable files.")?;
         writeln!(
             writer,
             "═══════════════════════════════════════════════════════════"

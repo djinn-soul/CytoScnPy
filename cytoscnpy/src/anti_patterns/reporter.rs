@@ -24,8 +24,26 @@ pub fn print_terminal_report<W: Write>(
         "═══════════════════════════════════════════════════════════"
     )?;
 
-    if result.is_clean() {
+    if result.is_clean() && result.scan_errors.is_empty() {
         writeln!(writer, "  ✓ No anti-patterns detected.")?;
+        writeln!(
+            writer,
+            "═══════════════════════════════════════════════════════════"
+        )?;
+        return Ok(());
+    }
+
+    for error in &result.scan_errors {
+        writeln!(
+            writer,
+            "  Could not scan {}: {}",
+            error.file.display(),
+            error.error
+        )?;
+    }
+    if result.is_clean() {
+        writeln!(writer, "  No anti-patterns detected in readable files.")?;
+        writeln!(writer, "  Files scanned       : {}", result.files_scanned)?;
         writeln!(
             writer,
             "═══════════════════════════════════════════════════════════"

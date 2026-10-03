@@ -113,6 +113,18 @@ pub struct TodosResult {
     pub stats: TodoStats,
     /// All detected annotation matches, sorted by file then line.
     pub matches: Vec<TodoMatch>,
+    /// Files that could not be read and therefore were not scanned.
+    #[serde(default)]
+    pub scan_errors: Vec<ScanError>,
+}
+
+/// A source file that could not be read during a scan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScanError {
+    /// Source file that failed to scan.
+    pub file: PathBuf,
+    /// Reason the file could not be read.
+    pub error: String,
 }
 
 impl TodosResult {

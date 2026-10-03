@@ -1,6 +1,7 @@
 """A scanner protocol failure must fail pytest even without synthetic items."""
 
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -14,7 +15,10 @@ def test_invalid_scan_output_fails_without_python_files(monkeypatch, tmp_path, o
         getoption=lambda *args, **kwargs: True,
         getini=lambda name: "." if name == "cytoscnpy_path" else True,
     )
-    session = SimpleNamespace(config=config, stash={}, exitstatus=0)
+    # The double provides the session state consumed by the plugin hooks.
+    session = cast(
+        pytest.Session, SimpleNamespace(config=config, stash={}, exitstatus=0)
+    )
     monkeypatch.setattr(pytest_plugin, "_run_scan", lambda path: (0, output, ""))
 
     pytest_plugin.pytest_sessionstart(session)

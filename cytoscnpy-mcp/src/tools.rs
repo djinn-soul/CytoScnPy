@@ -271,4 +271,4 @@ impl ServerHandler for CytoScnPyServer {
     }
 }
 
-pub use rmcp::model::Content;
+pub use rmcp::model::ContentBlock as Content;

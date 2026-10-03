@@ -1,7 +1,7 @@
 //! Security summaries retain errors that prevented a complete scan.
 
 use cytoscnpy::analyzer::AnalysisResult;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock as Content};
 
 pub(crate) fn render_summary(path: &str, result: &AnalysisResult) -> CallToolResult {
     let complete = result.parse_errors.is_empty();

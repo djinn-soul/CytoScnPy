@@ -1,8 +1,8 @@
-use super::apply_plan::{build_edits, plan_edits, write_dry_run};
-use super::{DeadCodeFixOptions, FixPlanItem, FixResult};
+use super::apply_plan::{build_edits, normalize_planned_edits, plan_edits, write_dry_run};
+use super::{syntax::preserve_syntax, DeadCodeFixOptions, FixPlanItem, FixResult};
 use crate::fix::{ByteRangeRewriter, Edit};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use colored::Colorize;
 use std::fs;
 use std::io::Write;
@@ -16,12 +16,11 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
 ) -> Result<Option<FixResult>> {
     let file_path = crate::utils::validate_output_path(file_path, Some(&options.analysis_root))?;
 
-    let Some(content) = read_source_or_report(writer, &file_path)? else {
-        return Ok(None);
-    };
-    let Some(module) = parse_module_or_report(writer, &file_path, &content)? else {
-        return Ok(None);
-    };
+    let content = fs::read_to_string(&file_path)
+        .with_context(|| format!("Failed to read fix source {}", file_path.display()))?;
+    let module = ruff_python_parser::parse_module(&content)
+        .with_context(|| format!("Failed to parse fix source {}", file_path.display()))?
+        .into_syntax();
 
     #[cfg(feature = "cst")]
     let cst_mapper = build_cst_mapper(&content, options);
@@ -37,12 +36,46 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
         }
     };
 
-    if planned.is_empty() {
-        return Ok(None);
-    }
+    let mut planned = normalize_planned_edits(planned)
+        .with_context(|| format!("Failed to plan fixes for {}", file_path.display()))?;
+    anyhow::ensure!(
+        !planned.is_empty(),
+        "No fixes could be planned for selected definitions in {}",
+        file_path.display()
+    );
+    anyhow::ensure!(
+        planned
+            .iter()
+            .map(|edit| edit.removed_names.len())
+            .sum::<usize>()
+            == items.len(),
+        "Some selected definitions could not be located in {}",
+        file_path.display()
+    );
+    preserve_syntax(&module, &content, &mut planned);
+    let planned = normalize_planned_edits(planned)
+        .with_context(|| format!("Failed to preserve syntax for {}", file_path.display()))?;
+    let mut preview = ByteRangeRewriter::new(&content);
+    preview.add_edits(planned.iter().map(|edit| {
+        Edit::new(
+            edit.start_byte,
+            edit.end_byte,
+            edit.replacement.as_deref().unwrap_or(""),
+        )
+    }));
+    let fixed = preview.apply_verified().with_context(|| {
+        format!(
+            "Failed to fix {}: generated invalid Python",
+            file_path.display()
+        )
+    })?;
 
     if options.dry_run {
         if options.json_output {
+            let removed_names: Vec<_> = planned
+                .iter()
+                .flat_map(|item| item.removed_names.iter().cloned())
+                .collect();
             let planned_edits = planned
                 .iter()
                 .map(|item| FixPlanItem {
@@ -58,13 +91,9 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
                     replacement: item.replacement.clone(),
                 })
                 .collect::<Vec<_>>();
-            let removed_names = planned_edits
-                .iter()
-                .map(|item| item.name.clone())
-                .collect::<Vec<_>>();
             return Ok(Some(FixResult {
                 file: file_path.to_string_lossy().to_string(),
-                items_removed: planned_edits.len(),
+                items_removed: removed_names.len(),
                 lines_removed: 0,
                 removed_names,
                 planned_edits: Some(planned_edits),
@@ -75,14 +104,7 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
     }
 
     let original_line_count = content.lines().count();
-    let (edits, removed_names) = build_edits(planned);
-    let Some(fixed) = apply_edits(writer, &file_path, content, edits)? else {
-        return Ok(None);
-    };
-
-    if !validate_fixed_source(writer, &file_path, &fixed)? {
-        return Ok(None);
-    }
+    let (_, removed_names) = build_edits(planned);
 
     let fixed_line_count = fixed.lines().count();
     let lines_removed = original_line_count.saturating_sub(fixed_line_count);
@@ -106,42 +128,6 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
     }))
 }
 
-fn read_source_or_report<W: Write>(writer: &mut W, file_path: &Path) -> Result<Option<String>> {
-    match fs::read_to_string(file_path) {
-        Ok(content) => Ok(Some(content)),
-        Err(e) => {
-            writeln!(
-                writer,
-                "  {} {}: {}",
-                "Skip:".yellow(),
-                crate::utils::normalize_display_path(file_path),
-                e
-            )?;
-            Ok(None)
-        }
-    }
-}
-
-fn parse_module_or_report<W: Write>(
-    writer: &mut W,
-    file_path: &Path,
-    content: &str,
-) -> Result<Option<ruff_python_ast::ModModule>> {
-    match ruff_python_parser::parse_module(content) {
-        Ok(parsed) => Ok(Some(parsed.into_syntax())),
-        Err(e) => {
-            writeln!(
-                writer,
-                "  {} {}: {}",
-                "Parse error:".red(),
-                crate::utils::normalize_display_path(file_path),
-                e
-            )?;
-            Ok(None)
-        }
-    }
-}
-
 #[cfg(feature = "cst")]
 fn build_cst_mapper(
     content: &str,
@@ -157,70 +143,4 @@ fn build_cst_mapper(
         .ok()
         .and_then(|mut parser| parser.parse(content).ok())
         .map(crate::cst::AstCstMapper::new)
-}
-
-fn apply_edits<W: Write>(
-    writer: &mut W,
-    file_path: &Path,
-    content: String,
-    edits: Vec<Edit>,
-) -> Result<Option<String>> {
-    if edits.is_empty() {
-        return Ok(None);
-    }
-
-    let filtered = filter_overlapping_edits(edits);
-    let mut rewriter = ByteRangeRewriter::new(content);
-    rewriter.add_edits(filtered);
-    match rewriter.apply() {
-        Ok(fixed) => Ok(Some(fixed)),
-        Err(e) => {
-            writeln!(
-                writer,
-                "  {} {}: {}",
-                "Skip:".yellow(),
-                crate::utils::normalize_display_path(file_path),
-                e
-            )?;
-            Ok(None)
-        }
-    }
-}
-
-fn filter_overlapping_edits(mut edits: Vec<Edit>) -> Vec<Edit> {
-    edits.sort_by(|a, b| match a.start_byte.cmp(&b.start_byte) {
-        std::cmp::Ordering::Equal => b.end_byte.cmp(&a.end_byte),
-        other => other,
-    });
-
-    let mut filtered = Vec::new();
-    let mut last_end = 0;
-
-    for edit in edits {
-        if edit.start_byte >= last_end {
-            last_end = edit.end_byte;
-            filtered.push(edit);
-        } else if edit.end_byte <= last_end {
-            // Fully contained in previous edit - safe to skip.
-        } else {
-            // Partial overlap - skip to avoid conflicting edits.
-        }
-    }
-
-    filtered
-}
-
-fn validate_fixed_source<W: Write>(writer: &mut W, file_path: &Path, fixed: &str) -> Result<bool> {
-    if let Err(e) = ruff_python_parser::parse_module(fixed) {
-        writeln!(
-            writer,
-            "  {} {}: Produced invalid Python after fix: {}",
-            "Skip:".yellow(),
-            crate::utils::normalize_display_path(file_path),
-            e
-        )?;
-        return Ok(false);
-    }
-
-    Ok(true)
 }

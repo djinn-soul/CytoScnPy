@@ -1,13 +1,13 @@
 //! Raw metrics analysis command (LOC, SLOC, etc.).
 
-use super::utils::{find_python_files_with_options, merge_excludes, write_output};
+use super::metric_source::{discover_files, read_source};
+use super::utils::{merge_excludes, write_output};
 use crate::raw_metrics::analyze_raw;
 
 use anyhow::Result;
 use comfy_table::Table;
 use rayon::prelude::*;
 use serde::Serialize;
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -64,25 +64,14 @@ pub fn run_raw_with_tests<W: Write>(
     mut writer: W,
 ) -> Result<()> {
     let all_exclude = merge_excludes(exclude, ignore);
-    let files = find_python_files_with_options(roots, &all_exclude, &[], include_tests, verbose);
+    let files = discover_files(roots, &all_exclude, include_tests, verbose)?;
 
     let results: Vec<RawResult> = files
         .par_iter()
-        .map(|file_path| {
-            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
-                return RawResult {
-                    file: String::new(),
-                    loc: 0,
-                    lloc: 0,
-                    sloc: 0,
-                    comments: 0,
-                    multi: 0,
-                    blank: 0,
-                };
-            }
-            let code = fs::read_to_string(file_path).unwrap_or_default();
+        .map(|file_path| -> Result<RawResult> {
+            let code = read_source(file_path)?;
             let metrics = analyze_raw(&code);
-            RawResult {
+            Ok(RawResult {
                 file: file_path.to_string_lossy().to_string(),
                 loc: metrics.loc,
                 lloc: metrics.lloc,
@@ -90,9 +79,9 @@ pub fn run_raw_with_tests<W: Write>(
                 comments: metrics.comments,
                 multi: metrics.multi,
                 blank: metrics.blank,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     if summary {
         let loc_sum: usize = results.iter().map(|r| r.loc).sum();

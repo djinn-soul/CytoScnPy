@@ -1,8 +1,7 @@
 //! Maintainability Index (MI) analysis command.
 
-use super::utils::{
-    filter_by_rank, find_python_files_with_options, merge_excludes, write_output, HasRank,
-};
+use super::metric_source::{discover_files, parse_source, read_source};
+use super::utils::{filter_by_rank, merge_excludes, write_output, HasRank};
 use crate::halstead::analyze_halstead;
 use crate::metrics::{mi_compute, mi_rank};
 use crate::raw_metrics::analyze_raw;
@@ -12,7 +11,6 @@ use colored::Colorize;
 use comfy_table::Table;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -75,28 +73,16 @@ pub fn run_mi_with_tests<W: Write>(
     mut writer: W,
 ) -> Result<()> {
     let all_exclude = merge_excludes(options.exclude, options.ignore);
-    let files =
-        find_python_files_with_options(roots, &all_exclude, &[], include_tests, options.verbose);
+    let files = discover_files(roots, &all_exclude, include_tests, options.verbose)?;
 
     let results: Vec<MiResult> = files
         .par_iter()
-        .filter_map(|file_path| {
-            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
-                return None;
-            }
-            let code = fs::read_to_string(file_path).unwrap_or_default();
-
+        .map(|file_path| -> Result<MiResult> {
+            let code = read_source(file_path)?;
+            let module = parse_source(&code, file_path)?;
+            let complexity = crate::complexity::calculate_module_complexity_ast(&module);
+            let volume = analyze_halstead(&ruff_python_ast::Mod::Module(module)).volume;
             let raw = analyze_raw(&code);
-            let mut volume = 0.0;
-
-            if let Ok(parsed) = ruff_python_parser::parse_module(&code) {
-                let module = parsed.into_syntax();
-                let mod_enum = ruff_python_ast::Mod::Module(module);
-                let h_metrics = analyze_halstead(&mod_enum);
-                volume = h_metrics.volume;
-            }
-
-            let complexity = crate::complexity::calculate_module_complexity(&code).unwrap_or(1);
 
             let comments = if options.multi {
                 raw.comments + raw.multi
@@ -107,13 +93,13 @@ pub fn run_mi_with_tests<W: Write>(
             let mi = mi_compute(volume, complexity, raw.sloc, comments);
             let rank = mi_rank(mi);
 
-            Some(MiResult {
+            Ok(MiResult {
                 file: file_path.to_string_lossy().to_string(),
                 mi,
                 rank,
             })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     // Calculate and show average if requested
     if options.average {

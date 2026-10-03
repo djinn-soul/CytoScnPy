@@ -251,8 +251,8 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("benchmark/baseline_results.json"),
-        help="Output file for results (default: benchmark/baseline_results.json)",
+        default=Path("benchmark/baseline_performance_results.json"),
+        help="Output file for results (default: benchmark/baseline_performance_results.json)",
     )
     parser.add_argument(
         "--quick",

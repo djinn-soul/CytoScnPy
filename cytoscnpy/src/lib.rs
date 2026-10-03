@@ -66,6 +66,54 @@ pub mod output;
 /// Module defining the command-line interface arguments and structs.
 pub mod cli;
 
+/// Module for module architecture and dependency graph analysis.
+pub mod architecture;
+
+/// Module for Git-aware context, churn, and LLM token budget analysis.
+pub mod context;
+
+/// Module for repository health, setup reliability, and configuration inspection.
+pub mod doctor;
+
+/// Module for codebase searchability, name collisions, and generic identifier analysis.
+pub mod searchability;
+
+/// Module for identifier naming style distribution and consistency analysis.
+pub mod naming;
+
+/// Module for TODO/FIXME/HACK/XXX placeholder, debug-print, and commented-code detection.
+pub mod todos;
+
+/// Module for bare-except and empty exception-handler anti-pattern detection.
+pub mod exceptions;
+
+/// Module for wildcard-import (`from module import *`) detection.
+pub mod wildcards;
+
+/// Module for module-level import-time side-effects analysis.
+pub mod side_effects;
+
+/// Module for singleton pattern detection.
+pub mod singletons;
+
+/// Module for anti-pattern detection (magic numbers and deeply nested callbacks).
+pub mod anti_patterns;
+
+/// Module for duplicate-code clusters and non-overlapping duplicate-line totals.
+pub mod duplicates;
+
+/// Module for unreferenced large functions in isolated files analysis.
+pub mod unreferenced;
+
+/// Module for weighted Slop Index, verdict bands, and repository scoring.
+pub mod scoring;
+
+/// Module for mutable global state analysis across Python and polyglot files.
+pub mod globals;
+
+/// Module for function and method metric extraction (names, locations, length, complexity, nesting).
+pub mod functions;
+
 /// Module for handling CLI commands and their execution logic.
 pub mod commands;
 /// Module for calculating cyclomatic complexity.

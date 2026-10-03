@@ -17,10 +17,12 @@ fn tempdir() -> std::io::Result<TempDir> {
 fn call_tool(
     name: &str,
     args: serde_json::Value,
-) -> Result<Vec<rmcp::model::Content>, Box<dyn std::error::Error>> {
+) -> Result<Vec<rmcp::model::ContentBlock>, Box<dyn std::error::Error>> {
     let server = cytoscnpy_mcp::tools::CytoScnPyServer::new();
     match name {
-        "get_server_info" => Ok(vec![rmcp::model::Content::text("CytoScnPy MCP Server")]),
+        "get_server_info" => Ok(vec![rmcp::model::ContentBlock::text(
+            "CytoScnPy MCP Server",
+        )]),
         "analyze_path" => {
             let params: cytoscnpy_mcp::tools::AnalyzePathRequest = serde_json::from_value(args)?;
             let result = server

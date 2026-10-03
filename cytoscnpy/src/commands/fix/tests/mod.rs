@@ -11,8 +11,13 @@ use tempfile::TempDir;
 mod apply_basic_tests;
 mod apply_edit_tests;
 mod apply_json_tests;
+mod import_group_tests;
 mod import_tests;
+mod method_edit_tests;
+mod normalized_plan_tests;
 mod ranges_tests;
+mod syntax_tests;
+mod variable_safety_tests;
 
 fn create_definition(name: &str, def_type: &str, file: PathBuf, line: usize) -> Definition {
     Definition {

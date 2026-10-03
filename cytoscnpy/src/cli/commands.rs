@@ -94,7 +94,7 @@ pub enum Commands {
     McpServer,
     /// Initialize CytoScnPy configuration (pyproject.toml/.cytoscnpy.toml and .gitignore)
     Init,
-    /// Generate comprehensive project statistics report
+    /// Generate project statistics report
     Stats {
         /// Path options (path vs root).
         #[command(flatten)]
@@ -128,6 +128,12 @@ pub enum Commands {
         #[arg(long, alias = "exclude-folder")]
         exclude: Vec<String>,
     },
+    /// Run the unified DeSlopify-compatible assessment
+    Deslop {
+        /// Unified analysis and CI options.
+        #[command(flatten)]
+        args: super::DeslopArgs,
+    },
     /// Show per-file metrics table
     Files {
         /// Common options for listing files.
@@ -136,76 +142,8 @@ pub enum Commands {
     },
     /// Analyze unused and missing dependencies
     Deps {
-        /// Common options for paths.
+        /// Dependency analysis options.
         #[command(flatten)]
-        paths: PathArgs,
-
-        /// Output JSON.
-        #[arg(long)]
-        json: bool,
-
-        /// Path to requirements file.
-        #[arg(long)]
-        requirements: Option<String>,
-
-        /// Comma-separated list of packages to ignore if unused.
-        #[arg(long = "ignore-unused", value_delimiter = ',')]
-        ignore_unused: Vec<String>,
-
-        /// Comma-separated list of packages to ignore if missing.
-        #[arg(long = "ignore-missing", value_delimiter = ',')]
-        ignore_missing: Vec<String>,
-
-        /// Exclude folders.
-        #[arg(long, alias = "exclude-folder")]
-        exclude: Vec<String>,
-
-        /// Output file path.
-        #[arg(long, short = 'O')]
-        output_file: Option<String>,
-
-        /// Show packages installed in the environment but not declared in the project.
-        #[arg(long)]
-        extra_installed: bool,
-
-        /// Show orphan packages (installed, not declared, not imported, not required).
-        #[arg(long)]
-        orphans: bool,
-
-        /// Include development dependencies in CSP-R002 findings.
-        #[arg(long)]
-        include_dev_unused: bool,
-
-        /// Exit with code 1 if any dependency findings are found.
-        #[arg(long)]
-        fail_on_any: bool,
-
-        /// Exit with code 1 if unused dependencies are found.
-        #[arg(long)]
-        fail_on_unused: bool,
-
-        /// Exit with code 1 if missing dependencies are found.
-        #[arg(long)]
-        fail_on_missing: bool,
-
-        /// Exit with code 1 if extra installed packages are found.
-        #[arg(long)]
-        fail_on_extra_installed: bool,
-
-        /// Exit with code 1 if orphan packages are found.
-        #[arg(long)]
-        fail_on_orphans: bool,
-
-        /// Show removal impact for a specific package (transitive deps that would also go).
-        #[arg(long)]
-        impact: Option<String>,
-
-        /// Override the path to the virtual environment (default: auto-detect .venv).
-        #[arg(long)]
-        venv: Option<String>,
-
-        /// Override the path to the lockfile (default: auto-detect uv.lock / poetry.lock).
-        #[arg(long)]
-        lockfile: Option<String>,
+        args: super::DepsArgs,
     },
 }

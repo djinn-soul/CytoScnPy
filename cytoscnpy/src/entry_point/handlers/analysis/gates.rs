@@ -31,6 +31,15 @@ pub(crate) fn apply_gates<W: std::io::Write>(
 ) -> Result<i32> {
     let result = &run.result;
     let mut exit_code = 0;
+    if !result.parse_errors.is_empty() {
+        if !context.is_structured {
+            eprintln!(
+                "\n[GATE] Scan incomplete: {} parsing/read errors - FAILED",
+                result.parse_errors.len()
+            );
+        }
+        exit_code = 1;
+    }
 
     apply_unused_code_gate(cli_var, config, result, context, writer, &mut exit_code)?;
     apply_complexity_gate(cli_var, config, result, context, writer, &mut exit_code)?;
@@ -158,7 +167,7 @@ fn apply_mi_gate<W: Write>(
         return Ok(());
     };
     let mi = result.analysis_summary.average_mi;
-    if mi <= 0.0 {
+    if result.file_metrics.is_empty() {
         return Ok(());
     }
 

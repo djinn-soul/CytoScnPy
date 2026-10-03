@@ -141,9 +141,10 @@ fn test_find_def_range_nested_same_name() {
     let inner_name = source.rfind("shared").unwrap();
 
     let inner_range = find_def_range(&body, "shared", "function", Some(inner_name));
-    assert!(
-        inner_range.is_none(),
-        "nested definition should not match outer function"
+    let inner_range = inner_range.unwrap();
+    assert_eq!(
+        &source[inner_range.0..inner_range.1],
+        "def shared():\n        return 2"
     );
 
     let outer_range = find_def_range(&body, "shared", "function", Some(outer_name)).unwrap();

@@ -1,9 +1,8 @@
 //! Cyclomatic Complexity analysis command.
 
-use super::utils::{
-    filter_by_rank, find_python_files_with_options, merge_excludes, write_output, HasRank,
-};
-use crate::complexity::analyze_complexity;
+use super::metric_source::{discover_files, parse_source, read_source};
+use super::utils::{filter_by_rank, merge_excludes, write_output, HasRank};
+use crate::complexity::analyze_complexity_ast;
 
 use anyhow::Result;
 use colored::Colorize;
@@ -11,7 +10,6 @@ use comfy_table::Table;
 use rayon::prelude::*;
 use serde::Serialize;
 use std::fmt::Write as FmtWrite;
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -83,18 +81,15 @@ pub fn run_cc_with_tests<W: Write>(
     mut writer: W,
 ) -> Result<()> {
     let all_exclude = merge_excludes(options.exclude, options.ignore);
-    let files =
-        find_python_files_with_options(roots, &all_exclude, &[], include_tests, options.verbose);
+    let files = discover_files(roots, &all_exclude, include_tests, options.verbose)?;
 
     let results: Vec<CcResult> = files
         .par_iter()
-        .flat_map(|file_path| {
-            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
-                return Vec::new();
-            }
-            let code = fs::read_to_string(file_path).unwrap_or_default();
-            let findings = analyze_complexity(&code, file_path, options.no_assert);
-            findings
+        .map(|file_path| -> Result<Vec<CcResult>> {
+            let code = read_source(file_path)?;
+            let module = parse_source(&code, file_path)?;
+            let findings = analyze_complexity_ast(&module, &code, options.no_assert);
+            Ok(findings
                 .into_iter()
                 .map(|f| CcResult {
                     file: file_path.to_string_lossy().to_string(),
@@ -104,8 +99,11 @@ pub fn run_cc_with_tests<W: Write>(
                     rank: f.rank,
                     line: f.line,
                 })
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>())
         })
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
         .collect();
 
     // Check failure threshold

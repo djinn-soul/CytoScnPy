@@ -9,6 +9,7 @@ mod deps;
 mod fix;
 mod hal;
 mod init;
+mod metric_source;
 mod mi;
 mod raw;
 mod stats;
@@ -29,3 +30,4 @@ pub use raw::{run_raw, run_raw_with_tests};
 #[allow(deprecated)]
 pub use stats::run_stats;
 pub use stats::{run_files, run_files_with_tests, run_stats_v2, Inspections, ScanOptions};
+pub use utils::{find_python_files, find_python_files_with_options};

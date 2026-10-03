@@ -1,8 +1,6 @@
 """pytest plugin for CytoScnPy static analysis.
 
-Mirrors the pytest-vulture pattern: runs cytoscnpy once at session start, then
-creates one pytest Item per Python file so findings appear as native PASSED/FAILED
-test results rather than a custom terminal section.
+Runs cytoscnpy once at session start and reports findings as pytest items.
 
 Enable via CLI flag:
     pytest --cytoscnpy
@@ -24,6 +22,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar, cast
 
 import pytest
+
+from .pytest_findings import (
+    JsonObject,
+)
+from .pytest_findings import (
+    group_by_file as _group_by_file,
+)
+from .pytest_findings import (
+    iter_python_files as _iter_python_files,
+)
+from .pytest_findings import (
+    resolve_file as _resolve_file,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -49,12 +60,6 @@ SCAN_PATH_KEY = pytest.StashKey[Path]()
 ERROR_KEY = pytest.StashKey[str | None]()
 FORCE_FAIL_KEY = pytest.StashKey[bool]()
 BY_FILE_KEY = pytest.StashKey[dict[str, list[str]]]()
-
-JsonObject = Mapping[str, object]
-
-# ---------------------------------------------------------------------------
-# Registration hooks
-# ---------------------------------------------------------------------------
 
 
 def pytest_addoption(parser: Parser) -> None:
@@ -157,7 +162,7 @@ def pytest_sessionstart(session: Session) -> None:
         session.stash[ERROR_KEY] = (
             raw_stderr.strip() or raw_stdout[:200] or "cytoscnpy produced no output"
         )
-        session.stash[FORCE_FAIL_KEY] = returncode != 0
+        session.stash[FORCE_FAIL_KEY] = True
         return
 
     if not isinstance(data, dict):
@@ -212,116 +217,6 @@ def pytest_collection_modifyitems(
         )
         collector = from_parent(parent=session, path=file_path)
         items.extend(collector.collect())
-
-
-# Directories that the analyzer itself skips. Mirrors the default exclusion
-# set so pytest does not synthesize items for files cytoscnpy never analyzed
-# (e.g. `.venv`, vendored deps, build artefacts).
-_SKIP_DIRS: frozenset[str] = frozenset(
-    {
-        ".git",
-        ".hg",
-        ".svn",
-        ".venv",
-        "venv",
-        "env",
-        ".env",
-        "__pycache__",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".tox",
-        ".nox",
-        "build",
-        "dist",
-        "node_modules",
-        "site-packages",
-        ".eggs",
-    }
-)
-
-
-def _iter_python_files(scan_path: Path) -> list[Path]:
-    if scan_path.is_file():
-        return [scan_path] if scan_path.suffix == ".py" else []
-    if not scan_path.exists():
-        return []
-    return sorted(
-        path
-        for path in scan_path.rglob("*.py")
-        if path.is_file() and not any(part in _SKIP_DIRS for part in path.parts)
-    )
-
-
-def _iter_objects(value: object) -> Iterable[JsonObject]:
-    if not isinstance(value, list):
-        return
-    items = cast(list[object], value)
-    for item in items:
-        if isinstance(item, dict):
-            yield cast(JsonObject, item)
-
-
-def _string_field(item: JsonObject, key: str, default: str = "?") -> str:
-    value = item.get(key, default)
-    return value if isinstance(value, str) else str(value)
-
-
-def _group_by_file(data: JsonObject) -> dict[str, list[str]]:
-    """Normalize all finding types into {file_path_str: [message, ...]}."""
-    by_file: dict[str, list[str]] = {}
-
-    dead_keys = [
-        ("unused_functions", "unused function"),
-        ("unused_methods", "unused method"),
-        ("unused_classes", "unused class"),
-        ("unused_imports", "unused import"),
-        ("unused_variables", "unused variable"),
-        ("unused_parameters", "unused parameter"),
-    ]
-    for key, label in dead_keys:
-        for item in _iter_objects(data.get(key, [])):
-            file = _string_field(item, "file", "")
-            name = _string_field(item, "name")
-            line = _string_field(item, "line")
-            by_file.setdefault(file, []).append(f"  {line}: {label}: {name}")
-
-    for key in ("danger", "quality"):
-        for item in _iter_objects(data.get(key, [])):
-            file = _string_field(item, "file", "")
-            msg = _string_field(item, "message")
-            rule = _string_field(item, "rule_id", key)
-            line = _string_field(item, "line")
-            by_file.setdefault(file, []).append(f"  {line}: {rule}: {msg}")
-
-    for item in _iter_objects(data.get("secrets", [])):
-        file = _string_field(item, "file", "")
-        msg = _string_field(item, "message")
-        line = _string_field(item, "line")
-        by_file.setdefault(file, []).append(f"  {line}: secret: {msg}")
-
-    for item in _iter_objects(data.get("taint_findings", [])):
-        file = _string_field(item, "file", "")
-        source = _string_field(item, "source")
-        line = _string_field(item, "source_line")
-        by_file.setdefault(file, []).append(f"  {line}: taint: {source}")
-
-    for item in _iter_objects(data.get("parse_errors", [])):
-        file = _string_field(item, "file", "")
-        error = _string_field(item, "error", "parse error")
-        by_file.setdefault(file, []).append(f"  parse error: {error}")
-
-    return by_file
-
-
-# ---------------------------------------------------------------------------
-# Collection: one Item per .py file within the scan path
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Custom nodes
-# ---------------------------------------------------------------------------
 
 
 class CytoScnPyError(Exception):
@@ -403,10 +298,3 @@ class CytoScnPyItem(pytest.Item):
     def reportinfo(self) -> tuple[Path, None, str]:
         """Describe this synthetic item in pytest reports."""
         return self.path, None, f"[cytoscnpy] {self.path}"
-
-
-def _resolve_file(path: Path) -> Path | None:
-    try:
-        return path.resolve()
-    except (OSError, ValueError):
-        return None

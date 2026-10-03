@@ -1,13 +1,15 @@
 use super::model::{FileMetrics, ProjectStats};
+use crate::commands::metric_source::{parse_source, read_source};
 use crate::raw_metrics::analyze_raw;
+use anyhow::{Context, Result};
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) {
+fn count_functions_and_classes(code: &str, file_path: &Path) -> Result<(usize, usize)> {
     use ruff_python_ast::Stmt;
-    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
-        let m = parsed.into_syntax();
+    let m = parse_source(code, file_path)?;
+    {
         let mut functions = 0;
         let mut classes = 0;
         for stmt in &m.body {
@@ -24,9 +26,7 @@ fn count_functions_and_classes(code: &str, _file_path: &Path) -> (usize, usize) 
                 _ => {}
             }
         }
-        (functions, classes)
-    } else {
-        (0, 0)
+        Ok((functions, classes))
     }
 }
 
@@ -37,16 +37,22 @@ pub(super) fn collect_project_stats(
     include_folders: &[String],
     include_tests: bool,
     verbose: bool,
-) -> ProjectStats {
+) -> Result<ProjectStats> {
     let mut files = Vec::new();
     let mut num_directories = 0;
     for path in roots {
-        let (mut root_files, d) = crate::utils::collect_python_files_gitignore(
+        let (mut root_files, d, errors) = crate::utils::collect_python_files_gitignore_with_errors(
             path,
             exclude,
             include_folders,
             false,
             verbose,
+        );
+        anyhow::ensure!(
+            errors.is_empty(),
+            "Stats file discovery failed for {}: {}",
+            path.display(),
+            errors.join("; ")
         );
         if !include_tests {
             root_files.retain(|file| !crate::utils::is_test_path_relative_to(file, path));
@@ -55,32 +61,36 @@ pub(super) fn collect_project_stats(
         num_directories += d;
     }
 
-    let file_metrics: Vec<FileMetrics> = files
+    let collected: Vec<(FileMetrics, usize, usize)> = files
         .par_iter()
-        .filter(|p| p.is_file())
         .map(|file_path| {
-            let code = fs::read_to_string(file_path).unwrap_or_default();
+            let code = read_source(file_path)?;
             let metrics = analyze_raw(&code);
-            let size_bytes = fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
-            FileMetrics {
-                file: file_path.to_string_lossy().to_string(),
-                code_lines: metrics.sloc,
-                comment_lines: metrics.comments,
-                empty_lines: metrics.blank,
-                total_lines: metrics.loc,
-                size_kb: size_bytes as f64 / 1024.0,
-            }
+            let size_bytes = fs::metadata(file_path)
+                .with_context(|| format!("Failed to inspect {}", file_path.display()))?
+                .len();
+            let (functions, classes) = count_functions_and_classes(&code, file_path)?;
+            Ok((
+                FileMetrics {
+                    file: file_path.to_string_lossy().to_string(),
+                    code_lines: metrics.sloc,
+                    comment_lines: metrics.comments,
+                    empty_lines: metrics.blank,
+                    total_lines: metrics.loc,
+                    size_kb: size_bytes as f64 / 1024.0,
+                },
+                functions,
+                classes,
+            ))
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
-    let (total_functions, total_classes): (usize, usize) = files
-        .par_iter()
-        .filter(|p| p.is_file())
-        .map(|file_path| {
-            let code = fs::read_to_string(file_path).unwrap_or_default();
-            count_functions_and_classes(&code, file_path)
-        })
-        .reduce(|| (0, 0), |(f1, c1), (f2, c2)| (f1 + f2, c1 + c2));
+    let total_functions = collected.iter().map(|(_, functions, _)| functions).sum();
+    let total_classes = collected.iter().map(|(_, _, classes)| classes).sum();
+    let file_metrics: Vec<_> = collected
+        .into_iter()
+        .map(|(metrics, _, _)| metrics)
+        .collect();
 
     let total_files = file_metrics.len();
     let total_size_kb: f64 = file_metrics.iter().map(|f| f.size_kb).sum();
@@ -89,7 +99,7 @@ pub(super) fn collect_project_stats(
     let comment_lines: usize = file_metrics.iter().map(|f| f.comment_lines).sum();
     let empty_lines: usize = file_metrics.iter().map(|f| f.empty_lines).sum();
 
-    ProjectStats {
+    Ok(ProjectStats {
         total_files,
         total_directories: num_directories,
         total_size_kb,
@@ -100,5 +110,5 @@ pub(super) fn collect_project_stats(
         total_functions,
         total_classes,
         file_metrics,
-    }
+    })
 }

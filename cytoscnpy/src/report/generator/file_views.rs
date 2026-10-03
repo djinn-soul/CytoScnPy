@@ -11,6 +11,7 @@ pub(super) fn generate_file_views(
     output_dir: &Path,
     generated_at: &str,
     version: &str,
+    paths: &super::paths::ReportPaths,
 ) -> Result<()> {
     fs::create_dir_all(output_dir.join("files"))?;
 
@@ -21,7 +22,7 @@ pub(super) fn generate_file_views(
         if file_path.exists() && file_path.is_file() {
             let code = fs::read_to_string(file_path).unwrap_or_default();
             let relative_path = file_path_str.clone();
-            let safe_name = relative_path.replace(['/', '\\', ':'], "_") + ".html";
+            let safe_name = paths.filename(&relative_path)?;
 
             let view = FileViewTemplate {
                 version: version.to_owned(),

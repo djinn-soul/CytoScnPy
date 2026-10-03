@@ -11,6 +11,15 @@ pub fn find_python_files(roots: &[PathBuf], exclude: &[String], verbose: bool) -
     find_python_files_with_options(roots, exclude, &[], true, verbose)
 }
 
+/// Find Python files and retain traversal failures for complete-scan checks.
+pub fn find_python_files_with_issues(
+    roots: &[PathBuf],
+    exclude: &[String],
+    verbose: bool,
+) -> (Vec<PathBuf>, Vec<(PathBuf, String)>) {
+    find_python_files_with_options_and_issues(roots, exclude, &[], true, verbose)
+}
+
 /// Finds Python files with explicit include-folder and test-file behavior.
 pub fn find_python_files_with_options(
     roots: &[PathBuf],
@@ -19,16 +28,36 @@ pub fn find_python_files_with_options(
     include_tests: bool,
     verbose: bool,
 ) -> Vec<PathBuf> {
+    find_python_files_with_options_and_issues(roots, exclude, include, include_tests, verbose).0
+}
+
+pub(super) fn find_python_files_with_options_and_issues(
+    roots: &[PathBuf],
+    exclude: &[String],
+    include: &[String],
+    include_tests: bool,
+    verbose: bool,
+) -> (Vec<PathBuf>, Vec<(PathBuf, String)>) {
     let mut all_files = Vec::new();
+    let mut issues = Vec::new();
     for root in roots {
-        let (mut files, _) =
-            crate::utils::collect_python_files_gitignore(root, exclude, include, false, verbose);
+        let (mut files, _, errors) = crate::utils::collect_python_files_gitignore_with_errors(
+            root, exclude, include, false, verbose,
+        );
+        issues.extend(errors.into_iter().map(|error| (root.clone(), error)));
         if !include_tests {
             files.retain(|path| !crate::utils::is_test_path_relative_to(path, root));
         }
+        if !exclude.is_empty() {
+            files.retain(|path| {
+                let rel = path.strip_prefix(root).unwrap_or(path);
+                !crate::utils::is_path_ignored(rel, exclude)
+            });
+        }
+        files.retain(|path| !crate::utils::is_likely_minified(path, None));
         all_files.extend(files);
     }
-    all_files
+    (all_files, issues)
 }
 
 /// Merges primary excludes with additional ignore patterns into a single list.

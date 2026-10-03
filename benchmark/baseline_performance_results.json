@@ -1,0 +1,140 @@
+{
+  "Basic (dead code only)": {
+    "times": [
+      0.17851789299947995,
+      0.14401680500031944,
+      0.15618032899965328
+    ],
+    "avg_time": 0.15957167566648423,
+    "min_time": 0.14401680500031944,
+    "max_time": 0.17851789299947995,
+    "stddev": 0.01428769149635269,
+    "peak_memory_mb": [
+      58.34765625,
+      57.81640625,
+      54.8359375
+    ],
+    "avg_memory_mb": 57.0,
+    "num_files": 1000,
+    "throughput_files_per_sec": 6266.776329967662,
+    "command": "target/release/cytoscnpy-cli benchmark_corpus_1000",
+    "flags": []
+  },
+  "With secrets scanning": {
+    "times": [
+      0.14499259200056258,
+      0.15018003600016527,
+      0.13672749399938766
+    ],
+    "avg_time": 0.14396670733337183,
+    "min_time": 0.13672749399938766,
+    "max_time": 0.15018003600016527,
+    "stddev": 0.005539678154517296,
+    "peak_memory_mb": [
+      74.3125,
+      76.16796875,
+      70.109375
+    ],
+    "avg_memory_mb": 73.52994791666667,
+    "num_files": 1000,
+    "throughput_files_per_sec": 6946.050364855414,
+    "command": "target/release/cytoscnpy-cli benchmark_corpus_1000 --secrets",
+    "flags": [
+      "--secrets"
+    ]
+  },
+  "With danger scanning": {
+    "times": [
+      0.18829604300026404,
+      0.19816393399923982,
+      0.18869564899978286
+    ],
+    "avg_time": 0.19171854199976224,
+    "min_time": 0.18829604300026404,
+    "max_time": 0.19816393399923982,
+    "stddev": 0.004560499224055048,
+    "peak_memory_mb": [
+      58.5859375,
+      61.34765625,
+      60.65625
+    ],
+    "avg_memory_mb": 60.196614583333336,
+    "num_files": 1000,
+    "throughput_files_per_sec": 5215.979579070866,
+    "command": "target/release/cytoscnpy-cli benchmark_corpus_1000 --danger",
+    "flags": [
+      "--danger"
+    ]
+  },
+  "With quality metrics": {
+    "times": [
+      0.1459128430005876,
+      0.14439579200006847,
+      0.1457753929998944
+    ],
+    "avg_time": 0.14536134266685016,
+    "min_time": 0.14439579200006847,
+    "max_time": 0.1459128430005876,
+    "stddev": 0.0006850494839861613,
+    "peak_memory_mb": [
+      60.91796875,
+      61.234375,
+      61.33203125
+    ],
+    "avg_memory_mb": 61.161458333333336,
+    "num_files": 1000,
+    "throughput_files_per_sec": 6879.408112594789,
+    "command": "target/release/cytoscnpy-cli benchmark_corpus_1000 --quality",
+    "flags": [
+      "--quality"
+    ]
+  },
+  "Full scan (all features)": {
+    "times": [
+      0.22516630300015095,
+      0.21719556200059742,
+      0.214958048999506
+    ],
+    "avg_time": 0.21910663800008479,
+    "min_time": 0.214958048999506,
+    "max_time": 0.22516630300015095,
+    "stddev": 0.004381116375406571,
+    "peak_memory_mb": [
+      80.7421875,
+      78.953125,
+      80.8984375
+    ],
+    "avg_memory_mb": 80.19791666666667,
+    "num_files": 1000,
+    "throughput_files_per_sec": 4563.987696254155,
+    "command": "target/release/cytoscnpy-cli benchmark_corpus_1000 --secrets --danger --quality",
+    "flags": [
+      "--secrets",
+      "--danger",
+      "--quality"
+    ]
+  },
+  "Clone detection": {
+    "times": [
+      24.421679556000527,
+      24.505169222000404,
+      24.622140124999532
+    ],
+    "avg_time": 24.516329634333488,
+    "min_time": 24.421679556000527,
+    "max_time": 24.622140124999532,
+    "stddev": 0.0822172975856647,
+    "peak_memory_mb": [
+      1073.55078125,
+      1074.015625,
+      1073.984375
+    ],
+    "avg_memory_mb": 1073.8502604166667,
+    "num_files": 1000,
+    "throughput_files_per_sec": 40.78913992898703,
+    "command": "target/release/cytoscnpy-cli benchmark_corpus_1000 --clones",
+    "flags": [
+      "--clones"
+    ]
+  }
+}

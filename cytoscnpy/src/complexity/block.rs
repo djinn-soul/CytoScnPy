@@ -3,7 +3,9 @@ use ruff_python_ast::{self as ast, Stmt};
 mod expression_traversal;
 mod statement_traversal;
 
-pub(super) fn calculate_complexity(body: &[Stmt], no_assert: bool) -> usize {
+/// Calculates `McCabe` cyclomatic complexity for a sequence of statements.
+#[must_use]
+pub fn calculate_complexity(body: &[Stmt], no_assert: bool) -> usize {
     calculate_complexity_with_nested(body, no_assert, false)
 }
 

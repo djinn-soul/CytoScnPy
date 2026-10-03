@@ -24,7 +24,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--fail-on-danger`: Enables dangerous-code/taint scanning if needed and exits with code `1` if any danger or taint findings are detected.
 - `--fail-on-missing-deps`: Enables dependency analysis if needed and exits with code `1` if any missing dependency findings are detected.
 - `--fail-on-unused-deps`: Enables dependency analysis if needed and exits with code `1` if any unused dependency findings are detected.
-- `--html`: Generates a self-contained, interactive HTML report. Note that this feature may require additional dependencies and automatically enables quality scanning.
+- `--html`: Generates a self-contained, interactive HTML report. Each source receives a distinct file-view filename, shared by metrics, issue, and clone links. Note that this feature may require additional dependencies and automatically enables quality scanning.
 - `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, project config from `.cytoscnpy.toml` or `pyproject.toml` is still honored, and explicit VS Code settings are passed as CLI flags that override matching thresholds.
 
 ### Scan Types
@@ -50,18 +50,27 @@ cytoscnpy [OPTIONS] [COMMAND]
   - `--fix` targets: functions, methods, classes, imports, and unused variables.
   - `--fix` always enforces a minimum confidence floor of **80%** for safety, even if `--confidence` is set lower.
   - In dry-run mode with `--json`, CytoScnPy emits a deterministic JSON fix plan (`kind: "dead_code_fix_plan"`) suitable for editor/CI consumption.
-  - When removing the only method in a class, CytoScnPy inserts `pass` to keep valid Python syntax.
+  - Nested definitions are located by their exact source position.
+  - Removing every statement from a required block inserts `pass`; semicolon-separated statements remain valid.
+  - Unused variables receive an available discard name (`_`, `_unused`, or a numbered variant) without overwriting existing bindings or references.
+  - Both previews and applied edits are validated as Python. Unreadable sources, missing definitions, conflicting edits, and invalid generated code fail with the file path and error context.
 - `--make-whitelist`: Generates a Python whitelist from currently detected unused symbols.
 - `--whitelist <PATH>`: Loads one or more whitelist files to suppress matching dead-code findings.
 
 ### CI/CD Failure Gates
+
+The main analysis exits with code `1` when parsing or reading errors leave a scan
+incomplete, including when no failure flags are supplied. JSON reports retain
+the `parse_errors` list and any findings from files that were scanned. Directory
+traversal errors are included in that list, so unreadable subdirectories also
+fail the scan.
 
 These flags allow you to set strict gates for CI/CD. If any enabled gate fails, CytoScnPy exits with code `1`. Failure gates that depend on optional scans enable those scans automatically.
 
 - `--fail-on-any`: Convenience gate for CI. Implies quality, secrets, danger/taint, missing dependency, and unused dependency failure gates. For unused code, it defaults to `--fail-threshold 0.0` unless an explicit threshold is supplied.
 - `--fail-threshold <N>`: Exit with 1 if the total percentage of unused code exceeds `N`.
 - `--max-complexity <N>`: Sets the maximum allowed Cyclomatic Complexity (standard is often `10`).
-- `--min-mi <N>`: Sets the minimum allowed Maintainability Index (usually `40-65`).
+- `--min-mi <N>`: Sets the minimum allowed Maintainability Index (usually `40-65`). A measured score of zero fails any positive threshold; an empty file inventory has no measured score.
 - `--max-nesting <N>`: Sets the maximum allowed indentation/nesting level (e.g., `3` or `4`).
 - `--max-args <N>`: Sets the maximum number of arguments a function can have.
 - `--max-lines <N>`: Sets the maximum number of lines a function can have.
@@ -72,6 +81,10 @@ These flags allow you to set strict gates for CI/CD. If any enabled gate fails, 
 - `--fail-on-unused-deps`: Exit with 1 if unused dependencies are found; implies `--deps`.
 
 ## Subcommands
+
+Metric commands report file discovery and source read failures rather than
+returning empty or perfect metrics. `cc`, `mi`, and `hal` also fail on invalid
+Python syntax. `raw` counts source text and accepts syntactically invalid Python.
 
 ### `raw`
 
@@ -144,7 +157,10 @@ cytoscnpy mi [OPTIONS] <PATH>
 
 ### `stats`
 
-Generate comprehensive project statistics report.
+Generate comprehensive project statistics report. Discovery, read, and syntax
+errors fail the command instead of producing empty statistics. The `files`
+command also reports discovery and read errors; its line counts do not require
+valid Python syntax.
 
 ```bash
 cytoscnpy stats [OPTIONS] <PATH>
@@ -158,6 +174,94 @@ cytoscnpy stats [OPTIONS] <PATH>
 - `-j`, `--json`: Output JSON.
 - `-o`, `--output <FILE>`: Output file path.
 - `--exclude-folders <DIRS>`: Exclude specific folders from analysis.
+
+### `deslop`
+
+Run the unified repository assessment. It includes architecture, Git context,
+health, searchability, naming, TODOs, globals, exceptions, wildcard imports,
+side effects, singletons, anti-patterns, duplicates, unreferenced functions,
+function metrics, and the Slop Index. Dead code, dependency, secret, danger,
+and general quality scans remain on their existing commands.
+The default text report shows the Slop Index, its dimension breakdown, up to
+15 prioritized fixes, and gate status. It ends at the gate status on passing runs. Use
+`--verbose` for all analysis sections and file locations; `--json` always
+includes the complete structured results. The short tooling line lists up to six
+detected configurations and shows how many more are available in the full report.
+The report also includes `scan_integrity` with discovered and checked file counts
+and any unreadable or invalid Python files. An incomplete scan exits with code `1`
+even without `--fail-on-any`, so CI cannot treat partial results as a pass.
+
+```bash
+cytoscnpy deslop [OPTIONS] <PATH>
+```
+
+- `--fail-on-any`: Exit with code `1` when any configured architecture,
+  hotspot, context-budget, health, or analysis gate fails. The global form
+  (`cytoscnpy --fail-on-any deslop ...`) is also supported.
+- `--ci`: Apply the Slop Index ceiling (40 unless `--max-score` or config sets one).
+- `--max-score <N>`: Maximum allowed Slop Index (0–100).
+- `--root <PATH>`: Project root for analysis (use instead of positional path).
+- `--json`: Output one JSON report.
+- `--format <terminal|json|llm>`: Select the text report, JSON report,
+  or LLM remediation plan.
+- `--verbose`, `-v`: Show every analysis section and complete scoring diagnostics.
+- `-o`, `--output <FILE>`: Output report file.
+- `--exclude <DIR>`: Exclude a folder or path pattern from analysis.
+- `--ignore <PATTERN>`, `-i`: Repeatable path or directory ignore pattern.
+- `--no-git`: Disable Git history analysis.
+- `--git-months <N>`: Set the maximum Git lookback.
+- `--context-budget <TOKENS>`: Set usable LLM context capacity.
+
+The JSON result includes the analyses listed above, `scan_integrity`, `gates`, and
+`schema_version`. Use `--fail-on-any` with limits in the configuration file
+to enforce CI gates.
+
+```bash
+cytoscnpy deslop . --json
+cytoscnpy deslop . --json --fail-on-any
+```
+
+Gate limits can be set under `[cytoscnpy.deslop]` (or
+`[tool.cytoscnpy.deslop]`):
+
+```toml
+max_cycles = 0
+max_god_modules = 0
+max_hotspots = 0
+min_health_score = 70
+# max_navigation_pct = 75.0
+# max_duplicate_filenames = 0
+# max_function_collisions = 0
+# min_naming_consistency = 0.85
+# max_todos = 0
+```
+
+The individual analysis results are included in `deslop`; they do not require
+separate commands. Use the JSON fields or configure `[cytoscnpy.deslop]` gates
+for targeted automation.
+
+#### Verdict Bands
+
+| Band | Slop Index Range | Description |
+|---|---|---|
+| **Clean** | 0 – 20 | Excellent health, negligible LLM friction |
+| **Acceptable** | 21 – 40 | Normal codebase with minor slop within reasonable boundaries |
+| **Messy** | 41 – 60 | Moderate structural friction, refactoring recommended |
+| **Sloppy** | 61 – 80 | High friction, difficult navigation and maintenance |
+| **Disaster** | 81 – 100 | Severe debt, high risk of LLM hallucinations and errors |
+
+#### 10-Dimension Scoring Model (Weights sum to 100)
+
+1. **Setup reliability** (weight 10): Build scripts, lockfile freshness, Docker, and environment configuration.
+2. **Architecture clarity** (weight 15): Directory depth, file sizes, god modules, and naming searchability.
+3. **Coupling / blast radius** (weight 15): Fan-in/out, circular import cycles, and cross-package dependencies.
+4. **Style consistency** (weight 10): Naming convention compliance percentage, linter, formatter, and type checker adoption.
+5. **Test safety net** (weight 15): Test-to-source file and line ratios, framework configuration.
+6. **Runtime predictability** (weight 10): Mutable globals, import side effects, singletons, bare excepts, anti-patterns.
+7. **Feedback loop speed** (weight 5): Test runner, linter configuration, and CI workflow responsiveness.
+8. **Documentation** (weight 10): README quality, setup instructions, architecture docs, and contributing guides.
+9. **Dependency boundaries** (weight 5): Lockfiles, `.gitignore` hygiene, and vendor/generated code separation.
+10. **Context pressure** (weight 5): Token consumption relative to context budget, active surface, and dead code.
 
 ### `files`
 
@@ -203,6 +307,15 @@ cytoscnpy deps [OPTIONS] [PATHS]...
 - `-O`, `--output-file <FILE>`: Save output to file.
 
 > **Note:** Use the `deps` subcommand when you want dependency analysis in isolation or need the extra flags (`--extra-installed`, `--orphans`, `--impact`). To include dependency findings alongside the main scan, pass `--deps` to the default analysis command.
+
+Dependency scans report `scan_complete` and path-specific `scan_errors` in JSON.
+Discovery, source read/parse errors, missing explicit requirements files, and
+unreadable or missing `-r` includes make the command exit with code `1`, even
+without a failure flag. Findings from successfully scanned files are retained.
+Incomplete scans suppress unused/orphan/removal recommendations; incomplete
+requirements declarations also suppress findings that depend on proving a
+package is undeclared. Test and production paths are classified relative to the
+project root, including when analyzing a source subdirectory or file.
 
 ### `mcp-server`
 

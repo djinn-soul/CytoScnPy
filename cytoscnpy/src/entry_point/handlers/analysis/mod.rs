@@ -85,6 +85,20 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         run.result.transitive_dependencies = deps_result.transitive;
         run.result.dev_dependencies_in_production = deps_result.dev_in_production;
         run.result.stdlib_dependencies = deps_result.stdlib;
+        for error in deps_result.scan_errors {
+            let source_failure = error.error.starts_with("Failed to read dependency source:")
+                || error
+                    .error
+                    .starts_with("Failed to parse dependency source:");
+            // Main and dependency scans can fail on the same source. Keep the
+            // existing main diagnostic (which has source line information) once.
+            if !run.result.parse_errors.iter().any(|reported| {
+                reported.file == error.file && (source_failure || reported.error == error.error)
+            }) {
+                run.result.parse_errors.push(error);
+            }
+        }
+        run.result.analysis_summary.parse_errors_count = run.result.parse_errors.len();
     }
 
     crate::analyzer::apply_global_ignores(&mut run.result, config.cytoscnpy.ignore.as_deref());

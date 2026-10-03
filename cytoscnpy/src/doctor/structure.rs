@@ -1,0 +1,225 @@
+use ignore::WalkBuilder;
+use std::collections::{BTreeSet, HashMap};
+use std::fs;
+use std::path::Path;
+
+use super::language::detect_language;
+use super::types::{LanguageStats, RepoStructureStats};
+
+const SKIP_DIR_NAMES: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".idea",
+    ".vscode",
+    "vendor",
+    "third_party",
+    "generated",
+    ".generated",
+    "codegen",
+];
+
+fn is_test_file(path: &Path) -> bool {
+    let path_str = path.to_string_lossy().to_lowercase();
+    if path_str.contains("/tests/")
+        || path_str.contains("/test/")
+        || path_str.contains("\\tests\\")
+        || path_str.contains("\\test\\")
+    {
+        return true;
+    }
+
+    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+        let lower = file_name.to_lowercase();
+        return lower.starts_with("test_")
+            || lower.ends_with("_test.py")
+            || lower.ends_with(".test.js")
+            || lower.ends_with(".test.ts")
+            || lower.ends_with(".spec.js")
+            || lower.ends_with(".spec.ts")
+            || lower == "conftest.py";
+    }
+
+    false
+}
+
+/// Checks whether a relative path matches any exclusion pattern by component or path prefix.
+fn is_path_excluded(rel: &Path, excludes: &[String]) -> bool {
+    crate::utils::is_path_ignored(rel, excludes)
+}
+
+/// Scans the repository structure, calculating polyglot language breakdown and test ratio.
+pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructureStats {
+    let clean_excludes: Vec<String> = excludes
+        .iter()
+        .map(|ex| ex.trim_start_matches("./").trim_end_matches('/').to_owned())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let walker = WalkBuilder::new(repo_root)
+        .standard_filters(true)
+        .hidden(false)
+        .filter_entry(move |entry| {
+            if let Some(name) = entry.file_name().to_str() {
+                if SKIP_DIR_NAMES.contains(&name)
+                    || crate::utils::is_excluded(name, &clean_excludes)
+                {
+                    return false;
+                }
+            }
+            true
+        })
+        .build();
+
+    let mut total_files = 0usize;
+    let mut total_lines = 0usize;
+    let mut total_bytes = 0u64;
+    let mut source_files = 0usize;
+    let mut source_lines = 0usize;
+    let mut test_files = 0usize;
+    let mut test_lines = 0usize;
+    let mut max_depth = 0usize;
+
+    let mut largest_file_path = String::new();
+    let mut largest_file_lines = 0usize;
+
+    let mut lang_map: HashMap<&'static str, (usize, usize, u64)> = HashMap::new();
+    let mut top_dirs_set = BTreeSet::new();
+
+    for result in walker {
+        let Ok(entry) = result else {
+            continue;
+        };
+
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        if let Ok(rel) = path.strip_prefix(repo_root) {
+            if is_path_excluded(rel, excludes) {
+                continue;
+            }
+        } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            if crate::utils::is_excluded(name, excludes) {
+                continue;
+            }
+        }
+
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let Some(language) = detect_language(&ext, &file_name) else {
+            continue;
+        };
+
+        let Ok(meta) = fs::metadata(path) else {
+            continue;
+        };
+
+        let Ok(content) = fs::read_to_string(path) else {
+            continue;
+        };
+
+        let lines = content.lines().count();
+        let bytes = meta.len();
+
+        total_files += 1;
+        total_lines += lines;
+        total_bytes += bytes;
+
+        if lines > largest_file_lines {
+            largest_file_lines = lines;
+            largest_file_path = path
+                .strip_prefix(repo_root)
+                .unwrap_or(path)
+                .display()
+                .to_string();
+        }
+
+        if let Ok(rel) = path.strip_prefix(repo_root) {
+            let depth = rel.components().count();
+            if depth > max_depth {
+                max_depth = depth;
+            }
+            let mut comps = rel.components();
+            if let (Some(std::path::Component::Normal(first)), Some(_second)) =
+                (comps.next(), comps.next())
+            {
+                let name = first.to_string_lossy();
+                if !name.starts_with('.') && !SKIP_DIR_NAMES.contains(&name.as_ref()) {
+                    top_dirs_set.insert(name.into_owned());
+                }
+            }
+        }
+
+        if is_test_file(path) {
+            test_files += 1;
+            test_lines += lines;
+        } else {
+            source_files += 1;
+            source_lines += lines;
+        }
+
+        let entry = lang_map.entry(language).or_insert((0, 0, 0));
+        entry.0 += 1;
+        entry.1 += lines;
+        entry.2 += bytes;
+    }
+
+    let mut languages: Vec<LanguageStats> = lang_map
+        .into_iter()
+        .map(|(lang, (files, lines, bytes))| LanguageStats {
+            language: lang.to_owned(),
+            file_count: files,
+            line_count: lines,
+            byte_count: bytes,
+        })
+        .collect();
+
+    languages.sort_by_key(|a| std::cmp::Reverse(a.line_count));
+
+    let test_to_source_ratio = if source_lines > 0 {
+        test_lines as f64 / source_lines as f64
+    } else {
+        0.0
+    };
+
+    let avg_file_lines = total_lines.checked_div(total_files).unwrap_or(0);
+
+    let top_level_directories: Vec<String> = top_dirs_set.into_iter().collect();
+    RepoStructureStats {
+        total_files,
+        total_lines,
+        total_bytes,
+        source_files,
+        source_lines,
+        test_files,
+        test_lines,
+        test_to_source_ratio,
+        avg_file_lines,
+        largest_file_path,
+        largest_file_lines,
+        max_directory_depth: max_depth,
+        languages,
+        top_level_directory_count: top_level_directories.len(),
+        top_level_directories,
+    }
+}

@@ -96,7 +96,8 @@ pub(crate) fn handle_deps<W: std::io::Write>(
         crate::commands::run_deps(&options, writer)?
     };
 
-    let should_fail = (fail_on_unused && !result.unused.is_empty())
+    let should_fail = !result.scan_errors.is_empty()
+        || (fail_on_unused && !result.unused.is_empty())
         || (fail_on_missing && !result.missing.is_empty())
         || (fail_on_missing && !result.transitive.is_empty())
         || (fail_on_missing && !result.dev_in_production.is_empty())

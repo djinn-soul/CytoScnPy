@@ -1,11 +1,6 @@
+use ruff_python_ast::visitor::{self, Visitor};
 use ruff_python_ast::Stmt;
 use ruff_text_size::Ranged;
-
-#[derive(Debug, Clone, Copy)]
-pub(super) enum ImportEdit {
-    DeleteStmt(usize, usize),
-    DeleteAlias(usize, usize),
-}
 
 pub(super) struct MethodEdit {
     pub(super) start: usize,
@@ -22,77 +17,79 @@ pub(super) fn find_def_range(
     if def_type == "method" {
         return find_method_edit(body, name, target_start_byte).map(|edit| (edit.start, edit.end));
     }
+    let mut finder = RangeFinder {
+        name,
+        def_type,
+        target: target_start_byte,
+        range: None,
+    };
+    finder.visit_body(body);
+    finder.range
+}
 
-    let mut first_match = None;
+struct RangeFinder<'a> {
+    name: &'a str,
+    def_type: &'a str,
+    target: Option<usize>,
+    range: Option<(usize, usize)>,
+}
 
-    for stmt in body {
-        match stmt {
-            Stmt::FunctionDef(f) if def_type == "function" && f.name.as_str() == name => {
-                let start = f.range().start().to_usize();
-                let start = f
-                    .decorator_list
-                    .iter()
-                    .map(|d| d.range().start().to_usize())
-                    .min()
-                    .unwrap_or(start)
-                    .min(start);
-                let range = (start, f.range().end().to_usize());
-                if let Some(target) = target_start_byte {
-                    if target == start
-                        || target == f.range().start().to_usize()
-                        || target == f.name.range().start().to_usize()
-                    {
-                        return Some(range);
-                    }
-                } else if first_match.is_none() {
-                    first_match = Some(range);
-                }
-            }
-            Stmt::ClassDef(c) if def_type == "class" && c.name.as_str() == name => {
-                let start = c.range().start().to_usize();
-                let start = c
-                    .decorator_list
-                    .iter()
-                    .map(|d| d.range().start().to_usize())
-                    .min()
-                    .unwrap_or(start)
-                    .min(start);
-                let range = (start, c.range().end().to_usize());
-                if let Some(target) = target_start_byte {
-                    if target == start
-                        || target == c.range().start().to_usize()
-                        || target == c.name.range().start().to_usize()
-                    {
-                        return Some(range);
-                    }
-                } else if first_match.is_none() {
-                    first_match = Some(range);
-                }
-            }
-            Stmt::Import(i) if def_type == "import" => {
-                for alias in &i.names {
-                    let import_name = alias.asname.as_ref().unwrap_or(&alias.name);
-                    if import_name.as_str() == name {
-                        return Some((i.range().start().to_usize(), i.range().end().to_usize()));
-                    }
-                }
-            }
-            Stmt::ImportFrom(i) if def_type == "import" => {
-                for alias in &i.names {
-                    let import_name = alias.asname.as_ref().unwrap_or(&alias.name);
-                    if import_name.as_str() == name && i.names.len() == 1 {
-                        return Some((i.range().start().to_usize(), i.range().end().to_usize()));
-                    }
-                }
-            }
-            _ => {}
+impl<'a> Visitor<'a> for RangeFinder<'_> {
+    fn visit_stmt(&mut self, stmt: &'a Stmt) {
+        if self.range.is_some() {
+            return;
         }
-    }
-
-    if target_start_byte.is_none() {
-        first_match
-    } else {
-        None
+        let candidate = match stmt {
+            Stmt::FunctionDef(node)
+                if self.def_type == "function" && node.name.as_str() == self.name =>
+            {
+                Some((node.range(), node.name.range(), &node.decorator_list))
+            }
+            Stmt::ClassDef(node) if self.def_type == "class" && node.name.as_str() == self.name => {
+                Some((node.range(), node.name.range(), &node.decorator_list))
+            }
+            _ => None,
+        };
+        if let Some((range, name, decorators)) = candidate {
+            let start = decorators
+                .iter()
+                .map(|d| d.range().start().to_usize())
+                .min()
+                .unwrap_or(range.start().to_usize())
+                .min(range.start().to_usize());
+            if self.target.map_or(true, |target| {
+                target == start
+                    || target == range.start().to_usize()
+                    || target == name.start().to_usize()
+            }) {
+                self.range = Some((start, range.end().to_usize()));
+                return;
+            }
+        }
+        // Preserve the legacy whole-statement import lookup for internal callers.
+        let import_match = match stmt {
+            Stmt::Import(node) if self.def_type == "import" => node
+                .names
+                .iter()
+                .any(|alias| alias.asname.as_ref().unwrap_or(&alias.name).as_str() == self.name),
+            Stmt::ImportFrom(node) if self.def_type == "import" && node.names.len() == 1 => {
+                node.names[0]
+                    .asname
+                    .as_ref()
+                    .unwrap_or(&node.names[0].name)
+                    .as_str()
+                    == self.name
+            }
+            _ => false,
+        };
+        if import_match {
+            self.range = Some((
+                stmt.range().start().to_usize(),
+                stmt.range().end().to_usize(),
+            ));
+        } else {
+            visitor::walk_stmt(self, stmt);
+        }
     }
 }
 
@@ -101,107 +98,55 @@ pub(super) fn find_method_edit(
     name: &str,
     target_start_byte: Option<usize>,
 ) -> Option<MethodEdit> {
-    for stmt in body {
-        if let Stmt::ClassDef(class_def) = stmt {
-            for class_stmt in &class_def.body {
+    let mut finder = MethodFinder {
+        name,
+        target: target_start_byte,
+        edit: None,
+    };
+    finder.visit_body(body);
+    finder.edit
+}
+
+struct MethodFinder<'a> {
+    name: &'a str,
+    target: Option<usize>,
+    edit: Option<MethodEdit>,
+}
+
+impl<'a> Visitor<'a> for MethodFinder<'_> {
+    fn visit_stmt(&mut self, stmt: &'a Stmt) {
+        if self.edit.is_some() {
+            return;
+        }
+        if let Stmt::ClassDef(class) = stmt {
+            for class_stmt in &class.body {
                 if let Stmt::FunctionDef(func) = class_stmt {
-                    if func.name.as_str() != name {
-                        continue;
-                    }
-                    let method_start_byte = func.range().start().to_usize();
-                    let method_name_start_byte = func.name.range().start().to_usize();
-                    if let Some(target) = target_start_byte {
-                        if method_start_byte != target && method_name_start_byte != target {
-                            continue;
-                        }
-                    }
-                    let start = func.range().start().to_usize();
                     let start = func
                         .decorator_list
                         .iter()
-                        .map(|decorator| decorator.range().start().to_usize())
+                        .map(|d| d.range().start().to_usize())
                         .min()
-                        .unwrap_or(start)
-                        .min(start);
-                    return Some(MethodEdit {
-                        start,
-                        end: func.range().end().to_usize(),
-                        class_would_be_empty: class_def.body.len() == 1,
-                    });
-                }
-            }
-
-            // Recurse through nested classes in this class body.
-            if let Some(edit) = find_method_edit(&class_def.body, name, target_start_byte) {
-                return Some(edit);
-            }
-        }
-    }
-
-    None
-}
-
-pub(super) fn find_import_edit(body: &[Stmt], name: &str, source: &str) -> Option<ImportEdit> {
-    for stmt in body {
-        match stmt {
-            Stmt::Import(i) => {
-                let names = &i.names;
-                for alias in names {
-                    let import_name = alias.asname.as_ref().unwrap_or(&alias.name);
-                    if import_name.as_str() == name {
-                        if names.len() == 1 {
-                            let range = i.range();
-                            return Some(ImportEdit::DeleteStmt(
-                                range.start().to_usize(),
-                                range.end().to_usize(),
-                            ));
-                        }
-                        let range = alias.range();
-                        let (start, end, has_comma) = trim_comma_range(
-                            source,
-                            range.start().to_usize(),
-                            range.end().to_usize(),
-                        );
-                        let (start, end) = if has_comma {
-                            (start, end)
-                        } else {
-                            (range.start().to_usize(), range.end().to_usize())
-                        };
-                        return Some(ImportEdit::DeleteAlias(start, end));
+                        .unwrap_or(func.range().start().to_usize())
+                        .min(func.range().start().to_usize());
+                    if func.name.as_str() == self.name
+                        && self.target.map_or(true, |target| {
+                            target == start
+                                || target == func.range().start().to_usize()
+                                || target == func.name.range().start().to_usize()
+                        })
+                    {
+                        self.edit = Some(MethodEdit {
+                            start,
+                            end: func.range().end().to_usize(),
+                            class_would_be_empty: class.body.len() == 1,
+                        });
+                        return;
                     }
                 }
             }
-            Stmt::ImportFrom(i) => {
-                let names = &i.names;
-                for alias in names {
-                    let import_name = alias.asname.as_ref().unwrap_or(&alias.name);
-                    if import_name.as_str() == name {
-                        if names.len() == 1 {
-                            let range = i.range();
-                            return Some(ImportEdit::DeleteStmt(
-                                range.start().to_usize(),
-                                range.end().to_usize(),
-                            ));
-                        }
-                        let range = alias.range();
-                        let (start, end, has_comma) = trim_comma_range(
-                            source,
-                            range.start().to_usize(),
-                            range.end().to_usize(),
-                        );
-                        let (start, end) = if has_comma {
-                            (start, end)
-                        } else {
-                            (range.start().to_usize(), range.end().to_usize())
-                        };
-                        return Some(ImportEdit::DeleteAlias(start, end));
-                    }
-                }
-            }
-            _ => {}
         }
+        visitor::walk_stmt(self, stmt);
     }
-    None
 }
 
 pub(super) fn trim_comma_range(source: &str, start: usize, end: usize) -> (usize, usize, bool) {

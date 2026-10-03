@@ -1,4 +1,5 @@
-use crate::commands::utils::find_python_files;
+use crate::analyzer::types::ParseError;
+use crate::commands::utils::find_python_files_with_issues;
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
 use std::path::PathBuf;
@@ -7,9 +8,11 @@ use std::path::PathBuf;
 mod imports_collect;
 #[path = "imports_dynamic.rs"]
 mod imports_dynamic;
+#[path = "imports_source.rs"]
+mod imports_source;
 #[path = "imports_type_checking.rs"]
 mod imports_type_checking;
-use imports_collect::extract_imports_from_file;
+use imports_source::extract_imports_from_file;
 
 /// Concrete source location for a top-level import name.
 #[derive(Debug, Clone)]
@@ -38,6 +41,8 @@ pub struct ImportScan {
     pub type_checking: FxHashSet<String>,
     /// Source evidence for every import occurrence.
     pub occurrences: Vec<ImportOccurrence>,
+    /// Files or directories that could not be read or parsed.
+    pub scan_errors: Vec<ParseError>,
 }
 
 impl ImportScan {
@@ -47,12 +52,9 @@ impl ImportScan {
             production: FxHashSet::default(),
             type_checking: FxHashSet::default(),
             occurrences: Vec::new(),
+            scan_errors: Vec::new(),
         }
     }
-}
-
-fn is_test_or_dev_file(file: &std::path::Path) -> bool {
-    crate::utils::is_test_path(&file.to_string_lossy())
 }
 
 /// A top-level `setup.py` is a build script, not importable source: what it
@@ -81,13 +83,34 @@ fn same_dir(a: &std::path::Path, b: &std::path::Path) -> bool {
 /// Scans Python files and returns import names split by all files and
 /// production files. Test/dev files are excluded only from the production set.
 pub fn extract_import_scan(roots: &[PathBuf], exclude: &[String], verbose: bool) -> ImportScan {
-    let mut files = find_python_files(roots, exclude, verbose);
+    let (mut files, issues) = find_python_files_with_issues(roots, exclude, verbose);
+    let classification_roots: Vec<_> = roots
+        .iter()
+        .map(|root| {
+            let directory = if root.is_file() {
+                root.parent().unwrap_or(std::path::Path::new("."))
+            } else {
+                root.as_path()
+            };
+            super::declared::find_project_root(directory)
+        })
+        .collect();
     files.retain(|file| !is_build_script(file, roots));
 
-    files
+    let mut scan = files
         .into_par_iter()
         .map(|file| {
-            let is_production = !is_test_or_dev_file(&file);
+            let root = classification_roots
+                .iter()
+                .find(|root| file.starts_with(root));
+            let is_production = root.map_or_else(
+                || {
+                    !crate::utils::is_test_path(
+                        &file.file_name().unwrap_or_default().to_string_lossy(),
+                    )
+                },
+                |root| !crate::utils::is_test_path_relative_to(&file, root),
+            );
             extract_imports_from_file(&file, is_production)
         })
         .reduce(ImportScan::empty, |mut acc, scan| {
@@ -95,14 +118,32 @@ pub fn extract_import_scan(roots: &[PathBuf], exclude: &[String], verbose: bool)
             acc.production.extend(scan.production);
             acc.type_checking.extend(scan.type_checking);
             acc.occurrences.extend(scan.occurrences);
+            acc.scan_errors.extend(scan.scan_errors);
             acc
-        })
+        });
+    scan.scan_errors.extend(
+        issues
+            .into_iter()
+            .map(|(file, error)| ParseError { file, error }),
+    );
+    scan.scan_errors
+        .sort_by(|a, b| a.file.cmp(&b.file).then_with(|| a.error.cmp(&b.error)));
+    scan
 }
 
 /// Scans Python files within the provided roots and extracts all import names,
 /// including imports nested inside functions, classes, and control flow blocks.
 pub fn extract_imports(roots: &[PathBuf], exclude: &[String], verbose: bool) -> FxHashSet<String> {
-    extract_import_scan(roots, exclude, verbose).all
+    let scan = extract_import_scan(roots, exclude, verbose);
+    // This legacy set-only API cannot return diagnostics; keep failures visible.
+    for error in &scan.scan_errors {
+        eprintln!(
+            "WARNING: Incomplete dependency import scan at {}: {}",
+            error.file.display(),
+            error.error
+        );
+    }
+    scan.all
 }
 
 #[cfg(test)]

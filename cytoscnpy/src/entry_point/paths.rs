@@ -86,7 +86,13 @@ pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
                     all_target_paths.extend(args.paths.paths.iter().cloned());
                 }
             }
-            Commands::Stats { paths, .. } | Commands::Deps { paths, .. } => {
+            Commands::Stats { paths, .. }
+            | Commands::Deslop {
+                args: crate::cli::DeslopArgs { paths, .. },
+            }
+            | Commands::Deps {
+                args: crate::cli::DepsArgs { paths, .. },
+            } => {
                 if let Some(r) = &paths.root {
                     all_target_paths.push(r.clone());
                 } else {

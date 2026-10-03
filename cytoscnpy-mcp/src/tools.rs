@@ -88,9 +88,7 @@ impl CytoScnPyServer {
             .with_quality(req.check_quality);
 
         let result = analyzer.analyze(path_buf.as_path());
-        let json = serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
-        Ok(CallToolResult::success(vec![Content::text(json)]))
+        Ok(crate::analysis_response::render_analysis(&result))
     }
 
     /// Analyze a Python code snippet directly without needing a file.
@@ -114,10 +112,7 @@ impl CytoScnPyServer {
             .with_quality(true);
 
         let result = analyzer.analyze_code(&req.code, &PathBuf::from(&req.filename));
-
-        let json = serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
-        Ok(CallToolResult::success(vec![Content::text(json)]))
+        Ok(crate::analysis_response::render_analysis(&result))
     }
 
     /// Quick security scan - focuses only on secrets and dangerous patterns.
@@ -147,27 +142,7 @@ impl CytoScnPyServer {
 
         let result = analyzer.analyze(path_buf.as_path());
 
-        // Return only security-relevant findings
-        let security_summary = serde_json::json!({
-            "scan_type": "quick_security_scan",
-            "path": req.path,
-            "summary": {
-                "secrets_found": result.secrets.len(),
-                "dangerous_patterns": result.danger.len(),
-                "total_issues": result.secrets.len() + result.danger.len(),
-            },
-            "secrets": result.secrets,
-            "danger": result.danger,
-            "recommendation": if result.secrets.is_empty() && result.danger.is_empty() {
-                "✅ No security issues found"
-            } else {
-                "⚠️ Security issues detected - review and fix immediately"
-            }
-        });
-
-        let json = serde_json::to_string_pretty(&security_summary)
-            .unwrap_or_else(|e| format!(r#"{{"error": "Serialization error: {e}"}}"#));
-        Ok(CallToolResult::success(vec![Content::text(json)]))
+        Ok(crate::quick_scan::render_summary(&req.path, &result))
     }
 
     /// Calculate cyclomatic complexity for Python code.
@@ -296,4 +271,4 @@ impl ServerHandler for CytoScnPyServer {
     }
 }
 
-pub use rmcp::model::Content;
+pub use rmcp::model::ContentBlock as Content;

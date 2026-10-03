@@ -9,6 +9,8 @@
 //! The core component is `ByteRangeRewriter`, which applies
 //! edits using byte offsets to safely modify source code.
 
+mod edit;
 mod rewriter;
 
-pub use rewriter::{ByteRangeRewriter, Edit, EditBuilder, RewriteError};
+pub use edit::{Edit, EditBuilder, RewriteError};
+pub use rewriter::ByteRangeRewriter;

@@ -90,6 +90,9 @@ pub struct CytoScnPyConfig {
     /// Dependencies analysis configuration
     #[serde(default)]
     pub deps: DepsConfig,
+    /// Gate limits for the unified `DeSlopify` report.
+    #[serde(default)]
+    pub deslop: super::DeslopConfig,
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]

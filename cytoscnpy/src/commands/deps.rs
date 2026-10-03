@@ -1,14 +1,15 @@
-use crate::deps::{
-    analyze_dependencies, DeclaredDependency, DependencyImportLocation, DepsOptions, DepsResult,
-    MissingDependency,
-};
-use crate::rules::ids::{
-    RULE_ID_DEV_DEPENDENCY_IN_PROD, RULE_ID_MISSING_DEPENDENCY, RULE_ID_STDLIB_DEPENDENCY,
-    RULE_ID_TRANSITIVE_DEPENDENCY, RULE_ID_UNUSED_DEPENDENCY,
-};
+//! Dependency reporting preserves complete-scan status alongside findings.
+
+mod environment;
+mod findings;
+use crate::deps::{analyze_dependencies, DependencyImportLocation, DepsOptions, DepsResult};
 use anyhow::Result;
 use colored::Colorize;
-use comfy_table::{presets::UTF8_FULL, Cell, Color, Table};
+use environment::{write_extra_installed, write_orphan_installed, write_removable_branches};
+use findings::{
+    write_dev_dependency_in_production, write_missing_dependencies, write_stdlib_dependencies,
+    write_transitive_dependencies, write_unused_dependencies,
+};
 use serde_json::json;
 use std::io::Write;
 
@@ -31,6 +32,8 @@ pub fn run_deps<W: std::io::Write>(
 
 fn write_json_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
     let out = json!({
+        "scan_complete": result.scan_errors.is_empty(),
+        "scan_errors": result.scan_errors,
         "unused": result.unused.iter().map(|d| d.package_name.clone()).collect::<Vec<_>>(),
         "missing": result.missing,
         "missing_details": result.missing_details.iter().map(|d| json!({
@@ -87,275 +90,17 @@ fn write_text_deps<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> 
     write_extra_installed(result, writer)?;
     write_orphan_installed(result, writer)?;
     write_removable_branches(result, writer)?;
+    if !result.scan_errors.is_empty() {
+        writeln!(
+            writer,
+            "\nDependency scan incomplete ({} errors):",
+            result.scan_errors.len()
+        )?;
+        for error in &result.scan_errors {
+            writeln!(writer, "  {}: {}", error.file.display(), error.error)?;
+        }
+    }
     write_summary(result, writer)?;
-    Ok(())
-}
-
-fn write_unused_dependencies<W: Write>(
-    unused: &[DeclaredDependency],
-    writer: &mut W,
-) -> Result<()> {
-    if unused.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(
-        writer,
-        "\n{}",
-        format!("Unused Dependencies ({RULE_ID_UNUSED_DEPENDENCY})")
-            .red()
-            .bold()
-    )?;
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .set_header(vec!["Package Name", "Declared In", "Type"]);
-
-    for dep in unused {
-        table.add_row(vec![
-            Cell::new(&dep.package_name).fg(Color::Yellow),
-            Cell::new(dependency_source_name(dep)),
-            Cell::new(dependency_kind(dep)),
-        ]);
-    }
-    writeln!(writer, "{table}")?;
-    Ok(())
-}
-
-fn dependency_source_name(dep: &DeclaredDependency) -> String {
-    match &dep.source {
-        crate::deps::DependencySource::Pyproject => "pyproject.toml".to_owned(),
-        crate::deps::DependencySource::Requirements(file)
-        | crate::deps::DependencySource::Setup(file) => file.clone(),
-    }
-}
-
-fn dependency_kind(dep: &DeclaredDependency) -> &'static str {
-    if dep.is_dev {
-        "dev"
-    } else {
-        "prod"
-    }
-}
-
-fn first_location(locations: &[DependencyImportLocation]) -> String {
-    locations.first().map_or_else(
-        || "-".to_owned(),
-        |location| format!("{}:{}", location.file.display(), location.line),
-    )
-}
-
-fn write_missing_dependencies<W: Write>(
-    missing: &[MissingDependency],
-    writer: &mut W,
-) -> Result<()> {
-    if missing.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(
-        writer,
-        "\n{}",
-        format!("Missing Dependencies ({RULE_ID_MISSING_DEPENDENCY})")
-            .red()
-            .bold()
-    )?;
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .set_header(vec!["Import Name", "Location"]);
-
-    for missing in missing {
-        table.add_row(vec![
-            Cell::new(&missing.import_name).fg(Color::Yellow),
-            Cell::new(first_location(&missing.locations)),
-        ]);
-    }
-    writeln!(writer, "{table}")?;
-    Ok(())
-}
-
-fn write_transitive_dependencies<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
-    if result.transitive.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(
-        writer,
-        "\n{}",
-        format!("Transitive Dependencies ({RULE_ID_TRANSITIVE_DEPENDENCY})")
-            .red()
-            .bold()
-    )?;
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .set_header(vec!["Import Name", "Package Name", "Location"]);
-
-    for dep in &result.transitive {
-        table.add_row(vec![
-            Cell::new(&dep.import_name).fg(Color::Yellow),
-            Cell::new(&dep.package_name),
-            Cell::new(first_location(&dep.locations)),
-        ]);
-    }
-    writeln!(writer, "{table}")?;
-    Ok(())
-}
-
-fn write_dev_dependency_in_production<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
-    if result.dev_in_production.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(
-        writer,
-        "\n{}",
-        format!("Development Dependency Used in Production ({RULE_ID_DEV_DEPENDENCY_IN_PROD})")
-            .red()
-            .bold()
-    )?;
-    let mut table = Table::new();
-    table.load_preset(UTF8_FULL).set_header(vec![
-        "Import Name",
-        "Package Name",
-        "Declared In",
-        "Location",
-    ]);
-
-    for dep in &result.dev_in_production {
-        table.add_row(vec![
-            Cell::new(&dep.import_name).fg(Color::Yellow),
-            Cell::new(&dep.dependency.package_name),
-            Cell::new(dependency_source_name(&dep.dependency)),
-            Cell::new(first_location(&dep.locations)),
-        ]);
-    }
-    writeln!(writer, "{table}")?;
-    Ok(())
-}
-
-fn write_stdlib_dependencies<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
-    if result.stdlib.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(
-        writer,
-        "\n{}",
-        format!("Standard Library Dependencies ({RULE_ID_STDLIB_DEPENDENCY})")
-            .red()
-            .bold()
-    )?;
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .set_header(vec!["Package Name", "Declared In", "Type"]);
-
-    for dep in &result.stdlib {
-        table.add_row(vec![
-            Cell::new(&dep.package_name).fg(Color::Yellow),
-            Cell::new(dependency_source_name(dep)),
-            Cell::new(dependency_kind(dep)),
-        ]);
-    }
-    writeln!(writer, "{table}")?;
-    Ok(())
-}
-
-fn write_extra_installed<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
-    if result.extra_installed.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(
-        writer,
-        "\n{}",
-        "Extra Installed (installed but not declared)"
-            .yellow()
-            .bold()
-    )?;
-    write_package_table(&result.extra_installed, Color::Yellow, writer)
-}
-
-fn write_orphan_installed<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
-    if result.orphan_installed.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(writer, "\n{}", "Orphan Packages (zombie deps)".red().bold())?;
-    write_package_table(&result.orphan_installed, Color::Red, writer)
-}
-
-fn write_package_table<W: Write>(
-    packages: &[crate::deps::InstalledPackage],
-    name_color: Color,
-    writer: &mut W,
-) -> Result<()> {
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .set_header(vec!["Package", "Version"]);
-
-    for pkg in packages {
-        table.add_row(vec![
-            Cell::new(&pkg.name).fg(name_color),
-            Cell::new(&pkg.version),
-        ]);
-    }
-    writeln!(writer, "{table}")?;
-    Ok(())
-}
-
-fn write_removable_branches<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
-    if result.removable_branches.is_empty() {
-        return Ok(());
-    }
-
-    writeln!(
-        writer,
-        "\n{}",
-        "Removable Dependency Branches".cyan().bold()
-    )?;
-    for branch in &result.removable_branches {
-        write_removable_branch(branch, writer)?;
-    }
-    Ok(())
-}
-
-fn write_removable_branch<W: Write>(
-    branch: &crate::deps::RemovableBranch,
-    writer: &mut W,
-) -> Result<()> {
-    if branch.unique_transitive.is_empty() {
-        write_leaf_removable_branch(&branch.root, writer)?;
-    } else {
-        write_transitive_removable_branch(branch, writer)?;
-    }
-    Ok(())
-}
-
-fn write_leaf_removable_branch<W: Write>(root: &str, writer: &mut W) -> Result<()> {
-    writeln!(
-        writer,
-        "  {} — safe to remove, no unique transitive deps",
-        root.yellow()
-    )?;
-    Ok(())
-}
-
-fn write_transitive_removable_branch<W: Write>(
-    branch: &crate::deps::RemovableBranch,
-    writer: &mut W,
-) -> Result<()> {
-    writeln!(
-        writer,
-        "  {} — removing this would also allow removing:",
-        branch.root.yellow()
-    )?;
-    for dep in &branch.unique_transitive {
-        writeln!(writer, "    · {dep}")?;
-    }
     Ok(())
 }
 
@@ -383,7 +128,8 @@ fn write_summary<W: Write>(result: &DepsResult, writer: &mut W) -> Result<()> {
 }
 
 fn deps_are_clean(result: &DepsResult) -> bool {
-    result.unused.is_empty()
+    result.scan_errors.is_empty()
+        && result.unused.is_empty()
         && result.missing.is_empty()
         && result.transitive.is_empty()
         && result.dev_in_production.is_empty()

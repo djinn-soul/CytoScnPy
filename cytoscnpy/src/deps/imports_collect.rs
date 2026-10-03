@@ -3,41 +3,10 @@ use super::imports_type_checking::{is_type_checking_test, TypeCheckingAliases};
 use super::{ImportOccurrence, ImportScan};
 use crate::utils::LineIndex;
 use ruff_python_ast::{self as ast, Stmt};
-use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
 use rustc_hash::FxHashSet;
 
-pub(super) fn extract_imports_from_file(file: &std::path::Path, is_production: bool) -> ImportScan {
-    let mut scan = ImportScan {
-        all: FxHashSet::default(),
-        production: FxHashSet::default(),
-        type_checking: FxHashSet::default(),
-        occurrences: Vec::new(),
-    };
-    if let Ok(content) = std::fs::read_to_string(file) {
-        if let Ok(parsed) = parse_module(&content) {
-            let line_index = LineIndex::new(&content);
-            let mut aliases = TypeCheckingAliases::default();
-            let mut dynamic_aliases = DynamicImportAliases::default();
-            collect_imports(
-                &parsed.into_syntax().body,
-                &mut scan,
-                &mut aliases,
-                &mut dynamic_aliases,
-                file,
-                &line_index,
-                is_production,
-                false,
-            );
-            if is_production {
-                scan.production.extend(scan.all.iter().cloned());
-            }
-        }
-    }
-    scan
-}
-
-fn collect_imports(
+pub(super) fn collect_imports(
     stmts: &[Stmt],
     scan: &mut ImportScan,
     aliases: &mut TypeCheckingAliases,

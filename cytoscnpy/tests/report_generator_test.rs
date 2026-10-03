@@ -161,8 +161,14 @@ fn test_generate_report_full() {
     assert!(output_dir.join("js/charts.js").exists());
 
     // Verify file view was generated (since we created test.py)
-    let safe_name = "test.py.html";
-    assert!(output_dir.join("files").join(safe_name).exists());
+    let views: Vec<_> = fs::read_dir(output_dir.join("files"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(views.len(), 1);
+    assert!(fs::read_to_string(&views[0])
+        .unwrap()
+        .contains("unused_func"));
 }
 
 #[test]

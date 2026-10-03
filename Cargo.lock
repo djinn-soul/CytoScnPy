@@ -475,6 +475,8 @@ dependencies = [
  "cytoscnpy",
  "cytoscnpy-mcp",
  "rmcp",
+ "serde_json",
+ "tempfile",
  "tokio",
 ]
 

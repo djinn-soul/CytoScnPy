@@ -1,7 +1,9 @@
 mod assets;
 mod file_views;
 mod issues;
+mod paths;
 mod scoring;
+use paths::ReportPaths;
 
 use crate::analyzer::AnalysisResult;
 use crate::report::templates::{
@@ -31,8 +33,16 @@ pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) 
     let generated_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let version = env!("CARGO_PKG_VERSION").to_owned();
 
-    let issue_items = issues::flatten_issues(result);
-    let file_metrics_view = build_file_metrics_view(result);
+    let mut issue_items = issues::flatten_issues(result);
+    let report_paths = ReportPaths::new(result, &issue_items);
+    for issue in &mut issue_items {
+        issue.link = format!(
+            "files/{}#L{}",
+            report_paths.filename(&issue.file)?,
+            issue.line
+        );
+    }
+    let file_metrics_view = build_file_metrics_view(result, &report_paths)?;
 
     let score_color = if score.total_score >= 80 {
         "#4ade80".to_owned()
@@ -97,7 +107,7 @@ pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) 
     fs::write(output_dir.join("files.html"), files_page.render()?)?;
 
     let clones_page = ClonesTemplate {
-        clones: build_clone_items(result),
+        clones: build_clone_items(result, &report_paths)?,
         generated_at: generated_at.clone(),
         version: version.clone(),
         root_path: ".".to_owned(),
@@ -105,48 +115,52 @@ pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) 
     fs::write(output_dir.join("clones.html"), clones_page.render()?)?;
 
     assets::write_assets(&output_dir)?;
-    file_views::generate_file_views(result, &issue_items, &output_dir, &generated_at, &version)?;
+    file_views::generate_file_views(
+        result,
+        &issue_items,
+        &output_dir,
+        &generated_at,
+        &version,
+        &report_paths,
+    )?;
 
     Ok(())
 }
 
-fn build_file_metrics_view(result: &AnalysisResult) -> Vec<FileMetricsView> {
+fn build_file_metrics_view(
+    result: &AnalysisResult,
+    paths: &ReportPaths,
+) -> Result<Vec<FileMetricsView>> {
     result
         .file_metrics
         .iter()
-        .map(|file_metric| FileMetricsView {
-            file: file_metric.file.to_string_lossy().to_string(),
-            sloc: file_metric.sloc,
-            complexity: file_metric.complexity,
-            raw_mi: file_metric.mi,
-            mi: format!("{:.1}", file_metric.mi),
-            total_issues: file_metric.total_issues,
-            link: format!(
-                "files/{}.html",
-                file_metric
-                    .file
-                    .to_string_lossy()
-                    .replace(['/', '\\', ':'], "_")
-            ),
+        .map(|file_metric| {
+            Ok(FileMetricsView {
+                file: file_metric.file.to_string_lossy().to_string(),
+                sloc: file_metric.sloc,
+                complexity: file_metric.complexity,
+                raw_mi: file_metric.mi,
+                mi: format!("{:.1}", file_metric.mi),
+                total_issues: file_metric.total_issues,
+                link: format!(
+                    "files/{}",
+                    paths.filename(&file_metric.file.to_string_lossy())?
+                ),
+            })
         })
         .collect()
 }
 
-fn build_clone_items(result: &AnalysisResult) -> Vec<CloneItem> {
+fn build_clone_items(result: &AnalysisResult, paths: &ReportPaths) -> Result<Vec<CloneItem>> {
     result
         .clones
         .iter()
         .filter(|clone| clone.is_duplicate)
         .map(|clone| {
-            let safe_file = clone.file.to_string_lossy().replace(['/', '\\', ':'], "_") + ".html";
-            let safe_related = clone
-                .related_clone
-                .file
-                .to_string_lossy()
-                .replace(['/', '\\', ':'], "_")
-                + ".html";
+            let safe_file = paths.filename(&clone.file.to_string_lossy())?;
+            let safe_related = paths.filename(&clone.related_clone.file.to_string_lossy())?;
 
-            CloneItem {
+            Ok(CloneItem {
                 similarity: clone.similarity,
                 clone_type: clone.clone_type.display_name().to_owned(),
                 name: clone
@@ -159,7 +173,7 @@ fn build_clone_items(result: &AnalysisResult) -> Vec<CloneItem> {
                 related_file: clone.related_clone.file.to_string_lossy().to_string(),
                 related_line: clone.related_clone.line,
                 related_link: format!("files/{}#L{}", safe_related, clone.related_clone.line),
-            }
+            })
         })
         .collect()
 }

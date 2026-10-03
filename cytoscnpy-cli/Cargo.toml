@@ -11,6 +11,10 @@ anyhow = "1.0"
 tokio = { version = "1", features = ["io-std", "rt-multi-thread"] }
 rmcp = { version = "1.7.0", features = ["server", "transport-io"] }
 
+[dev-dependencies]
+serde_json = "1.0"
+tempfile = "3.10"
+
 # Inherit lints from workspace
 [lints]
 workspace = true

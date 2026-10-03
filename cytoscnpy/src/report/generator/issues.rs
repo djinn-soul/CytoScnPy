@@ -5,16 +5,13 @@ pub(super) fn flatten_issues(result: &AnalysisResult) -> Vec<IssueItem> {
     let mut items = Vec::new();
 
     let mut add = |category: &str, severity: &str, msg: String, file: String, line: usize| {
-        let safe_name = file.replace(['/', '\\', ':'], "_") + ".html";
-        let link = format!("files/{safe_name}#L{line}");
-
         items.push(IssueItem {
             category: category.to_owned(),
             severity: severity.to_owned(),
             message: msg,
             file,
             line,
-            link,
+            link: String::new(), // Assigned by the shared report path registry.
             code_snippet: None,
         });
     };

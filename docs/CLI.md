@@ -24,7 +24,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--fail-on-danger`: Enables dangerous-code/taint scanning if needed and exits with code `1` if any danger or taint findings are detected.
 - `--fail-on-missing-deps`: Enables dependency analysis if needed and exits with code `1` if any missing dependency findings are detected.
 - `--fail-on-unused-deps`: Enables dependency analysis if needed and exits with code `1` if any unused dependency findings are detected.
-- `--html`: Generates a self-contained, interactive HTML report. Note that this feature may require additional dependencies and automatically enables quality scanning.
+- `--html`: Generates a self-contained, interactive HTML report. Each source receives a distinct file-view filename, shared by metrics, issue, and clone links. Note that this feature may require additional dependencies and automatically enables quality scanning.
 - `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, project config from `.cytoscnpy.toml` or `pyproject.toml` is still honored, and explicit VS Code settings are passed as CLI flags that override matching thresholds.
 
 ### Scan Types
@@ -61,7 +61,9 @@ cytoscnpy [OPTIONS] [COMMAND]
 
 The main analysis exits with code `1` when parsing or reading errors leave a scan
 incomplete, including when no failure flags are supplied. JSON reports retain
-the `parse_errors` list and any findings from files that were scanned.
+the `parse_errors` list and any findings from files that were scanned. Directory
+traversal errors are included in that list, so unreadable subdirectories also
+fail the scan.
 
 These flags allow you to set strict gates for CI/CD. If any enabled gate fails, CytoScnPy exits with code `1`. Failure gates that depend on optional scans enable those scans automatically.
 
@@ -305,6 +307,15 @@ cytoscnpy deps [OPTIONS] [PATHS]...
 - `-O`, `--output-file <FILE>`: Save output to file.
 
 > **Note:** Use the `deps` subcommand when you want dependency analysis in isolation or need the extra flags (`--extra-installed`, `--orphans`, `--impact`). To include dependency findings alongside the main scan, pass `--deps` to the default analysis command.
+
+Dependency scans report `scan_complete` and path-specific `scan_errors` in JSON.
+Discovery, source read/parse errors, missing explicit requirements files, and
+unreadable or missing `-r` includes make the command exit with code `1`, even
+without a failure flag. Findings from successfully scanned files are retained.
+Incomplete scans suppress unused/orphan/removal recommendations; incomplete
+requirements declarations also suppress findings that depend on proving a
+package is undeclared. Test and production paths are classified relative to the
+project root, including when analyzing a source subdirectory or file.
 
 ### `mcp-server`
 

@@ -1,6 +1,21 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use toml::Value;
+
+#[path = "pyproject.rs"]
+mod pyproject;
+#[path = "requirements.rs"]
+mod requirements;
+pub use pyproject::parse_pyproject;
+pub use requirements::{parse_requirements, scan_requirements};
+
+/// Dependencies and errors encountered while reading declaration files.
+#[derive(Default)]
+pub struct DeclarationScan {
+    /// Declarations successfully read from the project metadata.
+    pub dependencies: Vec<DeclaredDependency>,
+    /// Paths and reasons for incomplete declaration scans.
+    pub scan_errors: Vec<crate::analyzer::types::ParseError>,
+}
 
 /// Origin of a declared dependency.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -81,177 +96,6 @@ pub(super) fn extract_pep508_parts(spec: &str) -> Option<(String, Option<String>
     }
 }
 
-/// Parses a pyproject.toml file and extracts declared project dependencies.
-pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
-    let mut deps = Vec::new();
-
-    let Ok(content) = std::fs::read_to_string(path) else {
-        return deps;
-    };
-    let parsed: Value = match toml::from_str(&content) {
-        Ok(value) => value,
-        Err(_) => return deps,
-    };
-    let make_dep = |spec: &str, is_dev, is_optional| {
-        let (package_name, marker) = extract_pep508_parts(spec)?;
-        Some(DeclaredDependency {
-            package_name: package_name.clone(),
-            normalized_name: normalize_package_name(&package_name),
-            is_dev,
-            is_optional,
-            marker,
-            source: DependencySource::Pyproject,
-        })
-    };
-
-    if let Some(project) = parsed.get("project") {
-        if let Some(dependencies) = project.get("dependencies").and_then(Value::as_array) {
-            deps.extend(
-                dependencies
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .filter_map(|spec| make_dep(spec, false, false)),
-            );
-        }
-        if let Some(optional) = project
-            .get("optional-dependencies")
-            .and_then(Value::as_table)
-        {
-            for reqs in optional.values().filter_map(Value::as_array) {
-                deps.extend(
-                    reqs.iter()
-                        .filter_map(Value::as_str)
-                        .filter_map(|spec| make_dep(spec, false, true)),
-                );
-            }
-        }
-    }
-
-    if let Some(groups) = parsed.get("dependency-groups").and_then(Value::as_table) {
-        for reqs in groups.values().filter_map(Value::as_array) {
-            deps.extend(
-                reqs.iter()
-                    .filter_map(|v| match v {
-                        Value::String(s) => Some(s.as_str()),
-                        Value::Table(t) => t.get("name").and_then(Value::as_str),
-                        _ => None,
-                    })
-                    .filter_map(|spec| make_dep(spec, true, false)),
-            );
-        }
-    }
-
-    if let Some(tool) = parsed.get("tool").and_then(Value::as_table) {
-        if let Some(pdm) = tool.get("pdm").and_then(Value::as_table) {
-            if let Some(dev_deps) = pdm.get("dev-dependencies").and_then(Value::as_table) {
-                deps.extend(
-                    dev_deps
-                        .keys()
-                        .filter_map(|package_name| make_dep(package_name, true, false)),
-                );
-            }
-        }
-
-        if let Some(poetry) = tool.get("poetry").and_then(Value::as_table) {
-            if let Some(poetry_deps) = poetry.get("dependencies").and_then(Value::as_table) {
-                deps.extend(
-                    poetry_deps
-                        .keys()
-                        .filter(|package_name| package_name.as_str() != "python")
-                        .filter_map(|package_name| make_dep(package_name, false, false)),
-                );
-            }
-            if let Some(dev_deps) = poetry.get("dev-dependencies").and_then(Value::as_table) {
-                deps.extend(
-                    dev_deps
-                        .keys()
-                        .filter_map(|package_name| make_dep(package_name, true, false)),
-                );
-            }
-            if let Some(group) = poetry.get("group").and_then(Value::as_table) {
-                for grp_val in group.values() {
-                    if let Some(grp_deps) = grp_val.get("dependencies").and_then(Value::as_table) {
-                        deps.extend(
-                            grp_deps
-                                .keys()
-                                .filter_map(|package_name| make_dep(package_name, true, false)),
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    deps
-}
-
-/// Parses a requirements.txt file and extracts declared dependencies.
-///
-/// `-r other.txt` / `--requirement other.txt` include directives are followed
-/// relative to the including file, as pip does.
-pub fn parse_requirements(path: &Path) -> Vec<DeclaredDependency> {
-    let mut visited = Vec::new();
-    parse_requirements_inner(path, &mut visited)
-}
-
-/// Extracts the target of an `-r` / `--requirement` include directive.
-fn requirement_include_target(line: &str) -> Option<&str> {
-    let rest = line
-        .strip_prefix("--requirement")
-        .or_else(|| line.strip_prefix("-r"))?;
-    let rest = rest.trim_start_matches(['=', ' ', '\t']).trim();
-    (!rest.is_empty() && !rest.starts_with('-')).then_some(rest)
-}
-
-fn parse_requirements_inner(path: &Path, visited: &mut Vec<PathBuf>) -> Vec<DeclaredDependency> {
-    let mut deps = Vec::new();
-
-    // Guard against `-r` include cycles.
-    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    if visited.contains(&canonical) {
-        return deps;
-    }
-    visited.push(canonical);
-
-    let filename = path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    let is_dev = filename.contains("dev") || filename.contains("test");
-
-    let Ok(content) = std::fs::read_to_string(path) else {
-        return deps;
-    };
-
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if line.starts_with('-') {
-            if let Some(target) = requirement_include_target(line) {
-                let base = path.parent().unwrap_or_else(|| Path::new("."));
-                deps.extend(parse_requirements_inner(&base.join(target), visited));
-            }
-            continue;
-        }
-
-        if let Some((pkg, marker)) = extract_pep508_parts(line) {
-            deps.push(DeclaredDependency {
-                package_name: pkg.clone(),
-                normalized_name: normalize_package_name(&pkg),
-                is_dev,
-                is_optional: false,
-                marker,
-                source: DependencySource::Requirements(filename.clone()),
-            });
-        }
-    }
-
-    deps
-}
-
 /// Walks up from `start` to find the directory holding the project's dependency
 /// manifest, so that analyzing a subdirectory (`cytoscnpy deps src/`) still sees
 /// the declarations. Stops at a `.git` boundary and falls back to `start`.
@@ -281,7 +125,22 @@ pub fn locate_and_parse_declarations(
     root: &Path,
     req_file_opt: Option<&String>,
 ) -> Vec<DeclaredDependency> {
-    let mut all_deps = Vec::new();
+    let scan = scan_declarations(root, req_file_opt);
+    for error in &scan.scan_errors {
+        eprintln!(
+            "WARNING: Incomplete dependency declarations at {}: {}",
+            error.file.display(),
+            error.error
+        );
+    }
+    scan.dependencies
+}
+
+/// Reads project declarations, preserving missing or unreadable requirements inputs.
+/// Missing/malformed pyproject.toml retains the established graceful-degradation behavior.
+pub fn scan_declarations(root: &Path, req_file_opt: Option<&String>) -> DeclarationScan {
+    let mut scan = DeclarationScan::default();
+    let all_deps = &mut scan.dependencies;
 
     // First, try pyproject.toml
     let pyproject = root.join("pyproject.toml");
@@ -304,18 +163,22 @@ pub fn locate_and_parse_declarations(
     // Then optionally explicit requirements file, or fallback to auto-discover
     if let Some(req_file) = req_file_opt {
         let req_path = root.join(req_file);
-        if req_path.exists() {
-            all_deps.extend(parse_requirements(&req_path));
-        }
+        let requirements = scan_requirements(&req_path);
+        all_deps.extend(requirements.dependencies);
+        scan.scan_errors.extend(requirements.scan_errors);
     } else {
         // Auto-discover requirements.txt if it exists
         let req_txt = root.join("requirements.txt");
         if req_txt.exists() {
-            all_deps.extend(parse_requirements(&req_txt));
+            let requirements = scan_requirements(&req_txt);
+            all_deps.extend(requirements.dependencies);
+            scan.scan_errors.extend(requirements.scan_errors);
         }
         let dev_req_txt = root.join("requirements-dev.txt");
         if dev_req_txt.exists() {
-            all_deps.extend(parse_requirements(&dev_req_txt));
+            let requirements = scan_requirements(&dev_req_txt);
+            all_deps.extend(requirements.dependencies);
+            scan.scan_errors.extend(requirements.scan_errors);
         }
     }
 
@@ -331,7 +194,7 @@ pub fn locate_and_parse_declarations(
         ))
     });
 
-    all_deps
+    scan
 }
 
 #[cfg(test)]

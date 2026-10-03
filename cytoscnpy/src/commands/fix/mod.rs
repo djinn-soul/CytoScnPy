@@ -2,8 +2,11 @@
 
 mod apply;
 mod apply_plan;
+mod import_plan;
+mod names;
 mod plan;
 mod ranges;
+mod syntax;
 
 #[cfg(test)]
 mod tests;
@@ -32,7 +35,7 @@ pub struct DeadCodeFixOptions {
     pub fix_classes: bool,
     /// Fix imports
     pub fix_imports: bool,
-    /// Fix unused variables (renames to `_`)
+    /// Fix unused variables (renames to an available discard binding)
     pub fix_variables: bool,
     /// Verbose output
     pub verbose: bool,
@@ -65,7 +68,7 @@ pub struct FixPlanItem {
     pub stable_id: String,
     /// Item type being changed (`function`, `method`, `class`, `import`, `variable`)
     pub item_type: String,
-    /// Symbol name
+    /// Symbol name, or comma-separated names for a grouped import edit.
     pub name: String,
     /// Source line
     pub line: usize,
@@ -73,7 +76,7 @@ pub struct FixPlanItem {
     pub start_byte: usize,
     /// End byte offset (exclusive)
     pub end_byte: usize,
-    /// Replacement text, if any (`_` / `pass`)
+    /// Replacement text, if any (a discard binding or `pass`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replacement: Option<String>,
 }

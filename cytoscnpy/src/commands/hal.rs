@@ -1,13 +1,13 @@
 //! Halstead Complexity Metrics analysis command.
 
-use super::utils::{find_python_files_with_options, merge_excludes, write_output};
+use super::metric_source::{discover_files, parse_source, read_source};
+use super::utils::{merge_excludes, write_output};
 use crate::halstead::{analyze_halstead, analyze_halstead_functions};
 
 use anyhow::Result;
 use comfy_table::Table;
 use rayon::prelude::*;
 use serde::Serialize;
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -67,41 +67,21 @@ pub fn run_hal_with_tests<W: Write>(
     mut writer: W,
 ) -> Result<()> {
     let all_exclude = merge_excludes(exclude, ignore);
-    let files = find_python_files_with_options(roots, &all_exclude, &[], include_tests, verbose);
+    let files = discover_files(roots, &all_exclude, include_tests, verbose)?;
 
     let results: Vec<HalResult> = files
         .par_iter()
-        .flat_map(|file_path| {
-            if crate::CANCELLED.load(std::sync::atomic::Ordering::Relaxed) {
-                return Vec::new();
-            }
-            let code = fs::read_to_string(file_path).unwrap_or_default();
+        .map(|file_path| -> Result<Vec<HalResult>> {
+            let code = read_source(file_path)?;
+            let module = parse_source(&code, file_path)?;
             let mut file_results = Vec::new();
-
-            if let Ok(parsed) = ruff_python_parser::parse_module(&code) {
-                let module = parsed.into_syntax();
-                let mod_enum = ruff_python_ast::Mod::Module(module);
-                if functions {
-                    let function_metrics = analyze_halstead_functions(&mod_enum);
-                    for (name, metrics) in function_metrics {
-                        file_results.push(HalResult {
-                            file: file_path.to_string_lossy().to_string(),
-                            name,
-                            h1: metrics.h1,
-                            h2: metrics.h2,
-                            n1: metrics.n1,
-                            n2: metrics.n2,
-                            vocabulary: metrics.vocabulary,
-                            volume: metrics.volume,
-                            difficulty: metrics.difficulty,
-                            effort: metrics.effort,
-                        });
-                    }
-                } else {
-                    let metrics = analyze_halstead(&mod_enum);
+            let mod_enum = ruff_python_ast::Mod::Module(module);
+            if functions {
+                let function_metrics = analyze_halstead_functions(&mod_enum);
+                for (name, metrics) in function_metrics {
                     file_results.push(HalResult {
                         file: file_path.to_string_lossy().to_string(),
-                        name: "<module>".to_owned(),
+                        name,
                         h1: metrics.h1,
                         h2: metrics.h2,
                         n1: metrics.n1,
@@ -112,9 +92,26 @@ pub fn run_hal_with_tests<W: Write>(
                         effort: metrics.effort,
                     });
                 }
+            } else {
+                let metrics = analyze_halstead(&mod_enum);
+                file_results.push(HalResult {
+                    file: file_path.to_string_lossy().to_string(),
+                    name: "<module>".to_owned(),
+                    h1: metrics.h1,
+                    h2: metrics.h2,
+                    n1: metrics.n1,
+                    n2: metrics.n2,
+                    vocabulary: metrics.vocabulary,
+                    volume: metrics.volume,
+                    difficulty: metrics.difficulty,
+                    effort: metrics.effort,
+                });
             }
-            file_results
+            Ok(file_results)
         })
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
         .collect();
 
     if json {

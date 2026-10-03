@@ -118,6 +118,12 @@ The VS Code extension automatically registers the MCP server. Just install the e
 
 ### Example Tool Calls
 
+`analyze_code`, `analyze_path`, and `quick_scan` include `scan_complete` and
+`parse_errors`. `quick_scan` also includes a `summary.scan_errors` count.
+When a source cannot be read or parsed, the MCP result sets `isError` to `true` and
+retains findings from files that were scanned successfully. Resolve the reported
+errors and scan again before relying on a clean security result.
+
 **Quick security scan:**
 
 ```json

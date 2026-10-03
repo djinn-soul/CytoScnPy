@@ -27,31 +27,39 @@ pub fn analyze_complexity(
     _path: &std::path::Path,
     no_assert: bool,
 ) -> Vec<ComplexityFinding> {
-    let mut findings = Vec::new();
-    if let Ok(parsed) = ruff_python_parser::parse_module(code) {
-        let module = parsed.into_syntax();
-        let line_index = LineIndex::new(code);
+    ruff_python_parser::parse_module(code).map_or_else(
+        |_| Vec::new(),
+        |parsed| analyze_complexity_ast(parsed.syntax(), code, no_assert),
+    )
+}
 
-        let mut visitor = ComplexityVisitor::new(&line_index, no_assert);
-        let module_complexity = calculate_complexity(&module.body, no_assert);
-        if module_complexity > 1 {
-            let line = module
-                .body
-                .first()
-                .map_or(1, |stmt| line_index.line_index(stmt.start()));
-            visitor.findings.push(ComplexityFinding {
-                name: "<module>".to_owned(),
-                complexity: module_complexity,
-                rank: cc_rank(module_complexity),
-                type_: "module".to_owned(),
-                line,
-            });
-        }
+/// Analyze complexity from an already parsed module.
+#[must_use]
+pub fn analyze_complexity_ast(
+    module: &ruff_python_ast::ModModule,
+    code: &str,
+    no_assert: bool,
+) -> Vec<ComplexityFinding> {
+    let line_index = LineIndex::new(code);
 
-        visitor.visit_body(&module.body);
-        findings = visitor.findings;
+    let mut visitor = ComplexityVisitor::new(&line_index, no_assert);
+    let module_complexity = calculate_complexity(&module.body, no_assert);
+    if module_complexity > 1 {
+        let line = module
+            .body
+            .first()
+            .map_or(1, |stmt| line_index.line_index(stmt.start()));
+        visitor.findings.push(ComplexityFinding {
+            name: "<module>".to_owned(),
+            complexity: module_complexity,
+            rank: cc_rank(module_complexity),
+            type_: "module".to_owned(),
+            line,
+        });
     }
-    findings
+
+    visitor.visit_body(&module.body);
+    visitor.findings
 }
 
 /// Calculates the total cyclomatic complexity of a module.

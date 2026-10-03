@@ -9,6 +9,7 @@ mod deps;
 mod fix;
 mod hal;
 mod init;
+mod metric_source;
 mod mi;
 mod raw;
 mod stats;

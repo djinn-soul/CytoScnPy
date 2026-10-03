@@ -1,4 +1,6 @@
-use super::ranges::{find_def_range, find_import_edit, find_method_edit, ImportEdit};
+use super::import_plan::plan_import_edits;
+use super::names::DiscardNames;
+use super::ranges::{find_def_range, find_method_edit};
 use crate::fix::Edit;
 
 use anyhow::Result;
@@ -10,6 +12,7 @@ pub(super) struct PlannedEdit {
     pub(super) end_byte: usize,
     pub(super) replacement: Option<String>,
     pub(super) name: String,
+    pub(super) removed_names: Vec<String>,
     pub(super) item_type: &'static str,
     pub(super) line: usize,
 }
@@ -21,9 +24,10 @@ pub(super) fn plan_edits(
     content: &str,
     cst_mapper: Option<&crate::cst::AstCstMapper>,
 ) -> Vec<PlannedEdit> {
-    let mut planned = Vec::new();
-    for (item_type, def) in items {
-        if let Some(edit) = plan_item_edit(item_type, def, module, content, cst_mapper) {
+    let mut planned = plan_import_edits(items, module, content);
+    let mut names = DiscardNames::new(module);
+    for (item_type, def) in items.iter().filter(|(kind, _)| *kind != "import") {
+        if let Some(edit) = plan_item_edit(item_type, def, module, cst_mapper, &mut names) {
             planned.push(edit);
         }
     }
@@ -36,9 +40,10 @@ pub(super) fn plan_edits(
     module: &ruff_python_ast::ModModule,
     content: &str,
 ) -> Vec<PlannedEdit> {
-    let mut planned = Vec::new();
-    for (item_type, def) in items {
-        if let Some(edit) = plan_item_edit(item_type, def, module, content) {
+    let mut planned = plan_import_edits(items, module, content);
+    let mut names = DiscardNames::new(module);
+    for (item_type, def) in items.iter().filter(|(kind, _)| *kind != "import") {
+        if let Some(edit) = plan_item_edit(item_type, def, module, &mut names) {
             planned.push(edit);
         }
     }
@@ -50,8 +55,8 @@ fn plan_item_edit(
     item_type: &'static str,
     def: &crate::visitor::Definition,
     module: &ruff_python_ast::ModModule,
-    content: &str,
     cst_mapper: Option<&crate::cst::AstCstMapper>,
+    names: &mut DiscardNames,
 ) -> Option<PlannedEdit> {
     let mut edit_range = None;
     let mut replacement: Option<String> = None;
@@ -59,7 +64,7 @@ fn plan_item_edit(
     if item_type == "variable" {
         if def.end_byte > def.start_byte {
             edit_range = Some((def.start_byte, def.end_byte));
-            replacement = Some("_".to_owned());
+            replacement = Some(names.allocate());
         }
     } else if item_type == "method" {
         let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte));
@@ -67,14 +72,6 @@ fn plan_item_edit(
             edit_range = Some((edit.start, edit.end));
             if edit.class_would_be_empty {
                 replacement = Some("pass".to_owned());
-            }
-        }
-    } else if item_type == "import" {
-        if let Some(edit) = find_import_edit(&module.body, &def.simple_name, content) {
-            match edit {
-                ImportEdit::DeleteStmt(start, end) | ImportEdit::DeleteAlias(start, end) => {
-                    edit_range = Some((start, end));
-                }
             }
         }
     } else {
@@ -102,6 +99,7 @@ fn plan_item_edit(
         end_byte: end,
         replacement,
         name: def.simple_name.clone(),
+        removed_names: vec![def.simple_name.clone()],
         item_type,
         line: def.line,
     })
@@ -112,7 +110,7 @@ fn plan_item_edit(
     item_type: &'static str,
     def: &crate::visitor::Definition,
     module: &ruff_python_ast::ModModule,
-    content: &str,
+    names: &mut DiscardNames,
 ) -> Option<PlannedEdit> {
     let mut edit_range = None;
     let mut replacement: Option<String> = None;
@@ -120,7 +118,7 @@ fn plan_item_edit(
     if item_type == "variable" {
         if def.end_byte > def.start_byte {
             edit_range = Some((def.start_byte, def.end_byte));
-            replacement = Some("_".to_owned());
+            replacement = Some(names.allocate());
         }
     } else if item_type == "method" {
         let edit = find_method_edit(&module.body, &def.simple_name, Some(def.start_byte));
@@ -128,14 +126,6 @@ fn plan_item_edit(
             edit_range = Some((edit.start, edit.end));
             if edit.class_would_be_empty {
                 replacement = Some("pass".to_owned());
-            }
-        }
-    } else if item_type == "import" {
-        if let Some(edit) = find_import_edit(&module.body, &def.simple_name, content) {
-            match edit {
-                ImportEdit::DeleteStmt(start, end) | ImportEdit::DeleteAlias(start, end) => {
-                    edit_range = Some((start, end));
-                }
             }
         }
     } else {
@@ -153,6 +143,7 @@ fn plan_item_edit(
         end_byte: end,
         replacement,
         name: def.simple_name.clone(),
+        removed_names: vec![def.simple_name.clone()],
         item_type,
         line: def.line,
     })
@@ -199,8 +190,36 @@ pub(super) fn build_edits(planned: Vec<PlannedEdit>) -> (Vec<Edit>, Vec<String>)
         } else {
             edits.push(Edit::delete(item.start_byte, item.end_byte));
         }
-        removed_names.push(item.name);
+        removed_names.extend(item.removed_names);
     }
 
     (edits, removed_names)
+}
+
+/// Normalize edits before previewing or applying them, retaining covered definitions.
+pub(super) fn normalize_planned_edits(mut planned: Vec<PlannedEdit>) -> Result<Vec<PlannedEdit>> {
+    planned.sort_by_key(|item| (item.start_byte, std::cmp::Reverse(item.end_byte)));
+    let mut normalized: Vec<PlannedEdit> = Vec::new();
+    for item in planned {
+        if let Some(previous) = normalized.last_mut() {
+            if item.start_byte < previous.end_byte {
+                if item.end_byte <= previous.end_byte && previous.replacement.is_none() {
+                    // Deleting an enclosing definition also deletes definitions within it.
+                    previous.removed_names.extend(item.removed_names);
+                    continue;
+                }
+                anyhow::bail!(
+                    "Conflicting fixes for '{}' and '{}' at byte ranges {}..{} and {}..{}",
+                    previous.name,
+                    item.name,
+                    previous.start_byte,
+                    previous.end_byte,
+                    item.start_byte,
+                    item.end_byte
+                );
+            }
+        }
+        normalized.push(item);
+    }
+    Ok(normalized)
 }

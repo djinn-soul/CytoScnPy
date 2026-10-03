@@ -1,7 +1,7 @@
 use super::model::FileMetrics;
-use crate::commands::utils::find_python_files_with_options;
+use crate::commands::metric_source::{discover_files, read_source};
 use crate::raw_metrics::analyze_raw;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use comfy_table::Table;
 use rayon::prelude::*;
 use std::{
@@ -35,24 +35,25 @@ pub fn run_files_with_tests<W: Write>(
     verbose: bool,
     mut writer: W,
 ) -> Result<()> {
-    let files = find_python_files_with_options(roots, exclude, &[], include_tests, verbose);
+    let files = discover_files(roots, exclude, include_tests, verbose)?;
     let file_metrics: Vec<FileMetrics> = files
         .par_iter()
-        .filter(|p| p.is_file())
         .map(|file_path| {
-            let code = fs::read_to_string(file_path).unwrap_or_default();
+            let code = read_source(file_path)?;
             let metrics = analyze_raw(&code);
-            let size_bytes = fs::metadata(file_path).map_or(0, |m| m.len());
-            FileMetrics {
+            let size_bytes = fs::metadata(file_path)
+                .with_context(|| format!("Failed to inspect {}", file_path.display()))?
+                .len();
+            Ok(FileMetrics {
                 file: file_path.to_string_lossy().to_string(),
                 code_lines: metrics.sloc,
                 comment_lines: metrics.comments,
                 empty_lines: metrics.blank,
                 total_lines: metrics.loc,
                 size_kb: size_bytes as f64 / 1024.0,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     if json {
         writeln!(writer, "{}", serde_json::to_string_pretty(&file_metrics)?)?;

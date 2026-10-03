@@ -50,18 +50,25 @@ cytoscnpy [OPTIONS] [COMMAND]
   - `--fix` targets: functions, methods, classes, imports, and unused variables.
   - `--fix` always enforces a minimum confidence floor of **80%** for safety, even if `--confidence` is set lower.
   - In dry-run mode with `--json`, CytoScnPy emits a deterministic JSON fix plan (`kind: "dead_code_fix_plan"`) suitable for editor/CI consumption.
-  - When removing the only method in a class, CytoScnPy inserts `pass` to keep valid Python syntax.
+  - Nested definitions are located by their exact source position.
+  - Removing every statement from a required block inserts `pass`; semicolon-separated statements remain valid.
+  - Unused variables receive an available discard name (`_`, `_unused`, or a numbered variant) without overwriting existing bindings or references.
+  - Both previews and applied edits are validated as Python. Unreadable sources, missing definitions, conflicting edits, and invalid generated code fail with the file path and error context.
 - `--make-whitelist`: Generates a Python whitelist from currently detected unused symbols.
 - `--whitelist <PATH>`: Loads one or more whitelist files to suppress matching dead-code findings.
 
 ### CI/CD Failure Gates
+
+The main analysis exits with code `1` when parsing or reading errors leave a scan
+incomplete, including when no failure flags are supplied. JSON reports retain
+the `parse_errors` list and any findings from files that were scanned.
 
 These flags allow you to set strict gates for CI/CD. If any enabled gate fails, CytoScnPy exits with code `1`. Failure gates that depend on optional scans enable those scans automatically.
 
 - `--fail-on-any`: Convenience gate for CI. Implies quality, secrets, danger/taint, missing dependency, and unused dependency failure gates. For unused code, it defaults to `--fail-threshold 0.0` unless an explicit threshold is supplied.
 - `--fail-threshold <N>`: Exit with 1 if the total percentage of unused code exceeds `N`.
 - `--max-complexity <N>`: Sets the maximum allowed Cyclomatic Complexity (standard is often `10`).
-- `--min-mi <N>`: Sets the minimum allowed Maintainability Index (usually `40-65`).
+- `--min-mi <N>`: Sets the minimum allowed Maintainability Index (usually `40-65`). A measured score of zero fails any positive threshold; an empty file inventory has no measured score.
 - `--max-nesting <N>`: Sets the maximum allowed indentation/nesting level (e.g., `3` or `4`).
 - `--max-args <N>`: Sets the maximum number of arguments a function can have.
 - `--max-lines <N>`: Sets the maximum number of lines a function can have.
@@ -72,6 +79,10 @@ These flags allow you to set strict gates for CI/CD. If any enabled gate fails, 
 - `--fail-on-unused-deps`: Exit with 1 if unused dependencies are found; implies `--deps`.
 
 ## Subcommands
+
+Metric commands report file discovery and source read failures rather than
+returning empty or perfect metrics. `cc`, `mi`, and `hal` also fail on invalid
+Python syntax. `raw` counts source text and accepts syntactically invalid Python.
 
 ### `raw`
 
@@ -144,7 +155,10 @@ cytoscnpy mi [OPTIONS] <PATH>
 
 ### `stats`
 
-Generate comprehensive project statistics report.
+Generate comprehensive project statistics report. Discovery, read, and syntax
+errors fail the command instead of producing empty statistics. The `files`
+command also reports discovery and read errors; its line counts do not require
+valid Python syntax.
 
 ```bash
 cytoscnpy stats [OPTIONS] <PATH>

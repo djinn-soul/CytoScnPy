@@ -48,7 +48,7 @@ pub fn run_stats_v2<W: Write>(
         None
     };
 
-    let stats = collect_project_stats(roots, exclude, include_folders, include_tests, verbose);
+    let stats = collect_project_stats(roots, exclude, include_folders, include_tests, verbose)?;
     let (analysis_result, report) = perform_stats_analysis(
         &stats,
         roots,

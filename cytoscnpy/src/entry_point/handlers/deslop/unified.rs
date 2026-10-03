@@ -182,7 +182,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         failures.push(GateFailure {
             check: "scan_integrity",
             actual: inventory.integrity.issues.len().to_string(),
-            limit: "0 skipped or unparseable files".to_owned(),
+            limit: "0 skipped or unparsable files".to_owned(),
         });
     }
     let exit_code = i32::from(!failures.is_empty());

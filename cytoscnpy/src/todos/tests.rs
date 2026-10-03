@@ -197,7 +197,7 @@ fn affected_files_counted_across_multiple_files() {
 fn reports_files_that_cannot_be_read() {
     let dir = tempfile::TempDir::new().unwrap();
     let missing = dir.path().join("missing.py");
-    let result = scan_files(&[missing.clone()]);
+    let result = scan_files(std::slice::from_ref(&missing));
     assert_eq!(result.scan_errors.len(), 1);
     assert_eq!(result.scan_errors[0].file, missing);
     assert!(!result.scan_errors[0].error.is_empty());

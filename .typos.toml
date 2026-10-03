@@ -17,6 +17,10 @@ extend-exclude = [
 # Known acceptable words that should not be flagged
 extend-ignore-identifiers-re = []
 
+[default.extend-identifiers]
+# Public statistic counts Python `with` statements; keep its API spelling.
+python_withs = "python_withs"
+
 [default.extend-words]
 # Add any false positives here
 # Example: "Nd" = "Nd"

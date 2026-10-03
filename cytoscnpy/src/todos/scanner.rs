@@ -256,7 +256,7 @@ pub fn scan_file_content(path: &Path, content: &str, skip_ctx: bool, out: &mut V
 
 /// Scans a set of source files in parallel and returns an aggregated `TodosResult`.
 pub fn scan_files(paths: &[PathBuf]) -> TodosResult {
-    let (mut all_matches, mut scan_errors): (Vec<TodoMatch>, Vec<ScanError>) = paths
+    let (matches, errors): (Vec<Vec<TodoMatch>>, Vec<Option<ScanError>>) = paths
         .par_iter()
         .map(|path| match std::fs::read_to_string(path) {
             Ok(content) => {
@@ -272,23 +272,9 @@ pub fn scan_files(paths: &[PathBuf]) -> TodosResult {
                 }),
             ),
         })
-        .fold(
-            || (Vec::new(), Vec::new()),
-            |(mut matches, mut errors), (file_matches, error)| {
-                matches.extend(file_matches);
-                errors.extend(error);
-                (matches, errors)
-            },
-        )
-        .reduce(
-            || (Vec::new(), Vec::new()),
-            |(mut matches_a, mut errors_a), (matches_b, errors_b)| {
-                matches_a.extend(matches_b);
-                errors_a.extend(errors_b);
-                (matches_a, errors_a)
-            },
-        );
-
+        .unzip();
+    let mut all_matches: Vec<_> = matches.into_iter().flatten().collect();
+    let mut scan_errors: Vec<_> = errors.into_iter().flatten().collect();
     all_matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
     scan_errors.sort_by(|a, b| a.file.cmp(&b.file));
 

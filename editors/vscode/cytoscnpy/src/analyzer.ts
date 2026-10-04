@@ -113,18 +113,22 @@ export async function runCytoScnPyAnalysis(
   config: CytoScnPyConfig,
 ): Promise<CytoScnPyAnalysisResult> {
   const args = buildAnalyzerArgs(filePath, config);
-  const { stdout, stderr, code } = await runAnalyzerStreaming(config.path, args);
-  if (stderr) {
-    console.warn(
-      `CytoScnPy analysis for ${filePath} produced stderr: ${stderr}`,
-    );
-  }
+  let stderr = "";
+  let code: number | null = null;
   try {
-    const rawResult: RawCytoScnPyResult = JSON.parse(stdout.trim());
+    const output = await runAnalyzerStreaming(config.path, args);
+    stderr = output.stderr;
+    code = output.code;
+    if (stderr) {
+      console.warn(`CytoScnPy analysis for ${filePath} produced stderr: ${stderr}`);
+    }
+    const rawResult: RawCytoScnPyResult = JSON.parse(output.stdout.trim());
     return transformRawResult(rawResult, dependencyAnchorPath(filePath));
-  } catch (parseError: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `CytoScnPy analysis failed for ${filePath} (exit ${code}): ${parseError.message}. Stderr: ${stderr}`,
+      `CytoScnPy analysis failed for ${filePath} (exit ${code}): ${message}. Stderr: ${stderr}`,
+      { cause: error },
     );
   }
 }
@@ -152,43 +156,42 @@ export async function runWorkspaceAnalysis(
 
   // Streaming pipe — large workspaces routinely exceeded the prior 50MB
   // `execFile` cap once secrets/danger output was enabled.
-  const { stdout, stderr, code } = await runAnalyzerStreaming(config.path, args);
-
-  if (code !== 0 && !stdout.trim()) {
-    console.error(`CytoScnPy workspace analysis failed (exit ${code})`);
-    if (stderr) {
-      console.error(`Stderr: ${stderr}`);
-    }
-    throw new Error(`Workspace analysis failed (exit ${code})`);
-  }
-
-  let rawResult: RawCytoScnPyResult;
+  let stderr = "";
+  let code: number | null = null;
   try {
-    rawResult = JSON.parse(stdout.trim());
-  } catch (parseError: any) {
+    const output = await runAnalyzerStreaming(config.path, args);
+    stderr = output.stderr;
+    code = output.code;
+    if (code !== 0 && !output.stdout.trim()) {
+      throw new Error(`Workspace analysis failed (exit ${code})`);
+    }
+    const rawResult: RawCytoScnPyResult = JSON.parse(output.stdout.trim());
+    const result = transformRawResult(rawResult, dependencyAnchorPath(workspacePath));
+
+    const findingsByFile = new Map<string, CytoScnPyFinding[]>();
+    for (const finding of result.findings) {
+      const filePath = normalizeAbsolutePath(finding.file_path, workspacePath);
+      if (!findingsByFile.has(filePath)) {
+        findingsByFile.set(filePath, []);
+      }
+      findingsByFile.get(filePath)!.push(finding);
+    }
+
+    const parseErrorsByFile = new Map<string, ParseError[]>();
+    for (const parseError of result.parseErrors) {
+      const filePath = normalizeAbsolutePath(parseError.file, workspacePath);
+      if (!parseErrorsByFile.has(filePath)) {
+        parseErrorsByFile.set(filePath, []);
+      }
+      parseErrorsByFile.get(filePath)!.push(parseError);
+    }
+
+    return { findingsByFile, parseErrorsByFile };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Failed to parse workspace analysis output: ${parseError.message}`,
+      `CytoScnPy workspace analysis failed for ${workspacePath} (exit ${code}): ${message}. Stderr: ${stderr}`,
+      { cause: error },
     );
   }
-  const result = transformRawResult(rawResult, dependencyAnchorPath(workspacePath));
-
-  const findingsByFile = new Map<string, CytoScnPyFinding[]>();
-  for (const finding of result.findings) {
-    const filePath = normalizeAbsolutePath(finding.file_path, workspacePath);
-    if (!findingsByFile.has(filePath)) {
-      findingsByFile.set(filePath, []);
-    }
-    findingsByFile.get(filePath)!.push(finding);
-  }
-
-  const parseErrorsByFile = new Map<string, ParseError[]>();
-  for (const parseError of result.parseErrors) {
-    const filePath = normalizeAbsolutePath(parseError.file, workspacePath);
-    if (!parseErrorsByFile.has(filePath)) {
-      parseErrorsByFile.set(filePath, []);
-    }
-    parseErrorsByFile.get(filePath)!.push(parseError);
-  }
-
-  return { findingsByFile, parseErrorsByFile };
 }

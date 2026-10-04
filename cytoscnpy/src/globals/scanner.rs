@@ -130,9 +130,25 @@ pub fn collect_files(roots: &[PathBuf], excludes: &[String]) -> Vec<PathBuf> {
 /// Scans the given files in parallel for mutable global state.
 #[must_use]
 pub fn scan_files(files: &[PathBuf], target_root: &Path) -> GlobalsResult {
+    scan_files_with_sources(files, target_root, None)
+}
+
+pub(crate) fn scan_files_with_sources(
+    files: &[PathBuf],
+    target_root: &Path,
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> GlobalsResult {
     let matches: Vec<GlobalMatch> = files
         .par_iter()
         .filter_map(|path| {
+            if sources.is_some() {
+                let source = crate::utils::sources::load_source(path, sources).ok()?;
+                return Some(super::python::detect_python_globals_ast(
+                    &source.content,
+                    path,
+                    &source.module.body,
+                ));
+            }
             let file_type = classify_file_type(path)?;
             let content = fs::read_to_string(path).ok()?;
             let file_matches = match file_type {

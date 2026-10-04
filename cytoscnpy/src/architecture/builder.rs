@@ -11,7 +11,15 @@ use std::path::PathBuf;
 
 /// Builds the complete module architecture graph from Python files.
 pub fn build_architecture_graph(files: &[PathBuf], roots: &[PathBuf]) -> ArchitectureGraphResult {
-    let resolver = ModuleResolver::build(files, roots);
+    build_architecture_with_sources(files, roots, None)
+}
+
+pub(crate) fn build_architecture_with_sources(
+    files: &[PathBuf],
+    roots: &[PathBuf],
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> ArchitectureGraphResult {
+    let resolver = ModuleResolver::build_with_sources(files, roots, sources);
     let total_modules = resolver.nodes.len();
 
     if total_modules == 0 {
@@ -29,7 +37,21 @@ pub fn build_architecture_graph(files: &[PathBuf], roots: &[PathBuf]) -> Archite
     let raw_imports_per_file: Vec<Vec<super::collector::RawImport>> = resolver
         .nodes
         .par_iter()
-        .map(|node| collect_raw_imports(&node.file_path))
+        .map(|node| {
+            if let Some(sources) = sources {
+                sources
+                    .get(&node.file_path)
+                    .and_then(|source| source.as_ref().ok())
+                    .map_or_else(Vec::new, |source| {
+                        super::collector::collect_raw_imports_ast(
+                            &source.content,
+                            &source.module.body,
+                        )
+                    })
+            } else {
+                collect_raw_imports(&node.file_path)
+            }
+        })
         .collect();
 
     // Step 2: Resolve edges into internal project dependencies vs external packages

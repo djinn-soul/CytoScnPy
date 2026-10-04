@@ -150,9 +150,10 @@ export function transformRawResult(
   // Process taint findings separately because they have a different structure
   if (rawResult.taint_findings) {
     for (const f of rawResult.taint_findings) {
+      const flowPath = f.flow_path ?? [];
       const flowStr =
-        f.flow_path.length > 0
-          ? `${f.source} -> ${f.flow_path.join(" -> ")} -> ${f.sink}`
+        flowPath.length > 0
+          ? `${f.source} -> ${flowPath.join(" -> ")} -> ${f.sink}`
           : `${f.source} -> ${f.sink}`;
 
       const message = `${f.vuln_type}: Tainted data from ${f.source} (line ${f.source_line}) reaches sink ${f.sink}.\n\nFlow: ${flowStr}\n\nRemediation: ${f.remediation}`;

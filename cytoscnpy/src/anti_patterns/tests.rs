@@ -125,7 +125,7 @@ fn test_deeply_nested_callback_def() {
         .filter(|m| m.kind == AntiPatternKind::DeeplyNestedCallback)
         .collect::<Vec<_>>();
     assert!(!nested.is_empty());
-    assert_eq!(nested[0].line, 5);
+    assert_eq!(nested[0].line, 3);
 }
 
 #[test]
@@ -143,8 +143,7 @@ fn test_deeply_nested_control_structure() {
         .iter()
         .filter(|m| m.kind == AntiPatternKind::DeeplyNestedCallback)
         .collect::<Vec<_>>();
-    assert!(!nested.is_empty());
-    assert_eq!(nested[0].line, 5);
+    assert!(nested.is_empty());
 }
 
 #[test]
@@ -154,7 +153,7 @@ fn test_deeply_nested_callback_then() {
         "    if ready:\n",
         "        for task in tasks:\n",
         "            while waiting:\n",
-        "                .then(lambda res: res)\n",
+        "                task.then(lambda res: res)\n",
     );
     let matches = detect_anti_patterns(source, Path::new("test.py"));
     let nested = matches
@@ -193,7 +192,6 @@ def is_positive(x):
 fn test_combined_patterns() {
     let source = "def combined():\n    if x > 300:\n        for i in range(5):\n            while True:\n                if flag:\n                    return i\n";
     let matches = detect_anti_patterns(source, Path::new("test.py"));
-    assert_eq!(matches.len(), 2);
+    assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].kind, AntiPatternKind::MagicNumber);
-    assert_eq!(matches[1].kind, AntiPatternKind::DeeplyNestedCallback);
 }

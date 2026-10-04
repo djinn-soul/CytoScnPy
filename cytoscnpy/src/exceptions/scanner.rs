@@ -128,9 +128,17 @@ pub fn detect_python_exceptions(source: &str, file: &Path) -> Vec<ExceptionMatch
     let Ok(parsed) = parse_module(source) else {
         return Vec::new();
     };
+    detect_python_exceptions_ast(source, file, parsed.suite())
+}
+
+pub(crate) fn detect_python_exceptions_ast(
+    source: &str,
+    file: &Path,
+    body: &[Stmt],
+) -> Vec<ExceptionMatch> {
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
-    visit_stmts(parsed.suite(), source, file, &line_index, &mut out);
+    visit_stmts(body, source, file, &line_index, &mut out);
     out
 }
 
@@ -154,6 +162,13 @@ fn aggregate(mut all: Vec<ExceptionMatch>) -> ExceptionsResult {
 /// Scans a set of Python source files in parallel for exception anti-patterns.
 #[must_use]
 pub fn scan_files(paths: &[PathBuf]) -> ExceptionsResult {
+    scan_files_with_sources(paths, None)
+}
+
+pub(crate) fn scan_files_with_sources(
+    paths: &[PathBuf],
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> ExceptionsResult {
     use rayon::prelude::*;
 
     let all: Vec<ExceptionMatch> = paths
@@ -164,8 +179,8 @@ pub fn scan_files(paths: &[PathBuf]) -> ExceptionsResult {
                 .is_some_and(|e| e == "py" || e == "pyi")
         })
         .filter_map(|path| {
-            let content = std::fs::read_to_string(path).ok()?;
-            let matches = detect_python_exceptions(&content, path);
+            let source = crate::utils::sources::load_source(path, sources).ok()?;
+            let matches = detect_python_exceptions_ast(&source.content, path, &source.module.body);
             Some(matches)
         })
         .flatten()

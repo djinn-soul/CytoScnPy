@@ -24,3 +24,5 @@ pub(crate) fn extract_subtrees_with_min_lines(
 ) -> Result<Vec<Subtree>, crate::clones::CloneError> {
     extract::extract_subtrees_with_min_lines(source, path, min_lines)
 }
+
+pub(crate) use extract::extract_subtrees_ast;

@@ -17,10 +17,18 @@ pub fn detect_python_singletons(source: &str, file: &Path) -> Vec<SingletonMatch
         return Vec::new();
     };
 
+    detect_python_singletons_ast(source, file, parsed.suite())
+}
+
+pub(crate) fn detect_python_singletons_ast(
+    source: &str,
+    file: &Path,
+    body: &[Stmt],
+) -> Vec<SingletonMatch> {
     let line_index = LineIndex::new(source);
     let mut matches = Vec::new();
 
-    visit_statements(parsed.suite(), source, file, &line_index, &mut matches);
+    visit_statements(body, source, file, &line_index, &mut matches);
 
     matches
 }
@@ -244,13 +252,10 @@ fn statement_contains_instance_ref(stmt: &Stmt) -> bool {
 
 fn is_instance_or_attr(expr: &Expr) -> bool {
     match expr {
-        Expr::Name(n) => {
-            let id = n.id.as_str();
-            id == "_instance" || id == "__instance" || id == "instance"
-        }
         Expr::Attribute(a) => {
             let attr = a.attr.as_str();
-            attr == "_instance" || attr == "__instance" || attr == "instance"
+            matches!(a.value.as_ref(), Expr::Name(name) if name.id.as_str() == "cls" || name.id.as_str() == "klass")
+                && matches!(attr, "_instance" | "__instance" | "instance")
         }
         Expr::Compare(comp) => {
             is_instance_or_attr(&comp.left) || comp.comparators.iter().any(is_instance_or_attr)

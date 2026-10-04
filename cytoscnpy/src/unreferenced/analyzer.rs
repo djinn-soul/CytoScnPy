@@ -1,12 +1,11 @@
 //! Analyzer for unreferenced large functions in isolated files.
 
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::path::PathBuf;
 
 use rayon::prelude::*;
 
-use super::extractor::{try_extract_python_file, ExtractedFile};
+use super::extractor::{extract_python_ast, ExtractedFile};
 use super::heuristics::{contains_as_word, should_skip_function, UnreferencedOptions};
 use super::types::{
     IsolatedFileSummary, UnreferencedFunction, UnreferencedResult, UnreferencedStats,
@@ -33,6 +32,14 @@ pub fn analyze_unreferenced_files(
     files: &[PathBuf],
     options: &UnreferencedOptions,
 ) -> UnreferencedResult {
+    analyze_unreferenced_with_sources(files, options, None)
+}
+
+pub(crate) fn analyze_unreferenced_with_sources(
+    files: &[PathBuf],
+    options: &UnreferencedOptions,
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> UnreferencedResult {
     let candidate_files: Vec<PathBuf> = files
         .iter()
         .filter(|p| {
@@ -40,7 +47,7 @@ pub fn analyze_unreferenced_files(
                 .and_then(|e| e.to_str())
                 .is_some_and(|e| e == "py" || e == "pyi")
                 && (options.include_tests || !crate::utils::is_test_path(&p.to_string_lossy()))
-                && !crate::utils::is_likely_minified(p, None)
+                && !crate::utils::sources::is_minified(p, sources)
         })
         .cloned()
         .collect();
@@ -48,10 +55,8 @@ pub fn analyze_unreferenced_files(
     let scanned: Vec<Result<(PathBuf, ExtractedFile), String>> = candidate_files
         .par_iter()
         .map(|path| {
-            let content = fs::read_to_string(path)
-                .map_err(|error| format!("{}: read error: {error}", path.display()))?;
-            let extracted = try_extract_python_file(&content)
-                .map_err(|error| format!("{}: Python parse error: {error}", path.display()))?;
+            let source = crate::utils::sources::load_source(path, sources)?;
+            let extracted = extract_python_ast(&source.content, &source.module.body);
             Ok((path.clone(), extracted))
         })
         .collect();
@@ -96,7 +101,9 @@ pub fn analyze_unreferenced_files(
             // Check if function name appears anywhere else in other files
             let is_referenced = valid_files.iter().any(|other_path| {
                 if other_path == path {
-                    return false;
+                    return extracted.references.iter().any(|(name, line)| {
+                        name == &func.name && (*line < func.start_line || *line > func.end_line)
+                    });
                 }
                 let Some(other_file) = extracted_files.get(other_path) else {
                     return false;
@@ -173,7 +180,10 @@ fn find_connected_files(
         .par_iter()
         .filter_map(|(target_path, stem)| {
             // Special case: package __init__.py files are entry points, always connected
-            if stem == "__init__" {
+            if matches!(
+                stem.as_str(),
+                "__init__" | "__main__" | "main" | "cli" | "app" | "manage" | "setup"
+            ) {
                 return Some((*target_path).clone());
             }
 

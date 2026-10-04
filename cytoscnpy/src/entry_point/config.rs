@@ -38,6 +38,27 @@ pub(crate) fn setup_configuration(
         config.cytoscnpy.fail_threshold = Some(value);
     }
 
+    if config.cytoscnpy.fail_threshold.is_none() {
+        if let Some(value) = std::env::var_os("CYTOSCNPY_FAIL_THRESHOLD") {
+            let value = value
+                .into_string()
+                .map_err(|_| anyhow::anyhow!("CYTOSCNPY_FAIL_THRESHOLD must be a number"))?;
+            config.cytoscnpy.fail_threshold =
+                Some(value.parse::<f64>().map_err(|error| {
+                    anyhow::anyhow!("Invalid CYTOSCNPY_FAIL_THRESHOLD: {error}")
+                })?);
+        }
+    }
+    if let Some(value) = config.cytoscnpy.fail_threshold {
+        anyhow::ensure!(
+            value.is_finite() && (0.0..=100.0).contains(&value),
+            "fail_threshold must be a finite number between 0 and 100"
+        );
+    }
+
+    let confidence = cli.confidence.or(config.cytoscnpy.confidence).unwrap_or(60);
+    anyhow::ensure!(confidence <= 100, "confidence must be between 0 and 100");
+
     let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
     exclude_folders.extend(cli.exclude_folders.clone());
 

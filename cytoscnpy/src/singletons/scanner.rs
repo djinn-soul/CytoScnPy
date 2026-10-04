@@ -2,10 +2,9 @@
 
 use rayon::prelude::*;
 use std::collections::HashSet;
-use std::fs;
 use std::path::PathBuf;
 
-use super::python::detect_python_singletons;
+use super::python::detect_python_singletons_ast;
 use super::types::{SingletonMatch, SingletonStats, SingletonsResult};
 
 /// Aggregates detected singleton matches into a [`SingletonsResult`].
@@ -31,6 +30,13 @@ fn aggregate(mut matches: Vec<SingletonMatch>, files_scanned: usize) -> Singleto
 /// Scans Python source files in parallel for singleton patterns.
 #[must_use]
 pub fn scan_files(files: &[PathBuf]) -> SingletonsResult {
+    scan_files_with_sources(files, None)
+}
+
+pub(crate) fn scan_files_with_sources(
+    files: &[PathBuf],
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> SingletonsResult {
     let python_files: Vec<&PathBuf> = files
         .iter()
         .filter(|p| {
@@ -43,8 +49,12 @@ pub fn scan_files(files: &[PathBuf]) -> SingletonsResult {
     let matches: Vec<SingletonMatch> = python_files
         .par_iter()
         .filter_map(|path| {
-            let content = fs::read_to_string(path).ok()?;
-            Some(detect_python_singletons(&content, path))
+            let source = crate::utils::sources::load_source(path, sources).ok()?;
+            Some(detect_python_singletons_ast(
+                &source.content,
+                path,
+                &source.module.body,
+            ))
         })
         .flatten()
         .collect();

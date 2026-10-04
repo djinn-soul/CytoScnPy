@@ -2,10 +2,9 @@
 
 use rayon::prelude::*;
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::python::detect_anti_patterns;
+use super::python::detect_anti_patterns_ast;
 use super::types::{AntiPatternMatch, AntiPatternStats, AntiPatternsResult, ScanError};
 use crate::commands::utils::find_python_files;
 
@@ -47,6 +46,13 @@ fn aggregate(
 /// Scans Python source files in parallel for anti-patterns.
 #[must_use]
 pub fn scan_files(files: &[PathBuf]) -> AntiPatternsResult {
+    scan_files_with_sources(files, None)
+}
+
+pub(crate) fn scan_files_with_sources(
+    files: &[PathBuf],
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> AntiPatternsResult {
     let python_files: Vec<&PathBuf> = files
         .iter()
         .filter(|p| {
@@ -54,22 +60,27 @@ pub fn scan_files(files: &[PathBuf]) -> AntiPatternsResult {
                 .and_then(|e| e.to_str())
                 .is_some_and(|e| e == "py" || e == "pyi")
                 && !is_test_file(p)
-                && !crate::utils::is_likely_minified(p, None)
+                && !crate::utils::sources::is_minified(p, sources)
         })
         .collect();
 
     let (matches, mut scan_errors): (Vec<AntiPatternMatch>, Vec<ScanError>) = python_files
         .par_iter()
-        .map(|path| match fs::read_to_string(path) {
-            Ok(content) => (detect_anti_patterns(&content, path), None),
-            Err(error) => (
-                Vec::new(),
-                Some(ScanError {
-                    file: (*path).clone(),
-                    error: error.to_string(),
-                }),
-            ),
-        })
+        .map(
+            |path| match crate::utils::sources::load_source(path, sources) {
+                Ok(source) => (
+                    detect_anti_patterns_ast(&source.content, path, &source.module.body),
+                    None,
+                ),
+                Err(error) => (
+                    Vec::new(),
+                    Some(ScanError {
+                        file: (*path).clone(),
+                        error,
+                    }),
+                ),
+            },
+        )
         .fold(
             || (Vec::new(), Vec::new()),
             |(mut matches, mut errors), (file_matches, error)| {

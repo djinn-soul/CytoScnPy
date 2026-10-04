@@ -210,7 +210,7 @@ jobs:
     needs: [build-wheels, validate-sbom]
     runs-on: ubuntu-latest
     # Only run for clean version tags like v1.0.0 (not main branch, no hyphen)
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -239,7 +239,7 @@ jobs:
         validate-sbom,
       ]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-test')
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
     steps:
       # Download CLI binaries
       - uses: actions/download-artifact@v4
@@ -275,17 +275,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cli-macos-x64
-          path: macos-assets/
+          path: macos-assets/x64/
       - uses: actions/download-artifact@v4
         with:
           name: cli-macos-arm64
-          path: macos-assets/
+          path: macos-assets/arm64/
 
       - name: Rename macOS binaries
         run: |
-          mv macos-assets/cytoscnpy-cli release-assets/cytoscnpy-cli-darwin-x64 2>/dev/null || true
-          # Handle the ARM64 binary (it may be in a different location)
-          find macos-assets -name "cytoscnpy-cli" -exec mv {} release-assets/cytoscnpy-cli-darwin-arm64 \; 2>/dev/null || true
+          mv macos-assets/x64/cytoscnpy-cli release-assets/cytoscnpy-cli-darwin-x64
+          mv macos-assets/arm64/cytoscnpy-cli release-assets/cytoscnpy-cli-darwin-arm64
 
       - name: Generate checksums
         run: |

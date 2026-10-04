@@ -52,6 +52,14 @@ pub fn analyze_duplicates_files(
     files: &[PathBuf],
     options: &DuplicatesOptions,
 ) -> DuplicatesResult {
+    analyze_duplicates_with_sources(files, options, None)
+}
+
+pub(crate) fn analyze_duplicates_with_sources(
+    files: &[PathBuf],
+    options: &DuplicatesOptions,
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> DuplicatesResult {
     let valid_files: Vec<PathBuf> = files
         .iter()
         .filter(|p| {
@@ -59,7 +67,7 @@ pub fn analyze_duplicates_files(
                 .and_then(|e| e.to_str())
                 .is_some_and(|e| e == "py" || e == "pyi")
                 && (options.include_tests || !crate::utils::is_test_path(&p.to_string_lossy()))
-                && !crate::utils::is_likely_minified(p, None)
+                && !crate::utils::sources::is_minified(p, sources)
         })
         .cloned()
         .collect();
@@ -69,9 +77,19 @@ pub fn analyze_duplicates_files(
     let mut total_scanned_lines = 0usize;
 
     for path in &valid_files {
-        let lines = fs::read_to_string(path)
-            .map(|content| content.lines().count())
-            .unwrap_or(0);
+        let lines = sources.map_or_else(
+            || {
+                fs::read_to_string(path)
+                    .map(|content| content.lines().count())
+                    .unwrap_or(0)
+            },
+            |sources| {
+                sources
+                    .get(path)
+                    .and_then(|source| source.as_ref().ok())
+                    .map_or(0, |source| source.content.lines().count())
+            },
+        );
         file_line_counts.insert(path.clone(), lines);
         total_scanned_lines += lines;
     }
@@ -85,7 +103,20 @@ pub fn analyze_duplicates_files(
     };
 
     let detector = CloneDetector::with_config(config).unwrap_or_else(|_| CloneDetector::new());
-    let clone_result = detector.detect_from_paths(&valid_files);
+    let clone_result = if let Some(sources) = sources {
+        let files = valid_files
+            .iter()
+            .filter_map(|path| {
+                sources
+                    .get(path)
+                    .and_then(|source| source.as_ref().ok())
+                    .map(|source| (path.clone(), source.content.clone()))
+            })
+            .collect::<Vec<_>>();
+        detector.detect_with_sources(&files, sources)
+    } else {
+        detector.detect_from_paths(&valid_files)
+    };
 
     // Build duplicate clusters and collect per-file intervals
     let mut clusters = Vec::new();

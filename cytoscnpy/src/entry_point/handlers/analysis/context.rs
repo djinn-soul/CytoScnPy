@@ -45,6 +45,12 @@ pub(crate) fn build_analysis_context(
         || config.cytoscnpy.quality.unwrap_or(false)
         || cli_var.min_mi.is_some()
         || cli_var.max_complexity.is_some()
+        || cli_var.max_lines.is_some()
+        || cli_var.max_args.is_some()
+        || cli_var.max_nesting.is_some()
+        || config.cytoscnpy.max_lines.is_some()
+        || config.cytoscnpy.max_args.is_some()
+        || config.cytoscnpy.max_nesting.is_some()
         || config.cytoscnpy.min_mi.is_some()
         || config.cytoscnpy.max_complexity.is_some()
         || cli_var.output.fail_on_any

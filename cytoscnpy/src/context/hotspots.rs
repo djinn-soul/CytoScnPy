@@ -27,6 +27,15 @@ pub fn find_hotspots<S: std::hash::BuildHasher>(
     file_paths: &[PathBuf],
     file_commits: &HashMap<PathBuf, usize, S>,
 ) -> Vec<HotspotFile> {
+    find_hotspots_with_sources(repo_path, file_paths, file_commits, None)
+}
+
+pub(crate) fn find_hotspots_with_sources<S: std::hash::BuildHasher>(
+    repo_path: &Path,
+    file_paths: &[PathBuf],
+    file_commits: &HashMap<PathBuf, usize, S>,
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> Vec<HotspotFile> {
     let mut hotspots = Vec::new();
 
     for file_path in file_paths {
@@ -35,11 +44,17 @@ pub fn find_hotspots<S: std::hash::BuildHasher>(
             continue;
         }
 
-        let Ok(content) = fs::read_to_string(file_path) else {
-            continue;
+        let complexity = if let Some(sources) = sources {
+            let Some(Ok(source)) = sources.get(file_path) else {
+                continue;
+            };
+            crate::complexity::calculate_module_complexity_ast(&source.module)
+        } else {
+            let Ok(content) = fs::read_to_string(file_path) else {
+                continue;
+            };
+            calculate_module_complexity(&content).unwrap_or(1)
         };
-
-        let complexity = calculate_module_complexity(&content).unwrap_or(1);
         let risk_score = commit_count * complexity;
         let risk_level = classify_hotspot_risk(commit_count, complexity);
 

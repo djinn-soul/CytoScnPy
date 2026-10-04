@@ -10,6 +10,14 @@ pub(super) fn detect_from_memory(
     detector: &CloneDetector,
     files: &[(PathBuf, String)],
 ) -> CloneDetectionResult {
+    detect_from_memory_with_sources(detector, files, None)
+}
+
+pub(super) fn detect_from_memory_with_sources(
+    detector: &CloneDetector,
+    files: &[(PathBuf, String)],
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> CloneDetectionResult {
     let mut all_subtrees = Vec::new();
     let min_lines = detector.config.min_lines;
     let max_lines = detector.config.max_lines;
@@ -18,7 +26,18 @@ pub(super) fn detect_from_memory(
         if !detector.should_process_path(path) {
             continue;
         }
-        if let Ok(subtrees) = parser::extract_subtrees_with_min_lines(source, path, min_lines) {
+        if let Some(sources) = sources {
+            if let Some(Ok(snapshot)) = sources.get(path) {
+                all_subtrees.extend(parser::extract_subtrees_ast(
+                    source,
+                    path,
+                    &snapshot.module.body,
+                    min_lines,
+                ));
+            }
+        } else if let Ok(subtrees) =
+            parser::extract_subtrees_with_min_lines(source, path, min_lines)
+        {
             all_subtrees.extend(subtrees);
         }
     }

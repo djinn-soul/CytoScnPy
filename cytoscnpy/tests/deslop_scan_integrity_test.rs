@@ -15,7 +15,12 @@ fn report(root: &std::path::Path, extra: &[&str]) -> (i32, serde_json::Value) {
     args.extend(extra.iter().map(|s| (*s).to_owned()));
     let mut output = Cursor::new(Vec::new());
     let code = cytoscnpy::entry_point::run_with_args_to(args, &mut output).unwrap();
-    let value = serde_json::from_slice(output.get_ref()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(output.get_ref()).unwrap();
+    assert_eq!(value["schema_version"], 1);
+    assert!(
+        value.get("scan_integrity").is_some(),
+        "expected unified deslop schema"
+    );
     (code, value)
 }
 

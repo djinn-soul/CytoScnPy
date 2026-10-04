@@ -69,9 +69,9 @@ result = used_function()
 def unused_function():
     pass
 """)
-        # Env var says fail at 0.01%, but CLI says 1000% (should always pass)
+        # Env var says fail at 0.01%, but CLI says 100% (should always pass)
         monkeypatch.setenv("CYTOSCNPY_FAIL_THRESHOLD", "0.01")
-        exit_code = run(["--fail-threshold", "1000", "--json", str(tmp_path)])
+        exit_code = run(["--fail-threshold", "100", "--json", str(tmp_path)])
         assert exit_code == 0, "Expected CLI to override env var"
 
     def test_no_quality_gate_when_not_specified(self, tmp_path):
@@ -134,9 +134,7 @@ def complex_function(a, b, c, d, e):
 """)
         # Very low threshold should cause gate to fail
         exit_code = run(["--max-complexity", "3", "--quality", str(tmp_path)])
-        # Note: Gate only triggers if CSP-Q301 findings exist
-        # Just verify it runs without error
-        assert exit_code in (0, 1), "Expected command to complete"
+        assert exit_code == 1, "Complexity above the configured limit must fail"
 
 
 class TestMinMIGate:

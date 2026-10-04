@@ -163,7 +163,8 @@ lint = ["ruff"]
     assert!(!dep("requests").expect("poetry runtime dep").is_dev);
     assert!(dep("black").expect("poetry dev-dependencies").is_dev);
     assert!(dep("pytest").expect("poetry group dependencies").is_dev);
-    assert!(dep("lint").expect("pdm dev-dependency group").is_dev);
+    assert!(dep("ruff").expect("pdm dev-dependency requirement").is_dev);
+    assert!(dep("lint").is_none(), "group names are not packages");
     Ok(())
 }
 

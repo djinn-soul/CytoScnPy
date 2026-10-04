@@ -1,7 +1,6 @@
 //! Parallel Python file scanner for function metric extraction.
 
 use rayon::prelude::*;
-use std::fs;
 use std::path::PathBuf;
 
 use super::extractor::extract_functions_from_ast;
@@ -12,6 +11,13 @@ use crate::utils::LineIndex;
 /// Scans the given Python files in parallel and extracts all functions.
 #[must_use]
 pub fn scan_files(files: &[PathBuf]) -> FunctionsResult {
+    scan_files_with_sources(files, None)
+}
+
+pub(crate) fn scan_files_with_sources(
+    files: &[PathBuf],
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> FunctionsResult {
     let python_files: Vec<&PathBuf> = files
         .iter()
         .filter(|p| {
@@ -24,16 +30,9 @@ pub fn scan_files(files: &[PathBuf]) -> FunctionsResult {
     let scanned: Vec<Result<Vec<FunctionInfo>, String>> = python_files
         .par_iter()
         .map(|path| {
-            let content = fs::read_to_string(path)
-                .map_err(|error| format!("{}: read error: {error}", path.display()))?;
-            let parsed = ruff_python_parser::parse_module(&content)
-                .map_err(|error| format!("{}: Python parse error: {error}", path.display()))?;
-            let index = LineIndex::new(&content);
-            Ok(extract_functions_from_ast(
-                &parsed.into_syntax(),
-                &index,
-                path,
-            ))
+            let source = crate::utils::sources::load_source(path, sources)?;
+            let index = LineIndex::new(&source.content);
+            Ok(extract_functions_from_ast(&source.module, &index, path))
         })
         .collect();
     let mut functions = Vec::new();

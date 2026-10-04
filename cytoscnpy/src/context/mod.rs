@@ -15,6 +15,7 @@ mod git_tracked;
 pub mod hotspots;
 /// Module for printing terminal tables and JSON reports.
 pub mod reporter;
+mod repositories;
 /// Module defining data types and structures for context analysis.
 pub mod types;
 
@@ -28,7 +29,7 @@ pub use reporter::{print_json_report, print_terminal_report};
 pub use types::*;
 
 use crate::commands::utils::find_python_files;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Analyzes codebase context, Git churn, hotspots, and LLM token budgets.
 #[must_use]
@@ -38,13 +39,41 @@ pub fn analyze_context(
     config: &ContextConfig,
 ) -> ContextAnalysisResult {
     let file_paths = find_python_files(roots, exclude, config.verbose);
-    let repo_root = roots
-        .first()
-        .map_or_else(|| Path::new("."), |p| p.as_path());
+    analyze_context_files(&file_paths, config)
+}
 
+/// Analyzes an already filtered file inventory without discovering extra files.
+#[must_use]
+pub fn analyze_context_files(
+    file_paths: &[PathBuf],
+    config: &ContextConfig,
+) -> ContextAnalysisResult {
+    analyze_context_with_sources(file_paths, config, None)
+}
+
+pub(crate) fn analyze_context_with_sources(
+    file_paths: &[PathBuf],
+    config: &ContextConfig,
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> ContextAnalysisResult {
+    let mut seen = std::collections::HashSet::new();
     let scanned_infos: Vec<ScannedFileInfo> = file_paths
         .iter()
-        .filter_map(|p| collect_file_info(p))
+        .filter(|path| seen.insert(path.canonicalize().unwrap_or_else(|_| (*path).clone())))
+        .filter_map(|path| {
+            if let Some(sources) = sources {
+                sources
+                    .get(path)
+                    .and_then(|source| source.as_ref().ok())
+                    .map(|source| ScannedFileInfo {
+                        path: path.clone(),
+                        lines: source.content.lines().count(),
+                        bytes: source.content.len() as u64,
+                    })
+            } else {
+                collect_file_info(path)
+            }
+        })
         .collect();
 
     let (total_lines, total_bytes) = scanned_infos
@@ -53,10 +82,8 @@ pub fn analyze_context(
             (lines + file.lines, bytes + file.bytes)
         });
 
-    let (git_activity, file_commits) =
-        scan_git_activity(repo_root, &scanned_infos, config.git_months, config.no_git);
-
-    let hotspots = find_hotspots(repo_root, &file_paths, &file_commits);
+    let (git_activity, hotspots) =
+        repositories::analyze_repositories(&scanned_infos, config, sources);
 
     let avg_complexity = if hotspots.is_empty() {
         3.0

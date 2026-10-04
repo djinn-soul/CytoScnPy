@@ -2,8 +2,6 @@
 
 use rayon::prelude::*;
 use serde::Serialize;
-use std::collections::BTreeSet;
-use std::fs;
 use std::path::PathBuf;
 
 #[derive(Serialize)]
@@ -22,35 +20,34 @@ pub(super) struct ScanIntegrity {
 
 pub(super) struct PythonInventory {
     pub files: Vec<PathBuf>,
+    pub sources: crate::utils::sources::SourceCache,
     pub definitions: crate::searchability::functions::ExtractedDefinitions,
     pub integrity: ScanIntegrity,
 }
 
 impl PythonInventory {
-    pub fn collect(roots: &[PathBuf], excludes: &[String], verbose: bool) -> Self {
+    pub fn collect(
+        roots: &[PathBuf],
+        excludes: &[String],
+        include_tests: bool,
+        verbose: bool,
+    ) -> Self {
         let (mut files, walk_errors) =
-            crate::commands::utils::find_python_files_with_issues(roots, excludes, verbose);
+            crate::commands::utils::find_python_files_with_options_and_issues(
+                roots,
+                excludes,
+                &[],
+                include_tests,
+                verbose,
+            );
         files.sort();
         files.dedup();
-        let scanned: Vec<_> = files
+        let sources: crate::utils::sources::SourceCache = files
             .par_iter()
             .map(|path| {
-                let source = fs::read_to_string(path).map_err(|error| ScanIssue {
-                    path: path.clone(),
-                    reason: format!("read error: {error}"),
-                })?;
-                let parsed =
-                    ruff_python_parser::parse_module(&source).map_err(|error| ScanIssue {
-                        path: path.clone(),
-                        reason: format!("Python parse error: {error}"),
-                    })?;
-                Ok(
-                    crate::searchability::functions::extract_definitions_from_ast(
-                        &parsed.into_syntax(),
-                        &source,
-                        path,
-                    ),
-                )
+                let source = crate::utils::sources::load_source(path, None)
+                    .map(std::borrow::Cow::into_owned);
+                (path.clone(), source)
             })
             .collect();
         let mut issues: Vec<_> = walk_errors
@@ -62,14 +59,22 @@ impl PythonInventory {
             .collect();
         let mut checked = 0;
         let mut definitions = crate::searchability::functions::ExtractedDefinitions::default();
-        for result in scanned {
-            match result {
-                Ok(found) => {
+        for path in &files {
+            match &sources[path] {
+                Ok(source) => {
+                    let found = crate::searchability::functions::extract_definitions_from_ast(
+                        &source.module,
+                        &source.content,
+                        path,
+                    );
                     definitions.functions.extend(found.functions);
                     definitions.classes.extend(found.classes);
                     checked += 1;
                 }
-                Err(issue) => issues.push(issue),
+                Err(reason) => issues.push(ScanIssue {
+                    path: path.clone(),
+                    reason: reason.clone(),
+                }),
             }
         }
         let integrity = ScanIntegrity {
@@ -80,27 +85,9 @@ impl PythonInventory {
         };
         Self {
             files,
+            sources,
             definitions,
             integrity,
         }
-    }
-
-    pub fn check_additional(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
-        let known: BTreeSet<_> = self.files.iter().collect();
-        let additional: BTreeSet<_> = paths.into_iter().collect();
-        for path in additional {
-            if known.contains(&path) {
-                continue;
-            }
-            self.integrity.files_discovered += 1;
-            match fs::read_to_string(&path) {
-                Ok(_) => self.integrity.files_checked += 1,
-                Err(error) => self.integrity.issues.push(ScanIssue {
-                    path,
-                    reason: format!("read error: {error}"),
-                }),
-            }
-        }
-        self.integrity.complete = self.integrity.issues.is_empty();
     }
 }

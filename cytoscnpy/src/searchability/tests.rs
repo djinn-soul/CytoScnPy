@@ -158,8 +158,8 @@ class MyClass:
     let funcs = functions::extract_functions_from_source(code, &PathBuf::from("dummy.py"));
     let names: Vec<&str> = funcs.iter().map(|f| f.name.as_str()).collect();
     assert!(names.contains(&"top_level"));
-    assert!(names.contains(&"method_one"));
-    assert!(names.contains(&"async_method"));
+    assert!(names.contains(&"MyClass.method_one"));
+    assert!(names.contains(&"MyClass.async_method"));
     assert!(names.contains(&"nested_fn"));
     assert_eq!(funcs.len(), 4);
 }

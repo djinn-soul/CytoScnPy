@@ -31,7 +31,7 @@ pub fn find_python_files_with_options(
     find_python_files_with_options_and_issues(roots, exclude, include, include_tests, verbose).0
 }
 
-pub(super) fn find_python_files_with_options_and_issues(
+pub(crate) fn find_python_files_with_options_and_issues(
     roots: &[PathBuf],
     exclude: &[String],
     include: &[String],

@@ -8,6 +8,7 @@ use ruff_text_size::Ranged;
 use std::path::Path;
 
 use super::types::{GlobalKind, GlobalMatch};
+use crate::utils::python_guards::is_main_guard;
 use crate::utils::LineIndex;
 use mutations::detect_function_global_statements;
 
@@ -18,17 +19,18 @@ pub fn detect_python_globals(source: &str, file: &Path) -> Vec<GlobalMatch> {
         return Vec::new();
     };
 
+    detect_python_globals_ast(source, file, parsed.suite())
+}
+
+pub(crate) fn detect_python_globals_ast(
+    source: &str,
+    file: &Path,
+    body: &[Stmt],
+) -> Vec<GlobalMatch> {
     let line_index = LineIndex::new(source);
     let mut matches = Vec::new();
 
-    scan_statements(
-        parsed.suite(),
-        source,
-        file,
-        &line_index,
-        true,
-        &mut matches,
-    );
+    scan_statements(body, source, file, &line_index, true, &mut matches);
 
     matches
 }
@@ -88,10 +90,14 @@ fn scan_statements(
                 detect_function_global_statements(&fn_def.body, source, file, line_index, matches);
             }
             Stmt::If(if_stmt) => {
-                if is_module_level && !is_main_guard(&if_stmt.test) {
-                    scan_statements(&if_stmt.body, source, file, line_index, true, matches);
+                if is_module_level {
+                    if !is_main_guard(&if_stmt.test) {
+                        scan_statements(&if_stmt.body, source, file, line_index, true, matches);
+                    }
                     for clause in &if_stmt.elif_else_clauses {
-                        scan_statements(&clause.body, source, file, line_index, true, matches);
+                        if !clause.test.as_ref().is_some_and(is_main_guard) {
+                            scan_statements(&clause.body, source, file, line_index, true, matches);
+                        }
                     }
                 }
             }
@@ -112,24 +118,6 @@ fn scan_statements(
             _ => {}
         }
     }
-}
-
-fn is_main_guard(expr: &Expr) -> bool {
-    if let Expr::Compare(comp) = expr {
-        if let Expr::Name(name) = comp.left.as_ref() {
-            if name.id.as_str() == "__name__" {
-                return true;
-            }
-        }
-        for right in &comp.comparators {
-            if let Expr::Name(name) = right {
-                if name.id.as_str() == "__name__" {
-                    return true;
-                }
-            }
-        }
-    }
-    false
 }
 
 pub(crate) fn get_line_snippet(source: &str, line_1_indexed: usize) -> String {

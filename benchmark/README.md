@@ -41,7 +41,7 @@ This benchmark evaluates **11 dead code detection tools** against a curated Pyth
 
 ## Running the Benchmark
 
-````bash
+```bash
 # Activate environment
 .\.venv\Scripts\activate  # Windows
 source .venv/bin/activate  # Linux/Mac
@@ -67,6 +67,15 @@ python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_win32.js
 # Linux:
 python benchmark/benchmark_and_verify.py --save-json benchmark/baseline_linux.json
 ```
+
+## Implementation
+
+`benchmark_and_verify.py` remains the CLI and import entry point. Its implementation
+is organized in `benchmark_support/`: command execution and memory monitoring,
+tool configuration, JSON and text parsers, ground truth loading and matching,
+and reporting. Each Python file in this implementation stays below 300 lines.
+The command options, tool commands, matching rules, and regression thresholds are
+preserved by this refactor.
 
 ## Continuous Integration
 
@@ -560,14 +569,15 @@ Dead code detection is a **fundamentally hard problem** due to:
 
    ```python
    getattr(obj, func_name)()  # Which function is called?
-   globals()[var_name]        # Which variable is accessed?
+   globals()[var_name]  # Which variable is accessed?
 ```
 
 2. **Framework Magic**
 
    ```python
-   @app.route("/")           # Flask uses this, but AST can't know
-   def home(): pass
+   @app.route("/")  # Flask uses this, but AST can't know
+   def home():
+       pass
    ```
 
 3. **Metaprogramming**
@@ -582,7 +592,9 @@ Dead code detection is a **fundamentally hard problem** due to:
 
    ```python
    # file1.py
-   def helper(): pass  # Used in file2.py
+   def helper():
+       pass  # Used in file2.py
+
 
    # file2.py
    from file1 import helper  # Static analyzers may miss this

@@ -1,71 +1,107 @@
-//! Detection of deeply nested callbacks, closures, and control structures.
-
+//! Detect nested closures and callback registrations using Python syntax.
+use super::types::{AntiPatternKind, AntiPatternMatch};
+use crate::utils::LineIndex;
+use ruff_python_ast::{
+    visitor::{self, Visitor},
+    Expr, Stmt,
+};
+use ruff_text_size::Ranged;
 use std::path::Path;
 
-use super::types::{AntiPatternKind, AntiPatternMatch};
-
-const MAX_SNIPPET: usize = 120;
-const MIN_NESTING_SPACES: usize = 16;
-
-/// Detects deeply nested callbacks, closures, and control structures.
+/// Detect nested closures or deeply nested callback registrations, excluding ordinary control flow.
 #[must_use]
 pub fn detect_nested_callbacks(source: &str, file: &Path) -> Vec<AntiPatternMatch> {
-    let mut matches = Vec::new();
-
-    for (idx, line) in source.lines().enumerate() {
-        let line_num = idx + 1;
-        let indent = count_indentation(line);
-        if indent < MIN_NESTING_SPACES {
-            continue;
-        }
-
-        let trimmed = line.trim_start();
-        if trimmed.starts_with('#') || trimmed.is_empty() {
-            continue;
-        }
-
-        if is_callback_or_control_structure(trimmed) {
-            matches.push(AntiPatternMatch {
-                file: file.to_path_buf(),
-                line: line_num,
-                column: indent + 1,
-                kind: AntiPatternKind::DeeplyNestedCallback,
-                pattern_name: AntiPatternKind::DeeplyNestedCallback.as_str().to_owned(),
-                description: AntiPatternKind::DeeplyNestedCallback
-                    .description()
-                    .to_owned(),
-                snippet: trimmed.chars().take(MAX_SNIPPET).collect(),
-            });
-        }
-    }
-
-    matches
+    let Ok(parsed) = ruff_python_parser::parse_module(source) else {
+        return Vec::new();
+    };
+    detect_nested_callbacks_ast(source, file, parsed.suite())
 }
 
-fn count_indentation(line: &str) -> usize {
-    let mut count = 0;
-    for ch in line.chars() {
-        match ch {
-            ' ' => count += 1,
-            '\t' => count += 4,
-            _ => break,
-        }
-    }
-    count
+pub(crate) fn detect_nested_callbacks_ast(
+    source: &str,
+    file: &Path,
+    body: &[Stmt],
+) -> Vec<AntiPatternMatch> {
+    let mut detector = CallbackVisitor {
+        source,
+        file,
+        lines: LineIndex::new(source),
+        closures: 0,
+        blocks: 0,
+        matches: Vec::new(),
+    };
+    detector.visit_body(body);
+    detector.matches
 }
 
-fn is_callback_or_control_structure(trimmed: &str) -> bool {
-    trimmed.starts_with("if ")
-        || trimmed.starts_with("elif ")
-        || trimmed.starts_with("for ")
-        || trimmed.starts_with("while ")
-        || trimmed.starts_with("def ")
-        || trimmed.starts_with("async def ")
-        || trimmed.starts_with("lambda ")
-        || trimmed.starts_with("async for ")
-        || trimmed.starts_with("async with ")
-        || trimmed.starts_with("await ")
-        || trimmed.starts_with(".then")
-        || trimmed.starts_with(".catch")
-        || trimmed.contains(".add_done_callback")
+struct CallbackVisitor<'a> {
+    source: &'a str,
+    file: &'a Path,
+    lines: LineIndex,
+    closures: usize,
+    blocks: usize,
+    matches: Vec<AntiPatternMatch>,
+}
+
+impl CallbackVisitor<'_> {
+    fn record(&mut self, node: &impl Ranged) {
+        let line = self.lines.line_index(node.range().start());
+        if self.matches.iter().any(|finding| finding.line == line) {
+            return;
+        }
+        self.matches.push(AntiPatternMatch {
+            file: self.file.to_path_buf(),
+            line,
+            column: self.lines.column_index(node.range().start()),
+            kind: AntiPatternKind::DeeplyNestedCallback,
+            pattern_name: AntiPatternKind::DeeplyNestedCallback.as_str().to_owned(),
+            description: AntiPatternKind::DeeplyNestedCallback
+                .description()
+                .to_owned(),
+            snippet: self
+                .source
+                .lines()
+                .nth(line - 1)
+                .unwrap_or("")
+                .trim()
+                .chars()
+                .take(120)
+                .collect(),
+        });
+    }
+}
+
+impl<'a> Visitor<'a> for CallbackVisitor<'_> {
+    fn visit_stmt(&mut self, stmt: &'a Stmt) {
+        let closure = matches!(stmt, Stmt::FunctionDef(_));
+        let block = matches!(
+            stmt,
+            Stmt::If(_)
+                | Stmt::For(_)
+                | Stmt::While(_)
+                | Stmt::With(_)
+                | Stmt::Try(_)
+                | Stmt::Match(_)
+        );
+        self.closures += usize::from(closure);
+        self.blocks += usize::from(block);
+        if closure && self.closures >= 3 {
+            self.record(stmt);
+        }
+        visitor::walk_stmt(self, stmt);
+        self.closures -= usize::from(closure);
+        self.blocks -= usize::from(block);
+    }
+
+    fn visit_expr(&mut self, expr: &'a Expr) {
+        let closure = matches!(expr, Expr::Lambda(_));
+        self.closures += usize::from(closure);
+        let callback = matches!(expr, Expr::Call(call) if matches!(call.func.as_ref(), Expr::Attribute(attr)
+            if matches!(attr.attr.as_str(), "then" | "catch" | "add_done_callback")));
+        if (closure && self.closures >= 3) || (callback && self.blocks >= 3) {
+            self.record(expr);
+        }
+        visitor::walk_expr(self, expr);
+        self.closures -= usize::from(closure);
+    }
 }

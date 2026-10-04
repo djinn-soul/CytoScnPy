@@ -111,9 +111,17 @@ pub fn detect_wildcard_imports(source: &str, file: &Path) -> Vec<WildcardMatch> 
     let Ok(parsed) = parse_module(source) else {
         return Vec::new();
     };
+    detect_wildcard_imports_ast(source, file, parsed.suite())
+}
+
+pub(crate) fn detect_wildcard_imports_ast(
+    source: &str,
+    file: &Path,
+    body: &[Stmt],
+) -> Vec<WildcardMatch> {
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
-    visit_stmts(parsed.suite(), source, file, &line_index, &mut out);
+    visit_stmts(body, source, file, &line_index, &mut out);
     out
 }
 
@@ -136,6 +144,13 @@ fn aggregate(mut all: Vec<WildcardMatch>) -> WildcardsResult {
 /// Scans a set of Python source files in parallel for wildcard imports.
 #[must_use]
 pub fn scan_files(paths: &[PathBuf]) -> WildcardsResult {
+    scan_files_with_sources(paths, None)
+}
+
+pub(crate) fn scan_files_with_sources(
+    paths: &[PathBuf],
+    sources: Option<&crate::utils::sources::SourceCache>,
+) -> WildcardsResult {
     use rayon::prelude::*;
 
     let all: Vec<WildcardMatch> = paths
@@ -146,8 +161,12 @@ pub fn scan_files(paths: &[PathBuf]) -> WildcardsResult {
                 .is_some_and(|e| e == "py" || e == "pyi")
         })
         .filter_map(|path| {
-            let content = std::fs::read_to_string(path).ok()?;
-            Some(detect_wildcard_imports(&content, path))
+            let source = crate::utils::sources::load_source(path, sources).ok()?;
+            Some(detect_wildcard_imports_ast(
+                &source.content,
+                path,
+                &source.module.body,
+            ))
         })
         .flatten()
         .collect();

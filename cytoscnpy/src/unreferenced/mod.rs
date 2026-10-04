@@ -16,3 +16,5 @@ pub use analyzer::{analyze_unreferenced, analyze_unreferenced_files};
 pub use heuristics::UnreferencedOptions;
 pub use reporter::{print_json_report, print_terminal_report};
 pub use types::{IsolatedFileSummary, UnreferencedFunction, UnreferencedResult, UnreferencedStats};
+
+mod references;

@@ -4,6 +4,8 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import cast
 
+from .pytest_dependencies import dependency_findings
+
 JsonObject = Mapping[str, object]
 
 # Directories that the analyzer itself skips. Mirrors the default exclusion
@@ -60,9 +62,10 @@ def _string_field(item: JsonObject, key: str, default: str = "?") -> str:
     return value if isinstance(value, str) else str(value)
 
 
-def group_by_file(data: JsonObject) -> dict[str, list[str]]:
+def group_by_file(data: JsonObject, anchor: Path | None = None) -> dict[str, list[str]]:
     """Normalize all finding types into {file_path_str: [message, ...]}."""
-    by_file: dict[str, list[str]] = {}
+    anchor = Path() if anchor is None else anchor
+    by_file = dependency_findings(data, anchor)
 
     dead_keys = [
         ("unused_functions", "unused function"),
@@ -79,7 +82,7 @@ def group_by_file(data: JsonObject) -> dict[str, list[str]]:
             line = _string_field(item, "line")
             by_file.setdefault(file, []).append(f"  {line}: {label}: {name}")
 
-    for key in ("danger", "quality"):
+    for key in ("danger", "quality", "clones"):
         for item in _iter_objects(data.get(key, [])):
             file = _string_field(item, "file", "")
             msg = _string_field(item, "message")
@@ -104,7 +107,26 @@ def group_by_file(data: JsonObject) -> dict[str, list[str]]:
         error = _string_field(item, "error", "parse error")
         by_file.setdefault(file, []).append(f"  parse error: {error}")
 
+    _add_scan_errors(data, anchor, by_file)
+
     return by_file
+
+
+def _add_scan_errors(
+    data: JsonObject, anchor: Path, by_file: dict[str, list[str]]
+) -> None:
+    """Keep traversal/read errors visible even when no source item exists."""
+    errors = data.get("scan_errors", [])
+    for item in _iter_objects(errors):
+        file = _string_field(item, "file", _string_field(item, "path", str(anchor)))
+        error = _string_field(
+            item, "error", _string_field(item, "reason", "scan error")
+        )
+        by_file.setdefault(file, []).append(f"  scan error: {error}")
+    if isinstance(errors, list):
+        for error in cast(list[object], errors):
+            if isinstance(error, str):
+                by_file.setdefault(str(anchor), []).append(f"  scan error: {error}")
 
 
 def resolve_file(path: Path) -> Path | None:
@@ -113,3 +135,12 @@ def resolve_file(path: Path) -> Path | None:
         return path.resolve()
     except (OSError, ValueError):
         return None
+
+
+def detect_non_py_findings(by_file: Mapping[str, list[str]]) -> list[str]:
+    """Extract findings for files that are not Python sources."""
+    non_py_findings: list[str] = []
+    for file_str, msgs in by_file.items():
+        if not file_str.endswith(".py"):
+            non_py_findings.extend(f"{file_str}:{msg}" for msg in msgs)
+    return non_py_findings

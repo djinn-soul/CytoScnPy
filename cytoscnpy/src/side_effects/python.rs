@@ -6,6 +6,7 @@ use ruff_text_size::Ranged;
 use std::path::Path;
 
 use super::types::{SideEffectKind, SideEffectMatch};
+use crate::utils::python_guards::is_main_guard;
 use crate::utils::LineIndex;
 
 const MAX_SNIPPET: usize = 120;
@@ -21,10 +22,21 @@ pub fn detect_python_side_effects(source: &str, file: &Path) -> Vec<SideEffectMa
         return Vec::new();
     };
 
+    detect_python_side_effects_ast(source, file, parsed.suite())
+}
+
+pub(crate) fn detect_python_side_effects_ast(
+    source: &str,
+    file: &Path,
+    body: &[Stmt],
+) -> Vec<SideEffectMatch> {
+    if is_exempt_python_entrypoint(file) {
+        return Vec::new();
+    }
     let line_index = LineIndex::new(source);
     let mut matches = Vec::new();
 
-    scan_module_statements(parsed.suite(), source, file, &line_index, &mut matches);
+    scan_module_statements(body, source, file, &line_index, &mut matches);
 
     matches
 }
@@ -89,7 +101,13 @@ fn scan_module_statements(
             Stmt::If(if_stmt) => {
                 if !is_main_guard(&if_stmt.test) && !is_type_checking_guard(&if_stmt.test) {
                     scan_module_statements(&if_stmt.body, source, file, line_index, matches);
-                    for clause in &if_stmt.elif_else_clauses {
+                }
+                for clause in &if_stmt.elif_else_clauses {
+                    if !clause
+                        .test
+                        .as_ref()
+                        .is_some_and(|test| is_main_guard(test) || is_type_checking_guard(test))
+                    {
                         scan_module_statements(&clause.body, source, file, line_index, matches);
                     }
                 }
@@ -107,24 +125,6 @@ fn scan_module_statements(
             _ => {}
         }
     }
-}
-
-fn is_main_guard(expr: &Expr) -> bool {
-    if let Expr::Compare(comp) = expr {
-        if let Expr::Name(name) = comp.left.as_ref() {
-            if name.id.as_str() == "__name__" {
-                return true;
-            }
-        }
-        for right in &comp.comparators {
-            if let Expr::Name(name) = right {
-                if name.id.as_str() == "__name__" {
-                    return true;
-                }
-            }
-        }
-    }
-    false
 }
 
 fn is_type_checking_guard(expr: &Expr) -> bool {
@@ -166,7 +166,7 @@ fn is_safe_toplevel_call(func: &Expr) -> bool {
 
 fn is_safe_namespace_target(expr: &Expr) -> bool {
     match expr {
-        Expr::Name(n) => matches!(n.id.as_str(), "logging" | "warnings" | "logger" | "sys"),
+        Expr::Name(n) => matches!(n.id.as_str(), "logging" | "warnings" | "logger"),
         _ => false,
     }
 }

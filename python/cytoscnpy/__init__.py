@@ -76,6 +76,10 @@ def scan(
     Returns:
         A dictionary containing analysis results (unused code, security findings,
         quality findings, metrics, and summary).
+
+    Raises:
+        ValueError: Confidence is outside 0-100 or project configuration is invalid.
+        RuntimeError: A requested clone analysis fails, including invalid similarity.
     """
     if isinstance(paths, str | Path):
         resolved_paths = [str(paths)]

@@ -5,6 +5,8 @@
 mod ignore_match;
 mod minified;
 mod paths;
+pub(crate) mod python_guards;
+pub(crate) mod sources;
 
 pub(crate) use paths::discover_project_root;
 

@@ -55,13 +55,23 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
     request: &ComprehensiveRequest<'_>,
     writer: &mut W,
 ) -> Result<i32> {
-    let mut inventory =
-        PythonInventory::collect(request.roots, request.excludes, request.cli.output.verbose);
-    let files = &inventory.files;
-    let architecture = crate::architecture::build_architecture_graph(files, request.roots);
-    let context = crate::context::analyze_context(
+    let include_tests = request.cli.include.include_tests
+        || request.config.cytoscnpy.include_tests.unwrap_or(false);
+    let inventory = PythonInventory::collect(
         request.roots,
         request.excludes,
+        include_tests,
+        request.cli.output.verbose,
+    );
+    let files = &inventory.files;
+    let sources = Some(&inventory.sources);
+    let architecture = crate::architecture::builder::build_architecture_with_sources(
+        files,
+        request.roots,
+        sources,
+    );
+    let context = crate::context::analyze_context_with_sources(
+        files,
         &crate::context::ContextConfig {
             git_months: request.args.git_months,
             context_budget: request.args.context_budget,
@@ -69,6 +79,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             verbose: request.cli.output.verbose,
             ..crate::context::ContextConfig::default()
         },
+        sources,
     );
     let health = health_results(request);
     let searchability = crate::searchability::analyze_searchability_with_functions(
@@ -79,40 +90,41 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         &inventory.definitions.functions,
         &inventory.definitions.classes,
     );
-    let todos = crate::todos::analyze_todos_files(files);
-    let global_files = crate::globals::collect_files(request.roots, request.excludes);
+    let todos = crate::todos::scanner::scan_files_with_sources(files, sources);
+    let global_files = files;
     let global_target = request
         .roots
         .first()
         .cloned()
         .unwrap_or_else(|| PathBuf::from("."));
-    let globals = crate::globals::analyze_globals_files(&global_files, &global_target);
-    let exceptions = crate::exceptions::analyze_exceptions_files(files);
-    let wildcards = crate::wildcards::analyze_wildcards_files(files);
-    let side_effect_files = crate::side_effects::collect_files(request.roots, request.excludes);
-    let side_effects = crate::side_effects::analyze_side_effects_files(&side_effect_files);
-    let singletons = crate::singletons::analyze_singletons_files(files);
-    let anti_patterns = crate::anti_patterns::analyze_anti_patterns_files(files);
-    let include_tests = request.cli.include.include_tests
-        || request.config.cytoscnpy.include_tests.unwrap_or(false);
-    let mut duplicates = crate::duplicates::analyze_duplicates_files(
+    let globals =
+        crate::globals::scanner::scan_files_with_sources(global_files, &global_target, sources);
+    let exceptions = crate::exceptions::scanner::scan_files_with_sources(files, sources);
+    let wildcards = crate::wildcards::scanner::scan_files_with_sources(files, sources);
+    let side_effect_files = files;
+    let side_effects =
+        crate::side_effects::scanner::scan_files_with_sources(side_effect_files, sources);
+    let singletons = crate::singletons::scanner::scan_files_with_sources(files, sources);
+    let anti_patterns = crate::anti_patterns::scanner::scan_files_with_sources(files, sources);
+    let mut duplicates = crate::duplicates::analyzer::analyze_duplicates_with_sources(
         files,
         &crate::duplicates::DuplicatesOptions {
             include_tests,
             ..crate::duplicates::DuplicatesOptions::default()
         },
+        sources,
     );
     duplicates.roots = request.roots.to_vec();
-    let mut unreferenced = crate::unreferenced::analyze_unreferenced_files(
+    let mut unreferenced = crate::unreferenced::analyzer::analyze_unreferenced_with_sources(
         files,
         &crate::unreferenced::UnreferencedOptions {
             include_tests,
             ..crate::unreferenced::UnreferencedOptions::default()
         },
+        sources,
     );
     unreferenced.roots = request.roots.to_vec();
     let functions = crate::functions::scan_files(files);
-    inventory.check_additional(global_files.into_iter().chain(side_effect_files));
 
     let doc_root = health
         .first()
@@ -145,7 +157,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             None
         })
         .or(if request.args.ci { Some(40) } else { None });
-    let scoring = crate::scoring::score_repository(
+    let mut scoring = crate::scoring::score_repository(
         &scoring_ctx,
         &crate::scoring::ScoringOptions {
             max_score,
@@ -185,7 +197,8 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             limit: "0 skipped or unparsable files".to_owned(),
         });
     }
-    let exit_code = i32::from(!failures.is_empty());
+    scoring.passed_gate = failures.is_empty();
+    let exit_code = i32::from(!scoring.passed_gate);
     let human_output = if request.cli.output.json {
         None
     } else if request.args.format.as_deref() == Some("llm") {

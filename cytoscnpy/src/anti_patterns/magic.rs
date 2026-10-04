@@ -27,6 +27,18 @@ pub fn detect_magic_numbers(
     file: &Path,
     line_index: &LineIndex,
 ) -> Vec<AntiPatternMatch> {
+    let Ok(parsed) = parse_module(source) else {
+        return Vec::new();
+    };
+    detect_magic_numbers_ast(source, file, line_index, parsed.suite())
+}
+
+pub(crate) fn detect_magic_numbers_ast(
+    source: &str,
+    file: &Path,
+    line_index: &LineIndex,
+    body: &[Stmt],
+) -> Vec<AntiPatternMatch> {
     let mut visitor = MagicVisitor {
         source,
         file,
@@ -35,9 +47,7 @@ pub fn detect_magic_numbers(
         matches: Vec::new(),
     };
 
-    if let Ok(parsed) = parse_module(source) {
-        visitor.visit_statements(parsed.suite());
-    }
+    visitor.visit_statements(body);
 
     visitor.matches
 }

@@ -35,6 +35,8 @@ pub struct ExtractedFile {
     pub total_lines: usize,
     /// Raw source text.
     pub content: String,
+    /// Loaded identifiers with source lines, used to distinguish self-recursion.
+    pub references: Vec<(String, usize)>,
 }
 
 /// Parses a Python source file and extracts its functions, imports, and total lines.
@@ -43,6 +45,7 @@ pub fn extract_python_file(content: &str, _path: &Path) -> ExtractedFile {
     // Preserve the existing infallible library API; scanners use the fallible
     // variant below so parse failures remain visible in analysis results.
     try_extract_python_file(content).unwrap_or_else(|_| ExtractedFile {
+        references: Vec::new(),
         functions: Vec::new(),
         imports: Vec::new(),
         total_lines: content.lines().count(),
@@ -53,26 +56,25 @@ pub fn extract_python_file(content: &str, _path: &Path) -> ExtractedFile {
 /// Extracts metadata while preserving Python parse failures for scanners.
 pub(crate) fn try_extract_python_file(content: &str) -> Result<ExtractedFile, String> {
     let parsed = parse_module(content).map_err(|error| error.to_string())?;
+    Ok(extract_python_ast(content, parsed.suite()))
+}
+
+pub(crate) fn extract_python_ast(content: &str, body: &[Stmt]) -> ExtractedFile {
     let total_lines = content.lines().count();
 
     let line_index = LineIndex::new(content);
     let mut functions = Vec::new();
     let mut imports = Vec::new();
 
-    visit_statements(
-        parsed.suite(),
-        None,
-        &line_index,
-        &mut functions,
-        &mut imports,
-    );
+    visit_statements(body, None, &line_index, &mut functions, &mut imports);
 
-    Ok(ExtractedFile {
+    ExtractedFile {
+        references: super::references::collect_references(body, &line_index),
         functions,
         imports,
         total_lines,
         content: content.to_owned(),
-    })
+    }
 }
 
 fn visit_statements(

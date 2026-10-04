@@ -67,8 +67,11 @@ pub fn parse_pyproject(path: &Path) -> Vec<DeclaredDependency> {
             if let Some(dev_deps) = pdm.get("dev-dependencies").and_then(Value::as_table) {
                 deps.extend(
                     dev_deps
-                        .keys()
-                        .filter_map(|package_name| make_dep(package_name, true, false)),
+                        .values()
+                        .filter_map(Value::as_array)
+                        .flatten()
+                        .filter_map(Value::as_str)
+                        .filter_map(|spec| make_dep(spec, true, false)),
                 );
             }
         }

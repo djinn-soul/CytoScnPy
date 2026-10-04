@@ -47,6 +47,14 @@ impl CloneDetector {
         in_memory::detect_from_memory(self, files)
     }
 
+    pub(crate) fn detect_with_sources(
+        &self,
+        files: &[(std::path::PathBuf, String)],
+        sources: &crate::utils::sources::SourceCache,
+    ) -> CloneDetectionResult {
+        in_memory::detect_from_memory_with_sources(self, files, Some(sources))
+    }
+
     /// Group related clone pairs into clone groups
     pub(super) fn group_clones(pairs: &[ClonePair]) -> Vec<CloneGroup> {
         grouping::group_clones(pairs)

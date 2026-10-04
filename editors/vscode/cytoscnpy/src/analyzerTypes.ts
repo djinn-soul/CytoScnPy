@@ -73,7 +73,7 @@ export interface RawTaintFinding {
   sink: string;
   sink_line: number;
   sink_col: number;
-  flow_path: string[];
+  flow_path?: string[];
   vuln_type: string;
   severity: string;
   file: string;

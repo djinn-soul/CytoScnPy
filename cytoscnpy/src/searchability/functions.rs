@@ -126,6 +126,7 @@ pub fn extract_definitions_from_ast(
     let mut defs = ExtractedDefinitions::default();
     traverse_stmts(
         &module.body,
+        None,
         file,
         &line_index,
         &mut defs.functions,
@@ -136,6 +137,7 @@ pub fn extract_definitions_from_ast(
 
 fn traverse_stmts(
     stmts: &[Stmt],
+    class_name: Option<&str>,
     file: &Path,
     line_index: &LineIndex,
     functions: &mut Vec<FunctionDefinition>,
@@ -146,11 +148,12 @@ fn traverse_stmts(
             Stmt::FunctionDef(f) => {
                 let line = line_index.line_index(f.range().start());
                 functions.push(FunctionDefinition {
-                    name: f.name.to_string(),
+                    name: class_name
+                        .map_or_else(|| f.name.to_string(), |class| format!("{class}.{}", f.name)),
                     file: file.to_path_buf(),
                     line,
                 });
-                traverse_stmts(&f.body, file, line_index, functions, classes);
+                traverse_stmts(&f.body, None, file, line_index, functions, classes);
             }
             Stmt::ClassDef(c) => {
                 let line = line_index.line_index(c.range().start());
@@ -159,37 +162,65 @@ fn traverse_stmts(
                     file: file.to_path_buf(),
                     line,
                 });
-                traverse_stmts(&c.body, file, line_index, functions, classes);
+                traverse_stmts(
+                    &c.body,
+                    Some(c.name.as_str()),
+                    file,
+                    line_index,
+                    functions,
+                    classes,
+                );
             }
             Stmt::If(i) => {
-                traverse_stmts(&i.body, file, line_index, functions, classes);
+                traverse_stmts(&i.body, class_name, file, line_index, functions, classes);
                 for clause in &i.elif_else_clauses {
-                    traverse_stmts(&clause.body, file, line_index, functions, classes);
+                    traverse_stmts(
+                        &clause.body,
+                        class_name,
+                        file,
+                        line_index,
+                        functions,
+                        classes,
+                    );
                 }
             }
             Stmt::Try(t) => {
-                traverse_stmts(&t.body, file, line_index, functions, classes);
+                traverse_stmts(&t.body, class_name, file, line_index, functions, classes);
                 for h in &t.handlers {
                     let ast::ExceptHandler::ExceptHandler(handler) = h;
-                    traverse_stmts(&handler.body, file, line_index, functions, classes);
+                    traverse_stmts(
+                        &handler.body,
+                        class_name,
+                        file,
+                        line_index,
+                        functions,
+                        classes,
+                    );
                 }
-                traverse_stmts(&t.orelse, file, line_index, functions, classes);
-                traverse_stmts(&t.finalbody, file, line_index, functions, classes);
+                traverse_stmts(&t.orelse, class_name, file, line_index, functions, classes);
+                traverse_stmts(
+                    &t.finalbody,
+                    class_name,
+                    file,
+                    line_index,
+                    functions,
+                    classes,
+                );
             }
             Stmt::For(f) => {
-                traverse_stmts(&f.body, file, line_index, functions, classes);
-                traverse_stmts(&f.orelse, file, line_index, functions, classes);
+                traverse_stmts(&f.body, None, file, line_index, functions, classes);
+                traverse_stmts(&f.orelse, class_name, file, line_index, functions, classes);
             }
             Stmt::While(w) => {
-                traverse_stmts(&w.body, file, line_index, functions, classes);
-                traverse_stmts(&w.orelse, file, line_index, functions, classes);
+                traverse_stmts(&w.body, class_name, file, line_index, functions, classes);
+                traverse_stmts(&w.orelse, class_name, file, line_index, functions, classes);
             }
             Stmt::With(w) => {
-                traverse_stmts(&w.body, file, line_index, functions, classes);
+                traverse_stmts(&w.body, class_name, file, line_index, functions, classes);
             }
             Stmt::Match(m) => {
                 for case in &m.cases {
-                    traverse_stmts(&case.body, file, line_index, functions, classes);
+                    traverse_stmts(&case.body, class_name, file, line_index, functions, classes);
                 }
             }
             _ => {}
@@ -205,7 +236,7 @@ pub fn find_function_collisions(
     let mut name_to_locations: BTreeMap<String, Vec<FunctionLocation>> = BTreeMap::new();
 
     for func in functions {
-        if is_structural_name(&func.name) {
+        if func.name.contains('.') || is_structural_name(&func.name) {
             continue;
         }
 

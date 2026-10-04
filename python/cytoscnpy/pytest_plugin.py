@@ -17,7 +17,7 @@ import json
 import logging
 import subprocess
 import sys
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar, cast
 
@@ -25,6 +25,9 @@ import pytest
 
 from .pytest_findings import (
     JsonObject,
+)
+from .pytest_findings import (
+    detect_non_py_findings as _detect_non_py_findings,
 )
 from .pytest_findings import (
     group_by_file as _group_by_file,
@@ -131,15 +134,6 @@ def _run_scan(scan_path: Path) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
-def _detect_non_py_findings(by_file: Mapping[str, list[str]]) -> list[str]:
-    """Extract findings for files that are not Python sources."""
-    non_py_findings: list[str] = []
-    for file_str, msgs in by_file.items():
-        if not file_str.endswith(".py"):
-            non_py_findings.extend(f"{file_str}:{msg}" for msg in msgs)
-    return non_py_findings
-
-
 def pytest_sessionstart(session: Session) -> None:
     """Run CytoScnPy once and cache its results on the pytest session."""
     if not _is_enabled(session.config):
@@ -170,7 +164,9 @@ def pytest_sessionstart(session: Session) -> None:
         session.stash[FORCE_FAIL_KEY] = True
         return
 
-    session.stash[BY_FILE_KEY] = _group_by_file(cast(JsonObject, data))
+    session.stash[BY_FILE_KEY] = _group_by_file(
+        cast(JsonObject, data), session.config.rootpath
+    )
 
     # Findings on non-Python files (e.g. invalid custom secret regex on `.cytoscnpy.toml`)
     # won't have corresponding items created by `_iter_python_files`.

@@ -54,7 +54,7 @@ pub fn analyze_naming(
     let mut classified_classes: Vec<(&ClassDefinition, NamingStyle)> = Vec::new();
 
     for func in functions {
-        let name = &func.name;
+        let name = func.name.rsplit('.').next().unwrap_or(&func.name);
         if is_anonymous_or_empty(name) || is_unittest_fixture(name) {
             continue;
         }
@@ -103,7 +103,12 @@ pub fn analyze_naming(
             conforming_count += 1;
         } else {
             outliers.push(NamingOutlier {
-                name: func.name.clone(),
+                name: func
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or(&func.name)
+                    .to_owned(),
                 file: func.file.clone(),
                 line: func.line,
                 detected_style,

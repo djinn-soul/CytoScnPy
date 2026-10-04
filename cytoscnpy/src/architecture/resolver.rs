@@ -19,24 +19,42 @@ pub enum ResolvedTarget {
 /// Bidirectional index mapping file paths and module names.
 #[derive(Debug, Default)]
 pub struct ModuleResolver {
-    /// Maps canonical module name to node index.
+    /// Legacy global name index. Import resolution uses the root-scoped index.
     pub module_to_id: HashMap<String, usize>,
     /// Maps file path (canonical/normalized) to node index.
     pub file_to_id: HashMap<PathBuf, usize>,
     /// All indexed module nodes.
     pub nodes: Vec<ModuleNode>,
+    scoped_modules: HashMap<(PathBuf, String), usize>,
+    node_scopes: Vec<PathBuf>,
 }
 
 impl ModuleResolver {
     /// Builds an index of module nodes from a list of discovered Python files.
     pub fn build(files: &[PathBuf], roots: &[PathBuf]) -> Self {
+        Self::build_with_sources(files, roots, None)
+    }
+
+    pub(crate) fn build_with_sources(
+        files: &[PathBuf],
+        roots: &[PathBuf],
+        sources: Option<&crate::utils::sources::SourceCache>,
+    ) -> Self {
         let mut resolver = Self::default();
 
         for file in files {
             let relative = find_best_relative_path(file, roots);
             let (module_name, is_init) = path_to_module_name(&relative);
             let package_group = extract_package_group(&module_name);
-            let line_count = count_lines(file);
+            let line_count = sources.map_or_else(
+                || count_lines(file),
+                |sources| {
+                    sources
+                        .get(file)
+                        .and_then(|source| source.as_ref().ok())
+                        .map_or(0, |source| source.content.lines().count())
+                },
+            );
 
             let id = resolver.nodes.len();
             let node = ModuleNode {
@@ -69,6 +87,25 @@ impl ModuleResolver {
                 resolver.module_to_id.entry(last.to_owned()).or_insert(id);
             }
 
+            let mut scope = file.canonicalize().unwrap_or_else(|_| file.clone());
+            for _ in relative.components() {
+                scope.pop();
+            }
+            resolver
+                .scoped_modules
+                .insert((scope.clone(), module_name.clone()), id);
+            let aliases = [
+                module_name.strip_prefix("src."),
+                module_name.strip_prefix("python."),
+                module_name.rsplit_once('.').map(|(_, last)| last),
+            ];
+            for name in aliases.into_iter().flatten() {
+                resolver
+                    .scoped_modules
+                    .entry((scope.clone(), name.to_owned()))
+                    .or_insert(id);
+            }
+            resolver.node_scopes.push(scope);
             resolver.nodes.push(node);
         }
 
@@ -88,7 +125,7 @@ impl ModuleResolver {
         if level > 0 {
             self.resolve_relative(source_node, module, imported_symbol, level)
         } else {
-            self.resolve_absolute(module, imported_symbol)
+            self.resolve_absolute(source_id, module, imported_symbol)
         }
     }
 
@@ -130,14 +167,14 @@ impl ModuleResolver {
             } else {
                 format!("{base_module}.{sym}")
             };
-            if let Some(&id) = self.module_to_id.get(&candidate_with_sym) {
+            if let Some(&id) = self.find_module_id(source_node.id, &candidate_with_sym) {
                 return Some(ResolvedTarget::Internal(id));
             }
         }
 
         // Case 2: base_module itself is a known module
         if !base_module.is_empty() {
-            if let Some(&id) = self.module_to_id.get(&base_module) {
+            if let Some(&id) = self.find_module_id(source_node.id, &base_module) {
                 return Some(ResolvedTarget::Internal(id));
             }
         }
@@ -147,6 +184,7 @@ impl ModuleResolver {
 
     fn resolve_absolute(
         &self,
+        source_id: usize,
         module: Option<&str>,
         imported_symbol: Option<&str>,
     ) -> Option<ResolvedTarget> {
@@ -159,13 +197,13 @@ impl ModuleResolver {
         // Case 1: `from a.b import c` where `a.b.c` is a module
         if let Some(sym) = imported_symbol {
             let combined = format!("{trimmed}.{sym}");
-            if let Some(&id) = self.find_module_id(&combined) {
+            if let Some(&id) = self.find_module_id(source_id, &combined) {
                 return Some(ResolvedTarget::Internal(id));
             }
         }
 
         // Case 2: `mod_str` directly matches an internal module
-        if let Some(&id) = self.find_module_id(trimmed) {
+        if let Some(&id) = self.find_module_id(source_id, trimmed) {
             return Some(ResolvedTarget::Internal(id));
         }
 
@@ -173,7 +211,7 @@ impl ModuleResolver {
         let parts: Vec<&str> = trimmed.split('.').collect();
         for i in (1..parts.len()).rev() {
             let prefix = parts[..i].join(".");
-            if let Some(&id) = self.find_module_id(&prefix) {
+            if let Some(&id) = self.find_module_id(source_id, &prefix) {
                 return Some(ResolvedTarget::Internal(id));
             }
         }
@@ -183,7 +221,8 @@ impl ModuleResolver {
         Some(ResolvedTarget::External((*top_level).to_owned()))
     }
 
-    fn find_module_id(&self, name: &str) -> Option<&usize> {
-        self.module_to_id.get(name)
+    fn find_module_id(&self, source_id: usize, name: &str) -> Option<&usize> {
+        self.scoped_modules
+            .get(&(self.node_scopes.get(source_id)?.clone(), name.to_owned()))
     }
 }

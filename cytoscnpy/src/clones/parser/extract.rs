@@ -21,9 +21,18 @@ pub(crate) fn extract_subtrees_with_min_lines(
     min_lines: usize,
 ) -> Result<Vec<Subtree>, CloneError> {
     let module = AstParser::parse(source)?;
+    Ok(extract_subtrees_ast(source, path, &module.body, min_lines))
+}
+
+pub(crate) fn extract_subtrees_ast(
+    source: &str,
+    path: &PathBuf,
+    body: &[Stmt],
+    min_lines: usize,
+) -> Vec<Subtree> {
     let mut subtrees = Vec::new();
-    extract_from_body(&module.body, path, source, &mut subtrees, false, min_lines);
-    Ok(subtrees)
+    extract_from_body(body, path, source, &mut subtrees, false, min_lines);
+    subtrees
 }
 
 /// Recursively extract subtrees from a statement body

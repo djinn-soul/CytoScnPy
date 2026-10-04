@@ -2,21 +2,32 @@
 
 use std::path::Path;
 
-use super::callbacks::detect_nested_callbacks;
-use super::magic::detect_magic_numbers;
+use super::callbacks::detect_nested_callbacks_ast;
+use super::magic::detect_magic_numbers_ast;
 use super::types::AntiPatternMatch;
 use crate::utils::LineIndex;
 
 /// Analyzes Python source code for magic numbers and deeply nested callbacks.
 #[must_use]
 pub fn detect_anti_patterns(source: &str, file: &Path) -> Vec<AntiPatternMatch> {
+    let Ok(parsed) = ruff_python_parser::parse_module(source) else {
+        return Vec::new();
+    };
+    detect_anti_patterns_ast(source, file, parsed.suite())
+}
+
+pub(crate) fn detect_anti_patterns_ast(
+    source: &str,
+    file: &Path,
+    body: &[ruff_python_ast::Stmt],
+) -> Vec<AntiPatternMatch> {
     let line_index = LineIndex::new(source);
 
     // 1. Detect magic numbers using AST
-    let mut matches = detect_magic_numbers(source, file, &line_index);
+    let mut matches = detect_magic_numbers_ast(source, file, &line_index, body);
 
     // 2. Detect deeply nested callbacks and control structures
-    let mut nested = detect_nested_callbacks(source, file);
+    let mut nested = detect_nested_callbacks_ast(source, file, body);
     matches.append(&mut nested);
 
     // Sort deterministically by line, then column

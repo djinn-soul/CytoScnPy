@@ -36,18 +36,15 @@ pub fn collect_raw_imports(file: &Path) -> Vec<RawImport> {
         return Vec::new();
     };
 
-    let line_index = LineIndex::new(&content);
+    collect_raw_imports_ast(&content, &parsed.into_syntax().body)
+}
+
+pub(crate) fn collect_raw_imports_ast(content: &str, body: &[Stmt]) -> Vec<RawImport> {
+    let line_index = LineIndex::new(content);
     let mut imports = Vec::new();
     let mut tc_state = TypeCheckingState::default();
 
-    traverse_stmts(
-        &parsed.into_syntax().body,
-        &mut imports,
-        &mut tc_state,
-        &line_index,
-        true,
-        false,
-    );
+    traverse_stmts(body, &mut imports, &mut tc_state, &line_index, true, false);
 
     imports
 }

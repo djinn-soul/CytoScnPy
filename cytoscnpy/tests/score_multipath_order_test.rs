@@ -277,6 +277,6 @@ fn test_resolve_doctor_target_consistency() {
     fs::write(&py_file, "def test_it():\n    assert True\n").unwrap();
 
     let resolved_abs = cytoscnpy::doctor::resolve_doctor_target(&py_file, root);
-    let canonical_sub = sub.canonicalize().unwrap();
-    assert_eq!(resolved_abs, canonical_sub);
+    let canonical_root = root.canonicalize().unwrap();
+    assert_eq!(resolved_abs, canonical_root);
 }

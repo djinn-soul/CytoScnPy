@@ -36,6 +36,7 @@ def check_value(x):
             while x > 5000:
                 for i in range(10):
                     if i == 7:
+                        task.add_done_callback(lambda result: result)
                         return i
     return 0
 ";

@@ -19,6 +19,8 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--verbose`, `-v`: Prints detailed logs during the analysis process, including which files are being scanned and any non-fatal issues encountered.
 - `--quiet`: Minimalist output. Only the final summary table (or JSON) is displayed, suppressing the per-file findings table.
 - `--fail-on-any`: Enables all supported failure gates and exits with code `1` if any actionable finding is detected. For unused code, it uses zero tolerance unless `--fail-threshold`, config, or `CYTOSCNPY_FAIL_THRESHOLD` supplies a threshold.
+Configured `--max-lines`, `--max-args`, and `--max-nesting` limits (or their configuration equivalents) enable quality analysis and fail the scan when their corresponding rules report a violation.
+
 - `--fail-on-quality`: Causes the process to exit with code `1` if _any_ code quality issues (like high complexity or deep nesting) are detected.
 - `--fail-on-secrets`: Enables secret scanning if needed and exits with code `1` if any secret findings are detected.
 - `--fail-on-danger`: Enables dangerous-code/taint scanning if needed and exits with code `1` if any danger or taint findings are detected.
@@ -40,7 +42,7 @@ cytoscnpy [OPTIONS] [COMMAND]
 - `--confidence <N>`, `-c`: Sets a minimum confidence threshold (0-100). CytoScnPy uses a scoring system for dead code; setting this to `80`, for example, will suppress "noisy" findings where the tool isn't certain the code is unused.
 - `--exclude-folders <DIRS>`: Exclude specific folders from analysis. Can be used multiple times.
 - `--include-folders <DIRS>`: Force-include specific folders in analysis. Can be used multiple times.
-- `--include-tests`: By default, CytoScnPy excludes `tests/`, `test/`, `test_*.py`, `*_test.py`, `conftest.py`, and `noxfile.py` from main analysis, metrics, file statistics, and clone detection. Use this flag to include them. Dependency analysis still scans test/dev files intentionally so it can distinguish development-only imports from production imports.
+- `--include-tests`: By default, CytoScnPy excludes `tests/`, `test/`, `test_*.py`, `*_test.py`, `conftest.py`, and `noxfile.py` from main analysis, `deslop`, metrics, file statistics, and clone detection. Use this flag to include them. Dependency analysis still scans test/dev files intentionally so it can distinguish development-only imports from production imports.
 - `--include-ipynb`: Enables scanning of Jupyter Notebook files. CytoScnPy extracts the Python code from cells and analyzes it as a virtual module.
 - `--ipynb-cells`: When combined with `--include-ipynb`, this reports findings with cell numbers instead of just line numbers, making it easier to locate issues in the Notebook UI.
 - `--clones`: Activates **duplicate code detection**. It uses AST-based hashing to find code blocks that are identical or nearly identical across your codebase.
@@ -63,17 +65,19 @@ The main analysis exits with code `1` when parsing or reading errors leave a sca
 incomplete, including when no failure flags are supplied. JSON reports retain
 the `parse_errors` list and any findings from files that were scanned. Directory
 traversal errors are included in that list, so unreadable subdirectories also
-fail the scan.
+fail the scan. Dead-code fixing (preview or apply) is refused when any parsing/read error makes the scan incomplete.
 
 These flags allow you to set strict gates for CI/CD. If any enabled gate fails, CytoScnPy exits with code `1`. Failure gates that depend on optional scans enable those scans automatically.
 
 - `--fail-on-any`: Convenience gate for CI. Implies quality, secrets, danger/taint, missing dependency, and unused dependency failure gates. For unused code, it defaults to `--fail-threshold 0.0` unless an explicit threshold is supplied.
-- `--fail-threshold <N>`: Exit with 1 if the total percentage of unused code exceeds `N`.
+- `--fail-threshold <N>`: Exit with 1 if the total percentage of unused code exceeds `N`. CLI, config, and `CYTOSCNPY_FAIL_THRESHOLD` values must be finite numbers from `0` through `100` (in that precedence order).
 - `--max-complexity <N>`: Sets the maximum allowed Cyclomatic Complexity (standard is often `10`).
-- `--min-mi <N>`: Sets the minimum allowed Maintainability Index (usually `40-65`). A measured score of zero fails any positive threshold; an empty file inventory has no measured score.
+- `--min-mi <N>`: Sets the minimum allowed Maintainability Index for each file (usually `40-65`); a high project average cannot hide a failing file. A measured score of zero fails any positive threshold; an empty file inventory has no measured score.
 - `--max-nesting <N>`: Sets the maximum allowed indentation/nesting level (e.g., `3` or `4`).
 - `--max-args <N>`: Sets the maximum number of arguments a function can have.
 - `--max-lines <N>`: Sets the maximum number of lines a function can have.
+Configured `--max-lines`, `--max-args`, and `--max-nesting` limits (or their configuration equivalents) enable quality analysis and fail the scan when their corresponding rules report a violation.
+
 - `--fail-on-quality`: Exit with 1 if any quality issue is found.
 - `--fail-on-secrets`: Exit with 1 if any secret finding is found; implies `--secrets`.
 - `--fail-on-danger`: Exit with 1 if any danger or taint finding is found; implies `--danger`.
@@ -81,6 +85,12 @@ These flags allow you to set strict gates for CI/CD. If any enabled gate fails, 
 - `--fail-on-unused-deps`: Exit with 1 if unused dependencies are found; implies `--deps`.
 
 ## Subcommands
+
+`deslop` shares a source and AST snapshot across its Python analyses. Health
+checks resolve package directories and files to the nearest project root so
+root-level manifests and tooling remain visible. Its JSON `scoring.passed_gate`
+and `gates.passed` fields both describe the final exit decision.
+
 
 Metric commands report file discovery and source read failures rather than
 returning empty or perfect metrics. `cc`, `mi`, and `hal` also fail on invalid

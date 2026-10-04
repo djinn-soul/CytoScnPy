@@ -16,6 +16,11 @@ pub(crate) fn run_fix_if_requested<W: std::io::Write>(
     // Handle --fix flag for dead code removal
     // Only run if we didn't also run clones (clones are report-only)
     if cli_var.fix && !cli_var.clones {
+        anyhow::ensure!(
+            result.parse_errors.is_empty(),
+            "Cannot fix dead code: scan incomplete ({} parsing/read errors)",
+            result.parse_errors.len()
+        );
         let fix_confidence = resolve_fix_confidence(confidence);
         if !cli_var.output.json && confidence < MIN_FIX_CONFIDENCE {
             writeln!(

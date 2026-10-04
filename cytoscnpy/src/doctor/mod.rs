@@ -60,25 +60,31 @@ pub fn run_doctor(repo_root: &Path, config: &DoctorConfig) -> DoctorResult {
     }
 }
 
-/// Resolves a target path consistently to a directory for repository health analysis.
-/// For file targets, resolves to the parent directory (using canonicalization when available).
+/// Resolves file and subdirectory targets to their nearest project boundary.
 #[must_use]
 pub fn resolve_doctor_target(path: &Path, fallback: &Path) -> std::path::PathBuf {
-    if path.is_file() {
-        if let Ok(abs) = path.canonicalize() {
-            if let Some(parent) = abs.parent() {
-                return parent.to_path_buf();
-            }
-        }
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                return parent.to_path_buf();
-            }
-        }
-        fallback.to_path_buf()
-    } else if let Ok(abs) = path.canonicalize() {
-        abs
+    let resolved = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let directory = if path.is_file() {
+        resolved.parent().unwrap_or(fallback)
     } else {
-        path.to_path_buf()
+        resolved.as_path()
+    };
+    let project = crate::utils::discover_project_root(directory);
+    if project != directory
+        || directory.join("pyproject.toml").is_file()
+        || directory.join("setup.py").is_file()
+        || directory.join("setup.cfg").is_file()
+        || directory.join(".cytoscnpy.toml").is_file()
+        || directory.join(".git").exists()
+    {
+        return project;
+    }
+    let fallback = fallback
+        .canonicalize()
+        .unwrap_or_else(|_| fallback.to_path_buf());
+    if directory.starts_with(&fallback) {
+        fallback
+    } else {
+        directory.to_path_buf()
     }
 }

@@ -1,7 +1,6 @@
 use super::pipeline::PipelineOutput;
 use super::rule_engine::{apply_rule_engine, RuleEngineContext};
 use crate::analyzer::{apply_heuristics, apply_penalties, CytoScnPy};
-use crate::rules::secrets::scan_secrets;
 use crate::utils::{LineIndex, Suppression};
 use crate::visitor::DefinitionType;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -31,12 +30,15 @@ pub(super) fn analyze_parsed_module(
     }
 
     if ctx.analyzer.enable_secrets {
-        output.secrets = scan_secrets(
+        // Reuse the parsed module, line index and suppressions.
+        output.secrets = ctx.analyzer.secret_scanner().scan_with_suppressions(
             ctx.source,
+            Some(&ctx.module.body),
             &ctx.file_path.to_path_buf(),
-            &ctx.analyzer.config.cytoscnpy.secrets_config,
+            ctx.line_index,
             Some(&docstring_lines),
             ctx.is_test_file,
+            Some(ctx.ignored_lines),
         );
 
         output.secrets.retain(|finding| {

@@ -93,6 +93,20 @@ pub fn collect_python_files_gitignore_with_errors(
     include_ipynb: bool,
     verbose: bool,
 ) -> (Vec<std::path::PathBuf>, usize, Vec<String>) {
+    collect_python_files_within(root, None, exclude, include, include_ipynb, verbose)
+}
+
+/// Like [`collect_python_files_gitignore_with_errors`], but symlinked sources
+/// may resolve anywhere inside `boundary` instead of only inside `root`. Used
+/// when `root` is nested inside another directory input of the same scan.
+pub(crate) fn collect_python_files_within(
+    root: &std::path::Path,
+    boundary: Option<&std::path::Path>,
+    exclude: &[String],
+    include: &[String],
+    include_ipynb: bool,
+    verbose: bool,
+) -> (Vec<std::path::PathBuf>, usize, Vec<String>) {
     use ignore::WalkBuilder;
 
     // Merge user excludes with default excludes
@@ -148,6 +162,21 @@ pub fn collect_python_files_gitignore_with_errors(
     let mut files = Vec::new();
     let mut dir_count = 0;
     let mut errors = Vec::new();
+    let boundary = if let Some(boundary) = boundary {
+        boundary
+    } else if root.is_dir() {
+        root
+    } else {
+        root.parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."))
+    };
+    // Resolve the boundary once; each source is resolved exactly once below,
+    // and that resolution also identifies symlinked duplicates.
+    let canonical_boundary = boundary
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve root {}: {error}", boundary.display()));
+    let mut seen_sources = std::collections::HashSet::new();
 
     for result in walker {
         if let Ok(entry) = result {
@@ -174,7 +203,35 @@ pub fn collect_python_files_gitignore_with_errors(
                 continue;
             }
 
-            files.push(path.to_path_buf());
+            // WARNING: A descendant symlink can escape an otherwise trusted
+            // scan root. Validate every source before consumers open it.
+            let canonical_boundary = match &canonical_boundary {
+                Ok(canonical) => canonical,
+                Err(error) => {
+                    errors.push(error.clone());
+                    break;
+                }
+            };
+            match validation::resolve_within_canonical_root(path, canonical_boundary, boundary) {
+                Ok(resolved) => {
+                    if !seen_sources.insert(resolved.clone()) {
+                        continue;
+                    }
+                    // Read the resolved target of symlinks so replacing the
+                    // link after discovery cannot redirect the source read.
+                    // Spell it under the caller's root so reports and module
+                    // names stay project-relative instead of absolute.
+                    if entry.file_type().is_some_and(|kind| kind.is_symlink()) {
+                        files.push(match resolved.strip_prefix(canonical_boundary) {
+                            Ok(relative) => boundary.join(relative),
+                            Err(_) => resolved,
+                        });
+                    } else {
+                        files.push(path.to_path_buf());
+                    }
+                }
+                Err(error) => errors.push(error.to_string()),
+            }
         } else if let Err(e) = result {
             if verbose {
                 eprintln!("Walk error: {e}");

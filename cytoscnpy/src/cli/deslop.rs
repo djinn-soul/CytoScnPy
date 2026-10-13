@@ -18,7 +18,7 @@ pub struct DeslopArgs {
     /// Output one JSON report.
     #[arg(long)]
     pub json: bool,
-    /// Output format: terminal, JSON, or LLM remediation instructions.
+    /// Output format: terminal, JSON, or LLM remediation instructions (overrides --json).
     #[arg(long, value_parser = ["terminal", "json", "llm"])]
     pub format: Option<String>,
     /// Show the full analysis report and detailed scoring diagnostics.

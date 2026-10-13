@@ -1,4 +1,5 @@
 use super::CytoScnPy;
+use rayon::prelude::*;
 
 pub(super) fn run_taint_analysis(
     analyzer: &CytoScnPy,
@@ -36,8 +37,9 @@ pub(super) fn run_taint_analysis(
         crate::taint::analyzer::TaintConfig::with_custom(custom_sources, custom_sinks, sanitizers);
     let taint_analyzer = crate::taint::analyzer::TaintAnalyzer::new(taint_config);
 
+    // Files are independent; analyze them in parallel.
     files
-        .iter()
+        .par_iter()
         .filter_map(|file_path| {
             let is_notebook = file_path.extension().is_some_and(|ext| ext == "ipynb");
             let source = if is_notebook {
@@ -47,16 +49,17 @@ pub(super) fn run_taint_analysis(
             };
             source.map(|content| (file_path.clone(), content))
         })
-        .flat_map(|(path, source)| {
+        .flat_map_iter(|(path, source)| {
+            let mut findings = taint_analyzer.analyze_file(&source, &path);
+            if findings.is_empty() {
+                return findings;
+            }
             let ignored = crate::utils::get_ignored_lines(&source);
-            taint_analyzer
-                .analyze_file(&source, &path)
-                .into_iter()
-                .filter(move |finding| {
-                    !crate::utils::is_line_suppressed(&ignored, finding.sink_line, &finding.rule_id)
-                        && !analyzer.is_rule_ignored_for_path(&finding.file, &finding.rule_id)
-                })
-                .collect::<Vec<_>>()
+            findings.retain(|finding| {
+                !crate::utils::is_line_suppressed(&ignored, finding.sink_line, &finding.rule_id)
+                    && !analyzer.is_rule_ignored_for_path(&finding.file, &finding.rule_id)
+            });
+            findings
         })
         .collect()
 }

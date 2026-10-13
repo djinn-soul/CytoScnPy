@@ -59,6 +59,9 @@ fn incomplete_scan_preserves_findings_from_valid_files() {
     assert_eq!(result.is_error, Some(true));
     let content = serde_json::to_value(&result.content[0]).unwrap();
     let summary: Value = serde_json::from_str(content["text"].as_str().unwrap()).unwrap();
-    assert!(!summary["danger"].as_array().unwrap().is_empty());
+    assert!(
+        !summary["danger"].as_array().unwrap().is_empty(),
+        "expected a non-empty value"
+    );
     assert_eq!(summary["parse_errors"].as_array().unwrap().len(), 1);
 }

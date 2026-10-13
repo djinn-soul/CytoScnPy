@@ -40,9 +40,15 @@ pub(crate) fn find_python_files_with_options_and_issues(
 ) -> (Vec<PathBuf>, Vec<(PathBuf, String)>) {
     let mut all_files = Vec::new();
     let mut issues = Vec::new();
-    for root in roots {
-        let (mut files, _, errors) = crate::utils::collect_python_files_gitignore_with_errors(
-            root, exclude, include, false, verbose,
+    for input in crate::utils::path_inventory::unique_inputs(roots) {
+        let root = input.path;
+        let (mut files, _, errors) = crate::utils::collect_python_files_within(
+            root,
+            input.enclosing.map(PathBuf::as_path),
+            exclude,
+            include,
+            false,
+            verbose,
         );
         issues.extend(errors.into_iter().map(|error| (root.clone(), error)));
         if !include_tests {
@@ -57,6 +63,8 @@ pub(crate) fn find_python_files_with_options_and_issues(
         files.retain(|path| !crate::utils::is_likely_minified(path, None));
         all_files.extend(files);
     }
+    // Overlapping inputs must measure each physical source once.
+    crate::utils::path_inventory::deduplicate_files(&mut all_files);
     (all_files, issues)
 }
 

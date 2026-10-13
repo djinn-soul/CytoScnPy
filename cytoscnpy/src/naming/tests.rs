@@ -137,7 +137,11 @@ fn test_all_snake_case_functions() {
     assert_eq!(res.stats.snake_case_count, 3);
     assert_eq!(res.stats.dominant_style, NamingStyle::SnakeCase);
     assert!((res.stats.dominant_style_ratio - 1.0).abs() < f64::EPSILON);
-    assert!(res.outliers.is_empty());
+    assert!(
+        res.outliers.is_empty(),
+        "expected empty, got {:?}",
+        res.outliers
+    );
     assert!(res.is_consistent(0.90));
 }
 
@@ -205,7 +209,11 @@ fn test_empty_input() {
     assert_eq!(res.stats.total_identifiers, 0);
     assert_eq!(res.stats.dominant_style, NamingStyle::SnakeCase);
     assert!((res.stats.dominant_style_ratio - 1.0).abs() < f64::EPSILON);
-    assert!(res.outliers.is_empty());
+    assert!(
+        res.outliers.is_empty(),
+        "expected empty, got {:?}",
+        res.outliers
+    );
     assert!(res.is_consistent(0.80));
 }
 
@@ -242,7 +250,11 @@ fn test_unittest_fixtures_exempted() {
     let res = analyze_naming_functions(&funcs);
     assert_eq!(res.stats.total_identifiers, 1);
     assert_eq!(res.stats.snake_case_count, 1);
-    assert!(res.outliers.is_empty());
+    assert!(
+        res.outliers.is_empty(),
+        "expected empty, got {:?}",
+        res.outliers
+    );
 }
 
 #[test]
@@ -288,6 +300,10 @@ fn test_classes_do_not_skew_dominant_function_style() {
     let code = "class ClassOne:\n    pass\nclass ClassTwo:\n    pass\nclass ClassThree:\n    pass\ndef helper_func():\n    pass\n";
     let res = analyze_naming_from_source(code, Path::new("test.py"));
     assert_eq!(res.stats.dominant_style, NamingStyle::SnakeCase);
-    assert!(res.outliers.is_empty());
+    assert!(
+        res.outliers.is_empty(),
+        "expected empty, got {:?}",
+        res.outliers
+    );
     assert!((res.stats.dominant_style_ratio - 1.0).abs() < f64::EPSILON);
 }

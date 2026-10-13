@@ -59,7 +59,11 @@ def production_only(value):
 
     let findings = run_clone_json(project.path().to_path_buf(), false);
 
-    assert!(findings.as_array().unwrap().is_empty());
+    assert!(
+        findings.as_array().unwrap().is_empty(),
+        "expected empty, got {:?}",
+        findings.as_array().unwrap()
+    );
 }
 
 #[test]
@@ -71,7 +75,10 @@ fn clone_command_includes_tests_when_requested() {
 
     let findings = run_clone_json(project.path().to_path_buf(), true);
 
-    assert!(!findings.as_array().unwrap().is_empty());
+    assert!(
+        !findings.as_array().unwrap().is_empty(),
+        "expected a non-empty value"
+    );
 }
 
 #[test]
@@ -83,7 +90,11 @@ fn clone_command_emits_empty_json_when_only_tests_are_filtered() {
 
     let findings = run_clone_json(project.path().to_path_buf(), false);
 
-    assert!(findings.as_array().unwrap().is_empty());
+    assert!(
+        findings.as_array().unwrap().is_empty(),
+        "expected empty, got {:?}",
+        findings.as_array().unwrap()
+    );
 }
 
 #[test]
@@ -104,7 +115,10 @@ fn clone_command_honors_force_included_folders() {
     run_clones(&[project.path().to_path_buf()], &options, &mut output).unwrap();
     let findings: serde_json::Value = serde_json::from_slice(&output).unwrap();
 
-    assert!(!findings.as_array().unwrap().is_empty());
+    assert!(
+        !findings.as_array().unwrap().is_empty(),
+        "expected a non-empty value"
+    );
 }
 
 #[test]

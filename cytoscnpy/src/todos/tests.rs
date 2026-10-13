@@ -200,7 +200,10 @@ fn reports_files_that_cannot_be_read() {
     let result = scan_files(std::slice::from_ref(&missing));
     assert_eq!(result.scan_errors.len(), 1);
     assert_eq!(result.scan_errors[0].file, missing);
-    assert!(!result.scan_errors[0].error.is_empty());
+    assert!(
+        !result.scan_errors[0].error.is_empty(),
+        "expected a non-empty value"
+    );
 }
 
 // ---------------------------------------------------------------------------

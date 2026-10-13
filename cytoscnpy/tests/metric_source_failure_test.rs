@@ -22,7 +22,7 @@ fn decoding_failures_never_become_perfect_or_empty_metrics() {
         let details = format!("{error:#}");
         assert!(details.contains("undecodable.py"), "{details}");
         assert!(details.contains("UTF-8"), "{details}");
-        assert!(output.is_empty());
+        assert!(output.is_empty(), "expected empty, got {output:?}");
     }
 }
 
@@ -45,7 +45,7 @@ fn parse_dependent_metrics_report_invalid_python() {
         let details = format!("{error:#}");
         assert!(details.contains("malformed.py"));
         assert!(details.contains("Failed to parse"));
-        assert!(output.is_empty());
+        assert!(output.is_empty(), "expected empty, got {output:?}");
     }
     // Raw metrics describe source text and do not require syntactically valid Python.
     let mut output = Vec::new();

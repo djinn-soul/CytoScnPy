@@ -18,8 +18,11 @@ export function transformRawResult(
 
   const normalizeSeverity = (
     severity: string | undefined,
-  ): "error" | "warning" => {
-    const upper = severity?.toUpperCase();
+  ): "error" | "warning" | undefined => {
+    if (!severity) {
+      return undefined;
+    }
+    const upper = severity.toUpperCase();
     return upper === "HIGH" || upper === "CRITICAL" ? "error" : "warning";
   };
 
@@ -42,7 +45,7 @@ export function transformRawResult(
         message: rawFinding.message || messageFormatter(rawFinding),
         rule_id: rawFinding.rule_id || defaultRuleId,
         category: rawFinding.category || defaultCategory,
-        severity: normalizeSeverity(rawFinding.severity) || defaultSeverity,
+        severity: normalizeSeverity(rawFinding.severity) ?? defaultSeverity,
         fix: rawFinding.fix,
       });
     }
@@ -163,9 +166,9 @@ export function transformRawResult(
         line_number: f.sink_line,
         col: f.sink_col,
         message,
-        rule_id: `taint-${f.vuln_type.toLowerCase()}`,
+        rule_id: f.rule_id || `taint-${f.vuln_type.toLowerCase()}`,
         category: "Security",
-        severity: normalizeSeverity(f.severity),
+        severity: normalizeSeverity(f.severity) ?? "warning",
       });
     }
   }

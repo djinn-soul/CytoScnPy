@@ -27,7 +27,7 @@ fn stats_and_files_report_decode_errors_without_json_output() {
         let details = format!("{error:#}");
         assert!(details.contains("undecodable.py"), "{details}");
         assert!(details.contains("UTF-8"), "{details}");
-        assert!(output.is_empty());
+        assert!(output.is_empty(), "expected empty, got {output:?}");
     }
 }
 
@@ -48,7 +48,7 @@ fn stats_reports_syntax_failure_while_files_counts_readable_text() {
     .err()
     .unwrap();
     assert!(format!("{error:#}").contains("Failed to parse Python source"));
-    assert!(output.is_empty());
+    assert!(output.is_empty(), "expected empty, got {output:?}");
     assert_eq!(
         run_with_args_to(
             vec![
@@ -87,7 +87,7 @@ fn programmatic_stats_and_files_propagate_discovery_failures() {
         &mut output
     )
     .is_err());
-    assert!(output.is_empty());
+    assert!(output.is_empty(), "expected empty, got {output:?}");
 }
 
 #[test]

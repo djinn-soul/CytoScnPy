@@ -6,6 +6,11 @@ on:
     paths:
       - "cytoscnpy/**"
       - "benchmark/**"
+      - "python/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/benchmark.yml"
 
 concurrency:
@@ -43,12 +48,16 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r benchmark/requirements.txt
+          pip install 'pytest>=7.0'
           pip install -e .
 
       - name: Build CytoScnPy (Rust)
         run: |
           cd cytoscnpy
           cargo build --release --verbose --features python-bindings
+
+      - name: Run Benchmark Regression Tests
+        run: python -m pytest benchmark/tests -q
 
       - name: Run Benchmark Check
         run: python benchmark/benchmark_and_verify.py --check

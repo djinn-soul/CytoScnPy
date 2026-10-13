@@ -479,7 +479,11 @@ fn test_cli_files_empty_directory() {
 
     let output = String::from_utf8(buffer).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
-    assert!(parsed.as_array().unwrap().is_empty());
+    assert!(
+        parsed.as_array().unwrap().is_empty(),
+        "expected empty, got {:?}",
+        parsed.as_array().unwrap()
+    );
 }
 
 #[test]

@@ -4,23 +4,30 @@
 
 mod ignore_match;
 mod minified;
+pub(crate) mod path_inventory;
 mod paths;
 pub(crate) mod python_guards;
 pub(crate) mod sources;
+mod suppression;
 
 pub(crate) use paths::discover_project_root;
 
 // Re-export path, ignore, and minification utilities
 pub use ignore_match::{is_name_or_pattern_ignored, is_path_ignored};
 pub use minified::{is_likely_minified, is_likely_minified_content, is_likely_minified_path};
+pub(crate) use paths::collect_python_files_within;
 pub use paths::{
     collect_python_files_gitignore, collect_python_files_gitignore_with_errors, is_excluded,
     normalize_display_path, validate_output_path, validate_path_within_root,
 };
+pub use suppression::{
+    get_ignored_lines, get_line_suppression, is_line_suppressed, is_rule_suppressed_on_line,
+    Suppression,
+};
 
 use crate::constants::{DEFAULT_EXCLUDE_FOLDERS, FRAMEWORK_FILE_RE, TEST_FILE_RE};
 use ruff_text_size::TextSize;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 
 /// A utility struct to convert byte offsets to line numbers.
 ///
@@ -79,79 +86,6 @@ impl LineIndex {
             None => offset_usize - line_start + 1,
         }
     }
-}
-
-/// Suppression specification.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Suppression {
-    /// Suppress all findings.
-    All,
-    /// Suppress findings for specific rule IDs.
-    Specific(FxHashSet<String>),
-}
-
-impl Suppression {
-    /// Returns whether this suppression covers the requested rule ID.
-    #[must_use]
-    pub fn covers(&self, rule_id: &str) -> bool {
-        match self {
-            Self::All => true,
-            Self::Specific(rules) => rules.contains(&rule_id.to_uppercase()),
-        }
-    }
-}
-
-/// Detects suppression specification for a line.
-///
-/// Supports multiple formats:
-/// - `# pragma: no cytoscnpy` - Legacy format (All)
-/// - `# noqa` or `# ignore` - Bare ignore (All)
-/// - `# noqa: CSP-D101, CSP-Q202` - Specific codes
-#[must_use]
-pub fn get_line_suppression(line: &str) -> Option<Suppression> {
-    let re = crate::constants::SUPPRESSION_RE();
-
-    if let Some(caps) = re.captures(line) {
-        // Case 1: # pragma: no cytoscnpy -> Always ignore
-        if line.to_lowercase().contains("pragma: no cytoscnpy") {
-            return Some(Suppression::All);
-        }
-
-        // Case 2: Specific codes
-        if let Some(codes_match) = caps.get(1) {
-            let codes_str = codes_match.as_str();
-            let mut specific_rules = FxHashSet::default();
-            for code in codes_str.split(',').map(str::trim) {
-                let c = code.to_uppercase();
-                if c == "CSP" {
-                    return Some(Suppression::All); // Treat generic "CSP" as suppress all
-                }
-                specific_rules.insert(c);
-            }
-            if !specific_rules.is_empty() {
-                return Some(Suppression::Specific(specific_rules));
-            }
-            // If codes exist but none are CSP-related, we don't suppress CSP findings
-            return None;
-        }
-
-        // Case 3: Bare ignore (no colon/codes) -> Always ignore
-        return Some(Suppression::All);
-    }
-
-    None
-}
-
-/// Detects lines with suppression comments in a source file.
-///
-/// Returns a map of line numbers (1-indexed) to suppression specs.
-#[must_use]
-pub fn get_ignored_lines(source: &str) -> FxHashMap<usize, Suppression> {
-    source
-        .lines()
-        .enumerate()
-        .filter_map(|(i, line)| get_line_suppression(line).map(|suppression| (i + 1, suppression)))
-        .collect()
 }
 
 /// Checks if a path is a test path.
@@ -232,26 +166,6 @@ pub fn parse_exclude_folders<S: std::hash::BuildHasher>(
     }
 
     exclude_folders
-}
-
-/// Checks if a specific line and rule are suppressed.
-///
-/// Returns true if the finding should be ignored.
-#[must_use]
-pub fn is_line_suppressed(
-    ignored_lines: &std::collections::HashMap<usize, Suppression, impl std::hash::BuildHasher>,
-    line: usize,
-    rule_id: &str,
-) -> bool {
-    ignored_lines
-        .get(&line)
-        .is_some_and(|suppression| suppression.covers(rule_id))
-}
-
-/// Returns whether an inline comment suppresses the requested rule ID.
-#[must_use]
-pub fn is_rule_suppressed_on_line(line: &str, rule_id: &str) -> bool {
-    get_line_suppression(line).is_some_and(|suppression| suppression.covers(rule_id))
 }
 
 #[cfg(test)]

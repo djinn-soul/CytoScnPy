@@ -46,6 +46,9 @@ rustflags = [
     "-C", "link-arg=/OPT:REF", # Remove unreferenced functions and data
     "-C", "link-arg=/OPT:ICF", # Identical COMDAT folding
     "-C", "link-dead-code=no", # Aggressive dead code elimination
+    # Link the C runtime statically: clean Windows installs lack
+    # VCRUNTIME140.dll, and the bundled CLI then exits 0xC0000135 silently.
+    "-C", "target-feature=+crt-static",
 ]
 
 # Use faster linker on Linux (mold is fastest, lld is fallback)

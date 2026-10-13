@@ -26,6 +26,7 @@ pub(crate) use ignore::apply_global_ignores;
 pub use types::{AnalysisResult, AnalysisSummary, FileAnalysisResult, ParseError};
 
 use crate::config::Config;
+use crate::rules::secrets::SecretScanner;
 use crate::whitelist::WhitelistMatcher;
 use globset::GlobMatcher;
 use rustc_hash::FxHashSet;
@@ -73,6 +74,9 @@ pub struct CytoScnPy {
     /// Optional whitelist matcher for dead-code suppression.
     pub whitelist_matcher: Option<WhitelistMatcher>,
     per_file_ignore_rules: Vec<PerFileIgnoreRule>,
+    /// Secret scanner built from `config` on first use and shared by every
+    /// file, so custom patterns compile once per run.
+    secret_scanner: std::sync::OnceLock<SecretScanner>,
 }
 
 impl Default for CytoScnPy {
@@ -96,11 +100,24 @@ impl Default for CytoScnPy {
             analysis_root: std::path::PathBuf::from("."),
             whitelist_matcher: None,
             per_file_ignore_rules: Vec::new(),
+            secret_scanner: std::sync::OnceLock::new(),
         }
     }
 }
 
 impl CytoScnPy {
+    /// Returns the secret scanner for the current `config`, building it on
+    /// first use.
+    pub(crate) fn secret_scanner(&self) -> &SecretScanner {
+        self.secret_scanner
+            .get_or_init(|| SecretScanner::new(&self.config.cytoscnpy.secrets_config))
+    }
+
+    /// Drops the cached secret scanner so the next scan reads `config` again.
+    pub(crate) fn reset_secret_scanner(&mut self) {
+        self.secret_scanner = std::sync::OnceLock::new();
+    }
+
     /// Returns whether a rule id should be ignored for a given file path.
     #[must_use]
     pub fn is_rule_ignored_for_path(&self, file_path: &std::path::Path, rule_id: &str) -> bool {

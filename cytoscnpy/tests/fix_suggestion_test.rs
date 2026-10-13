@@ -30,7 +30,11 @@ fn test_fix_suggestion_deletion() {
 
     assert_eq!(fix.start_byte, 100);
     assert_eq!(fix.end_byte, 200);
-    assert!(fix.replacement.is_empty());
+    assert!(
+        fix.replacement.is_empty(),
+        "expected empty, got {:?}",
+        fix.replacement
+    );
 }
 
 /// Test that `Definition` can optionally carry a `FixSuggestion`.

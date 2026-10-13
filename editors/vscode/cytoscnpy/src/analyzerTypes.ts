@@ -26,8 +26,14 @@ export interface ParseError {
 }
 
 export interface WorkspaceAnalysisResult {
+  /** Keyed by absolute path in the CLI's original spelling and case. */
   findingsByFile: Map<string, CytoScnPyFinding[]>;
   parseErrorsByFile: Map<string, ParseError[]>;
+  /**
+   * Failures that belong to no single source file, such as a directory that
+   * could not be traversed or a rejected symlink. The scan is incomplete.
+   */
+  scanErrors: ParseError[];
 }
 
 export interface CytoScnPyConfig {
@@ -68,6 +74,8 @@ export interface RawCytoScnPyFinding {
 }
 
 export interface RawTaintFinding {
+  /** The CLI's rule ID (e.g. `CSP-D003`), which `# noqa` suppresses. */
+  rule_id?: string;
   source: string;
   source_line: number;
   sink: string;

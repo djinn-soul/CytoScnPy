@@ -51,29 +51,37 @@ fn propagate_import_bindings(
     map: &mut FxHashMap<String, usize>,
     bindings: &FxHashMap<String, String>,
 ) {
-    // Seed both the visited set and the worklist in one pass — avoids
-    // a second `clone()` over every used symbol.
-    let mut used_symbols: FxHashSet<String> = FxHashSet::default();
-    let mut worklist: Vec<String> = Vec::new();
+    // Used symbols already count ≥ 1, so only collect the sources they
+    // reach. Borrowing from `bindings` avoids cloning every symbol.
+    let mut sources: FxHashSet<&str> = FxHashSet::default();
     for (name, count) in map.iter() {
-        if *count > 0 {
-            used_symbols.insert(name.clone());
-            worklist.push(name.clone());
+        if *count == 0 {
+            continue;
         }
-    }
-
-    while let Some(symbol) = worklist.pop() {
-        if let Some(source_symbol) = bindings.get(&symbol) {
-            if used_symbols.insert(source_symbol.clone()) {
-                worklist.push(source_symbol.clone());
+        let mut symbol = name.as_str();
+        while let Some(source) = bindings.get(symbol) {
+            if !sources.insert(source) {
+                break;
             }
+            symbol = source;
         }
     }
 
-    for symbol in used_symbols {
-        map.entry(symbol)
-            .and_modify(|count| *count = (*count).max(1))
-            .or_insert(1);
+    for source in sources {
+        if let Some(count) = map.get_mut(source) {
+            *count = (*count).max(1);
+        } else {
+            map.insert(source.to_owned(), 1);
+        }
+    }
+}
+
+/// Adds `count` to `name`, allocating a key only for a new name.
+fn add_reference(map: &mut FxHashMap<String, usize>, name: &str, count: usize) {
+    if let Some(total) = map.get_mut(name) {
+        *total += count;
+    } else {
+        map.insert(name.to_owned(), count);
     }
 }
 
@@ -151,10 +159,11 @@ impl AggregationState {
             .unwrap_or(file_path);
         let is_test = crate::utils::is_test_path(&relative_path.to_string_lossy());
         for (name, count) in references {
-            *self.ref_counts.entry(name.clone()).or_insert(0) += count;
             if !is_test {
-                *self.prod_ref_counts.entry(name).or_insert(0) += count;
+                add_reference(&mut self.prod_ref_counts, &name, count);
             }
+            // Move the owned name in; a repeat key just drops it.
+            *self.ref_counts.entry(name).or_insert(0) += count;
         }
         self.all_import_bindings.extend(import_bindings);
 

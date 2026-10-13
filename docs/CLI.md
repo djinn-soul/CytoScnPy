@@ -56,7 +56,7 @@ Configured `--max-lines`, `--max-args`, and `--max-nesting` limits (or their con
   - Removing every statement from a required block inserts `pass`; semicolon-separated statements remain valid.
   - Unused variables receive an available discard name (`_`, `_unused`, or a numbered variant) without overwriting existing bindings or references.
   - Both previews and applied edits are validated as Python. Unreadable sources, missing definitions, conflicting edits, and invalid generated code fail with the file path and error context.
-- `--make-whitelist`: Generates a Python whitelist from currently detected unused symbols.
+- `--make-whitelist`: Generates a Python whitelist from currently detected unused symbols. Refuses to generate a whitelist when the scan is incomplete.
 - `--whitelist <PATH>`: Loads one or more whitelist files to suppress matching dead-code findings.
 
 ### CI/CD Failure Gates
@@ -66,6 +66,12 @@ incomplete, including when no failure flags are supplied. JSON reports retain
 the `parse_errors` list and any findings from files that were scanned. Directory
 traversal errors are included in that list, so unreadable subdirectories also
 fail the scan. Dead-code fixing (preview or apply) is refused when any parsing/read error makes the scan incomplete.
+
+Overlapping input paths analyze each physical Python file once. A directory
+passed explicitly alongside its parent is still scanned even when the parent's
+exclude or ignore rules would skip it, matching explicitly passed files. Directory scans
+reject source symlinks that resolve outside the scanned directory and report the
+failure as an incomplete scan.
 
 These flags allow you to set strict gates for CI/CD. If any enabled gate fails, CytoScnPy exits with code `1`. Failure gates that depend on optional scans enable those scans automatically.
 

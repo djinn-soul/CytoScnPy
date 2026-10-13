@@ -14,12 +14,17 @@ pub fn get_suppression_patterns() -> &'static [&'static str] {
     PATTERNS.get_or_init(|| vec!["pragma: no cytoscnpy", "noqa: CSP", "noqa:CSP"])
 }
 
-/// Returns the compiled suppression-comment regex.
+/// Returns the compiled suppression-directive regex, applied to comment text.
+///
+/// Group 1 is the legacy pragma. Group 2 holds what follows `noqa:` or
+/// `ignore:`; it is absent for a bare directive. `\b` keeps words such as
+/// `ignored` from reading as a bare `ignore`.
+/// Keep in sync with `editors/vscode/cytoscnpy/src/suppression.ts`.
 pub fn get_suppression_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         compile_regex(
-            r"(?i)#\s*(?:pragma:\s*no\s*cytoscnpy|(?:noqa|ignore)(?::\s*([^#\n]+))?)",
+            r"(?i)#\s*(?:(pragma:\s*no\s*cytoscnpy)|(?:noqa|ignore)\b(?:\s*:\s*([^#\n]*))?)",
             "Invalid suppression regex pattern",
         )
     })

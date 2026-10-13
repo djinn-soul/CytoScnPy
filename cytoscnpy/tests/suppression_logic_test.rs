@@ -80,3 +80,59 @@ fn test_is_line_suppressed_standard_codes() {
     assert!(is_line_suppressed(&ignored3, 1, "E722"));
     assert!(!is_line_suppressed(&ignored3, 1, "C901"));
 }
+
+#[test]
+fn test_hash_inside_strings_is_not_a_comment() {
+    use cytoscnpy::utils::get_ignored_lines;
+
+    assert!(get_ignored_lines("x = \"# noqa\"").is_empty());
+    assert!(get_ignored_lines("x = '# ignore'").is_empty());
+    assert!(get_ignored_lines("x = f\"{y['k']} # noqa\"").is_empty());
+    assert!(get_ignored_lines("x = \"a\\\" # noqa\"").is_empty());
+    // A real comment after a string still counts.
+    assert!(get_ignored_lines("x = \"#\"  # noqa").contains_key(&1));
+}
+
+#[test]
+fn test_multiline_strings_are_tracked_across_lines() {
+    use cytoscnpy::utils::get_ignored_lines;
+
+    let docstring = "s = \"\"\"\ntext # noqa\n\"\"\"\ny = 1  # noqa\n";
+    let ignored = get_ignored_lines(docstring);
+    assert!(!ignored.contains_key(&2), "inside a docstring");
+    assert!(ignored.contains_key(&4));
+
+    // The closing quotes of a multi-line string do not open a new one.
+    let closing = "s = '''\nabc'''  # noqa\n";
+    assert!(get_ignored_lines(closing).contains_key(&2));
+}
+
+#[test]
+fn test_ignore_must_be_a_whole_word() {
+    use cytoscnpy::utils::get_ignored_lines;
+
+    assert!(get_ignored_lines("x = 1  # ignored on purpose").is_empty());
+    assert!(get_ignored_lines("x = 1  # noqa_like helper").is_empty());
+    assert!(get_ignored_lines("x = 1  # type: ignore").is_empty());
+    assert!(get_ignored_lines("x = 1  # type: ignore  # noqa").contains_key(&1));
+}
+
+#[test]
+fn test_codes_followed_by_an_explanation() {
+    use cytoscnpy::utils::{get_ignored_lines, is_line_suppressed};
+
+    let ignored = get_ignored_lines("x = 1  # noqa: CSP-D101 reviewed, safe input");
+    assert!(is_line_suppressed(&ignored, 1, "CSP-D101"));
+    assert!(!is_line_suppressed(&ignored, 1, "CSP-D102"));
+
+    let ignored = get_ignored_lines("x = 1  # noqa: CSP-D101 CSP-Q202");
+    assert!(is_line_suppressed(&ignored, 1, "CSP-Q202"));
+
+    // "CSP" inside the explanation does not widen the suppression.
+    let ignored = get_ignored_lines("x = 1  # noqa: E501 not a CSP issue");
+    assert!(is_line_suppressed(&ignored, 1, "E501"));
+    assert!(!is_line_suppressed(&ignored, 1, "CSP-D101"));
+
+    // An explanation with no codes suppresses nothing.
+    assert!(get_ignored_lines("x = 1  # noqa: because reasons").is_empty());
+}

@@ -163,7 +163,10 @@ fn test_setup_reliability_scoring() {
     assert!(!rel.has_lockfile);
     assert!(!rel.has_ci);
     assert!(rel.score < 70);
-    assert!(!rel.recommendations.is_empty());
+    assert!(
+        !rel.recommendations.is_empty(),
+        "expected a non-empty value"
+    );
 
     // Add lockfile and test framework
     fs::write(root.join("uv.lock"), "# lockfile").unwrap();

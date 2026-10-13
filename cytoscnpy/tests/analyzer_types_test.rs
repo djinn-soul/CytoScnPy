@@ -8,7 +8,11 @@ fn test_fix_suggestion_constructor_deletion() {
     let fix = FixSuggestion::deletion(10, 20);
     assert_eq!(fix.start_byte, 10);
     assert_eq!(fix.end_byte, 20);
-    assert!(fix.replacement.is_empty());
+    assert!(
+        fix.replacement.is_empty(),
+        "expected empty, got {:?}",
+        fix.replacement
+    );
 }
 
 #[test]

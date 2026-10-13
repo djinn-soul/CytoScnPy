@@ -137,7 +137,7 @@ fn test_taint_info_new() {
 
     assert_eq!(info.source, TaintSource::Input);
     assert_eq!(info.source_line, 10);
-    assert!(info.path.is_empty());
+    assert!(info.path.is_empty(), "expected empty, got {:?}", info.path);
 }
 
 #[test]
@@ -243,7 +243,11 @@ fn test_function_summary_new() {
     assert_eq!(summary.name, "my_func");
     assert_eq!(summary.param_to_return.len(), 3);
     assert!(summary.param_to_return.iter().all(|&x| !x));
-    assert!(summary.param_to_sinks.is_empty());
+    assert!(
+        summary.param_to_sinks.is_empty(),
+        "expected empty, got {:?}",
+        summary.param_to_sinks
+    );
     assert!(!summary.returns_tainted);
     assert!(!summary.has_sinks);
 }
@@ -253,14 +257,26 @@ fn test_function_summary_zero_params() {
     let summary = FunctionSummary::new("no_args", 0);
 
     assert_eq!(summary.name, "no_args");
-    assert!(summary.param_to_return.is_empty());
+    assert!(
+        summary.param_to_return.is_empty(),
+        "expected empty, got {:?}",
+        summary.param_to_return
+    );
 }
 
 #[test]
 fn test_function_summary_default() {
     let summary = FunctionSummary::default();
 
-    assert!(summary.name.is_empty());
-    assert!(summary.param_to_return.is_empty());
+    assert!(
+        summary.name.is_empty(),
+        "expected empty, got {:?}",
+        summary.name
+    );
+    assert!(
+        summary.param_to_return.is_empty(),
+        "expected empty, got {:?}",
+        summary.param_to_return
+    );
     assert!(!summary.returns_tainted);
 }

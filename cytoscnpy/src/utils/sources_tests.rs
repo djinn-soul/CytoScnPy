@@ -32,8 +32,11 @@ fn shared_passes_neither_reopen_nor_reparse_source_files() {
     std::fs::remove_file(&path).unwrap();
     assert_eq!(reports(&path, temp.path(), &cache), expected);
     assert_eq!(expected["functions"]["files_scanned"], 1);
-    assert!(!expected["wildcards"]["matches"]
-        .as_array()
-        .unwrap()
-        .is_empty());
+    assert!(
+        !expected["wildcards"]["matches"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "expected a non-empty value"
+    );
 }

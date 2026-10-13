@@ -7,8 +7,7 @@ mod pattern_traversal;
 mod statement_traversal;
 
 use ruff_python_ast::{self as ast, Expr, Stmt};
-use rustc_hash::FxHashSet;
-use std::collections::HashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// A node in the call graph.
 #[derive(Debug, Clone)]
@@ -31,7 +30,7 @@ pub struct CallGraphNode {
 #[derive(Debug, Default)]
 pub struct CallGraph {
     /// Map from function name to node
-    pub nodes: HashMap<String, CallGraphNode>,
+    pub nodes: FxHashMap<String, CallGraphNode>,
     /// Current class context for method qualification
     class_stack: Vec<String>,
 }
@@ -165,19 +164,20 @@ impl CallGraph {
 
     /// Merges another call graph into this one.
     pub fn merge(&mut self, other: Self) {
+        use std::collections::hash_map::Entry;
         for (name, node) in other.nodes {
-            let entry = self.nodes.entry(name).or_insert_with(|| CallGraphNode {
-                name: node.name.clone(),
-                line: node.line,
-                calls: FxHashSet::default(),
-                called_by: FxHashSet::default(),
-                params: node.params.clone(),
-                is_root: node.is_root,
-            });
-
-            entry.calls.extend(node.calls);
-            entry.called_by.extend(node.called_by);
-            entry.is_root |= node.is_root;
+            match self.nodes.entry(name) {
+                // Move a new node in whole instead of copying its fields.
+                Entry::Vacant(entry) => {
+                    entry.insert(node);
+                }
+                Entry::Occupied(mut entry) => {
+                    let entry = entry.get_mut();
+                    entry.calls.extend(node.calls);
+                    entry.called_by.extend(node.called_by);
+                    entry.is_root |= node.is_root;
+                }
+            }
         }
     }
 

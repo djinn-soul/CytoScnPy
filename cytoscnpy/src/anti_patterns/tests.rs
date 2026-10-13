@@ -17,7 +17,10 @@ fn reports_read_failures_and_counts_only_scanned_files() {
     assert_eq!(result.files_scanned, 1);
     assert_eq!(result.scan_errors.len(), 1);
     assert_eq!(result.scan_errors[0].file, missing);
-    assert!(!result.scan_errors[0].error.is_empty());
+    assert!(
+        !result.scan_errors[0].error.is_empty(),
+        "expected a non-empty value"
+    );
 }
 
 #[test]
@@ -124,7 +127,7 @@ fn test_deeply_nested_callback_def() {
         .iter()
         .filter(|m| m.kind == AntiPatternKind::DeeplyNestedCallback)
         .collect::<Vec<_>>();
-    assert!(!nested.is_empty());
+    assert!(!nested.is_empty(), "expected a non-empty value");
     assert_eq!(nested[0].line, 3);
 }
 
@@ -143,7 +146,7 @@ fn test_deeply_nested_control_structure() {
         .iter()
         .filter(|m| m.kind == AntiPatternKind::DeeplyNestedCallback)
         .collect::<Vec<_>>();
-    assert!(nested.is_empty());
+    assert!(nested.is_empty(), "expected empty, got {nested:?}");
 }
 
 #[test]
@@ -160,7 +163,7 @@ fn test_deeply_nested_callback_then() {
         .iter()
         .filter(|m| m.kind == AntiPatternKind::DeeplyNestedCallback)
         .collect::<Vec<_>>();
-    assert!(!nested.is_empty());
+    assert!(!nested.is_empty(), "expected a non-empty value");
     assert_eq!(nested[0].line, 5);
 }
 
@@ -172,7 +175,7 @@ fn test_comments_ignored_for_nesting() {
         .iter()
         .filter(|m| m.kind == AntiPatternKind::DeeplyNestedCallback)
         .collect::<Vec<_>>();
-    assert!(nested.is_empty());
+    assert!(nested.is_empty(), "expected empty, got {nested:?}");
 }
 
 #[test]
@@ -185,7 +188,7 @@ def is_positive(x):
     return x > 0
 ";
     let matches = detect_anti_patterns(source, Path::new("test.py"));
-    assert!(matches.is_empty());
+    assert!(matches.is_empty(), "expected empty, got {matches:?}");
 }
 
 #[test]

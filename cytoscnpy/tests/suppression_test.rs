@@ -1,4 +1,5 @@
 //! Tests for suppression functionality (noqa comments).
+#![allow(clippy::unwrap_used)]
 
 #[cfg(test)]
 mod tests {
@@ -111,4 +112,29 @@ mod tests {
             "Line 23 should NOT be suppressed by mismatching code"
         );
     }
+}
+
+#[test]
+fn dead_code_is_suppressed_by_its_own_rule_ids() {
+    use cytoscnpy::analyzer::CytoScnPy;
+
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("mod_a.py"),
+        "import os  # noqa: CSP-V001\n\
+         import sys  # noqa: unused-import\n\
+         import json  # noqa: unused-function\n\
+         import re\n",
+    )
+    .unwrap();
+
+    let result = CytoScnPy::default()
+        .with_confidence(0)
+        .with_tests(false)
+        .analyze(dir.path());
+    let lines: Vec<usize> = result.unused_imports.iter().map(|def| def.line).collect();
+
+    // CSP-V001 covers any dead code and unused-import covers this kind; a
+    // code for another kind does not apply.
+    assert_eq!(lines, vec![3, 4]);
 }

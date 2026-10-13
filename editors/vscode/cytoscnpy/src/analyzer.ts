@@ -4,7 +4,7 @@ import * as path from "path";
 export * from "./analyzerTypes";
 export { transformRawResult } from "./analyzerResult";
 import { transformRawResult } from "./analyzerResult";
-import { dependencyAnchorPath } from "./analyzerPaths";
+import { dependencyAnchorPath, pathIsDirectory } from "./analyzerPaths";
 import {
   CytoScnPyConfig,
   CytoScnPyAnalysisResult,
@@ -13,6 +13,17 @@ import {
   CytoScnPyFinding,
   ParseError,
 } from "./analyzerTypes";
+
+/** Limits for a single analyzer run. */
+export interface AnalyzerRunOptions {
+  /** Kills the analyzer when aborted, e.g. from a cancelled progress UI. */
+  signal?: AbortSignal;
+  /** Kills the analyzer once it runs this long; a hung CLI must not block every later scan. */
+  timeoutMs?: number;
+}
+
+export const FILE_ANALYSIS_TIMEOUT_MS = 2 * 60 * 1000;
+export const WORKSPACE_ANALYSIS_TIMEOUT_MS = 15 * 60 * 1000;
 
 /**
  * Runs the analyzer and collects stdout via a streaming pipe instead of
@@ -23,23 +34,54 @@ import {
 function runAnalyzerStreaming(
   binaryPath: string,
   args: string[],
+  { signal, timeoutMs }: AnalyzerRunOptions,
 ): Promise<{ stdout: string; stderr: string; code: number | null }> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("Analysis cancelled"));
+      return;
+    }
     const child = spawn(binaryPath, args, {
       windowsHide: true,
       shell: false,
     });
+    let settled = false;
+    const finish = (settle: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      settle();
+    };
+    const stop = (message: string) => {
+      child.kill();
+      finish(() => reject(new Error(message)));
+    };
+    const onAbort = () => stop("Analysis cancelled");
+    const timer =
+      timeoutMs !== undefined
+        ? setTimeout(
+            () => stop(`Analysis timed out after ${Math.round(timeoutMs / 1000)}s`),
+            timeoutMs,
+          )
+        : undefined;
+    signal?.addEventListener("abort", onAbort, { once: true });
+
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
-    child.on("error", reject);
+    child.on("error", (error) => finish(() => reject(error)));
     child.on("close", (code) => {
-      resolve({
-        stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-        stderr: Buffer.concat(stderrChunks).toString("utf8"),
-        code,
-      });
+      finish(() =>
+        resolve({
+          stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+          stderr: Buffer.concat(stderrChunks).toString("utf8"),
+          code,
+        }),
+      );
     });
   });
 }
@@ -111,12 +153,13 @@ export function buildAnalyzerArgs(
 export async function runCytoScnPyAnalysis(
   filePath: string,
   config: CytoScnPyConfig,
+  { signal, timeoutMs = FILE_ANALYSIS_TIMEOUT_MS }: AnalyzerRunOptions = {},
 ): Promise<CytoScnPyAnalysisResult> {
   const args = buildAnalyzerArgs(filePath, config);
   let stderr = "";
   let code: number | null = null;
   try {
-    const output = await runAnalyzerStreaming(config.path, args);
+    const output = await runAnalyzerStreaming(config.path, args, { signal, timeoutMs });
     stderr = output.stderr;
     code = output.code;
     if (stderr) {
@@ -137,20 +180,18 @@ export async function runCytoScnPyAnalysis(
  * Run workspace-level analysis and return findings grouped by file path.
  * This provides cross-file reference tracking for accurate unused code detection.
  */
+// Keep the original case: callers derive case-insensitive lookup keys
+// themselves, but diagnostics must target the real file URI on Windows.
 function normalizeAbsolutePath(filePath: string, workspacePath: string): string {
-  let resolved = filePath;
-  if (!path.isAbsolute(resolved)) {
-    resolved = path.resolve(workspacePath, resolved);
-  }
-  if (process.platform === "win32") {
-    resolved = resolved.toLowerCase();
-  }
-  return resolved;
+  return path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(workspacePath, filePath);
 }
 
 export async function runWorkspaceAnalysis(
   workspacePath: string,
   config: CytoScnPyConfig,
+  { signal, timeoutMs = WORKSPACE_ANALYSIS_TIMEOUT_MS }: AnalyzerRunOptions = {},
 ): Promise<WorkspaceAnalysisResult> {
   const args = buildAnalyzerArgs(workspacePath, config);
 
@@ -159,7 +200,7 @@ export async function runWorkspaceAnalysis(
   let stderr = "";
   let code: number | null = null;
   try {
-    const output = await runAnalyzerStreaming(config.path, args);
+    const output = await runAnalyzerStreaming(config.path, args, { signal, timeoutMs });
     stderr = output.stderr;
     code = output.code;
     if (code !== 0 && !output.stdout.trim()) {
@@ -178,15 +219,20 @@ export async function runWorkspaceAnalysis(
     }
 
     const parseErrorsByFile = new Map<string, ParseError[]>();
+    const scanErrors: ParseError[] = [];
     for (const parseError of result.parseErrors) {
       const filePath = normalizeAbsolutePath(parseError.file, workspacePath);
+      if (pathIsDirectory(filePath)) {
+        scanErrors.push({ ...parseError, file: filePath });
+        continue;
+      }
       if (!parseErrorsByFile.has(filePath)) {
         parseErrorsByFile.set(filePath, []);
       }
       parseErrorsByFile.get(filePath)!.push(parseError);
     }
 
-    return { findingsByFile, parseErrorsByFile };
+    return { findingsByFile, parseErrorsByFile, scanErrors };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(

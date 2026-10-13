@@ -87,6 +87,14 @@ fn collect_implicitly_used_methods(
         }
     }
 
+    // Whether a protocol is runtime-checked depends only on the protocol, so
+    // scan the hints once per protocol rather than once per class.
+    let runtime_checked_protocols: FxHashSet<&str> = protocol_methods
+        .keys()
+        .filter(|proto_name| protocol_hint_matches(proto_name, runtime_protocol_hints))
+        .map(String::as_str)
+        .collect();
+
     let mut implicitly_used_methods: FxHashSet<String> = FxHashSet::default();
 
     for (class_name, methods) in class_methods {
@@ -103,7 +111,7 @@ fn collect_implicitly_used_methods(
             if let Some(proto_methods) = protocol_methods.get(proto_name) {
                 let intersection_count = methods.intersection(proto_methods).count();
                 let proto_len = proto_methods.len();
-                let runtime_checked = protocol_hint_matches(proto_name, runtime_protocol_hints);
+                let runtime_checked = runtime_checked_protocols.contains(proto_name.as_str());
                 let passes_similarity_threshold =
                     similarity_threshold_met(intersection_count, proto_len);
                 let passes_runtime_threshold = runtime_checked && intersection_count > 0;
@@ -162,11 +170,14 @@ fn collect_reachable_nodes(
     call_graph: &CallGraph,
     include_tests: bool,
 ) -> FxHashSet<String> {
-    let mut roots = FxHashSet::default();
-    let mut method_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
-    let mut callable_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
-    let mut class_bases: FxHashMap<String, Vec<String>> = FxHashMap::default();
-    let mut class_simple_to_full: FxHashMap<String, Vec<String>> = FxHashMap::default();
+    // Names borrow from `definitions`, `call_graph` and `root_methods`, so
+    // the walk allocates nothing per node.
+    let mut method_simple_to_full: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
+    let mut callable_simple_to_full: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
+    let mut class_bases: FxHashMap<&str, &[String]> = FxHashMap::default();
+    let mut class_simple_to_full: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
+    let mut roots: Vec<&str> = Vec::new();
+    let mut root_methods: Vec<String> = Vec::new();
 
     // Hoist prefix-form once instead of `format!("{module}.")` per definition.
     let dynamic_module_prefixes: Vec<(String, String)> = dynamic_imported_modules
@@ -178,24 +189,21 @@ fn collect_reachable_nodes(
     for def in definitions {
         if def.def_type == "method" {
             method_simple_to_full
-                .entry(def.simple_name.clone())
+                .entry(&def.simple_name)
                 .or_default()
-                .push(def.full_name.clone());
+                .push(&def.full_name);
         } else if def.def_type == "function" || def.def_type == "class" {
             callable_simple_to_full
-                .entry(def.simple_name.clone())
+                .entry(&def.simple_name)
                 .or_default()
-                .push(def.full_name.clone());
+                .push(&def.full_name);
             if def.def_type == "class" {
                 class_simple_to_full
-                    .entry(def.simple_name.clone())
+                    .entry(&def.simple_name)
                     .or_default()
-                    .push(def.full_name.clone());
+                    .push(&def.full_name);
                 if !def.base_classes.is_empty() {
-                    class_bases.insert(
-                        def.full_name.clone(),
-                        def.base_classes.iter().cloned().collect(),
-                    );
+                    class_bases.insert(&def.full_name, &def.base_classes);
                 }
             }
         }
@@ -209,13 +217,13 @@ fn collect_reachable_nodes(
                 def.full_name == *module || def.full_name.starts_with(prefix)
             })
         {
-            roots.insert(def.full_name.clone());
+            roots.push(&def.full_name);
 
             if def.def_type == "class" {
                 if let Some(methods) = class_methods.get(&def.full_name) {
                     for method in methods {
                         if !method.starts_with('_') {
-                            roots.insert(format!("{}.{}", def.full_name, method));
+                            root_methods.push(format!("{}.{}", def.full_name, method));
                         }
                     }
                 }
@@ -223,63 +231,81 @@ fn collect_reachable_nodes(
         }
     }
 
-    for (name, node) in &call_graph.nodes {
-        if node.is_root {
-            roots.insert(name.clone());
-        }
-    }
+    roots.extend(
+        call_graph
+            .nodes
+            .iter()
+            .filter(|(_, node)| node.is_root)
+            .map(|(name, _)| name.as_str()),
+    );
+    roots.extend(root_methods.iter().map(String::as_str));
 
-    let mut reachable_nodes = FxHashSet::default();
-    let mut stack: Vec<String> = roots.into_iter().collect();
+    let mut reachable_nodes: FxHashSet<&str> = FxHashSet::default();
+    let mut stack = roots;
+    // Expanding a simple name pushes every candidate at once, so later
+    // expansions of the same name add nothing. Common names such as `.get`
+    // would otherwise rescan thousands of candidates at every call site.
+    let mut expanded_attrs: FxHashSet<&str> = FxHashSet::default();
+    let mut expanded_callables: FxHashSet<&str> = FxHashSet::default();
+    let mut expanded_classes: FxHashSet<&str> = FxHashSet::default();
 
     while let Some(current) = stack.pop() {
-        if !reachable_nodes.insert(current.clone()) {
+        if !reachable_nodes.insert(current) {
             continue;
         }
 
         // Propagate reachability through base classes: a reachable class implicitly
         // keeps its bases alive (subclassing is a usage edge the call graph misses).
-        if let Some(bases) = class_bases.get(&current) {
-            for base in bases {
-                if call_graph.nodes.contains_key(base) && !reachable_nodes.contains(base) {
-                    stack.push(base.clone());
+        if let Some(bases) = class_bases.get(current) {
+            for base in *bases {
+                if call_graph.nodes.contains_key(base) && !reachable_nodes.contains(base.as_str()) {
+                    stack.push(base);
                 }
-                if let Some(candidates) = class_simple_to_full.get(base) {
-                    for candidate in candidates {
-                        if !reachable_nodes.contains(candidate) {
-                            stack.push(candidate.clone());
-                        }
-                    }
+                if !expanded_classes.insert(base) {
+                    continue;
+                }
+                if let Some(candidates) = class_simple_to_full.get(base.as_str()) {
+                    stack.extend(
+                        candidates
+                            .iter()
+                            .filter(|candidate| !reachable_nodes.contains(*candidate)),
+                    );
                 }
             }
         }
 
-        if let Some(node) = call_graph.nodes.get(&current) {
+        if let Some(node) = call_graph.nodes.get(current) {
             for call in &node.calls {
                 if let Some(attr_name) = call.strip_prefix('.') {
+                    if !expanded_attrs.insert(attr_name) {
+                        continue;
+                    }
                     if let Some(methods) = method_simple_to_full.get(attr_name) {
-                        for method in methods {
-                            if !reachable_nodes.contains(method) {
-                                stack.push(method.clone());
-                            }
-                        }
+                        stack.extend(
+                            methods
+                                .iter()
+                                .filter(|method| !reachable_nodes.contains(*method)),
+                        );
                     }
                 } else if call_graph.nodes.contains_key(call) {
-                    if !reachable_nodes.contains(call) {
-                        stack.push(call.clone());
+                    if !reachable_nodes.contains(call.as_str()) {
+                        stack.push(call);
                     }
                 } else if !call.contains('.') {
-                    if let Some(candidates) = callable_simple_to_full.get(call) {
-                        for candidate in candidates {
-                            if !reachable_nodes.contains(candidate) {
-                                stack.push(candidate.clone());
-                            }
-                        }
+                    if !expanded_callables.insert(call) {
+                        continue;
+                    }
+                    if let Some(candidates) = callable_simple_to_full.get(call.as_str()) {
+                        stack.extend(
+                            candidates
+                                .iter()
+                                .filter(|candidate| !reachable_nodes.contains(*candidate)),
+                        );
                     }
                 }
             }
         }
     }
 
-    reachable_nodes
+    reachable_nodes.into_iter().map(str::to_owned).collect()
 }

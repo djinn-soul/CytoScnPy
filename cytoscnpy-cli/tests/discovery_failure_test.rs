@@ -68,15 +68,21 @@ fn main_and_dependency_scans_fail_when_a_directory_is_unreadable() {
         let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
         if index == 2 {
             assert_eq!(payload["scan_complete"], false);
-            assert!(!payload["scan_errors"].as_array().unwrap().is_empty());
+            assert!(
+                !payload["scan_errors"].as_array().unwrap().is_empty(),
+                "expected a non-empty value"
+            );
         } else {
             let errors = payload["parse_errors"].as_array().unwrap();
-            assert!(!errors.is_empty());
+            assert!(!errors.is_empty(), "expected a non-empty value");
             assert_eq!(
                 payload["analysis_summary"]["parse_errors_count"],
                 errors.len()
             );
-            assert!(!payload["danger"].as_array().unwrap().is_empty());
+            assert!(
+                !payload["danger"].as_array().unwrap().is_empty(),
+                "expected a non-empty value"
+            );
             assert!(errors
                 .iter()
                 .any(|error| error["error"].as_str().unwrap().contains("locked")));

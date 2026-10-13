@@ -180,45 +180,49 @@ suite("Quick Fix Provider Tests", () => {
     );
   });
 
-  test("Should append to existing noqa comment", async () => {
-    // Create a doc with existing noqa
-    const docWithNoqa = await vscode.workspace.openTextDocument({
-      language: "python",
-      content: "x = 1  # noqa: E501",
+  for (const [content, code, expected] of [
+    ["x = 1  # noqa: E501", "unused-variable", "x = 1  # noqa: E501, unused-variable"],
+    // The code goes before an explanation so it is still read as a code.
+    ["x = 1  # noqa: E501 long URL", "CSP-D101", "x = 1  # noqa: E501, CSP-D101 long URL"],
+    ["x = 1  # noqa: because reasons", "unused-variable", "x = 1  # noqa: unused-variable, because reasons"],
+    // Codes the CLI does not honor fall back to suppressing everything.
+    ["x = 1  # noqa: E501", "unused-dependency", "x = 1  # noqa: E501, CSP"],
+  ]) {
+    test(`Should append ${code} to existing noqa comment: ${content}`, async () => {
+      const docWithNoqa = await vscode.workspace.openTextDocument({
+        language: "python",
+        content,
+      });
+
+      const diagnostic = new vscode.Diagnostic(
+        new vscode.Range(0, 0, 0, 5),
+        "Unused variable",
+        vscode.DiagnosticSeverity.Warning
+      );
+      diagnostic.source = "CytoScnPy";
+      diagnostic.code = code;
+
+      const context: vscode.CodeActionContext = {
+        diagnostics: [diagnostic],
+        triggerKind: vscode.CodeActionTriggerKind.Invoke,
+        only: undefined,
+      };
+
+      const actions = provider.provideCodeActions(
+        docWithNoqa,
+        diagnostic.range,
+        context,
+        new vscode.CancellationTokenSource().token
+      );
+
+      const suppressAction = actions.find((a) => a.title.startsWith("Suppress with # noqa:"));
+      assert.ok(suppressAction, "Should identify action");
+      assert.strictEqual(suppressAction!.edit!.get(docWithNoqa.uri).length, 1);
+
+      assert.ok(await vscode.workspace.applyEdit(suppressAction!.edit!));
+      assert.strictEqual(docWithNoqa.lineAt(0).text, expected);
     });
-
-    const diagnostic = new vscode.Diagnostic(
-      new vscode.Range(0, 0, 0, 5),
-      "Unused variable",
-      vscode.DiagnosticSeverity.Warning
-    );
-    diagnostic.source = "CytoScnPy";
-    diagnostic.code = "unused-variable";
-
-    const context: vscode.CodeActionContext = {
-      diagnostics: [diagnostic],
-      triggerKind: vscode.CodeActionTriggerKind.Invoke,
-      only: undefined,
-    };
-
-    const actions = provider.provideCodeActions(
-      docWithNoqa,
-      diagnostic.range,
-      context,
-      new vscode.CancellationTokenSource().token
-    );
-
-    const suppressAction = actions.find((a) => a.title.includes("# noqa: CSP"));
-    assert.ok(suppressAction, "Should identify action");
-
-    const edit = suppressAction!.edit!.get(docWithNoqa.uri);
-    assert.strictEqual(edit.length, 1);
-    // It should append CSP to existing comment
-    assert.ok(
-      edit[0].newText.includes("# noqa: E501, CSP"),
-      "Should match merged comment with CSP"
-    );
-  });
+  }
 
   test("Should not add suppression when pragma no cytoscnpy exists", async () => {
     const pragmaDoc = await vscode.workspace.openTextDocument({

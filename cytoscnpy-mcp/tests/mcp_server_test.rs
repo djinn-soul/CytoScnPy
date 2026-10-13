@@ -90,7 +90,7 @@ fn test_analyze_path_invalid() {
             } else {
                 // If it's not JSON, it's likely an error message e.g. "Path does not exist"
                 // which is valid for this test
-                assert!(!text.is_empty());
+                assert!(!text.is_empty(), "expected a non-empty value");
             }
         }
         Err(_) => {
@@ -136,7 +136,7 @@ fn test_quick_scan() {
     });
 
     let result = call_tool("analyze_path", args).unwrap();
-    assert!(!result.is_empty());
+    assert!(!result.is_empty(), "expected a non-empty value");
 }
 
 #[test]

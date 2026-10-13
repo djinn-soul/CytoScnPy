@@ -90,8 +90,20 @@ impl ContextScorer {
     ///
     /// Returns the adjusted score, clamped to 0-100.
     #[must_use]
-    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     pub fn score(&self, base_score: u8, ctx: &ScoringContext<'_>) -> u8 {
+        let suppressed = crate::utils::is_rule_suppressed_on_line(ctx.line_content, ctx.rule_id);
+        self.adjusted_score(base_score, ctx, suppressed)
+    }
+
+    /// Like [`Self::score`] for a finding already known not to be
+    /// suppressed, which skips re-parsing the line's comment.
+    #[must_use]
+    pub(crate) fn score_unsuppressed(&self, base_score: u8, ctx: &ScoringContext<'_>) -> u8 {
+        self.adjusted_score(base_score, ctx, false)
+    }
+
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+    fn adjusted_score(&self, base_score: u8, ctx: &ScoringContext<'_>, suppressed: bool) -> u8 {
         let mut score = i16::from(base_score);
 
         // Check if in test file
@@ -110,7 +122,7 @@ impl ContextScorer {
         }
 
         // Check for suppression comments
-        if crate::utils::is_rule_suppressed_on_line(ctx.line_content, ctx.rule_id) {
+        if suppressed {
             score += self.adjustments.has_pragma;
         }
 

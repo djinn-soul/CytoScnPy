@@ -98,7 +98,7 @@ fn failed_fixes_preserve_files_and_propagate_error_context_in_json_mode() {
             .unwrap();
         let details = format!("{error:#}");
         assert!(details.contains("app.py"), "{details}");
-        assert!(output.is_empty());
+        assert!(output.is_empty(), "expected empty, got {output:?}");
         assert_eq!(std::fs::read_to_string(file).unwrap(), source);
     }
 }

@@ -3,6 +3,11 @@ use std::io::Write;
 
 use super::types::{ScoreResult, Verdict};
 
+/// Pads a row of the 75-column header box so its right border lines up.
+fn box_row(content: &str) -> String {
+    format!("|  {content:<70} |\n")
+}
+
 /// Format human-readable terminal report for the weighted Slop Index.
 pub fn format_terminal_report(result: &ScoreResult, verbose: bool) -> String {
     let mut out = String::new();
@@ -16,21 +21,21 @@ pub fn format_terminal_report(result: &ScoreResult, verbose: bool) -> String {
         Verdict::Acceptable => "[ACCEPTABLE - Normal Debt / Manageable]",
         Verdict::Messy => "[MESSY - Elevated Friction / High Debt]",
         Verdict::Sloppy => "[SLOPPY - Severe Friction / Degraded]",
-        Verdict::Disaster => "[DISASTER - Critical Hazard / High Failure Risk]",
+        Verdict::Disaster => "[DISASTER - Critical Hazard / High Risk]",
     };
 
-    out.push_str(&format!(
-        "|  Slop Index      : {:>3} / 100   {:<39} |\n",
-        result.slop_index, verdict_badge
-    ));
-    out.push_str(&format!(
-        "|  Raw Score       : {:>6.2} / 100                                                |\n",
+    out.push_str(&box_row(&format!(
+        "Slop Index      : {:>3} / 100   {verdict_badge}",
+        result.slop_index
+    )));
+    out.push_str(&box_row(&format!(
+        "Raw Score       : {:>6.2} / 100",
         result.raw_score
-    ));
-    out.push_str(&format!(
-        "|  Size Multiplier : {:>6.2}x (effective tokens vs context window)                |\n",
+    )));
+    out.push_str(&box_row(&format!(
+        "Size Multiplier : {:>6.2}x (effective tokens vs context window)",
         result.size_multiplier
-    ));
+    )));
     out.push_str("+-------------------------------------------------------------------------+\n\n");
 
     if let Some(summary) = &result.summary {
@@ -118,10 +123,14 @@ pub fn format_terminal_report(result: &ScoreResult, verbose: bool) -> String {
             .take(super::recommendations::MAX_RECOMMENDATIONS)
             .enumerate()
         {
+            let impact = if rec.estimated_reduction > 0 {
+                format!("[-{} pts] ", rec.estimated_reduction)
+            } else {
+                String::new()
+            };
             out.push_str(&format!(
-                "  {}. [-{} pts] {} ({}, Effort: {})\n",
+                "  {}. {impact}{} ({}, Effort: {})\n",
                 i + 1,
-                rec.estimated_reduction,
                 rec.title,
                 rec.dimension,
                 rec.effort

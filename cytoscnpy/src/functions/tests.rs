@@ -220,7 +220,7 @@ fn test_function_stats_aggregation() {
 #[test]
 fn test_empty_function_handling() {
     let functions = extract_functions("", Path::new("empty.py"));
-    assert!(functions.is_empty());
+    assert!(functions.is_empty(), "expected empty, got {functions:?}");
     let stats = FunctionStats::from_functions(&functions);
     assert_eq!(stats.total_functions, 0);
     assert_eq!(stats.max_complexity, 0);

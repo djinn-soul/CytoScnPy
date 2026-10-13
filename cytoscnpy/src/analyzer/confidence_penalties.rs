@@ -19,7 +19,7 @@ pub fn apply_penalties<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     dynamic_scopes: &std::collections::HashSet<String, S2>,
     module_name: &str,
 ) {
-    if is_fully_suppressed(def, ignored_lines) {
+    if is_definition_suppressed(def, ignored_lines) {
         def.confidence = 0;
         return;
     }
@@ -41,13 +41,18 @@ pub fn apply_penalties<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     def.confidence = def.confidence.min(100);
 }
 
-fn is_fully_suppressed<S: std::hash::BuildHasher>(
+/// Rule ID that suppresses every kind of unused definition.
+pub const DEAD_CODE_RULE_ID: &str = "CSP-V001";
+
+/// Returns whether the definition's line suppresses it: a blanket
+/// suppression, `CSP-V001`, or the kind's own ID such as `unused-import`.
+pub fn is_definition_suppressed<S: std::hash::BuildHasher>(
     def: &Definition,
     ignored_lines: &std::collections::HashMap<usize, Suppression, S>,
 ) -> bool {
-    ignored_lines
-        .get(&def.line)
-        .is_some_and(|suppression| matches!(suppression, Suppression::All))
+    ignored_lines.get(&def.line).is_some_and(|suppression| {
+        suppression.covers(DEAD_CODE_RULE_ID) || suppression.covers(def.def_type.unused_rule_id())
+    })
 }
 
 fn apply_test_penalty(def: &mut Definition, tv: &TestAwareVisitor, include_tests: bool) {

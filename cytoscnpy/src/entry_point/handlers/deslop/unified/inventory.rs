@@ -71,10 +71,14 @@ impl PythonInventory {
                     definitions.classes.extend(found.classes);
                     checked += 1;
                 }
-                Err(reason) => issues.push(ScanIssue {
-                    path: path.clone(),
-                    reason: reason.clone(),
-                }),
+                Err(reason) => {
+                    // Source errors are prefixed with the path, which `ScanIssue` already carries.
+                    let prefix = format!("{}: ", path.display());
+                    issues.push(ScanIssue {
+                        path: path.clone(),
+                        reason: reason.strip_prefix(&prefix).unwrap_or(reason).to_owned(),
+                    });
+                }
             }
         }
         let integrity = ScanIntegrity {

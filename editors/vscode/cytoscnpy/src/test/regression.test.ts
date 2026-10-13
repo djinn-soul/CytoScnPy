@@ -674,6 +674,32 @@ suite("Regression: transformRawResult categories", () => {
     );
   });
 
+  test("taint findings keep the CLI rule ID that noqa suppresses", () => {
+    const result = transformRawResult(
+      {
+        taint_findings: [
+          {
+            rule_id: "CSP-D003",
+            source: "input",
+            source_line: 1,
+            sink: "os.system",
+            sink_line: 2,
+            sink_col: 0,
+            vuln_type: "Command Injection",
+            severity: "HIGH",
+            file: "app.py",
+            remediation: "validate input",
+          },
+        ],
+      },
+      "app.py",
+    );
+    assert.deepStrictEqual(
+      result.findings.map((finding) => finding.rule_id),
+      ["CSP-D003"],
+    );
+  });
+
   test("anchors dependency diagnostics to files for directory targets", () => {
     const result = transformRawResult(
       {

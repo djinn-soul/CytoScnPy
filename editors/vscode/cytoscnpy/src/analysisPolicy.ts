@@ -15,3 +15,15 @@ export function periodicScanDue(
     lastFileChangeTime > workspaceCacheTimestamp
   );
 }
+
+/**
+ * Workspace mode needs a workspace folder to scan. A file opened on its own,
+ * or one outside every open folder, falls back to single-file analysis so it
+ * is still analyzed instead of silently skipped.
+ */
+export function effectiveAnalysisMode(
+  configured: AnalysisMode,
+  inWorkspaceFolder: boolean,
+): AnalysisMode {
+  return configured === "workspace" && inWorkspaceFolder ? "workspace" : "file";
+}

@@ -2,7 +2,6 @@ use super::duck_typing::apply_duck_typing_usage;
 use super::parsed_module::{analyze_parsed_module, ParsedModuleContext};
 use crate::analyzer::{CytoScnPy, ParseError};
 use crate::framework::FrameworkAwareVisitor;
-use crate::rules::secrets::scan_secrets;
 use crate::taint::call_graph::CallGraph;
 use crate::test_utils::TestAwareVisitor;
 use crate::utils::{LineIndex, Suppression};
@@ -104,12 +103,15 @@ pub(super) fn run_pipeline<'a>(
         }
         Err(error) => {
             if analyzer.enable_secrets {
-                output.secrets = scan_secrets(
+                // The source does not parse, so scan the text only.
+                output.secrets = analyzer.secret_scanner().scan_with_suppressions(
                     source,
+                    None,
                     &file_path.to_path_buf(),
-                    &analyzer.config.cytoscnpy.secrets_config,
+                    line_index,
                     None::<&rustc_hash::FxHashSet<usize>>,
                     is_test_file,
+                    Some(ignored_lines),
                 );
             }
 

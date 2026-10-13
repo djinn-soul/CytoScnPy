@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { getCytoScnPyConfiguration } from "./configuration";
+import { documentAnalysisMode } from "./configuration";
 import { analysisState, AnalysisActions } from "./extensionState";
-import { getCacheKey, fileCache, documentHashCache, clearDocumentAnalysis, invalidateWorkspaceCache } from "./extensionCache";
+import { getCacheKey, fileCache, documentHashCache, clearDocumentAnalysis, invalidateWorkspaceCache, restoreDocumentAnalysis } from "./extensionCache";
 import { watchProjectConfiguration } from "./configWatcher";
 import { cytoscnpyDiagnostics } from "./extensionUi";
 import { periodicScanDue } from "./analysisPolicy";
@@ -15,7 +15,7 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
   }
 
   function analysisModeFor(document: vscode.TextDocument) {
-    return getCytoScnPyConfiguration(context, document.uri).analysisMode;
+    return documentAnalysisMode(context, document.uri);
   }
 
   function refreshAfterConfigurationChange() {
@@ -48,6 +48,7 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
 
   const periodicScanInterval = setInterval(async () => {
     if (
+      analysisState.workspaceScanFailed ||
       !periodicScanDue(
         openPythonDocuments().map(analysisModeFor),
         lastFileChangeTime,
@@ -65,8 +66,18 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
-      if (event.document.languageId === "python" && event.document.isDirty) {
-        clearDocumentAnalysis(event.document);
+      if (event.document.languageId !== "python") {
+        return;
+      }
+      if (event.document.isDirty) {
+        // Clearing sends diagnostics and decoration updates to the main
+        // process, so do it once per edit session, not on every keystroke.
+        if (cytoscnpyDiagnostics.has(event.document.uri)) {
+          clearDocumentAnalysis(event.document);
+        }
+      } else {
+        // Undo back to the saved text: show its earlier results again.
+        restoreDocumentAnalysis(event.document);
       }
     }),
   );
@@ -78,19 +89,12 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
         // Update last change time
         lastFileChangeTime = Date.now();
 
-        const config = getCytoScnPyConfiguration(context, document.uri);
-        const debounceMs = config.analysisMode === "workspace" ? 3000 : 500;
+        const mode = analysisModeFor(document);
+        const debounceMs = mode === "workspace" ? 3000 : 500;
         const debounceKey =
-          config.analysisMode === "workspace"
-            ? "workspace"
-            : document.uri.toString();
+          mode === "workspace" ? "workspace" : document.uri.toString();
         analysisState.saveScanDebouncer.schedule(debounceKey, debounceMs, () => {
-          const currentConfig = getCytoScnPyConfiguration(
-            context,
-            document.uri,
-          );
-
-          if (currentConfig.analysisMode === "workspace") {
+          if (analysisModeFor(document) === "workspace") {
             // In workspace mode, run full analysis to maintain cross-file context correctness
             runFullWorkspaceAnalysis().catch((err) => {
               console.error(
@@ -142,10 +146,7 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
   // Clear diagnostics and cache when a document is closed
   context.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((document) => {
-      const mode = getCytoScnPyConfiguration(
-        context,
-        document.uri,
-      ).analysisMode;
+      const mode = analysisModeFor(document);
       // In workspace mode we intentionally keep diagnostics for closed files
       // so the Problems view remains complete across the whole project.
       if (mode === "file") {

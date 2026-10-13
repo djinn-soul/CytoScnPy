@@ -5,7 +5,7 @@ import { createFileAnalysis } from "./extensionFileAnalysis";
 import { registerAnalysisEvents } from "./extensionEvents";
 import { registerCommands } from "./extensionCommands";
 import { registerMcpProvider } from "./extensionMcp";
-import { initializeDecorations, cytoscnpyOutputChannel, disposeUi } from "./extensionUi";
+import { initializeUi, cytoscnpyOutputChannel } from "./extensionUi";
 import { QuickFixProvider } from "./quickFixProvider";
 
 // Preserve the extension's public helpers used by integrations and tests.
@@ -22,8 +22,8 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   }
   try {
+    initializeUi(context);
     registerMcpProvider(context);
-    initializeDecorations(context);
     const runFullWorkspaceAnalysis = createWorkspaceAnalysis(context);
     const fileAnalysis = createFileAnalysis(context, runFullWorkspaceAnalysis);
     const actions = { runFullWorkspaceAnalysis, ...fileAnalysis };
@@ -39,6 +39,5 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 }
 
-export function deactivate(): void {
-  disposeUi();
-}
+// UI objects and listeners are disposed through `context.subscriptions`.
+export function deactivate(): void {}

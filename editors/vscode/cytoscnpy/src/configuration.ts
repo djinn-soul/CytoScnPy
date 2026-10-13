@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { CytoScnPyConfig } from "./analyzer";
+import { AnalysisMode, effectiveAnalysisMode } from "./analysisPolicy";
 
 export function bundledExecutableName(
   platform = os.platform(),
@@ -58,6 +59,17 @@ export function getExecutablePath(
     }
   }
   return "cytoscnpy";
+}
+
+/** The analysis mode that actually applies to a document. */
+export function documentAnalysisMode(
+  context: vscode.ExtensionContext,
+  uri: vscode.Uri,
+): AnalysisMode {
+  return effectiveAnalysisMode(
+    getCytoScnPyConfiguration(context, uri).analysisMode,
+    vscode.workspace.getWorkspaceFolder(uri) !== undefined,
+  );
 }
 
 export function getCytoScnPyConfiguration(

@@ -74,6 +74,8 @@ export interface RawCytoScnPyFinding {
 }
 
 export interface RawTaintFinding {
+  /** The CLI's rule ID (e.g. `CSP-D003`), which `# noqa` suppresses. */
+  rule_id?: string;
   source: string;
   source_line: number;
   sink: string;

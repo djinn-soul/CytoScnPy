@@ -1,7 +1,7 @@
 use crate::config::SecretsConfig;
-use crate::utils::{get_line_suppression, LineIndex, Suppression};
+use crate::utils::{get_ignored_lines, is_line_suppressed, LineIndex, Suppression};
 use ruff_python_ast::Stmt;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::path::PathBuf;
 
 use super::finding::SecretFinding;
@@ -57,6 +57,31 @@ impl SecretScanner {
         docstring_lines: Option<&std::collections::HashSet<usize, impl std::hash::BuildHasher>>,
         is_test_file: bool,
     ) -> Vec<SecretFinding> {
+        self.scan_with_suppressions(
+            content,
+            stmts,
+            file_path,
+            line_index,
+            docstring_lines,
+            is_test_file,
+            None,
+        )
+    }
+
+    /// Like [`Self::scan`], reusing suppressions the caller already read
+    /// from `content` with [`get_ignored_lines`].
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn scan_with_suppressions(
+        &self,
+        content: &str,
+        stmts: Option<&[Stmt]>,
+        file_path: &PathBuf,
+        line_index: &LineIndex,
+        docstring_lines: Option<&std::collections::HashSet<usize, impl std::hash::BuildHasher>>,
+        is_test_file: bool,
+        ignored_lines: Option<&FxHashMap<usize, Suppression>>,
+    ) -> Vec<SecretFinding> {
         let mut all_findings = Vec::new();
         let lines: Vec<&str> = content.lines().collect();
 
@@ -77,6 +102,18 @@ impl SecretScanner {
         let mut scored_findings = Vec::new();
         let mut seen_lines: FxHashSet<usize> = FxHashSet::default();
 
+        // Most files have no secrets; read suppressions only when needed.
+        let parsed_ignored_lines;
+        let ignored_lines = if let Some(ignored_lines) = ignored_lines {
+            ignored_lines
+        } else {
+            parsed_ignored_lines = if all_findings.is_empty() {
+                FxHashMap::default()
+            } else {
+                get_ignored_lines(content)
+            };
+            &parsed_ignored_lines
+        };
         for finding in all_findings {
             let line_idx = finding.line.saturating_sub(1);
             let line_content = lines.get(line_idx).unwrap_or(&"");
@@ -86,15 +123,8 @@ impl SecretScanner {
                 continue;
             }
 
-            if let Some(suppression) = get_line_suppression(line_content) {
-                match suppression {
-                    Suppression::All => continue,
-                    Suppression::Specific(rules) => {
-                        if rules.contains(&finding.rule_id) {
-                            continue;
-                        }
-                    }
-                }
+            if is_line_suppressed(ignored_lines, finding.line, &finding.rule_id) {
+                continue;
             }
 
             let is_docstring = docstring_lines.is_some_and(|lines| lines.contains(&finding.line));
@@ -107,7 +137,8 @@ impl SecretScanner {
                 is_test_file,
             };
 
-            let confidence = self.scorer.score(finding.base_score, &context);
+            // Suppressed findings were skipped above.
+            let confidence = self.scorer.score_unsuppressed(finding.base_score, &context);
             if confidence < self.min_score {
                 continue;
             }

@@ -39,6 +39,12 @@
     "onLanguage:python"
   ],
   "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "CytoScnPy runs the executable named by `cytoscnpy.path`, which workspace settings can set, so it stays disabled until the workspace is trusted."
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -78,7 +84,8 @@
         "cytoscnpy.path": {
           "type": "string",
           "default": "",
-          "description": "Path to the CytoScnPy executable. Leave empty to use bundled binary or pip-installed version."
+          "description": "Path to the CytoScnPy executable. Leave empty to use bundled binary or pip-installed version.",
+          "markdownDescription": "Path to the CytoScnPy executable. Leave empty to use the bundled binary or the pip-installed version.\n\nThe extension runs this executable, so a value from workspace settings only takes effect in trusted workspaces."
         },
         "cytoscnpy.analysisMode": {
           "type": "string",

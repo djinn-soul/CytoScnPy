@@ -166,7 +166,7 @@ export function transformRawResult(
         line_number: f.sink_line,
         col: f.sink_col,
         message,
-        rule_id: `taint-${f.vuln_type.toLowerCase()}`,
+        rule_id: f.rule_id || `taint-${f.vuln_type.toLowerCase()}`,
         category: "Security",
         severity: normalizeSeverity(f.severity) ?? "warning",
       });

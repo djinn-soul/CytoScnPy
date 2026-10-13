@@ -103,7 +103,20 @@ secret_key = "..."  # pragma: no cytoscnpy
 
 other_var = value  # noqa: E501, CSP
 # mixed codes: suppresses CytoScnPy because CSP is in the list
+
+import os  # noqa: unused-import
+# dead code by kind: unused-function, unused-method, unused-class,
+# unused-import, unused-variable, unused-parameter
+
+import sys  # noqa: CSP-V001
+# CSP-V001 suppresses any kind of dead code, nothing else
+
+os.system(cmd)  # noqa: CSP-D003 input is validated upstream
+# one rule only; text after the codes is an explanation
 ```
+
+A specific code hides only that finding, so other findings on the same line
+stay visible. Prefer it over `CSP`, which hides everything on the line.
 
 > [!NOTE]
 > Inline suppression comments (`# noqa`, `# ignore`, `# pragma: no cytoscnpy`) apply to dead code, security, quality, and clone findings on a specific line. For ignoring rules across the entire project, use the `ignore` list in your `.cytoscnpy.toml` configuration file.

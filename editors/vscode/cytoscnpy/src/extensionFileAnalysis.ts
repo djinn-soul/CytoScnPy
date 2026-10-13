@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { runCytoScnPyAnalysis } from "./analyzer";
-import { getCytoScnPyConfiguration } from "./configuration";
+import { documentAnalysisMode, getCytoScnPyConfiguration } from "./configuration";
 import { analysisState } from "./extensionState";
 import { getCacheKey, clearDocumentAnalysis, cacheDocumentAnalysis } from "./extensionCache";
 import { findingsToDiagnostics, parseErrorsToDiagnostics } from "./extensionDiagnostics";
-import { setStatus, cytoscnpyDiagnostics, cytoscnpyOutputChannel, applyGutterDecorations } from "./extensionUi";
+import { setStatus, cytoscnpyDiagnostics, cytoscnpyOutputChannel, applyGutterDecorations, reportAnalysisFailure, resetAnalysisFailure } from "./extensionUi";
 
 export function createFileAnalysis(
   context: vscode.ExtensionContext,
@@ -38,18 +38,9 @@ export function createFileAnalysis(
       cytoscnpyDiagnostics.set(document.uri, diagnostics);
 
       cacheDocumentAnalysis(document, diagnostics, result.findings);
-
-      // Merge into workspace cache if it exists
-      if (analysisState.workspaceCache) {
-        analysisState.workspaceCache.set(getCacheKey(filePath), result.findings);
-        if (analysisState.workspaceParseErrorsCache) {
-          analysisState.workspaceParseErrorsCache.set(
-            getCacheKey(filePath),
-            result.parseErrors,
-          );
-        }
-        analysisState.workspaceCacheTimestamp = Date.now();
-      }
+      resetAnalysisFailure();
+      // Single-file results stay out of the workspace cache: they lack
+      // cross-file references and would add dead-code false positives there.
 
       // Update sidebar and gutter decorations for active document
       if (
@@ -78,9 +69,7 @@ export function createFileAnalysis(
       );
       clearDocumentAnalysis(document);
       setStatus("error", "file analysis failed");
-      vscode.window.showErrorMessage(
-        `CytoScnPy analysis failed: ${error.message}`,
-      );
+      reportAnalysisFailure(error.message);
     }
   }
 
@@ -94,45 +83,13 @@ export function createFileAnalysis(
       return;
     }
 
-    const fsPath = document.uri.fsPath;
-    const filePath =
-      process.platform === "win32" ? fsPath.toLowerCase() : fsPath;
-    const config = getCytoScnPyConfiguration(context, document.uri);
-
     // FILE MODE: Single file analysis (faster, but may have false positives)
-    if (config.analysisMode === "file") {
-      try {
-        const documentVersion = document.version;
-        const result = await runCytoScnPyAnalysis(fsPath, config);
-        if (document.isDirty || document.version !== documentVersion) {
-          clearDocumentAnalysis(document);
-          return;
-        }
-        const diagnostics = [
-          ...findingsToDiagnostics(document, result.findings),
-          ...parseErrorsToDiagnostics(document, result.parseErrors),
-        ];
-        cytoscnpyDiagnostics.set(document.uri, diagnostics);
-
-        cacheDocumentAnalysis(document, diagnostics, result.findings);
-
-        const editor = vscode.window.activeTextEditor;
-        if (
-          editor &&
-          editor.document.uri.toString() === document.uri.toString()
-        ) {
-          applyGutterDecorations(editor, diagnostics);
-        }
-      } catch (error: any) {
-        console.error(`[CytoScnPy] File analysis failed: ${error.message}`);
-        clearDocumentAnalysis(document);
-        setStatus("error", "file analysis failed");
-        vscode.window.showErrorMessage(
-          `CytoScnPy analysis failed: ${error.message}`,
-        );
-      }
+    if (documentAnalysisMode(context, document.uri) === "file") {
+      await runIncrementalAnalysis(document);
       return;
     }
+
+    const filePath = getCacheKey(document.uri.fsPath);
 
     // WORKSPACE MODE: Full workspace analysis (accurate cross-file detection)
     // If we have a workspace cache, use it
@@ -157,7 +114,11 @@ export function createFileAnalysis(
       return;
     }
 
-    // No workspace cache - trigger workspace analysis
+    // No workspace cache - trigger workspace analysis, unless the last scan
+    // failed: retrying on every opened or focused file repeats the failure.
+    if (analysisState.workspaceScanFailed) {
+      return;
+    }
     await runFullWorkspaceAnalysis();
   }
 

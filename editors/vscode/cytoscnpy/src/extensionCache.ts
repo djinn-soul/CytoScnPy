@@ -59,13 +59,41 @@ export function cacheDocumentAnalysis(
   fileCache.set(cacheKey, history);
 }
 
+/**
+ * Hides a document's results. The hash-keyed history stays, so undoing back
+ * to analyzed content can show its results again without a rescan.
+ */
 export function clearDocumentAnalysis(document: vscode.TextDocument): void {
   cytoscnpyDiagnostics.delete(document.uri);
-  fileCache.delete(getCacheKey(document.uri.fsPath));
   documentHashCache.delete(document.uri.toString());
+  showGutterDecorations(document, []);
+}
+
+/**
+ * Re-shows the results cached for the document's exact current content,
+ * e.g. after undoing back to the saved text. Returns false when that content
+ * was never analyzed, as for a save of new content.
+ */
+export function restoreDocumentAnalysis(document: vscode.TextDocument): boolean {
+  const hash = hashForDocument(document);
+  const entry = fileCache
+    .get(getCacheKey(document.uri.fsPath))
+    ?.find((candidate) => candidate.hash === hash);
+  if (!entry) {
+    return false;
+  }
+  cytoscnpyDiagnostics.set(document.uri, entry.diagnostics);
+  showGutterDecorations(document, entry.diagnostics);
+  return true;
+}
+
+function showGutterDecorations(
+  document: vscode.TextDocument,
+  diagnostics: vscode.Diagnostic[],
+): void {
   const editor = vscode.window.activeTextEditor;
   if (editor?.document.uri.toString() === document.uri.toString()) {
-    applyGutterDecorations(editor, []);
+    applyGutterDecorations(editor, diagnostics);
   }
 }
 
@@ -73,6 +101,7 @@ export function invalidateWorkspaceCache() {
   analysisState.workspaceCache = null;
   analysisState.workspaceParseErrorsCache = null;
   analysisState.workspaceCacheTimestamp = 0;
+  analysisState.workspaceScanFailed = false;
   fileCache.clear();
   documentHashCache.clear();
   cytoscnpyDiagnostics.clear();

@@ -3,6 +3,35 @@ import * as vscode from "vscode";
 export const cytoscnpyDiagnostics =
   vscode.languages.createDiagnosticCollection("cytoscnpy");
 
+// VS Code stops syncing a batched `set` to the Problems view once it passes
+// 1.1x its per-file limit (1,000), dropping the remaining files silently.
+// Stay well under that per batch.
+const DIAGNOSTICS_PER_BATCH = 500;
+
+/**
+ * Sets diagnostics for many files in a few batched updates instead of one
+ * message to the main process per file.
+ */
+export function setDiagnosticsBatched(
+  entries: readonly [vscode.Uri, vscode.Diagnostic[]][],
+  collection: Pick<vscode.DiagnosticCollection, "set"> = cytoscnpyDiagnostics,
+): void {
+  let batch: [vscode.Uri, vscode.Diagnostic[]][] = [];
+  let batchSize = 0;
+  for (const entry of entries) {
+    if (batch.length > 0 && batchSize + entry[1].length > DIAGNOSTICS_PER_BATCH) {
+      collection.set(batch);
+      batch = [];
+      batchSize = 0;
+    }
+    batch.push(entry);
+    batchSize += entry[1].length;
+  }
+  if (batch.length > 0) {
+    collection.set(batch);
+  }
+}
+
 export const cytoscnpyOutputChannel =
   vscode.window.createOutputChannel("CytoScnPy Metrics");
 
@@ -34,13 +63,33 @@ export function setStatus(kind: StatusKind, detail: string): void {
   statusBarItem.show();
 }
 
+// One popup per failure streak: a broken binary would otherwise raise a
+// new error on every tab switch. The status bar keeps showing the failure.
+let failurePopupShown = false;
+
+export function reportAnalysisFailure(message: string): void {
+  if (failurePopupShown) {
+    return;
+  }
+  failurePopupShown = true;
+  void vscode.window.showErrorMessage(`CytoScnPy analysis failed: ${message}`);
+}
+
+export function resetAnalysisFailure(): void {
+  failurePopupShown = false;
+}
+
 let errorDecorationType: vscode.TextEditorDecorationType;
 
 let warningDecorationType: vscode.TextEditorDecorationType;
 
 let infoDecorationType: vscode.TextEditorDecorationType;
 
-export function initializeDecorations(context: vscode.ExtensionContext): void {
+/**
+ * Creates the gutter decorations and hands every UI object to the extension
+ * context, which disposes each one exactly once on deactivation.
+ */
+export function initializeUi(context: vscode.ExtensionContext): void {
   // Initialize gutter decoration types
   errorDecorationType = vscode.window.createTextEditorDecorationType({
     gutterIconPath: vscode.Uri.parse(
@@ -76,6 +125,9 @@ export function initializeDecorations(context: vscode.ExtensionContext): void {
     overviewRulerLane: vscode.OverviewRulerLane.Right,
   });
   context.subscriptions.push(
+    cytoscnpyDiagnostics,
+    cytoscnpyOutputChannel,
+    statusBarItem,
     errorDecorationType,
     warningDecorationType,
     infoDecorationType,
@@ -113,13 +165,4 @@ export function applyGutterDecorations(
   editor.setDecorations(errorDecorationType, errorRanges);
   editor.setDecorations(warningDecorationType, warningRanges);
   editor.setDecorations(infoDecorationType, infoRanges);
-}
-
-export function disposeUi() {
-  cytoscnpyDiagnostics.dispose(); // Clean up diagnostics when extension is deactivated
-  cytoscnpyOutputChannel.dispose(); // Clean up output channel
-  statusBarItem.dispose();
-  errorDecorationType?.dispose(); // Clean up decoration types
-  warningDecorationType?.dispose();
-  infoDecorationType?.dispose();
 }

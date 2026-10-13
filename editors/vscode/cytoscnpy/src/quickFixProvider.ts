@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import { CytoScnPyFinding } from "./analyzer";
-import { resolveFinding } from "./findingResolver";
+import { findingResolver } from "./findingResolver";
 import { fileCache, getCacheKey, hashForDocument } from "./extensionCache";
-import { UNUSED_RULE_LABELS, filterOverlappingFixes, rangeFromFixBytes, createSuppressionAction } from "./quickFixHelpers";
+import { UNUSED_RULE_LABELS, filterOverlappingFixes, fixRangeMapper, createSuppressionAction } from "./quickFixHelpers";
 
 export class QuickFixProvider implements vscode.CodeActionProvider {
   public provideCodeActions(
@@ -37,6 +37,11 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
     const cacheKey = getCacheKey(document.uri.fsPath);
     const cachedHistory = fileCache.get(cacheKey) || [];
     const cachedEntry = cachedHistory.find((e) => e.hash === currentHash);
+    const resolve = cachedEntry ? findingResolver(cachedEntry.findings) : undefined;
+    // Created on first use: requests without fixes skip encoding the text.
+    let mapFixRange: ReturnType<typeof fixRangeMapper> | undefined;
+    const rangeFromFixBytes = (startByte: number, endByte: number) =>
+      (mapFixRange ??= fixRangeMapper(document))(startByte, endByte);
     const getRuleId = (diagnostic: vscode.Diagnostic): string | undefined =>
       typeof diagnostic.code === "object" &&
         diagnostic.code !== null &&
@@ -48,10 +53,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       diagnostic: vscode.Diagnostic,
       ruleId: string | undefined,
     ): CytoScnPyFinding | undefined => {
-      if (!cachedEntry) {
-        return undefined;
-      }
-      return resolveFinding(cachedEntry.findings, {
+      return resolve?.({
         ruleId,
         line: diagnostic.range.start.line + 1,
         message: diagnostic.message,
@@ -117,7 +119,6 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
           fixAction.isPreferred = true;
 
           const range = rangeFromFixBytes(
-            document,
             finding.fix.start_byte,
             finding.fix.end_byte,
           );
@@ -165,7 +166,6 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       let hasAllRanges = true;
       for (const { finding } of sortedItems) {
         const range = rangeFromFixBytes(
-          document,
           finding.fix!.start_byte,
           finding.fix!.end_byte,
         );
@@ -199,7 +199,6 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       let hasAllRanges = true;
       for (const { finding } of sortedItems) {
         const range = rangeFromFixBytes(
-          document,
           finding.fix!.start_byte,
           finding.fix!.end_byte,
         );

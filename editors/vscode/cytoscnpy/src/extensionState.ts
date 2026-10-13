@@ -5,6 +5,10 @@ export const analysisState = {
   workspaceCache: null as Map<string, CytoScnPyFinding[]> | null,
   workspaceParseErrorsCache: null as Map<string, ParseError[]> | null,
   workspaceCacheTimestamp: 0,
+  // Set when the last workspace scan failed or was cancelled. Opening or
+  // switching files must not restart it; saves, settings changes and the
+  // analyze commands still retry.
+  workspaceScanFailed: false,
   workspaceScanQueue: new CoalescingTaskQueue(),
   saveScanDebouncer: new DebouncedTaskMap(),
 };

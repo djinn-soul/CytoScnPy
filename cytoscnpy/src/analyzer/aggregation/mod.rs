@@ -80,7 +80,7 @@ impl CytoScnPy {
 
         promote_methods_from_unused_classes(
             &mut classified.unused_methods,
-            &classified.methods_with_refs,
+            classified.methods_with_refs,
             self.confidence_threshold,
             &classified.unused_classes,
         );

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { CytoScnPyFinding } from "./analyzer";
+import { UNUSED_RULE_IDS, documentDirectives, suppressesFinding } from "./extensionDiagnostics";
 
 export const UNUSED_RULE_LABELS: Record<string, { singular: string; plural: string }> =
   {
@@ -35,10 +36,39 @@ export function filterOverlappingFixes<T extends { finding: CytoScnPyFinding }>(
   return filtered;
 }
 
-function byteOffsetToUtf16Offset(text: string, byteOffset: number): number {
+type FixRangeMapper = (startByte: number, endByte: number) => vscode.Range | undefined;
+
+/**
+ * Maps analyzer byte offsets to ranges in `document`. Encoding the document
+ * once and reusing it for every fix keeps "Fix All" from re-encoding the
+ * whole file several times per finding.
+ */
+export function fixRangeMapper(document: vscode.TextDocument): FixRangeMapper {
+  const text = document.getText();
   const utf8 = Buffer.from(text, "utf8");
-  const clamped = Math.max(0, Math.min(byteOffset, utf8.length));
-  return utf8.subarray(0, clamped).toString("utf8").length;
+  const toUtf16 = (byteOffset: number) =>
+    utf8.toString("utf8", 0, byteOffset).length;
+
+  return (startByte, endByte) => {
+    if (
+      !Number.isInteger(startByte) ||
+      !Number.isInteger(endByte) ||
+      startByte < 0 ||
+      endByte < startByte ||
+      endByte > utf8.length
+    ) {
+      return undefined;
+    }
+    const startOffset = toUtf16(startByte);
+    const endOffset = toUtf16(endByte);
+    if (endOffset < startOffset) {
+      return undefined;
+    }
+    return new vscode.Range(
+      document.positionAt(startOffset),
+      document.positionAt(endOffset),
+    );
+  };
 }
 
 export function rangeFromFixBytes(
@@ -46,31 +76,7 @@ export function rangeFromFixBytes(
   startByte: number,
   endByte: number,
 ): vscode.Range | undefined {
-  if (
-    !Number.isInteger(startByte) ||
-    !Number.isInteger(endByte) ||
-    startByte < 0 ||
-    endByte < startByte
-  ) {
-    return undefined;
-  }
-
-  const text = document.getText();
-  const utf8Len = Buffer.byteLength(text, "utf8");
-  if (endByte > utf8Len) {
-    return undefined;
-  }
-
-  const startOffset = byteOffsetToUtf16Offset(text, startByte);
-  const endOffset = byteOffsetToUtf16Offset(text, endByte);
-  if (endOffset < startOffset) {
-    return undefined;
-  }
-
-  return new vscode.Range(
-    document.positionAt(startOffset),
-    document.positionAt(endOffset),
-  );
+  return fixRangeMapper(document)(startByte, endByte);
 }
 
 export function createSuppressionAction(
@@ -85,8 +91,13 @@ export function createSuppressionAction(
       : typeof diagnostic.code === "string"
         ? diagnostic.code
         : undefined;
+  // Prefer the finding's own code so other findings on the line stay
+  // visible; fall back to CSP (everything) only for codes the CLI ignores.
   const suppressionCode =
-    codeValue && /^CSP-[A-Z]\d{3}$/i.test(codeValue) ? codeValue : "CSP";
+    codeValue &&
+    (/^CSP-[A-Z]\d{3}$/i.test(codeValue) || UNUSED_RULE_IDS.has(codeValue))
+      ? codeValue
+      : "CSP";
   const actionTitle = `Suppress with # noqa: ${suppressionCode}`;
 
   const action = new vscode.CodeAction(
@@ -96,46 +107,37 @@ export function createSuppressionAction(
   action.diagnostics = [diagnostic];
 
   const lineIndex = diagnostic.range.start.line;
-  const lineText = document.lineAt(lineIndex).text;
-  const edit = new vscode.WorkspaceEdit();
-  const pragmaRegex = /#\s*pragma:\s*no\s+cytoscnpy/i;
-  if (pragmaRegex.test(lineText)) {
-    return undefined;
+  const directive = documentDirectives(document).get(lineIndex);
+  if (
+    directive?.suppression &&
+    suppressesFinding(directive.suppression, suppressionCode)
+  ) {
+    return undefined; // Already suppressed
   }
 
-  // Check for existing suppression comment
-  const noqaRegex = /#\s*(?:noqa|ignore)(?::\s*([^#\n]+))?/i;
-  const match = lineText.match(noqaRegex);
-
-  if (match) {
-    // Existing noqa found
-    if (!match[1]) {
-      // Bare # noqa - already suppresses all
-      return undefined;
-    }
-    const existingCodes = match[1]
-      .split(/,\s*/)
-      .map((s) => s.trim().toUpperCase());
-    if (
-      existingCodes.includes("CSP") ||
-      existingCodes.includes(suppressionCode.toUpperCase())
-    ) {
-      return undefined; // Already suppressed
-    }
-    // Append suppression code to existing codes
-    const commentStart = match.index!;
-    const commentContent = match[0];
-    const newComment = `${commentContent}, ${suppressionCode}`;
-    const range = new vscode.Range(
-      new vscode.Position(lineIndex, commentStart),
-      new vscode.Position(lineIndex, commentStart + commentContent.length),
+  const edit = new vscode.WorkspaceEdit();
+  if (directive?.codesEnd !== undefined) {
+    // Add the code after the listed ones, ahead of any explanation.
+    edit.insert(
+      document.uri,
+      new vscode.Position(lineIndex, directive.codesEnd),
+      `, ${suppressionCode}`,
     );
-    edit.replace(document.uri, range, newComment);
+  } else if (directive?.codesStart !== undefined) {
+    // `# noqa: reason` lists no codes yet.
+    edit.insert(
+      document.uri,
+      new vscode.Position(lineIndex, directive.codesStart),
+      `${suppressionCode}, `,
+    );
   } else {
     // No existing noqa, append new one
-    const insertText = `  # noqa: ${suppressionCode}`;
-    const insertPos = new vscode.Position(lineIndex, lineText.length);
-    edit.insert(document.uri, insertPos, insertText);
+    const lineText = document.lineAt(lineIndex).text;
+    edit.insert(
+      document.uri,
+      new vscode.Position(lineIndex, lineText.length),
+      `  # noqa: ${suppressionCode}`,
+    );
   }
 
   action.edit = edit;

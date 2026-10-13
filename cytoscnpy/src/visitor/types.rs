@@ -139,6 +139,20 @@ impl DefinitionType {
             Self::Parameter => "parameter",
         }
     }
+
+    /// Returns the rule ID reported when a definition of this kind is
+    /// unused, which `# noqa: unused-import` and the like suppress.
+    #[must_use]
+    pub const fn unused_rule_id(self) -> &'static str {
+        match self {
+            Self::Function => "unused-function",
+            Self::Method => "unused-method",
+            Self::Class => "unused-class",
+            Self::Import => "unused-import",
+            Self::Variable => "unused-variable",
+            Self::Parameter => "unused-parameter",
+        }
+    }
 }
 
 impl fmt::Display for DefinitionType {

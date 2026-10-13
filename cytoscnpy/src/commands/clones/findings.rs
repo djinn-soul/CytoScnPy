@@ -123,18 +123,22 @@ pub fn generate_clone_findings_with_thresholds(
         }
     }
 
-    let file_contents: HashMap<_, _> = all_files.iter().map(|(p, c)| (p, c)).collect();
+    // Read suppressions only from files that have clone findings.
+    let files_with_findings: std::collections::HashSet<_> = best_by_location
+        .values()
+        .map(|finding| &finding.file)
+        .collect();
+    let ignored_by_file: HashMap<_, _> = all_files
+        .iter()
+        .filter(|(path, _)| files_with_findings.contains(path))
+        .map(|(path, content)| (path, crate::utils::get_ignored_lines(content)))
+        .collect();
     let mut findings: Vec<_> = best_by_location
         .into_values()
         .filter(|finding| {
-            if let Some(content) = file_contents.get(&finding.file) {
-                if let Some(line) = content.lines().nth(finding.line.saturating_sub(1)) {
-                    if crate::utils::get_line_suppression(line).is_some() {
-                        return false;
-                    }
-                }
-            }
-            true
+            !ignored_by_file.get(&finding.file).is_some_and(|ignored| {
+                crate::utils::is_line_suppressed(ignored, finding.line, &finding.rule_id)
+            })
         })
         .collect();
     findings.sort_unstable_by(|left, right| {
@@ -209,5 +213,34 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn suppression_must_cover_the_clone_rule() {
+        let pair = || ClonePair {
+            instance_a: instance("src/module.py", 1, 0),
+            instance_b: instance("src/other.py", 10, 30),
+            similarity: 1.0,
+            clone_type: CloneType::Type1,
+            edit_distance: 0,
+        };
+        let reported_in_module = |comment: &str| {
+            let files = [(
+                PathBuf::from("src/module.py"),
+                format!("def f():  {comment}\n    return 1\n"),
+            )];
+            generate_clone_findings(&[pair()], &files, false)
+                .iter()
+                .any(|f| f.file == std::path::Path::new("src/module.py"))
+        };
+
+        assert!(reported_in_module(""));
+        // A code for another tool or rule leaves the clone reported.
+        assert!(reported_in_module("# noqa: E501"));
+        assert!(reported_in_module("# noqa: CSP-C200"));
+        // The clone's own rule, CSP, or a bare directive hides it.
+        assert!(!reported_in_module("# noqa: CSP-C100"));
+        assert!(!reported_in_module("# noqa: CSP"));
+        assert!(!reported_in_module("# noqa"));
     }
 }

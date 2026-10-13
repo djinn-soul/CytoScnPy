@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { CytoScnPyFinding, ParseError } from "./analyzer";
+import { Directive, Suppression, covers, directivesByLine } from "./suppression";
 
 export function mapSeverity(severity: string): vscode.DiagnosticSeverity {
   const upper = severity.toUpperCase();
@@ -9,7 +10,7 @@ export function mapSeverity(severity: string): vscode.DiagnosticSeverity {
   return vscode.DiagnosticSeverity.Warning;
 }
 
-const UNUSED_RULE_IDS: ReadonlySet<string> = new Set([
+export const UNUSED_RULE_IDS: ReadonlySet<string> = new Set([
   "unused-function",
   "unused-method",
   "unused-class",
@@ -58,42 +59,44 @@ export function buildClosedFileDiagnosticFromParseError(
   return diagnostic;
 }
 
-function isLineSuppressed(lineText: string, ruleId: string): boolean {
-  const pragmaRegex = /#\s*pragma:\s*no\s+cytoscnpy/i;
-  if (pragmaRegex.test(lineText)) {
-    return true;
-  }
+const directiveCache = new WeakMap<
+  vscode.TextDocument,
+  { version: number; directives: Map<number, Directive> }
+>();
 
-  // Matches: # noqa, # ignore, # noqa: CSP-D101, CSP, etc.
-  const noqaRegex = /#\s*(?:noqa|ignore)(?::\s*([^#\n]+))?/i;
-  const match = lineText.match(noqaRegex);
-  if (!match) {
-    return false;
+/** Suppression directives per line (0-based), cached per document version. */
+export function documentDirectives(
+  document: vscode.TextDocument,
+): Map<number, Directive> {
+  const cached = directiveCache.get(document);
+  if (cached && cached.version === document.version) {
+    return cached.directives;
   }
-  // Bare # noqa suppresses all
-  if (!match[1]) {
-    return true;
-  }
-  const normalizedRule = ruleId.toUpperCase();
-  const codes = match[1].split(/,\s*/).map((s) => s.trim().toUpperCase());
-  if (codes.includes("CSP")) {
-    return true;
-  }
-  return codes.includes(normalizedRule);
+  const directives = directivesByLine(document.getText());
+  directiveCache.set(document, { version: document.version, directives });
+  return directives;
+}
+
+/** Rule ID that suppresses every kind of unused definition, as in the CLI. */
+export const DEAD_CODE_RULE_ID = "CSP-V001";
+
+/** Matches the CLI: dead code also answers to `CSP-V001`. */
+export function suppressesFinding(suppression: Suppression, ruleId: string): boolean {
+  return (
+    covers(suppression, ruleId) ||
+    (UNUSED_RULE_IDS.has(ruleId) && covers(suppression, DEAD_CODE_RULE_ID))
+  );
 }
 
 export function findingsToDiagnostics(
   document: vscode.TextDocument,
   findings: CytoScnPyFinding[],
 ): vscode.Diagnostic[] {
+  const directives = documentDirectives(document);
   return findings
     .filter((finding) => {
-      const lineIndex = finding.line_number - 1;
-      if (lineIndex < 0 || lineIndex >= document.lineCount) {
-        return true; // Keep - can't check suppression
-      }
-      const lineText = document.lineAt(lineIndex).text;
-      return !isLineSuppressed(lineText, finding.rule_id);
+      const suppression = directives.get(finding.line_number - 1)?.suppression;
+      return !suppression || !suppressesFinding(suppression, finding.rule_id);
     })
     .map((finding) => {
       const lineIndex = finding.line_number - 1;

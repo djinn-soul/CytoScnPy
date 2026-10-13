@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { execFile } from "child_process";
-import { getCytoScnPyConfiguration } from "./configuration";
+import { documentAnalysisMode, getCytoScnPyConfiguration } from "./configuration";
 import { AnalysisActions } from "./extensionState";
 import { clearDocumentAnalysis } from "./extensionCache";
 import { cytoscnpyOutputChannel } from "./extensionUi";
@@ -35,12 +35,11 @@ export function registerCommands(context: vscode.ExtensionContext, actions: Anal
         return;
       }
 
-      const config = getCytoScnPyConfiguration(context, editor.document.uri);
       // A current-file refresh cannot safely reuse the workspace cache: that
       // is exactly what made manual rescans leave stale Problems entries.
       // Rebuild the cross-file result so dead-code findings remain accurate.
       await runManualAnalysis(
-        config.analysisMode,
+        documentAnalysisMode(context, editor.document.uri),
         () => refreshDiagnostics(editor.document),
         runFullWorkspaceAnalysis,
       );

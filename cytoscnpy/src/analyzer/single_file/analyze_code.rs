@@ -39,7 +39,10 @@ impl CytoScnPy {
 
         for def in output.visitor.definitions {
             if def.confidence >= self.confidence_threshold && def.references == 0 {
-                if crate::utils::is_line_suppressed(&ignored_lines, def.line, "CSP-V001") {
+                if super::super::confidence_penalties::is_definition_suppressed(
+                    &def,
+                    &ignored_lines,
+                ) {
                     continue;
                 }
 

@@ -2,10 +2,10 @@ import * as vscode from "vscode";
 import { runWorkspaceAnalysis } from "./analyzer";
 import { getCytoScnPyConfiguration } from "./configuration";
 import { analysisState } from "./extensionState";
-import { getCacheKey, fileCache, documentHashCache, cacheDocumentAnalysis } from "./extensionCache";
+import { getCacheKey, fileCache, cacheDocumentAnalysis, invalidateWorkspaceCache } from "./extensionCache";
 import { findingsToDiagnostics, parseErrorsToDiagnostics, buildClosedFileDiagnosticFromFinding, buildClosedFileDiagnosticFromParseError } from "./extensionDiagnostics";
 import { emptyWorkspaceResults, mergeWorkspaceResult } from "./workspaceResults";
-import { setStatus, cytoscnpyDiagnostics, cytoscnpyOutputChannel, applyGutterDecorations } from "./extensionUi";
+import { setStatus, cytoscnpyDiagnostics, cytoscnpyOutputChannel, applyGutterDecorations, reportAnalysisFailure, resetAnalysisFailure, setDiagnosticsBatched } from "./extensionUi";
 
 export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () => Promise<void> {
   const isDevBuild = context.extensionMode === vscode.ExtensionMode.Development;
@@ -25,9 +25,11 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
       {
         location: vscode.ProgressLocation.Notification,
         title: "CytoScnPy: Analyzing workspace...",
-        cancellable: false,
+        cancellable: true,
       },
-      async (progress) => {
+      async (progress, token) => {
+        const abort = new AbortController();
+        const cancellation = token.onCancellationRequested(() => abort.abort());
         try {
           const startTime = Date.now();
           const merged = emptyWorkspaceResults();
@@ -38,6 +40,7 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
               await runWorkspaceAnalysis(
                 folder.uri.fsPath,
                 getCytoScnPyConfiguration(context, folder.uri),
+                { signal: abort.signal },
               ),
             );
           }
@@ -45,6 +48,8 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
           analysisState.workspaceCache = findingsByFile;
           analysisState.workspaceParseErrorsCache = parseErrorsByFile;
           analysisState.workspaceCacheTimestamp = Date.now();
+          analysisState.workspaceScanFailed = false;
+          resetAnalysisFailure();
 
           const duration = (Date.now() - startTime) / 1000;
           if (isDevBuild) {
@@ -72,6 +77,7 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
             ...(analysisState.workspaceParseErrorsCache?.keys() ?? []),
           ]);
 
+          const updates: [vscode.Uri, vscode.Diagnostic[]][] = [];
           for (const filePath of filesWithDiagnostics) {
             if (openDocuments.has(filePath)) {
               continue;
@@ -84,7 +90,7 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
               ...findings.map(buildClosedFileDiagnosticFromFinding),
               ...parseErrors.map(buildClosedFileDiagnosticFromParseError),
             ];
-            cytoscnpyDiagnostics.set(uri, diagnostics);
+            updates.push([uri, diagnostics]);
           }
 
           for (const [filePath, document] of openDocuments) {
@@ -98,9 +104,10 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
               ...findingsToDiagnostics(document, findings),
               ...parseErrorsToDiagnostics(document, parseErrors),
             ];
-            cytoscnpyDiagnostics.set(document.uri, diagnostics);
+            updates.push([document.uri, diagnostics]);
             cacheDocumentAnalysis(document, diagnostics, findings);
           }
+          setDiagnosticsBatched(updates);
 
           const activeEditor = vscode.window.activeTextEditor;
           if (activeEditor?.document.languageId === "python") {
@@ -133,19 +140,22 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
             setStatus("idle", summary);
           }
         } catch (error: any) {
+          if (token.isCancellationRequested) {
+            // Keep the previous results; only stop scans from restarting
+            // on their own until the user saves or re-runs analysis.
+            analysisState.workspaceScanFailed = true;
+            setStatus("idle", "scan cancelled, click to re-run");
+            return;
+          }
+          invalidateWorkspaceCache();
+          analysisState.workspaceScanFailed = true;
           console.error(
             `[CytoScnPy] Workspace analysis failed: ${error.message}`,
           );
-          vscode.window.showErrorMessage(
-            `CytoScnPy analysis failed: ${error.message}`,
-          );
+          reportAnalysisFailure(error.message);
           setStatus("error", "analysis failed");
-          analysisState.workspaceCache = null;
-          analysisState.workspaceParseErrorsCache = null;
-          analysisState.workspaceCacheTimestamp = 0;
-          fileCache.clear();
-          documentHashCache.clear();
-          cytoscnpyDiagnostics.clear();
+        } finally {
+          cancellation.dispose();
         }
       },
     );

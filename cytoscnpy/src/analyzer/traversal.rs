@@ -68,6 +68,8 @@ impl CytoScnPy {
     /// This is the preferred entry point when accepting CLI input that may
     /// include multiple file paths (e.g., from pre-commit hooks).
     pub fn analyze_paths(&mut self, paths: &[std::path::PathBuf]) -> AnalysisResult {
+        // `config` is public and may have changed since the last run.
+        self.reset_secret_scanner();
         // If no paths provided, analyze current directory
         if paths.is_empty() {
             return self.analyze(Path::new("."));
@@ -225,6 +227,8 @@ impl CytoScnPy {
     /// 6. Calculates cross-file usage to identify unused code.
     /// 7. Returns the final `AnalysisResult`.
     pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
+        // `config` is public and may have changed since the last run.
+        self.reset_secret_scanner();
         // Collect files and count directories using shared logic
         let analysis_root = analysis_root_for_paths(&[root_path.to_path_buf()]);
         // Discovery already yields each physical source once.

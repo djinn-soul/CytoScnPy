@@ -87,12 +87,21 @@ pub(super) fn classify_definitions(
     analysis_root: &std::path::Path,
 ) -> ClassificationResult {
     let mut result = ClassificationResult::new();
-    let definition_kinds: FxHashMap<String, DefinitionType> = definitions
-        .iter()
-        .map(|def| (def.full_name.clone(), def.def_type))
-        .collect();
+    // Resolve parent kinds up front so the map can borrow names instead of
+    // cloning every one before `definitions` is consumed below.
+    let nested_under_callable: Vec<bool> = {
+        let definition_kinds: FxHashMap<&str, DefinitionType> = definitions
+            .iter()
+            .map(|def| (def.full_name.as_str(), def.def_type))
+            .collect();
+        definitions
+            .iter()
+            .map(|def| has_parent_callable(def, &definition_kinds))
+            .collect()
+    };
 
-    for mut def in definitions {
+    let mut last_test_file: Option<(std::sync::Arc<std::path::PathBuf>, bool)> = None;
+    for (mut def, is_nested_under_callable) in definitions.into_iter().zip(nested_under_callable) {
         // Check if this definition is whitelisted. Match on both the fully
         // qualified name (e.g. `module.symbol`) and the bare simple name so
         // Vulture-style whitelists (bare identifiers) keep working regardless
@@ -114,11 +123,21 @@ pub(super) fn classify_definitions(
         // For production-file definitions use only prod refs so that test-only callers
         // don't mask unused prod code. For test-file definitions keep the full ref_counts
         // so that fixtures used exclusively by tests are not falsely flagged.
-        let def_relative = def
-            .file
-            .strip_prefix(analysis_root)
-            .unwrap_or(def.file.as_path());
-        let effective_refs = if crate::utils::is_test_path(&def_relative.to_string_lossy()) {
+        // Definitions arrive grouped by file and share its `Arc`, so check
+        // the path once per file.
+        let is_test_file = match &last_test_file {
+            Some((file, is_test)) if std::sync::Arc::ptr_eq(file, &def.file) => *is_test,
+            _ => {
+                let def_relative = def
+                    .file
+                    .strip_prefix(analysis_root)
+                    .unwrap_or(def.file.as_path());
+                let is_test = crate::utils::is_test_path(&def_relative.to_string_lossy());
+                last_test_file = Some((std::sync::Arc::clone(&def.file), is_test));
+                is_test
+            }
+        };
+        let effective_refs = if is_test_file {
             ref_counts
         } else {
             prod_ref_counts
@@ -141,7 +160,6 @@ pub(super) fn classify_definitions(
             && !reachability.reachable_nodes.contains(&def.full_name)
         {
             let loose_ref_exists = effective_refs.contains_key(&format!(".{}", def.simple_name));
-            let is_nested_under_callable = has_parent_callable(&def, &definition_kinds);
             let is_explicitly_called = reachability
                 .explicitly_called_nodes
                 .contains(&def.full_name);
@@ -163,8 +181,10 @@ pub(super) fn classify_definitions(
             def.references = 0;
         }
 
+        // A referenced definition is never reported, so move it rather than clone.
         if def.def_type == "method" && def.references > 0 {
-            result.methods_with_refs.push(def.clone());
+            result.methods_with_refs.push(def);
+            continue;
         }
 
         if !should_report_definition(&def, confidence_threshold) {
@@ -191,7 +211,7 @@ pub(super) fn classify_definitions(
 
 fn has_parent_callable(
     def: &Definition,
-    definition_kinds: &FxHashMap<String, DefinitionType>,
+    definition_kinds: &FxHashMap<&str, DefinitionType>,
 ) -> bool {
     // Only nested functions and classes benefit from the parent-callable exemption;
     // methods are owned by their class and analyzed via the class container instead.
@@ -246,7 +266,8 @@ fn should_report_definition(def: &Definition, confidence_threshold: u8) -> bool 
         return true;
     }
 
-    def.confidence >= confidence_threshold
+    // Zero stays hidden even at `--confidence 0`.
+    def.confidence > 0 && def.confidence >= confidence_threshold
 }
 
 fn sync_definition_reference(
@@ -317,18 +338,18 @@ fn sync_definition_reference(
 
 pub(super) fn promote_methods_from_unused_classes(
     unused_methods: &mut Vec<Definition>,
-    methods_with_refs: &[Definition],
+    methods_with_refs: Vec<Definition>,
     confidence_threshold: u8,
     unused_classes: &[Definition],
 ) {
     let unused_class_names: FxHashSet<_> = unused_classes
         .iter()
-        .map(|cls| cls.full_name.clone())
+        .map(|cls| cls.full_name.as_str())
         .collect();
     let unreachable_class_names: FxHashSet<_> = unused_classes
         .iter()
         .filter(|cls| cls.is_unreachable)
-        .map(|cls| cls.full_name.clone())
+        .map(|cls| cls.full_name.as_str())
         .collect();
 
     for def in methods_with_refs {
@@ -343,7 +364,7 @@ pub(super) fn promote_methods_from_unused_classes(
             if def.confidence == 0 {
                 continue;
             }
-        } else if def.confidence < confidence_threshold {
+        } else if def.confidence == 0 || def.confidence < confidence_threshold {
             continue;
         }
 
@@ -360,10 +381,9 @@ pub(super) fn promote_methods_from_unused_classes(
         if let Some(last_dot) = def.full_name.rfind('.') {
             let parent_class = &def.full_name[..last_dot];
             if unused_class_names.contains(parent_class) {
-                let mut method = def.clone();
-                if unreachable_class_names.contains(parent_class) {
-                    method.is_unreachable = true;
-                }
+                let is_unreachable = unreachable_class_names.contains(parent_class);
+                let mut method = def;
+                method.is_unreachable |= is_unreachable;
                 unused_methods.push(method);
             }
         }

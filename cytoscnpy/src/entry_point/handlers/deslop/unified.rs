@@ -192,6 +192,13 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             limit: "0 skipped or unparsable files".to_owned(),
         });
     }
+    if inventory.integrity.files_discovered == 0 {
+        failures.push(GateFailure {
+            check: "no_python_files",
+            actual: "0".to_owned(),
+            limit: ">= 1 Python file".to_owned(),
+        });
+    }
     apply_gate_outcome(&mut scoring, &failures);
     let exit_code = i32::from(!scoring.passed_gate);
     let human_output = if request.cli.output.json {

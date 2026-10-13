@@ -78,10 +78,9 @@ fn scoring_and_gate_status_agree_for_passing_and_failing_reports() {
 #[test]
 fn ordinary_new_method_local_variables_are_not_singleton_caches() {
     let ordinary = "class Widget:\n    def __new__(cls):\n        instance = super().__new__(cls)\n        instance.init_widget()\n        return instance\n";
-    assert!(
-        cytoscnpy::singletons::python::detect_python_singletons(ordinary, Path::new("app.py"))
-            .is_empty()
-    );
+    let singletons =
+        cytoscnpy::singletons::python::detect_python_singletons(ordinary, Path::new("app.py"));
+    assert!(singletons.is_empty(), "expected empty, got {singletons:?}");
     let cached = "class Widget:\n    _instance = None\n    def __new__(cls):\n        if cls._instance is None:\n            cls._instance = super().__new__(cls)\n        return cls._instance\n";
     assert_eq!(
         cytoscnpy::singletons::python::detect_python_singletons(cached, Path::new("app.py")).len(),
@@ -107,11 +106,8 @@ fn interface_methods_do_not_collide_but_module_functions_still_do() {
             ),
         );
     }
-    assert!(
-        cytoscnpy::searchability::functions::find_function_collisions(&methods)
-            .2
-            .is_empty()
-    );
+    let collisions = cytoscnpy::searchability::functions::find_function_collisions(&methods).2;
+    assert!(collisions.is_empty(), "expected empty, got {collisions:?}");
     assert_eq!(
         cytoscnpy::searchability::functions::find_function_collisions(&standalone)
             .2
@@ -119,24 +115,25 @@ fn interface_methods_do_not_collide_but_module_functions_still_do() {
         1
     );
     let naming = cytoscnpy::naming::scanner::analyze_naming_functions(&methods);
-    assert!(naming.outliers.is_empty());
+    assert!(
+        naming.outliers.is_empty(),
+        "expected empty, got {:?}",
+        naming.outliers
+    );
 }
 
 #[test]
 fn control_flow_comments_and_strings_do_not_count_as_callbacks() {
     let source = "class Service:\n    def run(self):\n        if ready:\n            for order in orders:\n                if order.valid:\n                    order.save()\n                    text = '''\n                    if imaginary:\n                        task.then(callback)\n                    '''\n                    # task.add_done_callback(callback)\n";
-    assert!(
-        cytoscnpy::anti_patterns::callbacks::detect_nested_callbacks(source, Path::new("app.py"))
-            .is_empty()
-    );
+    let found =
+        cytoscnpy::anti_patterns::callbacks::detect_nested_callbacks(source, Path::new("app.py"));
+    assert!(found.is_empty(), "expected empty, got {found:?}");
     let callbacks = "def start():\n    return lambda x: lambda y: lambda z: x + y + z\n";
-    assert!(
-        !cytoscnpy::anti_patterns::callbacks::detect_nested_callbacks(
-            callbacks,
-            Path::new("app.py")
-        )
-        .is_empty()
+    let found = cytoscnpy::anti_patterns::callbacks::detect_nested_callbacks(
+        callbacks,
+        Path::new("app.py"),
     );
+    assert!(!found.is_empty(), "expected a non-empty value");
 }
 
 #[test]

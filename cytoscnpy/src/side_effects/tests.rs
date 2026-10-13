@@ -70,7 +70,7 @@ fn test_python_type_checking_guard_ignored() {
         "    from expensive_module import HeavyType\n",
     );
     let matches = detect_python_side_effects(src, py_path());
-    assert!(matches.is_empty());
+    assert!(matches.is_empty(), "expected empty, got {matches:?}");
 }
 
 #[test]

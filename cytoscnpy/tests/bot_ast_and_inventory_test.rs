@@ -8,15 +8,17 @@ use std::path::Path;
 fn only_exact_main_equalities_suppress_import_time_findings() {
     for condition in ["__name__ == '__main__'", "'__main__' == __name__"] {
         let source = format!("if {condition}:\n    STATE = []\n    sys.exit(1)\n");
-        assert!(
-            cytoscnpy::globals::python::detect_python_globals(&source, Path::new("app.py"))
-                .is_empty()
-        );
-        assert!(cytoscnpy::side_effects::python::detect_python_side_effects(
+        let globals =
+            cytoscnpy::globals::python::detect_python_globals(&source, Path::new("app.py"));
+        assert!(globals.is_empty(), "expected empty, got {globals:?}");
+        let side_effects = cytoscnpy::side_effects::python::detect_python_side_effects(
             &source,
-            Path::new("app.py")
-        )
-        .is_empty());
+            Path::new("app.py"),
+        );
+        assert!(
+            side_effects.is_empty(),
+            "expected empty, got {side_effects:?}"
+        );
     }
     for condition in [
         "__name__ != '__main__'",

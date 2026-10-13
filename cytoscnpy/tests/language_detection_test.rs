@@ -41,7 +41,7 @@ fn test_supported_language_classification() {
             !fmt.is_source_code(),
             "Expected {fmt:?} not to be source code"
         );
-        assert!(!fmt.label().is_empty());
+        assert!(!fmt.label().is_empty(), "expected a non-empty value");
     }
 }
 

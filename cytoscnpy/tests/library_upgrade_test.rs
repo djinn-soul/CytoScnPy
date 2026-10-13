@@ -229,9 +229,12 @@ fn test_colored_upgrade_api_compatibility() {
     let _bg = "test".on_red();
 
     // All should be convertible to String
-    assert!(!red.to_string().is_empty());
-    assert!(!green.to_string().is_empty());
-    assert!(!chained.to_string().is_empty());
+    assert!(!red.to_string().is_empty(), "expected a non-empty value");
+    assert!(!green.to_string().is_empty(), "expected a non-empty value");
+    assert!(
+        !chained.to_string().is_empty(),
+        "expected a non-empty value"
+    );
 }
 
 /// Test various color methods produce output (regardless of terminal support).

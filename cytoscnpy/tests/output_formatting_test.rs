@@ -202,7 +202,7 @@ fn test_print_findings_empty() {
     let result = print_findings(&mut buffer, "Test", &[]);
     assert!(result.is_ok());
     let output = String::from_utf8(buffer).unwrap();
-    assert!(output.is_empty()); // Should print nothing for empty findings
+    assert!(output.is_empty(), "expected empty, got {output:?}"); // Should print nothing for empty findings
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn test_print_unused_items_empty() {
     let result = print_unused_items(&mut buffer, "Unused", &[], "Function");
     assert!(result.is_ok());
     let output = String::from_utf8(buffer).unwrap();
-    assert!(output.is_empty());
+    assert!(output.is_empty(), "expected empty, got {output:?}");
 }
 
 #[test]
@@ -314,7 +314,7 @@ fn test_print_parse_errors_empty() {
     let result = print_parse_errors(&mut buffer, &[]);
     assert!(result.is_ok());
     let output = String::from_utf8(buffer).unwrap();
-    assert!(output.is_empty());
+    assert!(output.is_empty(), "expected empty, got {output:?}");
 }
 
 #[test]

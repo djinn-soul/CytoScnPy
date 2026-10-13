@@ -50,7 +50,7 @@ fn test_no_cycles_in_dag() {
     let (count, largest, cycles) = detect_cycles(&nodes, &edges);
     assert_eq!(count, 0);
     assert_eq!(largest, 0);
-    assert!(cycles.is_empty());
+    assert!(cycles.is_empty(), "expected empty, got {cycles:?}");
 }
 
 #[test]

@@ -43,7 +43,10 @@ fn all_path_tools_reject_external_descendant_symlinks() {
         assert_eq!(result.is_error, Some(true));
         let data = payload(result);
         assert_eq!(data["scan_complete"], false);
-        assert!(!data["parse_errors"].as_array().unwrap().is_empty());
+        assert!(
+            !data["parse_errors"].as_array().unwrap().is_empty(),
+            "expected a non-empty value"
+        );
         assert!(!data.to_string().contains("Avoid using eval"));
     }
     for result in [

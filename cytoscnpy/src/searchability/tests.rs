@@ -11,7 +11,7 @@ fn test_no_duplicate_filenames() {
     let (count, worst, duplicates) = filenames::find_duplicate_filenames(&files);
     assert_eq!(count, 0);
     assert!(worst.is_none());
-    assert!(duplicates.is_empty());
+    assert!(duplicates.is_empty(), "expected empty, got {duplicates:?}");
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn test_init_py_excluded_from_duplicates() {
     let (count, worst, duplicates) = filenames::find_duplicate_filenames(&files);
     assert_eq!(count, 0);
     assert!(worst.is_none());
-    assert!(duplicates.is_empty());
+    assert!(duplicates.is_empty(), "expected empty, got {duplicates:?}");
 }
 
 fn func(name: &str, file: &str, line: usize) -> FunctionDefinition {
@@ -99,7 +99,7 @@ fn test_structural_dunder_methods_excluded() {
     let (count, worst, collisions) = functions::find_function_collisions(&funcs);
     assert_eq!(count, 0);
     assert!(worst.is_none());
-    assert!(collisions.is_empty());
+    assert!(collisions.is_empty(), "expected empty, got {collisions:?}");
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn test_conftest_py_and_duplicate_paths_deduped() {
     let (count, worst, duplicates) = filenames::find_duplicate_filenames(&files);
     assert_eq!(count, 0);
     assert!(worst.is_none());
-    assert!(duplicates.is_empty());
+    assert!(duplicates.is_empty(), "expected empty, got {duplicates:?}");
 }
 
 #[test]
@@ -223,5 +223,5 @@ fn test_inner_and_wrapper_excluded() {
     let (count, worst, collisions) = functions::find_function_collisions(&funcs);
     assert_eq!(count, 0);
     assert!(worst.is_none());
-    assert!(collisions.is_empty());
+    assert!(collisions.is_empty(), "expected empty, got {collisions:?}");
 }

@@ -126,7 +126,7 @@ fn test_analyze_duplicates_with_clones() {
     };
 
     let res = analyze_duplicates_files(&[file1, file2], &options);
-    assert!(!res.clusters.is_empty());
+    assert!(!res.clusters.is_empty(), "expected a non-empty value");
     assert!(res.stats.total_duplicate_lines > 0);
     assert!(res.stats.duplicate_pct > 0.0);
     assert_eq!(res.stats.affected_files, 2);

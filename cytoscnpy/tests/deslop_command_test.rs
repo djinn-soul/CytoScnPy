@@ -151,7 +151,10 @@ fn local_fail_on_any_runs_deslop_checks_and_returns_failure() {
     let report: serde_json::Value =
         serde_json::from_slice(&out.into_inner()).expect("report must be valid JSON");
     assert_eq!(report["gates"]["passed"], false);
-    assert!(!report["gates"]["failures"].as_array().unwrap().is_empty());
+    assert!(
+        !report["gates"]["failures"].as_array().unwrap().is_empty(),
+        "expected a non-empty value"
+    );
     assert!(report.get("analysis").is_none());
 }
 

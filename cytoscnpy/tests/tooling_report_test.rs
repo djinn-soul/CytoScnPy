@@ -106,5 +106,9 @@ fn directories_named_like_config_files_do_not_claim_tooling() {
     let health = &json["health"][0];
     assert_eq!(health["reliability"]["has_type_checker"], false);
     assert_eq!(health["reliability"]["has_lockfile"], false);
-    assert!(health["configs"].as_array().unwrap().is_empty());
+    assert!(
+        health["configs"].as_array().unwrap().is_empty(),
+        "expected empty, got {:?}",
+        health["configs"].as_array().unwrap()
+    );
 }

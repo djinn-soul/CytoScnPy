@@ -51,7 +51,10 @@ fn incomplete_path_analysis_retains_findings_from_valid_files() {
     let result = payload(&result);
     assert_eq!(result["scan_complete"], false);
     assert_eq!(result["parse_errors"].as_array().unwrap().len(), 1);
-    assert!(!result["danger"].as_array().unwrap().is_empty());
+    assert!(
+        !result["danger"].as_array().unwrap().is_empty(),
+        "expected a non-empty value"
+    );
 }
 
 #[test]

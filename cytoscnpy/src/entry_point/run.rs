@@ -40,7 +40,11 @@ pub fn run_with_args_to<W: std::io::Write>(args: Vec<String>, writer: &mut W) ->
 
     if let Some(crate::cli::Commands::Deslop { args }) = &cli_var.command {
         cli_var.output.fail_on_any |= args.fail_on_any;
-        cli_var.output.json |= args.json || args.format.as_deref() == Some("json");
+        // An explicit `--format` wins over any `--json` flag.
+        cli_var.output.json = match args.format.as_deref() {
+            Some(format) => format == "json",
+            None => cli_var.output.json || args.json,
+        };
         cli_var.output.verbose |= args.verbose;
     }
     let context = build_runtime_context(&cli_var)?;

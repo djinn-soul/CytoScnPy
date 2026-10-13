@@ -80,5 +80,9 @@ fn test_run_fix_deadcode_apply_json_output() {
     assert!(payload["results"][0]["file"].is_string());
 
     let content = std::fs::read_to_string(&file_path).unwrap();
-    assert!(content.trim().is_empty());
+    assert!(
+        content.trim().is_empty(),
+        "expected empty, got {:?}",
+        content.trim()
+    );
 }

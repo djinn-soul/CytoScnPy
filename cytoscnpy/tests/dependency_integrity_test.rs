@@ -40,13 +40,24 @@ fn parse_and_read_errors_fail_scans_without_false_removal_recommendations() {
             .as_str()
             .unwrap()
             .ends_with("broken.py"));
-        assert!(result["unused"].as_array().unwrap().is_empty());
-        assert!(result["removable_branches"].as_array().unwrap().is_empty());
+        assert!(
+            result["unused"].as_array().unwrap().is_empty(),
+            "expected empty, got {:?}",
+            result["unused"].as_array().unwrap()
+        );
+        assert!(
+            result["removable_branches"].as_array().unwrap().is_empty(),
+            "expected empty, got {:?}",
+            result["removable_branches"].as_array().unwrap()
+        );
         assert_eq!(result["missing"], serde_json::json!(["another_dependency"]));
-        assert!(!result["missing_details"][0]["locations"]
-            .as_array()
-            .unwrap()
-            .is_empty());
+        assert!(
+            !result["missing_details"][0]["locations"]
+                .as_array()
+                .unwrap()
+                .is_empty(),
+            "expected a non-empty value"
+        );
     }
 }
 
@@ -60,7 +71,10 @@ fn malformed_dependency_source_cannot_pass_missing_gate() {
     fs::write(&file, "import requests\ndef broken(:\n").unwrap();
     let (code, result) = scan(dir.path(), &["--fail-on-missing"]);
     assert_eq!(code, 1);
-    assert!(!result["scan_errors"].as_array().unwrap().is_empty());
+    assert!(
+        !result["scan_errors"].as_array().unwrap().is_empty(),
+        "expected a non-empty value"
+    );
     let mut output = Vec::new();
     assert_eq!(
         run_with_args_to(
@@ -86,7 +100,11 @@ fn requested_and_included_requirements_errors_retain_paths_and_context() {
         .as_str()
         .unwrap()
         .ends_with("missing.txt"));
-    assert!(result["missing"].as_array().unwrap().is_empty());
+    assert!(
+        result["missing"].as_array().unwrap().is_empty(),
+        "expected empty, got {:?}",
+        result["missing"].as_array().unwrap()
+    );
     fs::write(
         dir.path().join("requirements.txt"),
         "requests\n-r nested.txt\n",
@@ -132,7 +150,11 @@ fn dependency_test_classification_ignores_ancestors_above_project_root() {
         }
         let (code, result) = scan(&root.join("tests"), &["--fail-on-missing"]);
         assert_eq!(code, 0);
-        assert!(result["dev_in_production"].as_array().unwrap().is_empty());
+        assert!(
+            result["dev_in_production"].as_array().unwrap().is_empty(),
+            "expected empty, got {:?}",
+            result["dev_in_production"].as_array().unwrap()
+        );
     }
 }
 
@@ -154,7 +176,10 @@ fn main_dependency_gates_include_declaration_errors() {
     .unwrap();
     assert_eq!(code, 1);
     let result: Value = serde_json::from_slice(&output).unwrap();
-    assert!(!result["parse_errors"].as_array().unwrap().is_empty());
+    assert!(
+        !result["parse_errors"].as_array().unwrap().is_empty(),
+        "expected a non-empty value"
+    );
     assert_eq!(
         result["analysis_summary"]["parse_errors_count"],
         result["parse_errors"].as_array().unwrap().len()

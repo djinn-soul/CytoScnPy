@@ -111,7 +111,7 @@ fn test_extract_notebook_code_empty_notebook() {
     let result = extract_notebook_code(&notebook_path, None);
     assert!(result.is_ok());
     let code = result.unwrap();
-    assert!(code.is_empty());
+    assert!(code.is_empty(), "expected empty, got {code:?}");
 }
 
 #[test]

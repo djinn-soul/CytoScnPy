@@ -290,7 +290,10 @@ fn test_cli_whitelist_flag_suppresses_unused_symbol() {
         .get("unused_functions")
         .and_then(serde_json::Value::as_array)
         .unwrap();
-    assert!(unused_functions.is_empty());
+    assert!(
+        unused_functions.is_empty(),
+        "expected empty, got {unused_functions:?}"
+    );
 }
 
 #[test]

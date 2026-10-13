@@ -80,7 +80,11 @@ def unused_function():
     assert_eq!(fix_results[0].items_removed, 1);
 
     let content = std::fs::read_to_string(&file_path).unwrap();
-    assert!(content.trim().is_empty());
+    assert!(
+        content.trim().is_empty(),
+        "expected empty, got {:?}",
+        content.trim()
+    );
 }
 
 #[test]

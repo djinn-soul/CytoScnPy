@@ -226,7 +226,7 @@ def outer():
 ";
     let functions = analyze_functions(source);
     // Should find both outer and inner
-    assert!(!functions.is_empty());
+    assert!(!functions.is_empty(), "expected a non-empty value");
 }
 
 #[test]
@@ -251,7 +251,7 @@ async def fetch():
     return await get_data()
 ";
     let functions = analyze_functions(source);
-    assert!(!functions.is_empty());
+    assert!(!functions.is_empty(), "expected a non-empty value");
 }
 
 #[test]

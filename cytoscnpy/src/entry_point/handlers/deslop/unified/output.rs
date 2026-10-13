@@ -29,17 +29,7 @@ pub(super) fn render_human_report(
 ) -> Result<String> {
     let mut output = Vec::new();
     if !verbose {
-        let mut gate_scoring = scoring.clone();
-        if !failures.is_empty() {
-            gate_scoring.passed_gate = false;
-            if gate_scoring.failure_reason.is_none() {
-                gate_scoring.failure_reason = Some(format!(
-                    "{} configured DeSlopify gate(s) failed",
-                    failures.len()
-                ));
-            }
-        }
-        crate::scoring::print_terminal_report(&gate_scoring, false, &mut output)?;
+        crate::scoring::print_terminal_report(scoring, false, &mut output)?;
         if !failures.is_empty() {
             write_gates(&mut output, failures)?;
         }
@@ -102,6 +92,18 @@ pub(super) fn render_human_report(
     write_integrity(&mut output, integrity)?;
 
     String::from_utf8(output).context("comprehensive report contained invalid UTF-8")
+}
+
+pub(super) fn render_llm_report(
+    scoring: &crate::scoring::ScoreResult,
+    failures: &[GateFailure],
+    integrity: &ScanIntegrity,
+) -> Result<String> {
+    let mut output = Vec::new();
+    crate::scoring::reporter::print_llm_report(scoring, &mut output)?;
+    write_gates(&mut output, failures)?;
+    write_integrity(&mut output, integrity)?;
+    String::from_utf8(output).context("LLM report contained invalid UTF-8")
 }
 
 fn write_integrity(output: &mut Vec<u8>, integrity: &ScanIntegrity) -> Result<()> {

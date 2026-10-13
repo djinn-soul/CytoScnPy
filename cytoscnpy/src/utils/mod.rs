@@ -4,6 +4,7 @@
 
 mod ignore_match;
 mod minified;
+pub(crate) mod path_inventory;
 mod paths;
 pub(crate) mod python_guards;
 pub(crate) mod sources;
@@ -13,6 +14,7 @@ pub(crate) use paths::discover_project_root;
 // Re-export path, ignore, and minification utilities
 pub use ignore_match::{is_name_or_pattern_ignored, is_path_ignored};
 pub use minified::{is_likely_minified, is_likely_minified_content, is_likely_minified_path};
+pub(crate) use paths::collect_python_files_within;
 pub use paths::{
     collect_python_files_gitignore, collect_python_files_gitignore_with_errors, is_excluded,
     normalize_display_path, validate_output_path, validate_path_within_root,

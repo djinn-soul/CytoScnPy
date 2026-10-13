@@ -6,6 +6,7 @@ use super::types::ParseError;
 use super::{AnalysisResult, CytoScnPy, FileAnalysisResult};
 use crate::constants::{CHUNK_SIZE, CONFIG_FILENAME};
 use crate::rules::secrets::{validate_secrets_config, SecretFinding};
+use crate::utils::path_inventory;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -16,11 +17,18 @@ use std::path::{Path, PathBuf};
 /// first input, which broke `is_test_path` whenever that first input was a test
 /// file because `strip_prefix` then returned an empty relative path.
 fn common_ancestor(paths: &[PathBuf]) -> Option<PathBuf> {
+    // `.` components would otherwise stop `src` from sharing the ancestor `.`,
+    // and popping past them leaves an empty root that corrupts module names.
+    let without_cur_dir = |path: &Path| -> PathBuf {
+        path.components()
+            .filter(|component| !matches!(component, std::path::Component::CurDir))
+            .collect()
+    };
     let mut iter = paths.iter().map(|p| {
         if p.is_file() {
-            p.parent().unwrap_or(Path::new(".")).to_path_buf()
+            without_cur_dir(p.parent().unwrap_or(Path::new(".")))
         } else {
-            p.clone()
+            without_cur_dir(p)
         }
     });
     let mut acc = iter.next()?;
@@ -30,6 +38,9 @@ fn common_ancestor(paths: &[PathBuf]) -> Option<PathBuf> {
                 return Some(PathBuf::from("."));
             }
         }
+    }
+    if acc.as_os_str().is_empty() {
+        acc.push(".");
     }
     Some(acc)
 }
@@ -73,7 +84,8 @@ impl CytoScnPy {
         let mut discovery_errors = Vec::new();
         let inferred_root = analysis_root_for_paths(paths);
 
-        for path in paths {
+        for input in path_inventory::unique_inputs(paths) {
+            let path = input.path;
             if path.is_file() {
                 // Direct file path - check if it's a Python file
                 if path
@@ -88,9 +100,11 @@ impl CytoScnPy {
             } else if path.is_dir() {
                 // Directory - collect all Python files from it
                 let (dir_files, dir_count, errors) =
-                    self.collect_python_files(path, &inferred_root);
+                    self.collect_python_files(path, input.enclosing, &inferred_root);
                 all_files.extend(dir_files);
-                total_directories += dir_count;
+                if input.enclosing.is_none() {
+                    total_directories += dir_count;
+                }
                 discovery_errors.extend(errors);
             } else {
                 discovery_errors.push(ParseError {
@@ -100,6 +114,7 @@ impl CytoScnPy {
             }
         }
 
+        path_inventory::deduplicate_files(&mut all_files);
         // Filtering and processing must retain the same project-relative context.
         let result = self.analyze_file_list(&all_files, Some(&inferred_root), total_directories);
         with_discovery_errors(result, discovery_errors)
@@ -110,16 +125,17 @@ impl CytoScnPy {
     fn collect_python_files(
         &self,
         root_path: &Path,
+        boundary: Option<&PathBuf>,
         analysis_root: &Path,
     ) -> (Vec<std::path::PathBuf>, usize, Vec<ParseError>) {
-        let (mut files, directory_count, errors) =
-            crate::utils::collect_python_files_gitignore_with_errors(
-                root_path,
-                &self.exclude_folders,
-                &self.include_folders,
-                self.include_ipynb,
-                self.verbose,
-            );
+        let (mut files, directory_count, errors) = crate::utils::collect_python_files_within(
+            root_path,
+            boundary.map(PathBuf::as_path),
+            &self.exclude_folders,
+            &self.include_folders,
+            self.include_ipynb,
+            self.verbose,
+        );
         if !self.include_tests {
             files.retain(|path| !crate::utils::is_test_path_relative_to(path, analysis_root));
         }
@@ -211,8 +227,8 @@ impl CytoScnPy {
     pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
         // Collect files and count directories using shared logic
         let analysis_root = analysis_root_for_paths(&[root_path.to_path_buf()]);
-        let (files, dir_count, errors) = self.collect_python_files(root_path, &analysis_root);
-        // println!("FILES{files:?}");
+        // Discovery already yields each physical source once.
+        let (files, dir_count, errors) = self.collect_python_files(root_path, None, &analysis_root);
         self.total_files_analyzed = files.len();
 
         // Analyze the collected files
@@ -232,3 +248,17 @@ fn with_discovery_errors(mut result: AnalysisResult, errors: Vec<ParseError>) ->
 
 // Re-export utility functions for use in other analyzer modules
 pub(crate) use super::utils::{collect_docstring_lines, convert_byte_range_to_line};
+
+#[cfg(test)]
+mod tests {
+    use super::common_ancestor;
+    use std::path::PathBuf;
+
+    #[test]
+    fn current_directory_input_is_the_shared_ancestor() {
+        let paths = [PathBuf::from("."), PathBuf::from("shared")];
+        assert_eq!(common_ancestor(&paths), Some(PathBuf::from(".")));
+        let paths = [PathBuf::from("./pkg"), PathBuf::from("pkg/sub")];
+        assert_eq!(common_ancestor(&paths), Some(PathBuf::from("pkg")));
+    }
+}

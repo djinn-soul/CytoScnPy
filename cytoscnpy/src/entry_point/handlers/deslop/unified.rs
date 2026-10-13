@@ -91,19 +91,14 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         &inventory.definitions.classes,
     );
     let todos = crate::todos::scanner::scan_files_with_sources(files, sources);
-    let global_files = files;
-    let global_target = request
-        .roots
-        .first()
-        .cloned()
-        .unwrap_or_else(|| PathBuf::from("."));
-    let globals =
-        crate::globals::scanner::scan_files_with_sources(global_files, &global_target, sources);
+    let global_target = match request.roots {
+        [single] => single.as_path(),
+        _ => request.analysis_root,
+    };
+    let globals = crate::globals::scanner::scan_files_with_sources(files, global_target, sources);
     let exceptions = crate::exceptions::scanner::scan_files_with_sources(files, sources);
     let wildcards = crate::wildcards::scanner::scan_files_with_sources(files, sources);
-    let side_effect_files = files;
-    let side_effects =
-        crate::side_effects::scanner::scan_files_with_sources(side_effect_files, sources);
+    let side_effects = crate::side_effects::scanner::scan_files_with_sources(files, sources);
     let singletons = crate::singletons::scanner::scan_files_with_sources(files, sources);
     let anti_patterns = crate::anti_patterns::scanner::scan_files_with_sources(files, sources);
     let mut duplicates = crate::duplicates::analyzer::analyze_duplicates_with_sources(
@@ -124,7 +119,7 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         sources,
     );
     unreferenced.roots = request.roots.to_vec();
-    let functions = crate::functions::scan_files(files);
+    let functions = crate::functions::scanner::scan_files_with_sources(files, sources);
 
     let doc_root = health
         .first()
@@ -197,14 +192,16 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
             limit: "0 skipped or unparsable files".to_owned(),
         });
     }
-    scoring.passed_gate = failures.is_empty();
+    apply_gate_outcome(&mut scoring, &failures);
     let exit_code = i32::from(!scoring.passed_gate);
     let human_output = if request.cli.output.json {
         None
     } else if request.args.format.as_deref() == Some("llm") {
-        let mut output = Vec::new();
-        crate::scoring::reporter::print_llm_report(&scoring, &mut output)?;
-        Some(String::from_utf8(output)?)
+        Some(output::render_llm_report(
+            &scoring,
+            &failures,
+            &inventory.integrity,
+        )?)
     } else {
         Some(output::render_human_report(
             &architecture,
@@ -268,6 +265,21 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         writer,
     )?;
     Ok(exit_code)
+}
+
+/// Makes the score's gate verdict reflect every unified gate, not only the slop index.
+fn apply_gate_outcome(scoring: &mut crate::scoring::ScoreResult, failures: &[GateFailure]) {
+    scoring.passed_gate = failures.is_empty();
+    if scoring.passed_gate {
+        scoring.failure_reason = None;
+    } else if failures.iter().any(|f| f.check != "slop_index") {
+        let checks: Vec<&str> = failures.iter().map(|f| f.check).collect();
+        scoring.failure_reason = Some(format!(
+            "{} DeSlopify gate(s) failed: {}",
+            failures.len(),
+            checks.join(", ")
+        ));
+    }
 }
 
 fn health_results(request: &ComprehensiveRequest<'_>) -> Vec<crate::doctor::DoctorResult> {

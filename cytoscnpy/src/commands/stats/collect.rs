@@ -40,9 +40,11 @@ pub(super) fn collect_project_stats(
 ) -> Result<ProjectStats> {
     let mut files = Vec::new();
     let mut num_directories = 0;
-    for path in roots {
-        let (mut root_files, d, errors) = crate::utils::collect_python_files_gitignore_with_errors(
+    for input in crate::utils::path_inventory::unique_inputs(roots) {
+        let path = input.path;
+        let (mut root_files, d, errors) = crate::utils::collect_python_files_within(
             path,
+            input.enclosing.map(PathBuf::as_path),
             exclude,
             include_folders,
             false,
@@ -58,8 +60,12 @@ pub(super) fn collect_project_stats(
             root_files.retain(|file| !crate::utils::is_test_path_relative_to(file, path));
         }
         files.extend(root_files);
-        num_directories += d;
+        if input.enclosing.is_none() {
+            num_directories += d;
+        }
     }
+    // Overlapping inputs must measure each physical source once.
+    crate::utils::path_inventory::deduplicate_files(&mut files);
 
     let collected: Vec<(FileMetrics, usize, usize)> = files
         .par_iter()

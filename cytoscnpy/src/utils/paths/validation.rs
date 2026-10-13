@@ -12,20 +12,30 @@ pub fn validate_path_within_root(
     path: &std::path::Path,
     root: &std::path::Path,
 ) -> anyhow::Result<std::path::PathBuf> {
-    let canonical_path = path
-        .canonicalize()
-        .map_err(|e| anyhow::anyhow!("Failed to resolve path {}: {}", path.display(), e))?;
     let canonical_root = root
         .canonicalize()
         .map_err(|e| anyhow::anyhow!("Failed to resolve root {}: {}", root.display(), e))?;
+    resolve_within_canonical_root(path, &canonical_root, root)
+}
 
-    if canonical_path.starts_with(&canonical_root) {
+/// Resolves `path` and checks it against a root that was canonicalized once
+/// by the caller, so bulk discovery does not re-resolve the root per file.
+pub(super) fn resolve_within_canonical_root(
+    path: &std::path::Path,
+    canonical_root: &std::path::Path,
+    display_root: &std::path::Path,
+) -> anyhow::Result<std::path::PathBuf> {
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("Failed to resolve path {}: {}", path.display(), e))?;
+
+    if canonical_path.starts_with(canonical_root) {
         Ok(canonical_path)
     } else {
         anyhow::bail!(
             "Path traversal detected: {} is outside of {}",
             path.display(),
-            root.display()
+            display_root.display()
         )
     }
 }

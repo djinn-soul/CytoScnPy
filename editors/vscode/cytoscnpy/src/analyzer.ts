@@ -4,7 +4,7 @@ import * as path from "path";
 export * from "./analyzerTypes";
 export { transformRawResult } from "./analyzerResult";
 import { transformRawResult } from "./analyzerResult";
-import { dependencyAnchorPath } from "./analyzerPaths";
+import { dependencyAnchorPath, pathIsDirectory } from "./analyzerPaths";
 import {
   CytoScnPyConfig,
   CytoScnPyAnalysisResult,
@@ -137,15 +137,12 @@ export async function runCytoScnPyAnalysis(
  * Run workspace-level analysis and return findings grouped by file path.
  * This provides cross-file reference tracking for accurate unused code detection.
  */
+// Keep the original case: callers derive case-insensitive lookup keys
+// themselves, but diagnostics must target the real file URI on Windows.
 function normalizeAbsolutePath(filePath: string, workspacePath: string): string {
-  let resolved = filePath;
-  if (!path.isAbsolute(resolved)) {
-    resolved = path.resolve(workspacePath, resolved);
-  }
-  if (process.platform === "win32") {
-    resolved = resolved.toLowerCase();
-  }
-  return resolved;
+  return path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(workspacePath, filePath);
 }
 
 export async function runWorkspaceAnalysis(
@@ -178,15 +175,20 @@ export async function runWorkspaceAnalysis(
     }
 
     const parseErrorsByFile = new Map<string, ParseError[]>();
+    const scanErrors: ParseError[] = [];
     for (const parseError of result.parseErrors) {
       const filePath = normalizeAbsolutePath(parseError.file, workspacePath);
+      if (pathIsDirectory(filePath)) {
+        scanErrors.push({ ...parseError, file: filePath });
+        continue;
+      }
       if (!parseErrorsByFile.has(filePath)) {
         parseErrorsByFile.set(filePath, []);
       }
       parseErrorsByFile.get(filePath)!.push(parseError);
     }
 
-    return { findingsByFile, parseErrorsByFile };
+    return { findingsByFile, parseErrorsByFile, scanErrors };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(

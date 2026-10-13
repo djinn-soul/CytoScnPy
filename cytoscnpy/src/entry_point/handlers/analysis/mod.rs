@@ -122,6 +122,11 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
 
     let json_fix_mode = cli_var.fix && cli_var.output.json && !cli_var.clones;
     if cli_var.make_whitelist {
+        anyhow::ensure!(
+            run.result.parse_errors.is_empty(),
+            "Cannot generate whitelist: scan incomplete ({} parsing/read errors)",
+            run.result.parse_errors.len()
+        );
         let mut whitelist_entries = Vec::new();
         whitelist_entries.extend(run.result.unused_functions.iter().cloned());
         whitelist_entries.extend(run.result.unused_methods.iter().cloned());

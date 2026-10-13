@@ -26,8 +26,14 @@ export interface ParseError {
 }
 
 export interface WorkspaceAnalysisResult {
+  /** Keyed by absolute path in the CLI's original spelling and case. */
   findingsByFile: Map<string, CytoScnPyFinding[]>;
   parseErrorsByFile: Map<string, ParseError[]>;
+  /**
+   * Failures that belong to no single source file, such as a directory that
+   * could not be traversed or a rejected symlink. The scan is incomplete.
+   */
+  scanErrors: ParseError[];
 }
 
 export interface CytoScnPyConfig {

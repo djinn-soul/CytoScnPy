@@ -124,6 +124,11 @@ When a source cannot be read or parsed, the MCP result sets `isError` to `true` 
 retains findings from files that were scanned successfully. Resolve the reported
 errors and scan again before relying on a clean security result.
 
+Directory scans validate every discovered source against the scanned directory.
+A descendant Python symlink pointing outside that directory is rejected and
+reported as an incomplete scan; metrics tools also return an error. Symlinks to
+sources inside the directory remain supported and are analyzed once.
+
 **Quick security scan:**
 
 ```json

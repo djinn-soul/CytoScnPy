@@ -7,9 +7,14 @@ pub(super) fn module_name_from_path(file_path: &Path, root_path: &Path) -> Strin
     let relative_path = package_relative
         .as_deref()
         .unwrap_or_else(|| file_path.strip_prefix(root_path).unwrap_or(file_path));
+    // Only named components form a module path; `.` or a root prefix left by a
+    // failed `strip_prefix` must not become empty dotted segments.
     let components: Vec<&str> = relative_path
         .components()
-        .filter_map(|component| component.as_os_str().to_str())
+        .filter_map(|component| match component {
+            std::path::Component::Normal(part) => part.to_str(),
+            _ => None,
+        })
         .collect();
 
     let mut module_parts = Vec::new();
@@ -204,5 +209,17 @@ fn severity_value(label: &str) -> u8 {
         "MEDIUM" => 2,
         "LOW" => 1,
         _ => 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::module_name_from_path;
+    use std::path::Path;
+
+    #[test]
+    fn module_name_ignores_current_directory_components() {
+        let name = module_name_from_path(Path::new("./no_such_pkg/mod.py"), Path::new(""));
+        assert_eq!(name, "no_such_pkg.mod");
     }
 }

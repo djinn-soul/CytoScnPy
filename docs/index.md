@@ -14,7 +14,8 @@ CytoScnPy is a blazing fast static analysis tool for Python codebases. It uses a
 - **Dead Code Detection**: Finds unused functions, classes, methods, imports, and variables.
 - **Security Scanning**: Detects secrets (API keys), dangerous patterns (eval/exec), and taint analysis.
 - **Code Quality**: Calculates Cyclomatic Complexity, Halstead metrics, and Maintainability Index.
-- **Deep Integration**: VS Code extension and MCP server for AI assistants.
+- **LLM Friction Score**: `cytoscnpy deslop` rates how hard the codebase is for an AI agent to work on, with ranked fixes and CI gates. See [DeSlop](deslop.md).
+- **Deep Integration**: VS Code extension, MCP server for AI assistants, a [Python API, and a pytest plugin](python-api.md).
 - **Framework Aware**: Native support for Flask, Django, FastAPI, and Pydantic.
 
 ## Deep Integration

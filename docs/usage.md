@@ -22,6 +22,11 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 - **Methods**: Cascading detection (if a class is unused, its methods are too).
 - **Imports**: Unused import statements.
 - **Variables**: Local variables assigned but never read.
+- **Parameters**: Function parameters that are never used.
+
+Dead code findings use the rule ID `CSP-V001`. Each kind also has its own ID for
+suppression: `unused-function`, `unused-method`, `unused-class`,
+`unused-import`, `unused-variable`, and `unused-parameter`.
 
 ## Installation
 
@@ -143,6 +148,18 @@ cytoscnpy . --clones --clone-similarity 0.8
 - `--clone-similarity <0.0-1.0>`: Minimum similarity threshold. Default is `0.8` (80% similarity). Lower values find more matches but may increase false positives.
 
 **Performance**: Clone detection is computationally intensive for very large codebases.
+
+### LLM Friction Score (DeSlop)
+
+Scores how hard the codebase is for an LLM agent to navigate and change, from 0 (clean) to 100, with ranked fixes and CI gates.
+
+```bash
+cytoscnpy deslop .              # Slop Index, dimensions, top fixes
+cytoscnpy deslop . --format llm # Fix plan for an AI agent
+cytoscnpy deslop . --ci         # Fail when the Slop Index is above 40
+```
+
+See [DeSlop: LLM Friction Score](deslop.md) for scoring, options, gates, and configuration.
 
 ### Auto-Fix
 
@@ -563,12 +580,19 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
 
 - Use **inline comments** to suppress findings on a specific line:
 
-  | Comment                  | Effect                                            |
-  | ------------------------ | ------------------------------------------------- |
-  | `# pragma: no cytoscnpy` | Legacy format (suppresses all CytoScnPy findings) |
-  | `# noqa`                 | Bare noqa (suppresses all CytoScnPy findings)                |
-  | `# ignore`               | Bare ignore (suppresses all CytoScnPy findings)              |
-  | `# noqa: CSP-XXXX`       | Specific rule suppression (danger/quality/performance rules) |
+  | Comment                    | Effect                                                     |
+  | -------------------------- | ---------------------------------------------------------- |
+  | `# pragma: no cytoscnpy`   | Legacy format (suppresses all CytoScnPy findings)          |
+  | `# noqa`                   | Bare noqa (suppresses all CytoScnPy findings)              |
+  | `# ignore`                 | Bare ignore (suppresses all CytoScnPy findings)            |
+  | `# noqa: CSP`              | Suppresses all CytoScnPy findings, even among other codes  |
+  | `# noqa: CSP-XXXX`         | Suppresses only that rule (danger, quality, clone, ...)    |
+  | `# noqa: CSP-V001`         | Suppresses any kind of dead code finding                   |
+  | `# noqa: unused-import`    | Suppresses one kind of dead code finding                   |
+
+  Codes are separated by commas or spaces, and the first word that is not a
+  code starts an explanation. A code for another tool, such as `E501`, does
+  not hide CytoScnPy findings. A `#` inside a string is not a comment.
 
   **Examples:**
 
@@ -581,6 +605,9 @@ Starts the Model Context Protocol (MCP) server for integration with AI assistant
   for x in items:  # noqa: CSP-P003
       out += x
   y = api_key  # pragma: no cytoscnpy
+  import os  # noqa: unused-import
+
+  os.system(cmd)  # noqa: CSP-D003 input is validated upstream
   ```
 
 - For bulk ignores, use the `.cytoscnpy.toml` configuration file's ignore list.

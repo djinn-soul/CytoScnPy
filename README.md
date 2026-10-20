@@ -17,7 +17,7 @@ A fast, lightweight static analyzer for Python codebase. It’s built in Rust wi
 - **Memory Efficient**: Uses less memory.
 - **Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
 - **Framework Aware**: Flask, Django, FastAPI, Pydantic, Azure Functions
-- **Benchmarked**: Continuous benchmarking with 135-item ground truth suite
+- **Benchmarked**: Continuous benchmarking with a 164-item ground truth suite
 
 ## Installation
 
@@ -103,6 +103,7 @@ Integrate CytoScnPy directly into your GitHub Actions workflow:
 - **Clone Detection**: Find duplicate code with `--clones`.
 - **Security Analysis**: Taint analysis (SQLi, XSS), secret scanning (API keys, suspicious variables), and dangerous code patterns (`eval`, `exec`).
 - **Code Quality Metrics**: Cyclomatic complexity, Halstead metrics, Maintainability Index, and raw metrics (LOC, SLOC).
+- **LLM Friction Score**: `cytoscnpy deslop` rates how hard the codebase is for an AI agent to work on, with ranked fixes and CI gates.
 - **Framework Support**: Native understanding of Flask, Django, FastAPI, Pydantic, and Azure Functions v2 patterns.
 - **Smart Heuristics**: Handles dataclasses, `__all__` exports, visitor patterns, and dynamic attributes intelligently.
 - **Cross-File Detection**: Tracks symbol usage across the entire codebase, including nested packages and complex import chains, to ensure code used in other modules is never incorrectly flagged.
@@ -192,10 +193,13 @@ cytoscnpy deslop . --verbose       # Full analysis details and file locations
 cytoscnpy deslop . --json          # Machine-readable results for every analysis
 cytoscnpy deslop . --json --fail-on-any       # CI: fail configured gates
 cytoscnpy deslop . --json -o report.json      # Save the unified report
+cytoscnpy deslop . --ci --max-score 50        # CI: fail when the Slop Index is above 50
+cytoscnpy deslop . --format llm               # Prioritized fix plan for an LLM agent
 ```
 
 `deslop` reports unreadable or invalid Python files under `scan_integrity` and
-exits with code 1 when a scan is incomplete.
+exits with code 1 when a scan is incomplete or finds no Python files. See
+[DeSlop: LLM Friction Score](docs/deslop.md) for scoring, every option, gate, and config key.
 
 Other tools remain available for raw metrics, dependency checks, and setup:
 
@@ -212,6 +216,21 @@ cytoscnpy init                     # Scaffold config in the current project
 Dependency analysis reports CytoScnPy-style hygiene categories for missing (`CSP-R001`), unused production (`CSP-R002`), transitive (`CSP-R003`), dev dependency used in production (`CSP-R004`), and standard-library (`CSP-R005`) dependencies. Development dependencies are not reported as unused by default; pass `cytoscnpy deps --include-dev-unused` for stricter checks.
 
 > **Tip**: Add `--json` for machine-readable output, `--exclude-folder <DIR>` to skip directories globally, or `--ignore <PATTERN>` for subcommand-specific glob filtering.
+
+### Python API and pytest
+
+```python
+import cytoscnpy
+
+result = cytoscnpy.scan("src", secrets=True, danger=True)
+result = cytoscnpy.scan_code("x = eval(input())\n")
+```
+
+```bash
+pytest --cytoscnpy   # one [cytoscnpy] test item per Python file
+```
+
+See [Python API & pytest](https://djinn-soul.github.io/CytoScnPy/python-api/) for every option and result field.
 
 ## ⚙️ Configuration
 
@@ -299,16 +318,16 @@ cytoscnpy . --fail-threshold 5 --quiet
 
 ## Performance
 
-### Accuracy (Benchmark Suite: 135 items)
+### Accuracy (Benchmark Suite: 164 items)
 
-| Detection Type | Precision | Recall   | F1 Score |
-| -------------- | --------- | -------- | -------- |
-| Classes        | 0.73      | 0.79     | **0.76** |
-| Functions      | 0.71      | 0.74     | **0.73** |
-| Methods        | **0.86**  | **0.93** | **0.89** |
-| Imports        | 0.67      | 0.40     | 0.50     |
-| Variables      | 0.30      | 0.15     | 0.20     |
-| **Overall**    | **0.71**  | **0.64** | **0.68** |
+| Detection Type | Precision | Recall | F1 Score |
+| -------------- | --------- | ------ | -------- |
+| Classes        | 0.95      | 1.00   | **0.97** |
+| Functions      | 0.76      | 0.91   | **0.83** |
+| Methods        | 0.83      | 0.86   | **0.84** |
+| Imports        | 0.83      | 0.88   | **0.85** |
+| Variables      | 0.72      | 0.93   | **0.81** |
+| **Overall**    | **0.79**  | **0.91** | **0.85** |
 
 > See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 

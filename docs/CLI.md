@@ -97,6 +97,10 @@ checks resolve package directories and files to the nearest project root so
 root-level manifests and tooling remain visible. Its JSON `scoring.passed_gate`
 and `gates.passed` fields both describe the final exit decision.
 
+Every analysis subcommand (`raw`, `cc`, `hal`, `mi`, `stats`, `deslop`, `files`,
+`deps`) takes one or more paths, or `--root <PATH>` in place of them. With
+neither, the current directory is analyzed.
+
 
 Metric commands report file discovery and source read failures rather than
 returning empty or perfect metrics. `cc`, `mi`, and `hal` also fail on invalid
@@ -127,8 +131,8 @@ cytoscnpy cc [OPTIONS] <PATH>
 - `-a`, `--average`: Show average complexity.
 - `--total-average`: Show total average complexity.
 - `-s`, `--show-complexity`: Show complexity score with rank.
-- `-n`, `--min <RANK>`: Set minimum complexity rank (A-F).
-- `-x`, `--max <RANK>`: Set maximum complexity rank (A-F).
+- `-n`, `--min-rank <RANK>`: Set minimum complexity rank (A-F). Alias: `--min`.
+- `-x`, `--max-rank <RANK>`: Set maximum complexity rank (A-F). Alias: `--max`.
 - `-o`, `--order <ORDER>`: Ordering function (score, lines, alpha).
 - `--no-assert`: Do not count assert statements.
 - `--xml`: Output XML.
@@ -162,8 +166,8 @@ cytoscnpy mi [OPTIONS] <PATH>
 
 - `-s`, `--show`: Show actual MI value.
 - `-a`, `--average`: Show average MI.
-- `-n`, `--min <RANK>`: Set minimum MI rank (A-C).
-- `-x`, `--max <RANK>`: Set maximum MI rank (A-C).
+- `-n`, `--min-rank <RANK>`: Set minimum MI rank (A-C). Alias: `--min`.
+- `-x`, `--max-rank <RANK>`: Set maximum MI rank (A-C). Alias: `--max`.
 - `--multi`: Count multiline strings as comments (default: true).
 - `--fail-threshold <N>`: Exit 1 if any file has MI < N.
 - `-j`, `--json`: Output JSON.
@@ -193,106 +197,49 @@ cytoscnpy stats [OPTIONS] <PATH>
 
 ### `deslop`
 
-Run the unified repository assessment. It includes architecture, Git context,
-health, searchability, naming, TODOs, globals, exceptions, wildcard imports,
-side effects, singletons, anti-patterns, duplicates, unreferenced functions,
-function metrics, and the Slop Index. Dead code, dependency, secret, danger,
-and general quality scans remain on their existing commands.
-The default text report shows the Slop Index, its dimension breakdown, up to
-15 prioritized fixes, and gate status. It ends at the gate status on passing runs. Use
-`--verbose` for all analysis sections and file locations; `--json` always
-includes the complete structured results. The short tooling line lists up to six
-detected configurations and shows how many more are available in the full report.
-The report also includes `scan_integrity` with discovered and checked file counts
-and any unreadable or invalid Python files. An incomplete scan exits with code `1`
-even without `--fail-on-any`, so CI cannot treat partial results as a pass.
+Run the unified LLM-friction assessment and report the Slop Index (0–100). One
+run covers architecture, Git context, repository health, searchability, naming,
+TODOs, globals, exceptions, wildcard imports, side effects, singletons,
+anti-patterns, duplicates, unreferenced functions, and function metrics.
 
-Sample-code directories (`examples/`, `fixtures/`, `test_fixtures/`,
-`testdata/`, `test_data/`) below the analysis root are skipped together with
-tests, because they often hold deliberately sloppy code. `--include-tests` scans
-them again, and pointing `deslop` directly at such a directory still analyzes it.
-
-Remediations are ranked by their raw score reduction, shown next to the
-size-adjusted index points (`[-1 pts, 3.0 raw]`). A dimension rated 5/5 keeps
-the verdict at `ACCEPTABLE` or worse even when the size multiplier scales the
-index into the `CLEAN` band; the index and gates are unchanged.
-
-The test ratio compares Python test lines with Python source lines only;
-Markdown, JSON, and other non-code files do not count as source. Test files are
-classified relative to the analysis root, so a `tests/` directory above the
-project does not mark every file as a test.
+See **[DeSlop: LLM Friction Score](deslop.md)** for how the score is computed,
+the report format, every gate and config key, and CI examples.
 
 ```bash
-cytoscnpy deslop [OPTIONS] <PATH>
+cytoscnpy deslop [OPTIONS] [PATHS]...
 ```
 
-- `--fail-on-any`: Exit with code `1` when any configured architecture,
-  hotspot, context-budget, health, or analysis gate fails. The global form
+- `--fail-on-any`: Fail when any configured gate fails. The global form
   (`cytoscnpy --fail-on-any deslop ...`) is also supported.
-- `--ci`: Apply the Slop Index ceiling (40 unless `--max-score` or config sets one).
+- `--ci`: Apply the Slop Index ceiling (40 unless `--max-score` or
+  `max_slop_index` sets one).
 - `--max-score <N>`: Maximum allowed Slop Index (0–100).
-- `--root <PATH>`: Project root for analysis (use instead of positional path).
+- `--root <PATH>`: Project root for analysis (use instead of positional paths).
 - `--json`: Output one JSON report.
 - `--format <terminal|json|llm>`: Select the text report, JSON report,
-  or LLM remediation plan.
+  or LLM remediation plan. An explicit `--format` takes precedence over `--json`.
 - `--verbose`, `-v`: Show every analysis section and complete scoring diagnostics.
 - `-o`, `--output <FILE>`: Output report file.
 - `--exclude <DIR>`: Exclude a folder or path pattern from analysis.
 - `--ignore <PATTERN>`, `-i`: Repeatable path or directory ignore pattern.
 - `--no-git`: Disable Git history analysis.
 - `--git-months <N>`: Set the maximum Git lookback.
-- `--context-budget <TOKENS>`: Set usable LLM context capacity.
+- `--context-budget <TOKENS>`: Set usable LLM context capacity (default `176000`).
 
-The JSON result includes the analyses listed above, `scan_integrity`, `gates`, and
-`schema_version`. Use `--fail-on-any` with limits in the configuration file
-to enforce CI gates.
+Tests and sample-code directories are skipped unless the global
+`--include-tests` flag is given before the subcommand.
+
+Exit code `1` means a gate failed. `scan_integrity` (unreadable or unparsable
+files) and `no_python_files` always run; the Slop Index ceiling runs with
+`--ci` or `--max-score`; limits under `[cytoscnpy.deslop]` run with
+`--fail-on-any`.
 
 ```bash
-cytoscnpy deslop . --json
+cytoscnpy deslop .
 cytoscnpy deslop . --json --fail-on-any
+cytoscnpy deslop . --ci --max-score 50
+cytoscnpy deslop . --format llm -o remediation.md
 ```
-
-Gate limits can be set under `[cytoscnpy.deslop]` (or
-`[tool.cytoscnpy.deslop]`):
-
-```toml
-max_cycles = 0
-max_god_modules = 0
-max_hotspots = 0
-min_health_score = 70
-# max_navigation_pct = 75.0
-# max_duplicate_filenames = 0
-# max_function_collisions = 0
-# min_naming_consistency = 0.85
-# max_todos = 0
-```
-
-The individual analysis results are included in `deslop`; they do not require
-separate commands. Use the JSON fields or configure `[cytoscnpy.deslop]` gates
-for targeted automation.
-
-#### Verdict Bands
-
-| Band | Slop Index Range | Description |
-|---|---|---|
-| **Clean** | 0 – 20 | Excellent health, negligible LLM friction |
-| **Acceptable** | 21 – 40 | Normal codebase with minor slop within reasonable boundaries |
-| **Messy** | 41 – 60 | Moderate structural friction, refactoring recommended |
-| **Sloppy** | 61 – 80 | High friction, difficult navigation and maintenance |
-| **Disaster** | 81 – 100 | Severe debt, high risk of LLM hallucinations and errors |
-
-#### 10-Dimension Scoring Model (Weights sum to 100)
-
-1. **Setup reliability** (weight 10): Dependency manager, lockfile, Docker, and `.gitignore`. Each missing one is named in the evidence. A Makefile or other task runner is optional.
-2. **Architecture clarity** (weight 15): Directory depth, file sizes, god modules, and naming searchability. The largest-file check counts Python files only, so lockfiles and generated data do not count.
-3. **Coupling / blast radius** (weight 15): Fan-in/out, circular import cycles, and cross-package dependencies.
-4. **Style consistency** (weight 10): Naming convention compliance percentage, linter, formatter, and type checker adoption.
-5. **Test safety net** (weight 15): Test-to-source file and line ratios, framework configuration.
-6. **Runtime predictability** (weight 10): Mutable globals, import side effects, singletons, bare excepts, anti-patterns.
-7. **Feedback loop speed** (weight 5): Test runner, linter configuration, and CI workflow responsiveness.
-8. **Documentation** (weight 10): README quality, setup instructions, architecture docs, and contributing guides.
-9. **Dependency boundaries** (weight 5): Lockfiles, `.gitignore` hygiene, and vendor/generated code separation.
-10. **Context pressure** (weight 5): Token consumption relative to context budget, active surface, and dead code.
 
 ### `files`
 
@@ -409,14 +356,6 @@ fail_threshold = 5.0
 fail_on_secrets = true
 fail_on_danger = true
 
-# Per-file rule suppressions (glob -> rule IDs).
-# Use a real table (not an inline `{ ... }`) so entries can span multiple
-# lines without tripping TOML/editor syntax errors.
-# Glob behavior: "*" matches a single path segment, "**" matches recursively.
-[cytoscnpy.per-file-ignores]
-"tests/*" = ["CSP-D701"]
-"**/__init__.py" = ["CSP-L001"]
-
 # Inline whitelist (suppress specific dead-code symbols).
 # One array, one entry per line — no repeated headers needed.
 whitelist = [
@@ -424,6 +363,13 @@ whitelist = [
   { name = "another_symbol", pattern = "wildcard" },     # "exact", "wildcard", or "regex"
   { name = "legacy_fn", file = "src/api/*.py" },         # optional: restrict to a file glob
 ]
+
+# Per-file rule suppressions (glob -> rule IDs). Keep table headers like this
+# one after all top-level keys: every key below a header belongs to that table.
+# Glob behavior: "*" matches a single path segment, "**" matches recursively.
+[cytoscnpy.per-file-ignores]
+"tests/*" = ["CSP-D701"]
+"**/__init__.py" = ["CSP-L001"]
 ```
 
 Prefer `[[cytoscnpy.whitelist]]` blocks instead if you want to attach a comment
@@ -503,6 +449,10 @@ return_value = ["build_parameterized_query"]
 [cytoscnpy.danger_config.sanitizers.command_injection]
 return_value = ["quote_shell_argument"]
 ```
+
+Sanitizer groups: `ssrf`, `path_traversal`, `sql_injection`,
+`command_injection`, and `code_injection`, each with `return_value`, `guard`,
+and `side_effect` lists. See [Security](security.md) for details.
 
 Sanitizer names are matched explicitly. Security-sounding variable names do not
 suppress findings, and each configured sanitizer affects only its vulnerability

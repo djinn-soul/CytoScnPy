@@ -60,13 +60,6 @@
 # Rule IDs to silence globally across the entire project.
 # ignore = ["CSP-P003"]
 
-# Silence specific rules only for files matching a glob pattern.
-# Use a real table (not an inline `{ ... }`) so it can span multiple lines
-# and hold as many glob -> rule-list entries as you need:
-# [cytoscnpy.per-file-ignores]
-# "tests/*" = ["CSP-D701"]
-# "**/__init__.py" = ["CSP-L001"]
-
 
 # ── Clone detection ───────────────────────────────────────────────────────────
 
@@ -82,14 +75,6 @@
 # Exit with code 1 when the percentage of unused definitions exceeds this value.
 # fail_threshold = 5.0
 
-# Limits used by deslop --fail-on-any.
-# [cytoscnpy.deslop]
-# max_cycles = 0
-# max_god_modules = 0
-# max_hotspots = 0
-# min_health_score = 70
-# max_navigation_pct = 75.0
-
 
 # ── Inline whitelist ──────────────────────────────────────────────────────────
 # Suppress specific dead-code symbols without a separate whitelist file.
@@ -101,6 +86,49 @@
 #   { name = "test_*", pattern = "wildcard" },
 #   { name = "legacy_handler", file = "src/api/*.py" },
 # ]
+
+
+# ── Tables ────────────────────────────────────────────────────────────────────
+# Every key below a [table] header belongs to that table, so these sections
+# stay after all top-level keys above.
+
+# Silence specific rules only for files matching a glob pattern.
+# Use a real table (not an inline `{ ... }`) so it can span multiple lines
+# and hold as many glob -> rule-list entries as you need:
+# [cytoscnpy.per-file-ignores]
+# "tests/*" = ["CSP-D701"]
+# "**/__init__.py" = ["CSP-L001"]
+
+# Limits used by deslop --fail-on-any. The first four are always checked;
+# the rest only when set. max_slop_index also applies with --ci.
+# [cytoscnpy.deslop]
+# max_cycles = 0
+# max_god_modules = 0
+# max_hotspots = 0
+# min_health_score = 70
+# max_slop_index = 40
+# max_navigation_pct = 75.0
+# max_duplicate_filenames = 0
+# max_function_collisions = 0
+# min_naming_consistency = 0.85
+# max_todos = 0
+# max_global_mutables = 0
+# max_bare_excepts = 0
+# max_empty_handlers = 0
+# max_wildcard_imports = 0
+# max_side_effects = 0
+# max_singletons = 0
+# max_anti_patterns = 0
+# max_magic_numbers = 0
+# max_nested_callbacks = 0
+# max_duplicate_clusters = 0
+# max_duplicate_lines = 0
+# max_duplicate_pct = 5.0
+# max_unreferenced_functions = 0
+# max_unreferenced_lines = 0
+# max_function_lines = 50
+# max_function_complexity = 10
+# max_nesting_depth = 3
 
 
 # ── Secrets scanning (advanced) ───────────────────────────────────────────────

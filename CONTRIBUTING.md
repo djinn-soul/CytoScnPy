@@ -109,8 +109,11 @@ CytoScnPy/
 │
 ├── python/                    # Python wrapper code
 │   └── cytoscnpy/
-│       ├── __init__.py        # Imports Rust `run` function
-│       └── cli.py             # CLI wrapper calling Rust
+│       ├── __init__.py        # Python API: scan(), scan_code(), run()
+│       ├── cli.py             # CLI wrapper calling Rust
+│       ├── cytoscnpy.pyi      # Type stubs for the Rust extension
+│       ├── pytest_plugin.py   # pytest --cytoscnpy plugin
+│       └── pytest_*.py        # Plugin helpers
 │
 ├── cytoscnpy/                 # Core Rust library with PyO3 bindings
 │   ├── Cargo.toml
@@ -127,7 +130,7 @@ CytoScnPy/
 │   ├── src/                   # Rust implementation
 │   └── tests/                 # MCP-specific tests
 │
-├── benchmark/                 # 135-item ground truth suite
+├── benchmark/                 # 164-item ground truth suite
 └── target/                    # Build artifacts (gitignored)
 ```
 
@@ -135,15 +138,22 @@ CytoScnPy/
 
 The project includes several CI/CD workflows in `.github/workflows/`:
 
-| Workflow         | File                        | Trigger         | Purpose                                     |
-| ---------------- | --------------------------- | --------------- | ------------------------------------------- |
-| **Test Suite**   | `ci.yml`                    | PR to main      | Build, nextest, pytest                      |
-| **Benchmark**    | `benchmark.yml`             | PR to main      | Run accuracy benchmarks, detect regressions |
-| **Coverage**     | `coverage.yml`              | Push to main    | Generate and upload code coverage reports   |
-| **Security**     | `security.yml`              | PR/Push to main | `cargo audit`, `deny`, `machete`            |
-| **Publish**      | `publish.yml`               | Git tags (`v*`) | Build wheels and publish to PyPI/TestPyPI   |
-| **VS Code Bins** | `vscode-binaries.yml`       | Manual          | Build VS Code extension binaries            |
-| **PGO Profiles** | `generate-pgo-profiles.yml` | Manual          | Generate PGO profiling data                 |
+| Workflow | File | Trigger | Purpose |
+| --- | --- | --- | --- |
+| **CI Test Suite** | `ci.yml` | PR to main, manual | VS Code extension tests, package metadata checks, `mkdocs build --strict`, wheel smoke test |
+| **Code Coverage** | `coverage.yml` → `coverage-validation.yml` | PR/push to main | `cargo llvm-cov nextest` and `pytest` with coverage thresholds, Codecov upload |
+| **Lint** | `lint.yml` | PR to main | Runs the `prek` (pre-commit) hooks |
+| **Benchmark** | `benchmark.yml` | PR to main | Accuracy benchmarks and regression checks |
+| **Security** | `security.yml` | PR/push to main, weekly | `cargo audit`, `cargo deny`, `cargo machete` |
+| **CodeQL** | `codeql.yml` | PR/push to main, weekly | CodeQL code scanning |
+| **Semgrep** | `semgrep.yml` | PR, push to main, every 15 days | Semgrep static analysis |
+| **Dependency Review** | `dependency-review.yml` | PR to main | Flags vulnerable or disallowed new dependencies |
+| **Test Action** | `test-action.yml` | PR/push to main, manual | Exercises the CytoScnPy GitHub Action |
+| **Docs** | `docs.yml` | Push to main | Builds and deploys the documentation site |
+| **Nightly** | `nightly.yml` | Monthly, manual | Tests and builds on the Rust nightly toolchain |
+| **Release** | `publish.yml` | Git tags (`v*`) | Build wheels and CLI binaries, publish to PyPI/TestPyPI, GitHub release, VS Code extension |
+| **VS Code Binaries** | `vscode-binaries.yml` | Manual | Build and publish VS Code extension binaries |
+| **PGO Profiles** | `generate-pgo-profiles.yml` | Manual | Generate PGO profiling data |
 
 ### Running Workflows Locally
 
@@ -652,7 +662,7 @@ RUST_LOG=debug cargo test
 - **Clone Detection**: Type-1/2/3 clones, similarity thresholds
 - **Control Flow Graph**: CFG construction, behavioral validation
 
-See [`cytoscnpy/tests/README.md`](cytoscnpy/tests/README.md) for detailed test documentation.
+Integration tests live in [`cytoscnpy/tests/`](cytoscnpy/tests/), one `*_test.rs` file per area.
 
 ### Benchmarking
 
@@ -674,7 +684,7 @@ If you have questions, feel free to open an issue with the `question` label or s
 
 ### Testing-Specific Questions
 
-- **How do I add a new test?** See `cytoscnpy/tests/edge_cases_test.rs` for patterns and fixtures, or `cytoscnpy/tests/README.md` for full documentation.
+- **How do I add a new test?** See `cytoscnpy/tests/edge_cases_test.rs` for patterns and fixtures, and add the test to the `*_test.rs` file for that area.
 - **Why are tests skipped?** Some tests require the compiled binary. Run `cargo build` first.
 - **Can I test without the Rust binary?** Yes—use `cargo test` to run the Rust test suite directly.
 - **How do I validate parity?** Run `cargo test` for Rust tests and `pytest python/tests/` for Python CLI wrapper tests.

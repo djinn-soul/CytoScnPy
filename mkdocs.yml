@@ -70,6 +70,8 @@ nav:
   - User Guide:
       - Overview: usage.md
       - Pre-commit Hooks: pre-commit.md
+      - "DeSlop: LLM Friction Score": deslop.md
+      - Python API & pytest: python-api.md
   - Reference:
       - CLI Reference: CLI.md
       - Quality Rules:
@@ -108,6 +110,7 @@ nav:
               - "CSP-R004: Development Dependency Used in Production": rule/CSP-R004.md
               - "CSP-R005: Standard Library Dependency": rule/CSP-R005.md
       - Migration Guide: migration.md
+      - Architecture: ARCHITECTURE.md
   - Changelog: https://github.com/djinn-soul/CytoScnPy/releases
   - Roadmap: roadmap.md
   - Security:

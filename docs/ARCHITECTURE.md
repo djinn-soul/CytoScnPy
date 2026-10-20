@@ -10,7 +10,7 @@ The workspace is organized into three primary crates:
    - Contains all AST parsers, visitors, rule engines, graph analyzers, and scoring dimensions.
    - Compiles both as a Rust library crate and a Python C-extension via PyO3 and Maturin.
 2. **`cytoscnpy-cli` (Command-Line Binary)**:
-   - Standalone native executable providing subcommands (`score`, `deslop`, `functions`, `doctor`, `context`, `graph`, `quality`, etc.).
+   - Standalone native executable providing subcommands (`deslop`, `stats`, `files`, `deps`, `raw`, `cc`, `hal`, `mi`, `init`, `mcp-server`).
    - Includes progress spinners, formatted ASCII tables, JSON serialization, and CI gate exit codes.
 3. **`cytoscnpy-mcp` (Model Context Protocol Server)**:
    - Implements JSON-RPC 2.0 MCP server over stdio for deep integration with AI coding assistants (e.g. Cursor, Claude Desktop, Antigravity).

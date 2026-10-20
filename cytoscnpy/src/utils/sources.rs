@@ -1,7 +1,7 @@
 //! Immutable source and AST snapshots shared by a single analysis invocation.
 use ruff_python_ast::ModModule;
+use rustc_hash::FxHashMap;
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
@@ -10,7 +10,7 @@ pub(crate) struct ParsedSource {
     pub module: ModModule,
 }
 
-pub(crate) type SourceCache = HashMap<PathBuf, Result<ParsedSource, String>>;
+pub(crate) type SourceCache = FxHashMap<PathBuf, Result<ParsedSource, String>>;
 
 pub(crate) fn load_source<'a>(
     path: &Path,

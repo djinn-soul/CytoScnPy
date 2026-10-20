@@ -184,7 +184,7 @@ pub fn scan_declarations(root: &Path, req_file_opt: Option<&String>) -> Declarat
 
     // `-r` includes and overlapping auto-discovered files can yield the same
     // declaration twice; keep the first occurrence of each.
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = rustc_hash::FxHashSet::default();
     all_deps.retain(|dep| {
         seen.insert((
             dep.normalized_name.clone(),

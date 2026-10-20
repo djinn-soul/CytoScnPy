@@ -6,13 +6,20 @@ import sys
 from pathlib import Path
 
 from .models import ToolConfig
+from .values import warn
 
 
 def configure_tools(
     project_root: Path, target_dir: Path
 ) -> tuple[list[ToolConfig], Path]:
     """Prepare the same tool commands, environment, and Rust binary path."""
-    # Setup Python Environment
+    env = _python_tool_env(project_root)
+    rust_bin = _rust_binary(project_root)
+    return _tool_commands(rust_bin, target_dir, env), rust_bin
+
+
+def _python_tool_env(project_root: Path) -> dict[str, str]:
+    """Return an environment whose PYTHONPATH finds the local wrapper and Skylos."""
     env = os.environ.copy()
     python_path_entries: list[str] = []
 
@@ -20,22 +27,7 @@ def configure_tools(
     python_src = project_root / "python"
     if python_src.exists():
         python_path_entries.append(str(python_src))
-
-        # Try to copy the built extension to the python package for it to work
-        # Look for cytoscnpy.dll / .so in target/release
-        ext_src = project_root / "target" / "release" / "cytoscnpy.dll"
-        if not ext_src.exists():
-            ext_src = (
-                project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy.dll"
-            )
-
-        if ext_src.exists():
-            ext_dest = python_src / "cytoscnpy" / "cytoscnpy.pyd"
-            try:
-                shutil.copy2(ext_src, ext_dest)
-            except OSError:
-                # Preserve the existing best effort copy for the optional wrapper.
-                pass
+        _copy_python_extension(project_root, python_src)
 
     # 2. Skylos
     skylos_src = project_root / "other_library" / "skylos"
@@ -48,21 +40,46 @@ def configure_tools(
             + os.pathsep
             + env.get("PYTHONPATH", "")
         )
+    return env
 
-    # Rust Binary Path
-    # Try project_root/target/release first (workspace root)
+
+def _copy_python_extension(project_root: Path, python_src: Path) -> None:
+    """Copy a built cytoscnpy.dll next to the Python package so the wrapper can load it."""
+    ext_src = project_root / "target" / "release" / "cytoscnpy.dll"
+    if not ext_src.exists():
+        ext_src = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy.dll"
+    if not ext_src.exists():
+        return
+
+    ext_dest = python_src / "cytoscnpy" / "cytoscnpy.pyd"
+    try:
+        _ = shutil.copy2(ext_src, ext_dest)
+    except OSError as e:
+        # The wrapper is optional; report the failed copy and continue.
+        warn(f"[-] Could not copy {ext_src} to {ext_dest}: {e}")
+
+
+def _rust_binary(project_root: Path) -> Path:
+    """Find the release CLI binary, trying the workspace root first."""
+
+    def exists(path: Path) -> bool:
+        return path.exists() or path.with_suffix(".exe").exists()
+
     rust_bin = project_root / "target" / "release" / "cytoscnpy-bin"
-    if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
-        # Fallback to cytoscnpy/target/release
+    if not exists(rust_bin):
         rust_bin = project_root / "cytoscnpy" / "target" / "release" / "cytoscnpy-bin"
-
     # Second fallback: maybe it was built as 'cytoscnpy'
-    if not rust_bin.exists() and not rust_bin.with_suffix(".exe").exists():
+    if not exists(rust_bin):
         rust_bin = project_root / "target" / "release" / "cytoscnpy"
 
     if sys.platform == "win32":
         rust_bin = rust_bin.with_suffix(".exe")
+    return rust_bin
 
+
+def _tool_commands(
+    rust_bin: Path, target_dir: Path, env: dict[str, str]
+) -> list[ToolConfig]:
     # Convert paths to strings for commands
     target_dir_str = str(target_dir)
     rust_bin_str = str(rust_bin)
@@ -70,7 +87,7 @@ def configure_tools(
     skylos_bin = interpreter_dir / ("skylos.exe" if os.name == "nt" else "skylos")
     deadcode_bin = interpreter_dir / ("deadcode.exe" if os.name == "nt" else "deadcode")
 
-    all_tools: list[ToolConfig] = [
+    return [
         {
             "name": "CytoScnPy (Rust)",
             "command": [rust_bin_str, target_dir_str, "--json"],
@@ -165,5 +182,3 @@ def configure_tools(
             ],
         },
     ]
-
-    return all_tools, rust_bin

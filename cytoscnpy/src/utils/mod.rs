@@ -14,6 +14,7 @@ pub(crate) use paths::discover_project_root;
 
 // Re-export path, ignore, and minification utilities
 pub use ignore_match::{is_name_or_pattern_ignored, is_path_ignored};
+pub(crate) use minified::retain_unminified;
 pub use minified::{is_likely_minified, is_likely_minified_content, is_likely_minified_path};
 pub(crate) use paths::collect_python_files_within;
 pub use paths::{
@@ -28,6 +29,14 @@ pub use suppression::{
 use crate::constants::{DEFAULT_EXCLUDE_FOLDERS, FRAMEWORK_FILE_RE, TEST_FILE_RE};
 use ruff_text_size::TextSize;
 use rustc_hash::FxHashSet;
+
+/// Frees `value` on the rayon pool instead of the calling thread.
+///
+/// Large scans build millions of small allocations; freeing them serially
+/// takes a noticeable share of the run while nothing waits on the result.
+pub(crate) fn drop_in_background<T: Send + 'static>(value: T) {
+    rayon::spawn(move || drop(value));
+}
 
 /// A utility struct to convert byte offsets to line numbers.
 ///

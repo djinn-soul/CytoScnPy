@@ -125,6 +125,8 @@ pub struct FileAnalysisResult {
     pub(crate) module_name: String,
     /// Resolved source module names for each `from x import *` in this file.
     pub(crate) star_imports: Vec<String>,
+    /// Taint findings, already filtered by suppressions.
+    pub(crate) taint_findings: Vec<TaintFinding>,
 }
 
 impl FileAnalysisResult {
@@ -156,6 +158,7 @@ impl FileAnalysisResult {
             exports_declared: false,
             module_name: String::new(),
             star_imports: Vec::new(),
+            taint_findings: Vec::new(),
         }
     }
 

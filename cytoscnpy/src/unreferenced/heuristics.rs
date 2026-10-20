@@ -80,6 +80,11 @@ pub fn should_skip_function(name: &str, line_count: usize, options: &Unreference
         return true;
     }
 
+    // Pytest discovers hook implementations by name.
+    if name.starts_with("pytest_") || crate::constants::get_pytest_hooks().contains(name) {
+        return true;
+    }
+
     // Skip test functions
     if name.starts_with("test_")
         || name.starts_with("Test")

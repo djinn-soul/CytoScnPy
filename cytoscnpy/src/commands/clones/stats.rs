@@ -1,11 +1,11 @@
 use crate::clones::{ClonePair, CloneType};
 use anyhow::Result;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::io::Write;
 use std::path::PathBuf;
 
 pub(super) fn load_matched_files(pairs: &[ClonePair]) -> Vec<(PathBuf, String)> {
-    let unique_paths: HashSet<PathBuf> = pairs
+    let unique_paths: FxHashSet<PathBuf> = pairs
         .iter()
         .flat_map(|p| [p.instance_a.file.clone(), p.instance_b.file.clone()])
         .collect();

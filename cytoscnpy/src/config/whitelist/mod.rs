@@ -55,12 +55,23 @@ impl WhitelistEntry {
 
         match self.pattern.unwrap_or_default() {
             WhitelistPattern::Exact => self.name == symbol_name,
-            WhitelistPattern::Wildcard => self.matches_wildcard(symbol_name),
-            WhitelistPattern::Regex => self.matches_regex(symbol_name),
+            WhitelistPattern::Wildcard | WhitelistPattern::Regex => {
+                self.name_regex().is_some_and(|re| re.is_match(symbol_name))
+            }
         }
     }
 
-    fn matches_wildcard(&self, symbol_name: &str) -> bool {
+    /// The compiled name pattern of a wildcard or regex entry, or `None`
+    /// for exact entries and invalid patterns.
+    pub(crate) fn name_regex(&self) -> Option<regex::Regex> {
+        match self.pattern.unwrap_or_default() {
+            WhitelistPattern::Exact => None,
+            WhitelistPattern::Wildcard => self.wildcard_regex(),
+            WhitelistPattern::Regex => regex::Regex::new(&self.name).ok(),
+        }
+    }
+
+    fn wildcard_regex(&self) -> Option<regex::Regex> {
         let mut regex_pattern = String::from("^");
         for ch in self.name.chars() {
             match ch {
@@ -74,32 +85,25 @@ impl WhitelistEntry {
             }
         }
         regex_pattern.push('$');
-
-        match regex::Regex::new(&regex_pattern) {
-            Ok(re) => re.is_match(symbol_name),
-            Err(_) => false,
-        }
-    }
-
-    fn matches_regex(&self, symbol_name: &str) -> bool {
-        match regex::Regex::new(&self.name) {
-            Ok(re) => re.is_match(symbol_name),
-            Err(_) => false,
-        }
+        regex::Regex::new(&regex_pattern).ok()
     }
 
     fn matches_file_pattern(pattern: &str, path: &str) -> bool {
-        let normalized_pattern = pattern.replace('\\', "/");
-        let normalized_path = path.replace('\\', "/");
+        Self::file_matcher(pattern).is_some_and(|glob| Self::file_matches(&glob, path))
+    }
 
-        let Ok(glob) = GlobBuilder::new(&normalized_pattern)
+    /// The compiled `file` pattern, or `None` if it is invalid.
+    pub(crate) fn file_matcher(pattern: &str) -> Option<globset::GlobMatcher> {
+        GlobBuilder::new(&pattern.replace('\\', "/"))
             .case_insensitive(true)
             .build()
-        else {
-            return false;
-        };
+            .ok()
+            .map(|glob| glob.compile_matcher())
+    }
 
-        glob.compile_matcher().is_match(normalized_path)
+    /// Whether `path` matches a compiled `file` pattern, on either separator.
+    pub(crate) fn file_matches(glob: &globset::GlobMatcher, path: &str) -> bool {
+        glob.is_match(path.replace('\\', "/"))
     }
 }
 

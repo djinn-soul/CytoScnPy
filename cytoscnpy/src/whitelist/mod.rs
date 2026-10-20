@@ -33,6 +33,7 @@
 //! ]
 //! ```
 
+mod file_specific;
 mod generator;
 mod loader;
 mod matcher;
@@ -40,6 +41,8 @@ mod matcher;
 pub use generator::generate_whitelist;
 pub use loader::load_whitelist_file;
 pub use matcher::WhitelistMatcher;
+
+use file_specific::FileSpecificEntry;
 
 use crate::config::{WhitelistEntry, WhitelistPattern};
 use rustc_hash::FxHashSet;
@@ -54,7 +57,7 @@ pub struct Whitelist {
     /// Regex patterns.
     regex_patterns: Vec<(String, regex::Regex)>,
     /// File-specific entries.
-    file_specific: Vec<WhitelistEntry>,
+    file_specific: Vec<FileSpecificEntry>,
 }
 
 impl Whitelist {
@@ -76,7 +79,7 @@ impl Whitelist {
     pub fn add_entry(&mut self, entry: WhitelistEntry) {
         // If there's a file restriction, store the full entry
         if entry.file.is_some() {
-            self.file_specific.push(entry);
+            self.file_specific.push(FileSpecificEntry::new(entry));
             return;
         }
 

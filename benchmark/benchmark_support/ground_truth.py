@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import cast
 
 from .models import Finding
-from .values import _as_int, _as_str, as_dict_list, normalize_path
+from .values import _as_int, _as_str, as_dict_list, normalize_path, warn
 
 
 class GroundTruth:
@@ -48,7 +48,7 @@ class GroundTruth:
             with p.open() as f:
                 data = cast(object, json.load(f))
         except (OSError, json.JSONDecodeError) as e:
-            print(f"[-] Error loading ground truth from {p}: {e}")
+            warn(f"[-] Error loading ground truth from {p}: {e}")
             return truth_set
 
         if not isinstance(data, dict):

@@ -20,6 +20,8 @@ import random
 import shutil
 from pathlib import Path
 
+PROGRESS_INTERVAL = 1000
+
 # Realistic function/class names from common libraries
 FUNCTION_NAMES: list[str] = [
     "process_data",
@@ -347,7 +349,7 @@ def create_directory_structure(base_path: Path, num_files: int):
 
         files_created += 1
 
-        if files_created % 1000 == 0:
+        if files_created % PROGRESS_INTERVAL == 0:
             print(f"Generated {files_created}/{num_files} files...")
 
     print(f"✓ Created {files_created} Python files in {base_path}")

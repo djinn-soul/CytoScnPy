@@ -5,7 +5,7 @@ use super::{
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 const ATTRIBUTE_CHAIN_DEPTH_THRESHOLD: usize = 3;
 
@@ -178,8 +178,8 @@ impl Rule for PureCallHoistingRule {
 }
 
 struct LoopTargets {
-    stack: Vec<HashSet<String>>,
-    suspended: Vec<Vec<HashSet<String>>>,
+    stack: Vec<FxHashSet<String>>,
+    suspended: Vec<Vec<FxHashSet<String>>>,
 }
 
 impl LoopTargets {
@@ -201,7 +201,7 @@ impl LoopTargets {
     }
 
     fn enter_loop(&mut self, target: Option<&Expr>) {
-        let mut set = HashSet::new();
+        let mut set = FxHashSet::default();
         if let Some(target) = target {
             let mut names = Vec::new();
             collect_name_targets(target, &mut names);
@@ -222,8 +222,8 @@ impl LoopTargets {
 }
 
 struct LoopMutations {
-    stack: Vec<HashSet<String>>,
-    suspended: Vec<Vec<HashSet<String>>>,
+    stack: Vec<FxHashSet<String>>,
+    suspended: Vec<Vec<FxHashSet<String>>>,
 }
 
 impl LoopMutations {
@@ -245,7 +245,7 @@ impl LoopMutations {
     }
 
     fn enter_loop(&mut self) {
-        self.stack.push(HashSet::new());
+        self.stack.push(FxHashSet::default());
     }
 
     fn leave_loop(&mut self) {

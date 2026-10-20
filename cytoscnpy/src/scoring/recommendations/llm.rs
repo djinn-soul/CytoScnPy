@@ -79,8 +79,8 @@ pub fn format_llm_report(result: &ScoreResult) -> String {
     for (idx, rec) in result.recommendations.iter().enumerate() {
         let step_num = idx + 1;
         out.push_str(&format!(
-            "### [Step {step_num}] {} (-{} pts, Effort: {})\n\n",
-            rec.title, rec.estimated_reduction, rec.effort
+            "### [Step {step_num}] {} (-{} pts, {:.1} raw, Effort: {})\n\n",
+            rec.title, rec.estimated_reduction, rec.raw_reduction, rec.effort
         ));
         out.push_str(&format!("- **Dimension**: {}\n", rec.dimension));
         out.push_str(&format!("- **Issue**: {}\n", rec.description));

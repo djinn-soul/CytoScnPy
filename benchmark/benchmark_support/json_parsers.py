@@ -5,7 +5,16 @@ from collections.abc import Mapping
 from typing import cast
 
 from .models import Finding
-from .values import _as_int, _as_str, as_dict_list, normalize_path
+from .values import _as_int, _as_str, as_dict_list, normalize_path, warn
+
+_CYTOSCNPY_FALLBACK_TYPES = {
+    "unused_functions": "function",
+    "unused_methods": "method",
+    "unused_imports": "import",
+    "unused_classes": "class",
+    "unused_variables": "variable",
+    "unused_parameters": "variable",
+}
 
 
 class JsonParsers:
@@ -13,51 +22,44 @@ class JsonParsers:
 
     @staticmethod
     def _parse_cytoscnpy_output(output: str) -> set[Finding]:
-        findings: set[Finding] = set()
         try:
             data = cast(object, json.loads(output))
-            if not isinstance(data, dict):
-                return findings
-            data_dict = cast(dict[str, object], data)
-            key_to_fallback_type = {
-                "unused_functions": "function",
-                "unused_methods": "method",
-                "unused_imports": "import",
-                "unused_classes": "class",
-                "unused_variables": "variable",
-                "unused_parameters": "variable",
-            }
-            for key, fallback_type in key_to_fallback_type.items():
-                items = data_dict.get(key)
-                if not isinstance(items, list):
-                    continue
-                items_list = cast(list[object], items)
-                for item in items_list:
-                    if not isinstance(item, dict):
-                        continue
-                    item_dict = cast(dict[str, object], item)
-                    fpath = normalize_path(_as_str(item_dict.get("file")))
-                    simple_name = _as_str(item_dict.get("simple_name"))
-                    name = _as_str(item_dict.get("name"))
-                    item_name = simple_name or (name.split(".")[-1] if name else "")
-                    type_name = _as_str(item_dict.get("def_type")) or fallback_type
-                    if type_name == "parameter":
-                        type_name = "variable"
-                    findings.add(
-                        (fpath, _as_int(item_dict.get("line")), type_name, item_name)
-                    )
         except json.JSONDecodeError as e:
-            print(f"[-] JSON Decode Error for CytoScnPy: {e}")
-            print(f"    Output start: {output[:100]}")
-        return findings
+            warn(f"[-] JSON Decode Error for CytoScnPy: {e}")
+            warn(f"    Output start: {output[:100]}")
+            return set()
+        if not isinstance(data, dict):
+            return set()
+        data_dict = cast(dict[str, object], data)
+        return {
+            JsonParsers._cytoscnpy_finding(item, fallback_type)
+            for key, fallback_type in _CYTOSCNPY_FALLBACK_TYPES.items()
+            for item in as_dict_list(data_dict.get(key))
+        }
+
+    @staticmethod
+    def _cytoscnpy_finding(item: dict[str, object], fallback_type: str) -> Finding:
+        name = _as_str(item.get("name"))
+        item_name = _as_str(item.get("simple_name")) or (
+            name.split(".")[-1] if name else ""
+        )
+        type_name = _as_str(item.get("def_type")) or fallback_type
+        if type_name == "parameter":
+            type_name = "variable"
+        return (
+            normalize_path(_as_str(item.get("file"))),
+            _as_int(item.get("line")),
+            type_name,
+            item_name,
+        )
 
     @staticmethod
     def _parse_skylos_output(output: str) -> set[Finding]:
         try:
             data = cast(object, json.loads(output))
         except json.JSONDecodeError as e:
-            print(f"[-] JSON Decode Error for Skylos: {e}")
-            print(f"    Output start: {output[:200]}")
+            warn(f"[-] JSON Decode Error for Skylos: {e}")
+            warn(f"    Output start: {output[:200]}")
             return set()
 
         findings: set[Finding] = set()
@@ -137,9 +139,9 @@ class JsonParsers:
                     "unused-private-member",
                 }:
                     JsonParsers._handle_pylint_unused_variable(item_dict, findings)
-        except json.JSONDecodeError:
-            # Preserve the existing empty findings result for invalid JSON.
-            pass
+        except json.JSONDecodeError as e:
+            if output.strip():
+                warn(f"[-] JSON Decode Error for Pylint: {e}")
         return findings
 
     @staticmethod
@@ -175,33 +177,34 @@ class JsonParsers:
         findings: set[Finding] = set()
         try:
             data = cast(object, json.loads(output))
-            if not isinstance(data, list):
-                return findings
-            data_list = cast(list[object], data)
-            for item in data_list:
-                if not isinstance(item, dict):
-                    continue
-                item_dict = cast(dict[str, object], item)
-                code = _as_str(item_dict.get("code"))
-                fpath = normalize_path(_as_str(item_dict.get("filename")))
-                location = item_dict.get("location")
-                lineno = None
-                if isinstance(location, dict):
-                    location_dict = cast(dict[str, object], location)
-                    lineno = _as_int(location_dict.get("row"))
-                if code == "F401":
-                    msg = _as_str(item_dict.get("message"))
-                    if "`" in msg:
-                        obj_name = msg.split("`")[1]
-                        findings.add((fpath, lineno, "import", obj_name))
-                elif code and (
-                    code == "F841" or code.startswith("ARG") or code == "B007"
-                ):
-                    msg = _as_str(item_dict.get("message"))
-                    if "`" in msg:
-                        obj_name = msg.split("`")[1]
-                        findings.add((fpath, lineno, "variable", obj_name))
-        except json.JSONDecodeError:
-            # Preserve the existing empty findings result for invalid JSON.
-            pass
+        except json.JSONDecodeError as e:
+            if output.strip():
+                warn(f"[-] JSON Decode Error for Ruff: {e}")
+            return findings
+        if not isinstance(data, list):
+            return findings
+        for item in cast(list[object], data):
+            if isinstance(item, dict):
+                finding = JsonParsers._ruff_finding(cast(dict[str, object], item))
+                if finding is not None:
+                    findings.add(finding)
         return findings
+
+    @staticmethod
+    def _ruff_finding(item_dict: dict[str, object]) -> Finding | None:
+        code = _as_str(item_dict.get("code"))
+        if code == "F401":
+            type_name = "import"
+        elif code in {"F841", "B007"} or code.startswith("ARG"):
+            type_name = "variable"
+        else:
+            return None
+        msg = _as_str(item_dict.get("message"))
+        if "`" not in msg:
+            return None
+        location = item_dict.get("location")
+        lineno = None
+        if isinstance(location, dict):
+            lineno = _as_int(cast(dict[str, object], location).get("row"))
+        fpath = normalize_path(_as_str(item_dict.get("filename")))
+        return (fpath, lineno, type_name, msg.split("`")[1])

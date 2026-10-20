@@ -1,19 +1,19 @@
 use super::{classify_method, first_parameter_name, visitor::LcomVisitor, MethodKind};
 use ruff_python_ast::{self as ast, Stmt};
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 pub(super) struct LcomMethodData {
-    methods: HashSet<String>,
-    method_usage: HashMap<String, HashSet<String>>,
-    method_calls: HashMap<String, HashSet<String>>,
+    methods: FxHashSet<String>,
+    method_usage: FxHashMap<String, FxHashSet<String>>,
+    method_calls: FxHashMap<String, FxHashSet<String>>,
 }
 
 impl LcomMethodData {
     fn new() -> Self {
         Self {
-            methods: HashSet::new(),
-            method_usage: HashMap::new(),
-            method_calls: HashMap::new(),
+            methods: FxHashSet::default(),
+            method_usage: FxHashMap::default(),
+            method_calls: FxHashMap::default(),
         }
     }
 
@@ -72,7 +72,7 @@ fn receiver_name_for_method(
 
 pub(super) fn build_adjacency(
     data: &LcomMethodData,
-) -> (Vec<String>, HashMap<String, Vec<String>>) {
+) -> (Vec<String>, FxHashMap<String, Vec<String>>) {
     let method_list: Vec<String> = data.methods.iter().cloned().collect();
     let mut adjacency = initial_adjacency(&method_list);
 
@@ -83,8 +83,8 @@ pub(super) fn build_adjacency(
     (method_list, adjacency)
 }
 
-fn initial_adjacency(method_list: &[String]) -> HashMap<String, Vec<String>> {
-    let mut adjacency = HashMap::new();
+fn initial_adjacency(method_list: &[String]) -> FxHashMap<String, Vec<String>> {
+    let mut adjacency = FxHashMap::default();
     for method in method_list {
         adjacency.insert(method.clone(), Vec::new());
     }
@@ -95,7 +95,7 @@ fn connect_method_pair(
     i: usize,
     method_list: &[String],
     data: &LcomMethodData,
-    adjacency: &mut HashMap<String, Vec<String>>,
+    adjacency: &mut FxHashMap<String, Vec<String>>,
 ) {
     for j in (i + 1)..method_list.len() {
         let first = &method_list[i];
@@ -130,7 +130,7 @@ fn call_each_other(first: &str, second: &str, data: &LcomMethodData) -> bool {
     first_calls.contains(second) || second_calls.contains(first)
 }
 
-fn add_edge(first: &str, second: &str, adjacency: &mut HashMap<String, Vec<String>>) {
+fn add_edge(first: &str, second: &str, adjacency: &mut FxHashMap<String, Vec<String>>) {
     if let Some(neighbors) = adjacency.get_mut(first) {
         neighbors.push(second.to_owned());
     }
@@ -141,9 +141,9 @@ fn add_edge(first: &str, second: &str, adjacency: &mut HashMap<String, Vec<Strin
 
 pub(super) fn count_connected_components(
     method_list: &[String],
-    adjacency: &HashMap<String, Vec<String>>,
+    adjacency: &FxHashMap<String, Vec<String>>,
 ) -> usize {
-    let mut visited = HashSet::new();
+    let mut visited = FxHashSet::default();
     let mut components = 0;
 
     for method in method_list {
@@ -159,8 +159,8 @@ pub(super) fn count_connected_components(
 
 fn visit_component(
     start: &str,
-    adjacency: &HashMap<String, Vec<String>>,
-    visited: &mut HashSet<String>,
+    adjacency: &FxHashMap<String, Vec<String>>,
+    visited: &mut FxHashSet<String>,
 ) {
     let mut stack = vec![start.to_owned()];
     visited.insert(start.to_owned());
@@ -172,8 +172,8 @@ fn visit_component(
 
 fn push_unvisited_neighbors(
     current: &str,
-    adjacency: &HashMap<String, Vec<String>>,
-    visited: &mut HashSet<String>,
+    adjacency: &FxHashMap<String, Vec<String>>,
+    visited: &mut FxHashSet<String>,
     stack: &mut Vec<String>,
 ) {
     let Some(neighbors) = adjacency.get(current) else {

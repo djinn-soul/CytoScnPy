@@ -3,7 +3,6 @@ use colored::Colorize;
 
 use super::context::AnalysisContext;
 use super::run::AnalysisRun;
-use crate::report::json::machine_json_payload;
 
 pub(crate) fn report_results<W: std::io::Write>(
     cli_var: &crate::cli::Cli,
@@ -68,7 +67,7 @@ fn print_verbose_stats(result: &crate::analyzer::AnalysisResult, run: &AnalysisR
 }
 
 fn collect_issue_counts(result: &crate::analyzer::AnalysisResult) -> Vec<(String, usize)> {
-    let mut file_counts = std::collections::HashMap::new();
+    let mut file_counts = rustc_hash::FxHashMap::default();
     for item in &result.unused_functions {
         *file_counts
             .entry(crate::utils::normalize_display_path(&item.file))
@@ -111,7 +110,8 @@ fn output_results<W: std::io::Write>(
     writer: &mut W,
 ) -> Result<()> {
     if cli_var.output.json || cli_var.output.format == crate::cli::OutputFormat::Json {
-        writeln!(writer, "{}", machine_json_payload(result)?)?;
+        crate::report::json::write_machine_json(result, writer)?;
+        writeln!(writer)?;
         return Ok(());
     }
 

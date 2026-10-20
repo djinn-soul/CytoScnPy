@@ -3,7 +3,7 @@
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::Path;
 
 use super::types::{AntiPatternKind, AntiPatternMatch};
@@ -16,7 +16,7 @@ struct MagicVisitor<'a> {
     source: &'a str,
     file: &'a Path,
     line_index: &'a LineIndex,
-    magic_lines: HashSet<usize>,
+    magic_lines: FxHashSet<usize>,
     matches: Vec<AntiPatternMatch>,
 }
 
@@ -43,7 +43,7 @@ pub(crate) fn detect_magic_numbers_ast(
         source,
         file,
         line_index,
-        magic_lines: HashSet::new(),
+        magic_lines: FxHashSet::default(),
         matches: Vec::new(),
     };
 

@@ -22,7 +22,7 @@ pub fn print_terminal_report<W: Write>(
     writeln!(writer, "{}\n", "=".repeat(60).dimmed())?;
 
     if !cycles_only {
-        print_summary_metrics(stats, writer)?;
+        print_summary_metrics(stats, result.external_imports.len(), writer)?;
     }
 
     print_cycles_section(stats, writer)?;
@@ -43,6 +43,7 @@ pub fn print_terminal_report<W: Write>(
 
 fn print_summary_metrics<W: Write>(
     stats: &super::types::ArchitectureGraphStats,
+    distinct_external: usize,
     writer: &mut W,
 ) -> std::io::Result<()> {
     writeln!(writer, "{}", "Repository Metrics:".bold().underline())?;
@@ -58,8 +59,9 @@ fn print_summary_metrics<W: Write>(
     )?;
     writeln!(
         writer,
-        "  • External Packages:   {}",
-        stats.total_external_imports.to_string().yellow()
+        "  • External Imports:    {} ({} distinct packages)",
+        stats.total_external_imports.to_string().yellow(),
+        distinct_external.to_string().yellow()
     )?;
     writeln!(
         writer,

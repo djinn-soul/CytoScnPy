@@ -3,11 +3,14 @@ use crate::rules::ids;
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::Ranged;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
+
+#[path = "type_inference_methods.rs"]
+mod methods;
 
 #[derive(Debug, Clone)]
 struct Scope {
-    variables: HashMap<String, String>,
+    variables: FxHashMap<String, String>,
 }
 
 /// Rule for detecting method calls on objects that do not support them.
@@ -19,7 +22,7 @@ pub const META_METHOD_MISUSE: RuleMetadata = RuleMetadata {
 impl Scope {
     fn new() -> Self {
         Self {
-            variables: HashMap::new(),
+            variables: FxHashMap::default(),
         }
     }
 }
@@ -46,18 +49,6 @@ impl MethodMisuseRule {
 }
 
 impl MethodMisuseRule {
-    const PROTOCOL_METHODS: [&'static str; 9] = [
-        "__len__",
-        "__iter__",
-        "__contains__",
-        "__str__",
-        "__repr__",
-        "__eq__",
-        "__ne__",
-        "__hash__",
-        "__bool__",
-    ];
-
     fn get_variable_type(&self, name: &str) -> Option<&String> {
         for scope in self.scope_stack.iter().rev() {
             if let Some(type_name) = scope.variables.get(name) {
@@ -91,204 +82,6 @@ impl MethodMisuseRule {
             Expr::Set(_) | Expr::SetComp(_) => Some("set".to_owned()),
             Expr::Dict(_) | Expr::DictComp(_) => Some("dict".to_owned()),
             _ => None,
-        }
-    }
-
-    fn is_valid_str_method(method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "capitalize"
-                | "casefold"
-                | "center"
-                | "count"
-                | "encode"
-                | "endswith"
-                | "expandtabs"
-                | "find"
-                | "format"
-                | "format_map"
-                | "index"
-                | "isalnum"
-                | "isalpha"
-                | "isascii"
-                | "isdecimal"
-                | "isdigit"
-                | "isidentifier"
-                | "islower"
-                | "isnumeric"
-                | "isprintable"
-                | "isspace"
-                | "istitle"
-                | "isupper"
-                | "join"
-                | "ljust"
-                | "lower"
-                | "lstrip"
-                | "maketrans"
-                | "partition"
-                | "removeprefix"
-                | "removesuffix"
-                | "replace"
-                | "rfind"
-                | "rindex"
-                | "rjust"
-                | "rpartition"
-                | "rsplit"
-                | "rstrip"
-                | "split"
-                | "splitlines"
-                | "startswith"
-                | "strip"
-                | "swapcase"
-                | "title"
-                | "translate"
-                | "upper"
-                | "zfill"
-        )
-    }
-
-    fn is_valid_bytes_method(method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "capitalize"
-                | "center"
-                | "count"
-                | "decode"
-                | "endswith"
-                | "expandtabs"
-                | "find"
-                | "fromhex"
-                | "hex"
-                | "index"
-                | "isalnum"
-                | "isalpha"
-                | "isascii"
-                | "isdigit"
-                | "islower"
-                | "isspace"
-                | "istitle"
-                | "isupper"
-                | "join"
-                | "ljust"
-                | "lower"
-                | "lstrip"
-                | "maketrans"
-                | "partition"
-                | "removeprefix"
-                | "removesuffix"
-                | "replace"
-                | "rfind"
-                | "rindex"
-                | "rjust"
-                | "rpartition"
-                | "rsplit"
-                | "rstrip"
-                | "split"
-                | "splitlines"
-                | "startswith"
-                | "strip"
-                | "swapcase"
-                | "title"
-                | "translate"
-                | "upper"
-                | "zfill"
-        )
-    }
-
-    fn is_valid_list_method(method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "append"
-                | "clear"
-                | "copy"
-                | "count"
-                | "extend"
-                | "index"
-                | "insert"
-                | "pop"
-                | "remove"
-                | "reverse"
-                | "sort"
-        )
-    }
-
-    fn is_valid_dict_method(method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "clear"
-                | "copy"
-                | "fromkeys"
-                | "get"
-                | "items"
-                | "keys"
-                | "pop"
-                | "popitem"
-                | "setdefault"
-                | "update"
-                | "values"
-        )
-    }
-
-    fn is_valid_set_method(method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "add"
-                | "clear"
-                | "copy"
-                | "difference"
-                | "difference_update"
-                | "discard"
-                | "intersection"
-                | "intersection_update"
-                | "isdisjoint"
-                | "issubset"
-                | "issuperset"
-                | "pop"
-                | "remove"
-                | "symmetric_difference"
-                | "symmetric_difference_update"
-                | "union"
-                | "update"
-        )
-    }
-
-    fn is_valid_int_method(method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "bit_length"
-                | "bit_count"
-                | "to_bytes"
-                | "from_bytes"
-                | "as_integer_ratio"
-                | "conjugate"
-                | "real"
-                | "imag"
-        )
-    }
-
-    fn is_valid_float_method(method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "as_integer_ratio" | "is_integer" | "hex" | "fromhex" | "conjugate" | "real" | "imag"
-        )
-    }
-
-    fn is_valid_method(type_name: &str, method_name: &str) -> bool {
-        if Self::PROTOCOL_METHODS.contains(&method_name) {
-            return true;
-        }
-
-        match type_name {
-            "str" => Self::is_valid_str_method(method_name),
-            "bytes" => Self::is_valid_bytes_method(method_name),
-            "list" => Self::is_valid_list_method(method_name),
-            "tuple" => matches!(method_name, "count" | "index"),
-            "dict" => Self::is_valid_dict_method(method_name),
-            "set" => Self::is_valid_set_method(method_name),
-            "int" => Self::is_valid_int_method(method_name),
-            "float" => Self::is_valid_float_method(method_name),
-            "bool" | "None" => false, // These don't have meaningful mutable methods
-            _ => true,                // Unknown type, assume valid to reduce false positives
         }
     }
 }
@@ -399,7 +192,7 @@ impl Rule for MethodMisuseRule {
                     let method_name = &attr.attr;
 
                     if let Some(type_name) = self.get_variable_type(var_name) {
-                        if !Self::is_valid_method(type_name, method_name) {
+                        if !methods::is_valid_method(type_name, method_name) {
                             return Some(vec![create_finding(
                                 &format!("Method '{method_name}' does not exist for inferred type '{type_name}'"),
                                 self.metadata,

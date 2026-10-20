@@ -2,7 +2,7 @@
 
 use ignore::WalkBuilder;
 use rayon::prelude::*;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -155,7 +155,7 @@ pub(crate) fn scan_files_with_sources(
     matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
     let mut stats = SideEffectStats::default();
-    let mut affected_files = HashSet::new();
+    let mut affected_files = FxHashSet::default();
 
     for m in &matches {
         stats.record(m.kind);

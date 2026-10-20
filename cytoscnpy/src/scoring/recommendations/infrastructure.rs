@@ -70,7 +70,11 @@ pub fn collect_infrastructure_candidates(
                 "Set up pytest configuration in pyproject.toml.".to_owned(),
                 "Add unit tests covering critical business logic and entrypoints.".to_owned(),
             ],
-            affected_files: vec!["tests/".to_owned()],
+            affected_files: if doc.structure.test_directories.is_empty() {
+                vec!["tests/".to_owned()]
+            } else {
+                doc.structure.test_directories.clone()
+            },
         });
     }
 

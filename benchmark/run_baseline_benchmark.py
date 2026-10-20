@@ -93,10 +93,12 @@ def run_benchmark(
                         try:
                             mem += child.memory_info().rss
                         except (psutil.NoSuchProcess, psutil.AccessDenied):  # noqa: PERF203
-                            pass
+                            # The child exited or is unreadable; skip its sample.
+                            continue
                     max_mem = max(max_mem, mem / 1024 / 1024)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                    # The process exited or cannot be sampled; stop polling memory.
+                    break
                 time.sleep(0.01)
 
             _, stderr = process.communicate()

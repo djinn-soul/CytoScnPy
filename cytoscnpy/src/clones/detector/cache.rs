@@ -1,7 +1,8 @@
 use crate::clones::normalizer::NormalizedTree;
 use crate::clones::parser;
 use crate::clones::{CloneType, Normalizer};
-use std::collections::{HashMap, VecDeque};
+use rustc_hash::FxHashMap;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 
 /// Maximum source files retained while comparing candidate pairs.
@@ -16,7 +17,7 @@ pub(super) struct PreparedSubtree {
 /// Bounded LRU cache for parsed and normalized candidate files.
 #[derive(Default)]
 pub(super) struct PairSubtreeCache {
-    entries: HashMap<PathBuf, Vec<PreparedSubtree>>,
+    entries: FxHashMap<PathBuf, Vec<PreparedSubtree>>,
     insertion_order: VecDeque<PathBuf>,
 }
 
@@ -87,7 +88,7 @@ mod tests {
             std::process::id()
         ));
         let mut cache = PairSubtreeCache {
-            entries: HashMap::new(),
+            entries: FxHashMap::default(),
             insertion_order: VecDeque::new(),
         };
         cache.load(&file, 1);

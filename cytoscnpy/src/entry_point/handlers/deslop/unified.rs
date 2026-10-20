@@ -2,15 +2,16 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 mod gates;
+mod health;
 mod inventory;
 mod output;
 
-use gates::{collect_failures, GateFailure, GateSummary};
+use gates::{apply_gate_outcome, collect_failures, GateFailure, GateSummary};
+use health::health_results;
 use inventory::{PythonInventory, ScanIntegrity};
 
 pub(super) struct ComprehensiveRequest<'a> {
@@ -272,35 +273,4 @@ pub(super) fn run_comprehensive_deslop<W: Write>(
         writer,
     )?;
     Ok(exit_code)
-}
-
-/// Makes the score's gate verdict reflect every unified gate, not only the slop index.
-fn apply_gate_outcome(scoring: &mut crate::scoring::ScoreResult, failures: &[GateFailure]) {
-    scoring.passed_gate = failures.is_empty();
-    if scoring.passed_gate {
-        scoring.failure_reason = None;
-    } else if failures.iter().any(|f| f.check != "slop_index") {
-        let checks: Vec<&str> = failures.iter().map(|f| f.check).collect();
-        scoring.failure_reason = Some(format!(
-            "{} DeSlopify gate(s) failed: {}",
-            failures.len(),
-            checks.join(", ")
-        ));
-    }
-}
-
-fn health_results(request: &ComprehensiveRequest<'_>) -> Vec<crate::doctor::DoctorResult> {
-    let mut seen = HashSet::new();
-    let cfg = crate::doctor::DoctorConfig {
-        excludes: request.excludes.to_vec(),
-        verbose: request.cli.output.verbose,
-        fail_on_missing: false,
-    };
-    request
-        .roots
-        .iter()
-        .map(|p| crate::doctor::resolve_doctor_target(p, request.analysis_root))
-        .filter(|p| seen.insert(p.clone()))
-        .map(|p| crate::doctor::run_doctor(&p, &cfg))
-        .collect()
 }

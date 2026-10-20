@@ -3,7 +3,7 @@ use crate::rules::ids;
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::Stmt;
 use ruff_text_size::{Ranged, TextSize};
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 const META_ARGUMENT_COUNT: RuleMetadata = RuleMetadata {
     id: ids::RULE_ID_ARGUMENT_COUNT,
     category: CAT_MAINTAINABILITY,
@@ -91,14 +91,14 @@ impl Rule for FunctionLengthRule {
 pub(super) struct NestingRule {
     current_depth: usize,
     max_depth: usize,
-    reported_lines: HashSet<usize>,
+    reported_lines: FxHashSet<usize>,
 }
 impl NestingRule {
     pub(super) fn new(max_depth: usize) -> Self {
         Self {
             current_depth: 0,
             max_depth,
-            reported_lines: HashSet::new(),
+            reported_lines: FxHashSet::default(),
         }
     }
     fn check_depth(&mut self, context: &Context, location: TextSize) -> Option<Finding> {

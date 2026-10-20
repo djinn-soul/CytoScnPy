@@ -1,7 +1,7 @@
 use crate::rules::ids;
 use crate::rules::RuleMetadata;
 use ruff_python_ast::{Expr, Stmt};
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 pub(super) use super::finding::create_finding;
 use super::CAT_PERFORMANCE;
@@ -169,18 +169,18 @@ impl LoopDepth {
 }
 
 pub(super) struct ScopedNames {
-    stack: Vec<HashSet<String>>,
+    stack: Vec<FxHashSet<String>>,
 }
 
 impl ScopedNames {
     pub fn new() -> Self {
         Self {
-            stack: vec![HashSet::new()],
+            stack: vec![FxHashSet::default()],
         }
     }
 
     pub fn push_scope(&mut self) {
-        self.stack.push(HashSet::new());
+        self.stack.push(FxHashSet::default());
     }
 
     pub fn pop_scope(&mut self) {

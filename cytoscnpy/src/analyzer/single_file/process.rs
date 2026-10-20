@@ -82,6 +82,7 @@ impl CytoScnPy {
             exports_declared: output.visitor.exports_declared,
             module_name: module_name.clone(),
             star_imports: output.visitor.star_imports,
+            taint_findings: output.taint_findings,
         }
     }
 }

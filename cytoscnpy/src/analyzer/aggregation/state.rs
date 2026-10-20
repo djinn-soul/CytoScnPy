@@ -1,3 +1,4 @@
+use super::references::propagate_import_bindings;
 use super::{CytoScnPy, FileAnalysisResult};
 use crate::analyzer::fixtures::{
     FixtureDefinitionRecord, FixtureImportBinding, FixtureRequestRecord, PytestPluginDeclaration,
@@ -41,48 +42,7 @@ pub(super) struct AggregationState {
     pub(super) file_metrics: Vec<FileMetrics>,
     pub(super) all_protocols: FxHashMap<String, FxHashSet<String>>,
     pub(super) global_call_graph: CallGraph,
-}
-
-/// Propagates import binding references through `map` using `bindings`.
-///
-/// For every symbol in `map` with a non-zero count, follows the binding chain
-/// through `bindings` and ensures all transitive sources have count ≥ 1.
-fn propagate_import_bindings(
-    map: &mut FxHashMap<String, usize>,
-    bindings: &FxHashMap<String, String>,
-) {
-    // Used symbols already count ≥ 1, so only collect the sources they
-    // reach. Borrowing from `bindings` avoids cloning every symbol.
-    let mut sources: FxHashSet<&str> = FxHashSet::default();
-    for (name, count) in map.iter() {
-        if *count == 0 {
-            continue;
-        }
-        let mut symbol = name.as_str();
-        while let Some(source) = bindings.get(symbol) {
-            if !sources.insert(source) {
-                break;
-            }
-            symbol = source;
-        }
-    }
-
-    for source in sources {
-        if let Some(count) = map.get_mut(source) {
-            *count = (*count).max(1);
-        } else {
-            map.insert(source.to_owned(), 1);
-        }
-    }
-}
-
-/// Adds `count` to `name`, allocating a key only for a new name.
-fn add_reference(map: &mut FxHashMap<String, usize>, name: &str, count: usize) {
-    if let Some(total) = map.get_mut(name) {
-        *total += count;
-    } else {
-        map.insert(name.to_owned(), count);
-    }
+    pub(super) all_taint_findings: Vec<crate::taint::types::TaintFinding>,
 }
 
 impl AggregationState {
@@ -94,7 +54,8 @@ impl AggregationState {
     ) {
         let FileAnalysisResult {
             definitions,
-            references,
+            // Merged concurrently by `ingest_results`.
+            references: _,
             import_bindings,
             protocol_methods,
             secrets,
@@ -107,7 +68,7 @@ impl AggregationState {
             complexity,
             mi,
             file_size,
-            call_graph,
+            call_graph: _,
             dynamic_imports,
             fixture_definitions,
             fixture_requests,
@@ -117,9 +78,9 @@ impl AggregationState {
             exports_declared,
             module_name,
             star_imports,
+            taint_findings,
         } = result;
 
-        self.global_call_graph.merge(call_graph);
         self.total_size_bytes += file_size;
 
         self.all_raw_metrics.loc += raw_metrics.loc;
@@ -154,17 +115,6 @@ impl AggregationState {
 
         self.all_defs.extend(definitions);
 
-        let relative_path = file_path
-            .strip_prefix(&analyzer.analysis_root)
-            .unwrap_or(file_path);
-        let is_test = crate::utils::is_test_path(&relative_path.to_string_lossy());
-        for (name, count) in references {
-            if !is_test {
-                add_reference(&mut self.prod_ref_counts, &name, count);
-            }
-            // Move the owned name in; a repeat key just drops it.
-            *self.ref_counts.entry(name).or_insert(0) += count;
-        }
         self.all_import_bindings.extend(import_bindings);
 
         for (proto, methods) in protocol_methods {
@@ -175,6 +125,7 @@ impl AggregationState {
         self.all_danger.extend(danger);
         self.all_quality.extend(quality);
         self.all_parse_errors.extend(parse_errors);
+        self.all_taint_findings.extend(taint_findings);
         self.all_fixture_definitions.extend(fixture_definitions);
         self.all_fixture_requests.extend(fixture_requests);
         self.all_fixture_imports.extend(fixture_imports);

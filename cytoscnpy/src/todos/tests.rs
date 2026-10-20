@@ -6,11 +6,14 @@ use std::path::PathBuf;
 use super::scanner::{scan_file_content, scan_files};
 use super::types::{TodoKind, TodosResult};
 
+#[path = "tests_python.rs"]
+mod python;
+
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
 
-fn run(path: &str, content: &str) -> TodosResult {
+pub(super) fn run(path: &str, content: &str) -> TodosResult {
     let canonical = PathBuf::from(path);
     let skip_ctx = super::scanner::skip_context_sensitive(&canonical);
     let mut matches = Vec::new();
@@ -85,12 +88,6 @@ fn detects_debug_print_python() {
 }
 
 #[test]
-fn detects_console_log() {
-    let r = run("src/utils.js", "  console.log('test');\n");
-    assert_eq!(r.stats.debug_print_count, 1);
-}
-
-#[test]
 fn skips_debug_print_in_test_file() {
     let r = run("tests/test_utils.py", "print('debug output')\n");
     assert_eq!(
@@ -110,10 +107,7 @@ fn skips_debug_print_in_cli_module() {
 
 #[test]
 fn skips_debug_print_in_output_directory() {
-    let r = run(
-        "src/output/terminal.rs",
-        "println!(\"result: {}\", score);\n",
-    );
+    let r = run("src/output/terminal.py", "print(f\"result: {score}\")\n");
     assert_eq!(r.stats.debug_print_count, 0);
 }
 

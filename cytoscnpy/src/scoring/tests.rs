@@ -65,6 +65,25 @@ fn test_calculate_raw_score_and_slop_index() {
 }
 
 #[test]
+fn test_critical_dimension_is_never_reported_clean() {
+    let dimensions = vec![DimensionScore {
+        name: "Runtime predictability".to_owned(),
+        weight: 10,
+        rating: CRITICAL_RATING,
+        raw_contribution: 10.0,
+        evidence: "globals".to_owned(),
+    }];
+    let result = finalize_score_result(dimensions, Vec::new(), 0.07, &ScoringOptions::default());
+    assert_eq!(result.slop_index, 1);
+    assert_eq!(result.verdict, Verdict::Acceptable);
+    assert!(format_terminal_report(&result, false).contains("1 critical dimension(s)"));
+    assert!(
+        (simulate_raw_reduction(&result.dimensions, "Runtime predictability", 0) - 10.0).abs()
+            < 1e-9
+    );
+}
+
+#[test]
 fn test_simulate_reduction() {
     let dimensions = vec![DimensionScore {
         name: "Architecture clarity".to_owned(),
@@ -222,6 +241,7 @@ fn test_terminal_report_format() {
             title: "Break 1 circular import cycle".to_owned(),
             dimension: "Coupling / blast radius".to_owned(),
             estimated_reduction: 3,
+            raw_reduction: 3.0,
             target_rating: 0,
             effort: super::recommendations::Effort::Medium,
             description: "Cycle found".to_owned(),
@@ -257,6 +277,7 @@ fn test_llm_report_format() {
             title: "Encapsulate 2 mutable global variable(s)".to_owned(),
             dimension: "Runtime predictability".to_owned(),
             estimated_reduction: 4,
+            raw_reduction: 4.0,
             target_rating: 0,
             effort: super::recommendations::Effort::Low,
             description: "Globals found in config".to_owned(),

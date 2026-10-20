@@ -1,11 +1,14 @@
 //! Aggregation of analysis results.
 
 mod classify;
+mod ingest;
+mod protocols;
 mod reachability;
+mod references;
 mod sorting;
 mod star_imports;
 mod state;
-mod taint;
+mod usage;
 
 use self::classify::{classify_definitions, promote_methods_from_unused_classes};
 use self::reachability::build_reachability;
@@ -30,9 +33,7 @@ impl CytoScnPy {
     ) -> AnalysisResult {
         let mut state = AggregationState::default();
 
-        for (idx, res) in results.into_iter().enumerate() {
-            state.ingest_file_result(res, &files[idx], self);
-        }
+        state.ingest_results(results, files, self);
 
         state.apply_fixture_reference_increments();
         state.apply_export_reference_increments();
@@ -68,7 +69,7 @@ impl CytoScnPy {
         );
 
         let mut classified = classify_definitions(
-            state.all_defs,
+            std::mem::take(&mut state.all_defs),
             &state.ref_counts,
             &state.prod_ref_counts,
             &reachability,
@@ -85,7 +86,7 @@ impl CytoScnPy {
             &classified.unused_classes,
         );
 
-        let mut taint_findings = taint::run_taint_analysis(self, files);
+        let mut taint_findings = std::mem::take(&mut state.all_taint_findings);
 
         let mut unused_counts: FxHashMap<&std::path::Path, usize> = FxHashMap::default();
         let all_unused_slices: [&[Definition]; 6] = [
@@ -141,11 +142,11 @@ impl CytoScnPy {
             transitive_dependencies: Vec::new(),
             dev_dependencies_in_production: Vec::new(),
             stdlib_dependencies: Vec::new(),
-            secrets: state.all_secrets,
-            danger: state.all_danger,
-            quality: state.all_quality,
+            secrets: std::mem::take(&mut state.all_secrets),
+            danger: std::mem::take(&mut state.all_danger),
+            quality: std::mem::take(&mut state.all_quality),
             taint_findings,
-            parse_errors: state.all_parse_errors,
+            parse_errors: std::mem::take(&mut state.all_parse_errors),
             clones: Vec::new(),
             analysis_summary: AnalysisSummary {
                 total_files,
@@ -170,12 +171,13 @@ impl CytoScnPy {
                 total_size: state.total_size_bytes as f64 / 1024.0,
                 functions_count,
                 classes_count,
-                raw_metrics: state.all_raw_metrics,
-                halstead_metrics: state.all_halstead_metrics,
+                raw_metrics: std::mem::take(&mut state.all_raw_metrics),
+                halstead_metrics: std::mem::take(&mut state.all_halstead_metrics),
             },
-            file_metrics: state.file_metrics,
+            file_metrics: std::mem::take(&mut state.file_metrics),
         };
         super::apply_global_ignores(&mut result, self.config.cytoscnpy.ignore.as_deref());
+        crate::utils::drop_in_background((state, reachability, fixture_definition_names));
         result
     }
 }

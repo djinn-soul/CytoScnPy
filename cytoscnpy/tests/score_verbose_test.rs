@@ -153,6 +153,7 @@ fn test_verbose_expands_recommendations_and_files() {
             title: format!("Fix item {i}"),
             dimension: "Quality".to_owned(),
             estimated_reduction: 2,
+            raw_reduction: 2.0,
             target_rating: 0,
             effort: cytoscnpy::scoring::Effort::Low,
             description: format!("Description for {i}"),
@@ -182,15 +183,15 @@ fn test_verbose_expands_recommendations_and_files() {
 
     // Both modes show at most 15 remediations; default previews 3 files.
     let default_report = format_terminal_report(&result, false);
-    assert!(default_report.contains("1. [-2 pts] Fix item 1"));
-    assert!(default_report.contains("15. [-2 pts] Fix item 15"));
-    assert!(!default_report.contains("16. [-2 pts] Fix item 16"));
+    assert!(default_report.contains("1. [-2 pts, 2.0 raw] Fix item 1"));
+    assert!(default_report.contains("15. [-2 pts, 2.0 raw] Fix item 15"));
+    assert!(!default_report.contains("16. [-2 pts, 2.0 raw] Fix item 16"));
     assert!(default_report.contains("f1.py, f2.py, f3.py (+2 more)"));
 
     // Verbose previews up to 5 files per remediation.
     let verbose_report = format_terminal_report(&result, true);
-    assert!(verbose_report.contains("1. [-2 pts] Fix item 1"));
-    assert!(verbose_report.contains("15. [-2 pts] Fix item 15"));
-    assert!(!verbose_report.contains("16. [-2 pts] Fix item 16"));
+    assert!(verbose_report.contains("1. [-2 pts, 2.0 raw] Fix item 1"));
+    assert!(verbose_report.contains("15. [-2 pts, 2.0 raw] Fix item 15"));
+    assert!(!verbose_report.contains("16. [-2 pts, 2.0 raw] Fix item 16"));
     assert!(verbose_report.contains("f1.py, f2.py, f3.py, f4.py, f5.py"));
 }

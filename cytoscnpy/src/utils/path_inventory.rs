@@ -1,6 +1,6 @@
 //! Deduplicate physical source files and overlapping directory inputs.
 
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::PathBuf;
 
 fn identity(path: &PathBuf) -> PathBuf {
@@ -20,7 +20,7 @@ pub(crate) struct Input<'a> {
 }
 
 pub(crate) fn unique_inputs(paths: &[PathBuf]) -> Vec<Input<'_>> {
-    let mut seen = HashSet::new();
+    let mut seen = FxHashSet::default();
     let unique: Vec<_> = paths
         .iter()
         .filter_map(|path| {
@@ -47,6 +47,6 @@ pub(crate) fn unique_inputs(paths: &[PathBuf]) -> Vec<Input<'_>> {
 }
 
 pub(crate) fn deduplicate_files(files: &mut Vec<PathBuf>) {
-    let mut seen = HashSet::new();
+    let mut seen = FxHashSet::default();
     files.retain(|path| seen.insert(identity(path)));
 }

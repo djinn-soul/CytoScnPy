@@ -130,3 +130,40 @@ fn test_score_includes_repository_summary_and_languages() {
     assert!(json_val.get("summary").is_some());
     assert_eq!(json_val["summary"]["test_files"], 1);
 }
+
+fn setup_reliability(root: &std::path::Path) -> serde_json::Value {
+    let args = vec![
+        "deslop".to_owned(),
+        root.to_string_lossy().into_owned(),
+        "--json".to_owned(),
+        "--no-git".to_owned(),
+    ];
+    let mut out = std::io::Cursor::new(Vec::new());
+    cytoscnpy::entry_point::run_with_args_to(args, &mut out).unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&out.into_inner()).unwrap();
+    parsed["dimensions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["name"] == "Setup reliability")
+        .unwrap()
+        .clone()
+}
+
+#[test]
+fn test_setup_reliability_names_missing_signals_and_skips_build_script() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::write(root.join("app.py"), "x = 1\n").unwrap();
+    fs::write(root.join("pyproject.toml"), "[project]\nname = \"demo\"\n").unwrap();
+    fs::write(root.join("uv.lock"), "").unwrap();
+    fs::write(root.join(".gitignore"), "*.pyc\n").unwrap();
+
+    let missing_docker = setup_reliability(root);
+    assert_eq!(missing_docker["rating"], 1);
+    assert_eq!(missing_docker["evidence"], "no Docker config");
+
+    // No Makefile or other task runner is needed for a perfect rating.
+    fs::write(root.join("Dockerfile"), "FROM python:3.12-slim\n").unwrap();
+    assert_eq!(setup_reliability(root)["rating"], 0);
+}

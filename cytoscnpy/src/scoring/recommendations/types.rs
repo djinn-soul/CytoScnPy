@@ -34,6 +34,9 @@ pub struct Recommendation {
     pub dimension: String,
     /// Estimated Slop Index point reduction if addressed (0-100).
     pub estimated_reduction: u32,
+    /// Raw score reduction before the size multiplier; used for ranking.
+    #[serde(default)]
+    pub raw_reduction: f64,
     /// Target dimension rating after remediation (0-5).
     pub target_rating: u32,
     /// Estimated implementation effort.

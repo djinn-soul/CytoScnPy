@@ -22,6 +22,32 @@ pub struct RawFunction {
     pub node_kind: String,
     /// Enclosing class name if a method.
     pub class_name: Option<String>,
+    /// Whether a decorator may register the function with a framework.
+    pub registered_by_decorator: bool,
+}
+
+/// Decorators that wrap a function without registering it anywhere.
+const PASSIVE_DECORATORS: &[&str] = &[
+    "staticmethod",
+    "classmethod",
+    "property",
+    "cache",
+    "lru_cache",
+    "cached_property",
+    "wraps",
+    "abstractmethod",
+    "override",
+    "overload",
+];
+
+fn decorator_name(expr: &ruff_python_ast::Expr) -> Option<&str> {
+    use ruff_python_ast::Expr;
+    match expr {
+        Expr::Name(name) => Some(name.id.as_str()),
+        Expr::Attribute(attr) => Some(attr.attr.as_str()),
+        Expr::Call(call) => decorator_name(&call.func),
+        _ => None,
+    }
 }
 
 /// Extracted file metadata: functions, imported module stems/symbols, and line count.
@@ -232,5 +258,8 @@ fn record_function(
         line_count,
         node_kind,
         class_name: class_context.map(str::to_owned),
+        registered_by_decorator: func.decorator_list.iter().any(|d| {
+            decorator_name(&d.expression).map_or(true, |name| !PASSIVE_DECORATORS.contains(&name))
+        }),
     });
 }

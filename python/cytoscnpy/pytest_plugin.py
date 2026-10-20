@@ -23,21 +23,11 @@ from typing import TYPE_CHECKING, TypeVar, cast
 
 import pytest
 
-from .pytest_findings import (
-    JsonObject,
-)
-from .pytest_findings import (
-    detect_non_py_findings as _detect_non_py_findings,
-)
-from .pytest_findings import (
-    group_by_file as _group_by_file,
-)
-from .pytest_findings import (
-    iter_python_files as _iter_python_files,
-)
-from .pytest_findings import (
-    resolve_file as _resolve_file,
-)
+from .pytest_findings import JsonObject
+from .pytest_findings import detect_non_py_findings as _detect_non_py_findings
+from .pytest_findings import group_by_file as _group_by_file
+from .pytest_findings import iter_python_files as _iter_python_files
+from .pytest_findings import resolve_file as _resolve_file
 
 LOGGER = logging.getLogger(__name__)
 
@@ -143,50 +133,41 @@ def pytest_sessionstart(session: Session) -> None:
     ini_path = ini_path_value if isinstance(ini_path_value, str) else "."
     scan_path = session.config.rootpath / ini_path
 
-    returncode, raw_stdout, raw_stderr = _run_scan(scan_path)
-
+    by_file, error = _parse_scan(*_run_scan(scan_path), session.config.rootpath)
     session.stash[SCAN_PATH_KEY] = scan_path
-    session.stash[ERROR_KEY] = None
-    session.stash[FORCE_FAIL_KEY] = False
-    session.stash[BY_FILE_KEY] = {}
+    session.stash[BY_FILE_KEY] = by_file
+    session.stash[ERROR_KEY] = error
+    session.stash[FORCE_FAIL_KEY] = error is not None
 
+
+def _parse_scan(
+    returncode: int, raw_stdout: str, raw_stderr: str, rootpath: Path
+) -> tuple[dict[str, list[str]], str | None]:
+    """Group scan findings by file and describe why the scan failed, if it did."""
     try:
         data = cast(object, json.loads(raw_stdout))
     except json.JSONDecodeError:
-        session.stash[ERROR_KEY] = (
-            raw_stderr.strip() or raw_stdout[:200] or "cytoscnpy produced no output"
-        )
-        session.stash[FORCE_FAIL_KEY] = True
-        return
-
+        return {}, raw_stderr.strip() or raw_stdout[
+            :200
+        ] or "cytoscnpy produced no output"
     if not isinstance(data, dict):
-        session.stash[ERROR_KEY] = "cytoscnpy produced non-object JSON"
-        session.stash[FORCE_FAIL_KEY] = True
-        return
+        return {}, "cytoscnpy produced non-object JSON"
 
-    session.stash[BY_FILE_KEY] = _group_by_file(
-        cast(JsonObject, data), session.config.rootpath
-    )
+    by_file = _group_by_file(cast(JsonObject, data), rootpath)
 
     # Findings on non-Python files (e.g. invalid custom secret regex on `.cytoscnpy.toml`)
-    # won't have corresponding items created by `_iter_python_files`.
-    # Explicitly detect these non-file findings so FORCE_FAIL_KEY is set.
-    non_py_findings = _detect_non_py_findings(session.stash[BY_FILE_KEY])
+    # get no item from `_iter_python_files`, so they must fail the session here.
+    non_py_findings = _detect_non_py_findings(by_file)
     if non_py_findings:
-        session.stash[FORCE_FAIL_KEY] = True
-        if session.stash[ERROR_KEY] is None:
-            session.stash[ERROR_KEY] = "\n".join(non_py_findings)
+        return by_file, "\n".join(non_py_findings)
 
-    # A non-zero exit with valid JSON still means the analyzer failed (e.g.
-    # invalid custom secret regex emits findings on `.cytoscnpy.toml` and
-    # exits 1). Those findings are attached to non-`*.py` files and would
-    # otherwise be dropped by `_iter_python_files`, letting pytest exit 0.
+    # A non-zero exit with valid JSON still means the analyzer failed.
     if returncode != 0:
-        session.stash[FORCE_FAIL_KEY] = True
-        if session.stash[ERROR_KEY] is None:
-            session.stash[ERROR_KEY] = (
-                raw_stderr.strip() or f"cytoscnpy exited with status {returncode}"
-            )
+        return (
+            by_file,
+            raw_stderr.strip() or f"cytoscnpy exited with status {returncode}",
+        )
+    return by_file, None
 
 
 def pytest_sessionfinish(session: Session, exitstatus: int) -> None:
@@ -266,15 +247,16 @@ class CytoScnPyItem(pytest.Item):
         resolved_current = _resolve_file(Path(current_path))
 
         # Match findings to this file by resolving to absolute paths
-        findings: list[str] = []
-        for key, msgs in by_file.items():
-            resolved_key = _resolve_file(Path(key))
-            if (
+        findings = [
+            msg
+            for key, msgs in by_file.items()
+            if key == current_path
+            or (
                 resolved_current is not None
-                and resolved_key is not None
-                and resolved_key == resolved_current
-            ) or key == current_path:
-                findings.extend(msgs)
+                and _resolve_file(Path(key)) == resolved_current
+            )
+            for msg in msgs
+        ]
 
         if findings:
             raise CytoScnPyError(findings)

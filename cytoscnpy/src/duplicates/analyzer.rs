@@ -1,6 +1,6 @@
 //! Analyzer for duplicate code clusters and non-overlapping line calculations.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -73,7 +73,7 @@ pub(crate) fn analyze_duplicates_with_sources(
         .collect();
 
     // Map each file to its physical line count
-    let mut file_line_counts: HashMap<PathBuf, usize> = HashMap::new();
+    let mut file_line_counts: FxHashMap<PathBuf, usize> = FxHashMap::default();
     let mut total_scanned_lines = 0usize;
 
     for path in &valid_files {
@@ -120,8 +120,8 @@ pub(crate) fn analyze_duplicates_with_sources(
 
     // Build duplicate clusters and collect per-file intervals
     let mut clusters = Vec::new();
-    let mut file_intervals: HashMap<PathBuf, Vec<(usize, usize)>> = HashMap::new();
-    let mut file_instance_counts: HashMap<PathBuf, usize> = HashMap::new();
+    let mut file_intervals: FxHashMap<PathBuf, Vec<(usize, usize)>> = FxHashMap::default();
+    let mut file_instance_counts: FxHashMap<PathBuf, usize> = FxHashMap::default();
     let mut exact_clusters = 0;
     let mut renamed_clusters = 0;
     let mut similar_clusters = 0;
@@ -194,7 +194,12 @@ pub(crate) fn analyze_duplicates_with_sources(
         });
     }
 
-    file_stats.sort_by_key(|a| std::cmp::Reverse(a.duplicate_lines));
+    // Most duplicated first; the path keeps ties in a stable order.
+    file_stats.sort_by(|a, b| {
+        b.duplicate_lines
+            .cmp(&a.duplicate_lines)
+            .then_with(|| a.file.cmp(&b.file))
+    });
 
     let overall_duplicate_pct = if total_scanned_lines > 0 {
         (total_duplicate_lines as f64 / total_scanned_lines as f64) * 100.0

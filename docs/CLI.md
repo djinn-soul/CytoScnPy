@@ -207,6 +207,21 @@ The report also includes `scan_integrity` with discovered and checked file count
 and any unreadable or invalid Python files. An incomplete scan exits with code `1`
 even without `--fail-on-any`, so CI cannot treat partial results as a pass.
 
+Sample-code directories (`examples/`, `fixtures/`, `test_fixtures/`,
+`testdata/`, `test_data/`) below the analysis root are skipped together with
+tests, because they often hold deliberately sloppy code. `--include-tests` scans
+them again, and pointing `deslop` directly at such a directory still analyzes it.
+
+Remediations are ranked by their raw score reduction, shown next to the
+size-adjusted index points (`[-1 pts, 3.0 raw]`). A dimension rated 5/5 keeps
+the verdict at `ACCEPTABLE` or worse even when the size multiplier scales the
+index into the `CLEAN` band; the index and gates are unchanged.
+
+The test ratio compares Python test lines with Python source lines only;
+Markdown, JSON, and other non-code files do not count as source. Test files are
+classified relative to the analysis root, so a `tests/` directory above the
+project does not mark every file as a test.
+
 ```bash
 cytoscnpy deslop [OPTIONS] <PATH>
 ```
@@ -268,8 +283,8 @@ for targeted automation.
 
 #### 10-Dimension Scoring Model (Weights sum to 100)
 
-1. **Setup reliability** (weight 10): Build scripts, lockfile freshness, Docker, and environment configuration.
-2. **Architecture clarity** (weight 15): Directory depth, file sizes, god modules, and naming searchability.
+1. **Setup reliability** (weight 10): Dependency manager, lockfile, Docker, and `.gitignore`. Each missing one is named in the evidence. A Makefile or other task runner is optional.
+2. **Architecture clarity** (weight 15): Directory depth, file sizes, god modules, and naming searchability. The largest-file check counts Python files only, so lockfiles and generated data do not count.
 3. **Coupling / blast radius** (weight 15): Fan-in/out, circular import cycles, and cross-package dependencies.
 4. **Style consistency** (weight 10): Naming convention compliance percentage, linter, formatter, and type checker adoption.
 5. **Test safety net** (weight 15): Test-to-source file and line ratios, framework configuration.

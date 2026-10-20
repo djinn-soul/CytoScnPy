@@ -58,7 +58,7 @@ impl RepoSummary {
     #[must_use]
     pub fn from_doctor(doc: &crate::doctor::DoctorResult) -> Self {
         let mut configs = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = rustc_hash::FxHashSet::default();
         for c in &doc.configs {
             let label = format!("{}: {}", c.category, c.name);
             if seen.insert(label.clone()) {

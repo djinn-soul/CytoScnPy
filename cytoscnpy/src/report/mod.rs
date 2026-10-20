@@ -21,9 +21,12 @@ pub mod github;
 pub mod gitlab;
 /// Versioned JSON report generator.
 pub mod json;
+mod json_definition;
+mod json_render;
 /// `JUnit` XML report generator.
 pub mod junit;
 /// Markdown report generator.
 pub mod markdown;
 /// SARIF report generator.
 pub mod sarif;
+mod stable_findings;

@@ -1,7 +1,10 @@
-use crate::constants::{FIXTURE_DECOR_RE, TEST_DECOR_RE, TEST_METHOD_PATTERN};
+use crate::constants::TEST_METHOD_PATTERN;
 use crate::utils::LineIndex;
 use ruff_python_ast::{Expr, Stmt};
 use std::path::Path;
+
+#[path = "decorators.rs"]
+mod decorators;
 
 /// Fixture definition metadata extracted from a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,24 +96,24 @@ impl<'a> TestAwareVisitor<'a> {
                         Expr::Call(call_node) => {
                             self.extract_usefixtures(call_node);
 
-                            if Self::is_fixture_decorator_call(call_node)
-                                || Self::decorator_name_matches_fixture(&call_node.func)
+                            if decorators::is_fixture_decorator_call(call_node)
+                                || decorators::decorator_name_matches_fixture(&call_node.func)
                             {
                                 is_fixture_definition = true;
-                                if let Some(alias) = Self::extract_fixture_alias(call_node) {
+                                if let Some(alias) = decorators::extract_fixture_alias(call_node) {
                                     fixture_alias = Some(alias);
                                 }
                             }
 
-                            if Self::decorator_name_matches_test(&call_node.func) {
+                            if decorators::decorator_name_matches_test(&call_node.func) {
                                 has_test_decorator = true;
                             }
                         }
                         expr => {
-                            if Self::decorator_name_matches_fixture(expr) {
+                            if decorators::decorator_name_matches_fixture(expr) {
                                 is_fixture_definition = true;
                             }
-                            if Self::decorator_name_matches_test(expr) {
+                            if decorators::decorator_name_matches_test(expr) {
                                 has_test_decorator = true;
                             }
                         }
@@ -258,50 +261,5 @@ impl<'a> TestAwareVisitor<'a> {
             }
             _ => {}
         }
-    }
-
-    fn is_fixture_decorator_call(call: &ruff_python_ast::ExprCall) -> bool {
-        Self::decorator_name_matches_fixture(&call.func)
-    }
-
-    fn decorator_name_matches_fixture(expr: &Expr) -> bool {
-        let name = Self::decorator_name(expr);
-        !name.is_empty() && FIXTURE_DECOR_RE().is_match(&name)
-    }
-
-    fn decorator_name_matches_test(expr: &Expr) -> bool {
-        let name = Self::decorator_name(expr);
-        !name.is_empty() && TEST_DECOR_RE().is_match(&name)
-    }
-
-    fn decorator_name(expr: &Expr) -> String {
-        match expr {
-            Expr::Name(name) => name.id.to_string(),
-            Expr::Attribute(attr) => match &*attr.value {
-                Expr::Name(base) => format!("{}.{}", base.id, attr.attr),
-                _ => attr.attr.to_string(),
-            },
-            _ => String::new(),
-        }
-    }
-
-    fn extract_fixture_alias(call: &ruff_python_ast::ExprCall) -> Option<String> {
-        for keyword in &call.arguments.keywords {
-            if keyword
-                .arg
-                .as_ref()
-                .map(ruff_python_ast::Identifier::as_str)
-                != Some("name")
-            {
-                continue;
-            }
-            if let Expr::StringLiteral(s) = &keyword.value {
-                let value = s.value.to_string();
-                if !value.is_empty() {
-                    return Some(value);
-                }
-            }
-        }
-        None
     }
 }

@@ -1,13 +1,25 @@
+use super::protocols::{
+    collect_class_methods, collect_implicitly_used_methods, collect_runtime_protocol_hints,
+};
 use crate::taint::call_graph::CallGraph;
 use crate::visitor::Definition;
+use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-pub(super) const RUNTIME_PROTOCOL_REF_PREFIX: &str = "__csp_runtime_protocol__.";
-
+/// Reachability evidence for each definition, indexed like the definitions
+/// passed to [`build_reachability`].
 pub(super) struct ReachabilityContext {
-    pub(super) implicitly_used_methods: FxHashSet<String>,
-    pub(super) reachable_nodes: FxHashSet<String>,
-    pub(super) explicitly_called_nodes: FxHashSet<String>,
+    pub(super) flags: Vec<ReachabilityFlags>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ReachabilityFlags {
+    /// The method implements a protocol the class structurally satisfies.
+    pub(super) implicitly_used: bool,
+    /// The definition is reachable from a root through the call graph.
+    pub(super) reachable: bool,
+    /// Some call site names the definition directly.
+    pub(super) explicitly_called: bool,
 }
 
 pub(super) fn build_reachability(
@@ -22,146 +34,50 @@ pub(super) fn build_reachability(
     let runtime_protocol_hints = collect_runtime_protocol_hints(ref_counts);
     let implicitly_used_methods =
         collect_implicitly_used_methods(&class_methods, protocol_methods, &runtime_protocol_hints);
-    let reachable_nodes = collect_reachable_nodes(
-        definitions,
-        &class_methods,
-        &implicitly_used_methods,
-        dynamic_imported_modules,
-        call_graph,
-        include_tests,
+    let (reachable, explicitly_called) = rayon::join(
+        || {
+            collect_reachable_nodes(
+                definitions,
+                &class_methods,
+                &implicitly_used_methods,
+                dynamic_imported_modules,
+                call_graph,
+                include_tests,
+            )
+        },
+        || collect_explicitly_called_nodes(definitions, call_graph),
     );
-    let explicitly_called_nodes = collect_explicitly_called_nodes(call_graph);
 
-    ReachabilityContext {
-        implicitly_used_methods,
-        reachable_nodes,
-        explicitly_called_nodes,
-    }
+    let flags = definitions
+        .par_iter()
+        .zip(reachable)
+        .zip(explicitly_called)
+        .map(|((def, reachable), explicitly_called)| ReachabilityFlags {
+            implicitly_used: implicitly_used_methods.contains(&def.full_name),
+            reachable,
+            explicitly_called,
+        })
+        .collect();
+    ReachabilityContext { flags }
 }
 
-fn collect_explicitly_called_nodes(call_graph: &CallGraph) -> FxHashSet<String> {
-    let mut called = FxHashSet::default();
-    for node in call_graph.nodes.values() {
-        for call in &node.calls {
-            if call.starts_with('.') {
-                continue;
-            }
-            called.insert(call.clone());
-        }
-    }
-    called
-}
-
-fn collect_class_methods(definitions: &[Definition]) -> FxHashMap<String, FxHashSet<String>> {
-    let mut class_methods: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-
-    for def in definitions {
-        if def.def_type != "method" {
-            continue;
-        }
-
-        if let Some(parent) = def.full_name.rfind('.').map(|idx| &def.full_name[..idx]) {
-            class_methods
-                .entry(parent.to_owned())
-                .or_default()
-                .insert(def.simple_name.clone());
-        }
-    }
-
-    class_methods
-}
-
-fn collect_implicitly_used_methods(
-    class_methods: &FxHashMap<String, FxHashSet<String>>,
-    protocol_methods: &FxHashMap<String, FxHashSet<String>>,
-    runtime_protocol_hints: &FxHashSet<String>,
-) -> FxHashSet<String> {
-    let mut method_to_protocols: FxHashMap<String, Vec<&String>> = FxHashMap::default();
-
-    for (proto_name, methods) in protocol_methods {
-        for method in methods {
-            method_to_protocols
-                .entry(method.clone())
-                .or_default()
-                .push(proto_name);
-        }
-    }
-
-    // Whether a protocol is runtime-checked depends only on the protocol, so
-    // scan the hints once per protocol rather than once per class.
-    let runtime_checked_protocols: FxHashSet<&str> = protocol_methods
-        .keys()
-        .filter(|proto_name| protocol_hint_matches(proto_name, runtime_protocol_hints))
+/// Whether each definition is named by a direct (non-attribute) call.
+fn collect_explicitly_called_nodes(
+    definitions: &[Definition],
+    call_graph: &CallGraph,
+) -> Vec<bool> {
+    let called: FxHashSet<&str> = call_graph
+        .nodes
+        .values()
+        .flat_map(|node| &node.calls)
+        .filter(|call| !call.starts_with('.'))
         .map(String::as_str)
         .collect();
-
-    let mut implicitly_used_methods: FxHashSet<String> = FxHashSet::default();
-
-    for (class_name, methods) in class_methods {
-        let mut candidate_protocols: FxHashSet<&String> = FxHashSet::default();
-        for method in methods {
-            if let Some(protocols) = method_to_protocols.get(method) {
-                for protocol in protocols {
-                    candidate_protocols.insert(protocol);
-                }
-            }
-        }
-
-        for proto_name in candidate_protocols {
-            if let Some(proto_methods) = protocol_methods.get(proto_name) {
-                let intersection_count = methods.intersection(proto_methods).count();
-                let proto_len = proto_methods.len();
-                let runtime_checked = runtime_checked_protocols.contains(proto_name.as_str());
-                let passes_similarity_threshold =
-                    similarity_threshold_met(intersection_count, proto_len);
-                let passes_runtime_threshold = runtime_checked && intersection_count > 0;
-
-                if passes_similarity_threshold || passes_runtime_threshold {
-                    for method in methods.intersection(proto_methods) {
-                        implicitly_used_methods.insert(format!("{class_name}.{method}"));
-                    }
-                }
-            }
-        }
-    }
-
-    implicitly_used_methods
-}
-
-fn collect_runtime_protocol_hints(ref_counts: &FxHashMap<String, usize>) -> FxHashSet<String> {
-    ref_counts
-        .keys()
-        .filter_map(|key| key.strip_prefix(RUNTIME_PROTOCOL_REF_PREFIX))
-        .map(std::borrow::ToOwned::to_owned)
+    definitions
+        .par_iter()
+        .map(|def| called.contains(def.full_name.as_str()))
         .collect()
 }
-
-/// Returns `true` when a class's method overlap with a protocol is large enough
-/// to treat the class as an implicit implementor of that protocol.
-///
-/// Thresholds: at least 3 shared methods **and** ≥ 70 % of the protocol surface.
-fn similarity_threshold_met(intersection_count: usize, proto_len: usize) -> bool {
-    const MIN_SHARED_METHODS: usize = 3;
-    const MIN_COVERAGE_RATIO: f64 = 0.7;
-
-    proto_len > 0
-        && intersection_count >= MIN_SHARED_METHODS
-        && (intersection_count as f64 / proto_len as f64) >= MIN_COVERAGE_RATIO
-}
-
-fn protocol_hint_matches(proto_name: &str, runtime_protocol_hints: &FxHashSet<String>) -> bool {
-    if runtime_protocol_hints.contains(proto_name) {
-        return true;
-    }
-    // Build the suffix once and reuse, rather than `format!` per hint.
-    let suffix_len = proto_name.len() + 1;
-    runtime_protocol_hints.iter().any(|hint| {
-        hint.len() > suffix_len
-            && hint.as_bytes()[hint.len() - suffix_len] == b'.'
-            && hint.ends_with(proto_name)
-    })
-}
-
 fn collect_reachable_nodes(
     definitions: &[Definition],
     class_methods: &FxHashMap<String, FxHashSet<String>>,
@@ -169,7 +85,7 @@ fn collect_reachable_nodes(
     dynamic_imported_modules: &FxHashSet<String>,
     call_graph: &CallGraph,
     include_tests: bool,
-) -> FxHashSet<String> {
+) -> Vec<bool> {
     // Names borrow from `definitions`, `call_graph` and `root_methods`, so
     // the walk allocates nothing per node.
     let mut method_simple_to_full: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
@@ -240,7 +156,8 @@ fn collect_reachable_nodes(
     );
     roots.extend(root_methods.iter().map(String::as_str));
 
-    let mut reachable_nodes: FxHashSet<&str> = FxHashSet::default();
+    let mut reachable_nodes: FxHashSet<&str> =
+        FxHashSet::with_capacity_and_hasher(roots.len(), rustc_hash::FxBuildHasher);
     let mut stack = roots;
     // Expanding a simple name pushes every candidate at once, so later
     // expansions of the same name add nothing. Common names such as `.get`
@@ -307,5 +224,8 @@ fn collect_reachable_nodes(
         }
     }
 
-    reachable_nodes.into_iter().map(str::to_owned).collect()
+    definitions
+        .par_iter()
+        .map(|def| reachable_nodes.contains(def.full_name.as_str()))
+        .collect()
 }

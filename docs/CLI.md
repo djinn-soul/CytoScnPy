@@ -356,14 +356,6 @@ fail_threshold = 5.0
 fail_on_secrets = true
 fail_on_danger = true
 
-# Per-file rule suppressions (glob -> rule IDs).
-# Use a real table (not an inline `{ ... }`) so entries can span multiple
-# lines without tripping TOML/editor syntax errors.
-# Glob behavior: "*" matches a single path segment, "**" matches recursively.
-[cytoscnpy.per-file-ignores]
-"tests/*" = ["CSP-D701"]
-"**/__init__.py" = ["CSP-L001"]
-
 # Inline whitelist (suppress specific dead-code symbols).
 # One array, one entry per line — no repeated headers needed.
 whitelist = [
@@ -371,6 +363,13 @@ whitelist = [
   { name = "another_symbol", pattern = "wildcard" },     # "exact", "wildcard", or "regex"
   { name = "legacy_fn", file = "src/api/*.py" },         # optional: restrict to a file glob
 ]
+
+# Per-file rule suppressions (glob -> rule IDs). Keep table headers like this
+# one after all top-level keys: every key below a header belongs to that table.
+# Glob behavior: "*" matches a single path segment, "**" matches recursively.
+[cytoscnpy.per-file-ignores]
+"tests/*" = ["CSP-D701"]
+"**/__init__.py" = ["CSP-L001"]
 ```
 
 Prefer `[[cytoscnpy.whitelist]]` blocks instead if you want to attach a comment

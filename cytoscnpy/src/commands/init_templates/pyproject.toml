@@ -60,13 +60,6 @@
 # Rule IDs to silence globally across the entire project.
 # ignore = ["CSP-P003"]
 
-# Silence specific rules only for files matching a glob pattern.
-# Use a real table (not an inline `{ ... }`) so it can span multiple lines
-# and hold as many glob -> rule-list entries as you need:
-# [tool.cytoscnpy.per-file-ignores]
-# "tests/*" = ["CSP-D701"]
-# "**/__init__.py" = ["CSP-L001"]
-
 
 # ── Clone detection ───────────────────────────────────────────────────────────
 
@@ -81,6 +74,30 @@
 
 # Exit with code 1 when the percentage of unused definitions exceeds this value.
 # fail_threshold = 5.0
+
+
+# ── Inline whitelist ──────────────────────────────────────────────────────────
+# Suppress specific dead-code symbols without a separate whitelist file.
+# Each entry can target a single name, a wildcard pattern, or a regex.
+# Add as many entries as you need in one array (each entry stays on its own
+# line; only add commas between entries, not inside one):
+# whitelist = [
+#   { name = "my_unused_fn" },
+#   { name = "test_*", pattern = "wildcard" },
+#   { name = "legacy_handler", file = "src/api/*.py" },
+# ]
+
+
+# ── Tables ────────────────────────────────────────────────────────────────────
+# Every key below a [table] header belongs to that table, so these sections
+# stay after all top-level keys above.
+
+# Silence specific rules only for files matching a glob pattern.
+# Use a real table (not an inline `{ ... }`) so it can span multiple lines
+# and hold as many glob -> rule-list entries as you need:
+# [tool.cytoscnpy.per-file-ignores]
+# "tests/*" = ["CSP-D701"]
+# "**/__init__.py" = ["CSP-L001"]
 
 # Limits used by deslop --fail-on-any. The first four are always checked;
 # the rest only when set. max_slop_index also applies with --ci.
@@ -112,18 +129,6 @@
 # max_function_lines = 50
 # max_function_complexity = 10
 # max_nesting_depth = 3
-
-
-# ── Inline whitelist ──────────────────────────────────────────────────────────
-# Suppress specific dead-code symbols without a separate whitelist file.
-# Each entry can target a single name, a wildcard pattern, or a regex.
-# Add as many entries as you need in one array (each entry stays on its own
-# line; only add commas between entries, not inside one):
-# whitelist = [
-#   { name = "my_unused_fn" },
-#   { name = "test_*", pattern = "wildcard" },
-#   { name = "legacy_handler", file = "src/api/*.py" },
-# ]
 
 
 # ── Secrets scanning (advanced) ───────────────────────────────────────────────

@@ -296,9 +296,15 @@ def func():
 | Phase     | Target F1 | Key Fixes                              | Status  |
 | --------- | --------- | -------------------------------------- | ------- |
 | **7.6.1** | 0.63      | Return annotations, TYPE_CHECKING      | ✅ Done |
-| **7.6.2** | 0.68      | Cross-file `__all__`, pattern matching | PLANNED |
-| **7.6.3** | 0.72      | Class-method linking, variable scopes  | PLANNED |
-| **7.6.4** | 0.75      | Import gaps, framework patterns        | PLANNED |
+| **7.6.2** | 0.68      | Cross-file `__all__`, pattern matching | ✅ Target met |
+| **7.6.3** | 0.72      | Class-method linking, variable scopes  | ✅ Target met |
+| **7.6.4** | 0.75      | Import gaps, framework patterns        | ✅ Target met |
+
+As of v1.3.0 the benchmark reports overall F1 **0.85** (precision 0.79, recall
+0.91) on 164 ground truth items: 39 false positives and 15 false negatives. The
+false-positive and false-negative tables above are from an earlier 135-item run
+and describe the kinds of gaps, not current counts. See the
+[benchmark report](https://github.com/djinn-soul/CytoScnPy/blob/main/benchmark/README.md).
 
 ---
 
@@ -349,11 +355,10 @@ _Tools to improve the workflow around CytoScnPy._
   - **Rationale:** Enable persistent notebook cell-level reporting without passing flags on every run.
   - **Implementation:** Add `ipynb_cells` config support alongside the existing notebook config fields.
 
-- [ ] **Inline Suppressions**
-  - Allow developers to ignore specific findings on a line of code using comments.
-  - **Syntax:** `# cytoscnpy: ignore[<rule_id>]` (e.g., `# cytoscnpy: ignore[D101]`)
-  - **Compatibility:** Support `# nosec` for general security issues, similar to Bandit.
-  - **Use Case:** Handle edge cases and accepted risks without disabling rules globally.
+- [x] **Inline Suppressions** (shipped in v1.3.0)
+  - `# noqa`, `# ignore`, and `# pragma: no cytoscnpy` hide every finding on a line.
+  - `# noqa: CSP-D101, unused-import reason` hides only the listed rules and allows an explanation after the codes. See [Usage](usage.md).
+  - **Remaining:** `# nosec` compatibility with Bandit is not supported yet.
 
 - [ ] **Git Integration**
   - **Blame Analysis:** Identify who introduced unused code.
@@ -545,4 +550,4 @@ _Deep data-flow analysis across function boundaries._
 
 ---
 
-_135 total ground truth items, 11 tools benchmarked_
+_164 total ground truth items, 9 tools in 11 configurations benchmarked_

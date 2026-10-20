@@ -17,7 +17,7 @@ A fast, lightweight static analyzer for Python codebase. It’s built in Rust wi
 - **Memory Efficient**: Uses less memory.
 - **Comprehensive**: Dead code, secrets, security, taint analysis, quality metrics
 - **Framework Aware**: Flask, Django, FastAPI, Pydantic, Azure Functions
-- **Benchmarked**: Continuous benchmarking with 135-item ground truth suite
+- **Benchmarked**: Continuous benchmarking with a 164-item ground truth suite
 
 ## Installation
 
@@ -318,16 +318,16 @@ cytoscnpy . --fail-threshold 5 --quiet
 
 ## Performance
 
-### Accuracy (Benchmark Suite: 135 items)
+### Accuracy (Benchmark Suite: 164 items)
 
-| Detection Type | Precision | Recall   | F1 Score |
-| -------------- | --------- | -------- | -------- |
-| Classes        | 0.73      | 0.79     | **0.76** |
-| Functions      | 0.71      | 0.74     | **0.73** |
-| Methods        | **0.86**  | **0.93** | **0.89** |
-| Imports        | 0.67      | 0.40     | 0.50     |
-| Variables      | 0.30      | 0.15     | 0.20     |
-| **Overall**    | **0.71**  | **0.64** | **0.68** |
+| Detection Type | Precision | Recall | F1 Score |
+| -------------- | --------- | ------ | -------- |
+| Classes        | 0.95      | 1.00   | **0.97** |
+| Functions      | 0.76      | 0.91   | **0.83** |
+| Methods        | 0.83      | 0.86   | **0.84** |
+| Imports        | 0.83      | 0.88   | **0.85** |
+| Variables      | 0.72      | 0.93   | **0.81** |
+| **Overall**    | **0.79**  | **0.91** | **0.85** |
 
 > See [benchmark/README.md](benchmark/README.md) for detailed comparison against Vulture, Flake8, Pylint, Ruff, and others.
 

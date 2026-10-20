@@ -2,7 +2,7 @@
 
 use ignore::WalkBuilder;
 use rayon::prelude::*;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -164,7 +164,7 @@ pub(crate) fn scan_files_with_sources(
     let mut result = GlobalsResult::new(target_root.to_path_buf());
     result.files_scanned = files.len();
 
-    let mut affected_files = HashSet::new();
+    let mut affected_files = FxHashSet::default();
     for m in &matches {
         affected_files.insert(&m.file);
         match m.kind {

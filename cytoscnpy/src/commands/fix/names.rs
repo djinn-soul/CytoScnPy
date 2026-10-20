@@ -2,11 +2,11 @@
 
 use ruff_python_ast::visitor::source_order::{self, SourceOrderVisitor};
 use ruff_python_ast::{Expr, Identifier, ModModule};
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 #[derive(Default)]
 pub(super) struct DiscardNames {
-    reserved: HashSet<String>,
+    reserved: FxHashSet<String>,
 }
 
 impl DiscardNames {

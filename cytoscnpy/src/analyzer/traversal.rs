@@ -69,7 +69,7 @@ impl CytoScnPy {
     /// include multiple file paths (e.g., from pre-commit hooks).
     pub fn analyze_paths(&mut self, paths: &[std::path::PathBuf]) -> AnalysisResult {
         // `config` is public and may have changed since the last run.
-        self.reset_secret_scanner();
+        self.reset_cached_scanners();
         // If no paths provided, analyze current directory
         if paths.is_empty() {
             return self.analyze(Path::new("."));
@@ -141,7 +141,7 @@ impl CytoScnPy {
         if !self.include_tests {
             files.retain(|path| !crate::utils::is_test_path_relative_to(path, analysis_root));
         }
-        files.retain(|path| !crate::utils::is_likely_minified(path, None));
+        crate::utils::retain_unminified(&mut files);
         let errors = errors
             .into_iter()
             .map(|error| ParseError {
@@ -228,7 +228,7 @@ impl CytoScnPy {
     /// 7. Returns the final `AnalysisResult`.
     pub fn analyze(&mut self, root_path: &Path) -> AnalysisResult {
         // `config` is public and may have changed since the last run.
-        self.reset_secret_scanner();
+        self.reset_cached_scanners();
         // Collect files and count directories using shared logic
         let analysis_root = analysis_root_for_paths(&[root_path.to_path_buf()]);
         // Discovery already yields each physical source once.

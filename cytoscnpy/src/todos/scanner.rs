@@ -1,7 +1,7 @@
 //! Scanner for TODO/FIXME/HACK/XXX annotations, debug prints, and commented-out code.
 
 use rayon::prelude::*;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::PathBuf;
 
 use crate::commands::utils::find_python_files;
@@ -57,7 +57,7 @@ pub(crate) fn scan_files_with_sources(
     scan_errors.sort_by(|a, b| a.file.cmp(&b.file));
 
     let mut stats = TodoStats::default();
-    let mut affected = HashSet::new();
+    let mut affected = FxHashSet::default();
     for m in &all_matches {
         stats.increment(m.kind);
         affected.insert(&m.file);

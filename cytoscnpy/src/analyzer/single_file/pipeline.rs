@@ -40,6 +40,7 @@ pub(super) struct PipelineOutput<'a> {
     pub(super) fixture_metadata: crate::analyzer::fixtures::FileFixtureMetadata,
     pub(super) file_complexity: f64,
     pub(super) file_mi: f64,
+    pub(super) taint_findings: Vec<crate::taint::types::TaintFinding>,
 }
 
 pub(super) fn run_pipeline<'a>(
@@ -77,6 +78,7 @@ pub(super) fn run_pipeline<'a>(
         fixture_metadata: crate::analyzer::fixtures::FileFixtureMetadata::default(),
         file_complexity: 0.0,
         file_mi: 0.0,
+        taint_findings: Vec::new(),
     };
 
     match ruff_python_parser::parse_module(source) {
@@ -93,6 +95,16 @@ pub(super) fn run_pipeline<'a>(
                 module: &module,
             };
             analyze_parsed_module(&parsed_ctx, &mut output);
+
+            // Directory scans report taint per file; code snippets never did.
+            if matches!(mode, PipelineMode::ProcessFile) {
+                output.taint_findings = analyzer.file_taint_findings(
+                    &module.body,
+                    file_path,
+                    line_index,
+                    ignored_lines,
+                );
+            }
 
             if matches!(mode, PipelineMode::AnalyzeCode) {
                 apply_duck_typing_usage(

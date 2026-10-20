@@ -18,6 +18,18 @@ pub(super) struct ScanIntegrity {
     pub issues: Vec<ScanIssue>,
 }
 
+/// Directories holding deliberately sloppy sample code rather than maintained source.
+///
+/// They are skipped with tests unless `--include-tests` is set, matched relative to
+/// each analysis root so pointing `deslop` directly at such a directory still scans it.
+const FIXTURE_DIRS: &[&str] = &[
+    "examples",
+    "fixtures",
+    "test_fixtures",
+    "testdata",
+    "test_data",
+];
+
 pub(super) struct PythonInventory {
     pub files: Vec<PathBuf>,
     pub sources: crate::utils::sources::SourceCache,
@@ -32,10 +44,14 @@ impl PythonInventory {
         include_tests: bool,
         verbose: bool,
     ) -> Self {
+        let mut excludes = excludes.to_vec();
+        if !include_tests {
+            excludes.extend(FIXTURE_DIRS.iter().map(|dir| format!("{dir}/*")));
+        }
         let (mut files, walk_errors) =
             crate::commands::utils::find_python_files_with_options_and_issues(
                 roots,
-                excludes,
+                &excludes,
                 &[],
                 include_tests,
                 verbose,

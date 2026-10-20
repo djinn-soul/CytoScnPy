@@ -62,45 +62,34 @@ def _string_field(item: JsonObject, key: str, default: str = "?") -> str:
     return value if isinstance(value, str) else str(value)
 
 
+# (JSON key, fixed label, field overriding the label, text field, line field)
+_LINE_FINDINGS: tuple[tuple[str, str, str | None, str, str], ...] = (
+    ("unused_functions", "unused function", None, "name", "line"),
+    ("unused_methods", "unused method", None, "name", "line"),
+    ("unused_classes", "unused class", None, "name", "line"),
+    ("unused_imports", "unused import", None, "name", "line"),
+    ("unused_variables", "unused variable", None, "name", "line"),
+    ("unused_parameters", "unused parameter", None, "name", "line"),
+    ("danger", "danger", "rule_id", "message", "line"),
+    ("quality", "quality", "rule_id", "message", "line"),
+    ("clones", "clones", "rule_id", "message", "line"),
+    ("secrets", "secret", None, "message", "line"),
+    ("taint_findings", "taint", None, "source", "source_line"),
+)
+
+
 def group_by_file(data: JsonObject, anchor: Path | None = None) -> dict[str, list[str]]:
     """Normalize all finding types into {file_path_str: [message, ...]}."""
     anchor = Path() if anchor is None else anchor
     by_file = dependency_findings(data, anchor)
 
-    dead_keys = [
-        ("unused_functions", "unused function"),
-        ("unused_methods", "unused method"),
-        ("unused_classes", "unused class"),
-        ("unused_imports", "unused import"),
-        ("unused_variables", "unused variable"),
-        ("unused_parameters", "unused parameter"),
-    ]
-    for key, label in dead_keys:
+    for key, label, label_key, text_key, line_key in _LINE_FINDINGS:
         for item in _iter_objects(data.get(key, [])):
+            rule = label if label_key is None else _string_field(item, label_key, key)
+            text = _string_field(item, text_key)
+            line = _string_field(item, line_key)
             file = _string_field(item, "file", "")
-            name = _string_field(item, "name")
-            line = _string_field(item, "line")
-            by_file.setdefault(file, []).append(f"  {line}: {label}: {name}")
-
-    for key in ("danger", "quality", "clones"):
-        for item in _iter_objects(data.get(key, [])):
-            file = _string_field(item, "file", "")
-            msg = _string_field(item, "message")
-            rule = _string_field(item, "rule_id", key)
-            line = _string_field(item, "line")
-            by_file.setdefault(file, []).append(f"  {line}: {rule}: {msg}")
-
-    for item in _iter_objects(data.get("secrets", [])):
-        file = _string_field(item, "file", "")
-        msg = _string_field(item, "message")
-        line = _string_field(item, "line")
-        by_file.setdefault(file, []).append(f"  {line}: secret: {msg}")
-
-    for item in _iter_objects(data.get("taint_findings", [])):
-        file = _string_field(item, "file", "")
-        source = _string_field(item, "source")
-        line = _string_field(item, "source_line")
-        by_file.setdefault(file, []).append(f"  {line}: taint: {source}")
+            by_file.setdefault(file, []).append(f"  {line}: {rule}: {text}")
 
     for item in _iter_objects(data.get("parse_errors", [])):
         file = _string_field(item, "file", "")

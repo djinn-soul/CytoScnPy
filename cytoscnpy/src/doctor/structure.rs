@@ -1,5 +1,6 @@
 use ignore::WalkBuilder;
-use std::collections::{BTreeSet, HashMap};
+use rustc_hash::FxHashMap;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
@@ -26,30 +27,6 @@ const SKIP_DIR_NAMES: &[&str] = &[
     ".generated",
     "codegen",
 ];
-
-fn is_test_file(path: &Path) -> bool {
-    let path_str = path.to_string_lossy().to_lowercase();
-    if path_str.contains("/tests/")
-        || path_str.contains("/test/")
-        || path_str.contains("\\tests\\")
-        || path_str.contains("\\test\\")
-    {
-        return true;
-    }
-
-    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-        let lower = file_name.to_lowercase();
-        return lower.starts_with("test_")
-            || lower.ends_with("_test.py")
-            || lower.ends_with(".test.js")
-            || lower.ends_with(".test.ts")
-            || lower.ends_with(".spec.js")
-            || lower.ends_with(".spec.ts")
-            || lower == "conftest.py";
-    }
-
-    false
-}
 
 /// Checks whether a relative path matches any exclusion pattern by component or path prefix.
 fn is_path_excluded(rel: &Path, excludes: &[String]) -> bool {
@@ -91,8 +68,9 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
     let mut largest_file_path = String::new();
     let mut largest_file_lines = 0usize;
 
-    let mut lang_map: HashMap<&'static str, (usize, usize, u64)> = HashMap::new();
+    let mut lang_map: FxHashMap<&'static str, (usize, usize, u64)> = FxHashMap::default();
     let mut top_dirs_set = BTreeSet::new();
+    let mut test_dirs_set = BTreeSet::new();
 
     for result in walker {
         let Ok(entry) = result else {
@@ -145,7 +123,9 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
         total_lines += lines;
         total_bytes += bytes;
 
-        if lines > largest_file_lines {
+        // Lockfiles, generated JSON and docs are not hand-written code, so only
+        // Python files can be the largest file.
+        if language == "Python" && lines > largest_file_lines {
             largest_file_lines = lines;
             largest_file_path = path
                 .strip_prefix(repo_root)
@@ -170,12 +150,18 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
             }
         }
 
-        if is_test_file(path) {
-            test_files += 1;
-            test_lines += lines;
-        } else {
-            source_files += 1;
-            source_lines += lines;
+        // The test ratio compares Python code only; docs and data files are not source.
+        if language == "Python" {
+            if crate::utils::is_test_path_relative_to(path, repo_root) {
+                test_files += 1;
+                test_lines += lines;
+                if let Some(dir) = path.strip_prefix(repo_root).ok().and_then(test_directory) {
+                    test_dirs_set.insert(dir);
+                }
+            } else {
+                source_files += 1;
+                source_lines += lines;
+            }
         }
 
         let entry = lang_map.entry(language).or_insert((0, 0, 0));
@@ -221,5 +207,25 @@ pub fn scan_repo_structure(repo_root: &Path, excludes: &[String]) -> RepoStructu
         languages,
         top_level_directory_count: top_level_directories.len(),
         top_level_directories,
+        test_directories: test_dirs_set.into_iter().collect(),
     }
+}
+
+/// Returns the directory up to the nearest `test`/`tests` component, or the file's parent.
+fn test_directory(rel: &Path) -> Option<String> {
+    let parent = rel.parent()?;
+    let mut prefix = std::path::PathBuf::new();
+    for component in parent.components() {
+        prefix.push(component);
+        let name = component.as_os_str().to_string_lossy().to_lowercase();
+        if name == "tests" || name == "test" {
+            break;
+        }
+    }
+    let dir = prefix.to_string_lossy().replace('\\', "/");
+    Some(if dir.is_empty() {
+        ".".to_owned()
+    } else {
+        format!("{dir}/")
+    })
 }

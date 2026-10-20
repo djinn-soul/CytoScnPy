@@ -1,17 +1,17 @@
 use ruff_python_ast::{self as ast, Stmt};
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 pub(super) struct LcomVisitor {
-    pub(super) used_fields: HashSet<String>,
-    pub(super) called_methods: HashSet<String>,
+    pub(super) used_fields: FxHashSet<String>,
+    pub(super) called_methods: FxHashSet<String>,
     receiver_name: Option<String>,
 }
 
 impl LcomVisitor {
     pub(super) fn new(receiver_name: Option<String>) -> Self {
         Self {
-            used_fields: HashSet::new(),
-            called_methods: HashSet::new(),
+            used_fields: FxHashSet::default(),
+            called_methods: FxHashSet::default(),
             receiver_name,
         }
     }

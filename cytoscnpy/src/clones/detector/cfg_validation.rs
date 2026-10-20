@@ -13,7 +13,7 @@ impl CloneDetector {
         pairs: Vec<ClonePair>,
         subtrees: &[parser::Subtree],
     ) -> Vec<ClonePair> {
-        let subtree_map: std::collections::HashMap<_, _> = subtrees
+        let subtree_map: rustc_hash::FxHashMap<_, _> = subtrees
             .iter()
             .enumerate()
             .map(|(index, subtree)| ((subtree.file.clone(), subtree.start_byte), index))

@@ -7,7 +7,7 @@ from .ground_truth import GroundTruth
 from .json_parsers import JsonParsers
 from .models import Finding, MetricResults
 from .text_parsers import TextParsers
-from .values import normalize_path
+from .values import normalize_path, warn
 
 
 class Verification(GroundTruth, JsonParsers, TextParsers):
@@ -37,8 +37,8 @@ class Verification(GroundTruth, JsonParsers, TextParsers):
             findings = parser(output)
 
         if not findings and output.strip():
-            print(f"DEBUG: {name} produced output but no findings parsed:")
-            print(f"    First 500 chars: {output[:500]}")
+            warn(f"DEBUG: {name} produced output but no findings parsed:")
+            warn(f"    First 500 chars: {output[:500]}")
 
         return findings
 

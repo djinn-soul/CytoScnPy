@@ -177,3 +177,19 @@ fn test_multiple_handlers_mixed() {
         "only the typed pass handler is empty; bare-except is not double-counted"
     );
 }
+
+#[test]
+fn test_import_fallback_handler_not_flagged() {
+    let src =
+        "try:\n    import ujson as json\nexcept (ImportError, ModuleNotFoundError):\n    pass\n";
+    let matches = detect_python_exceptions(src, path());
+    assert_eq!(matches.len(), 0, "{matches:?}");
+}
+
+#[test]
+fn test_mixed_import_and_other_errors_still_flagged() {
+    let src = "try:\n    import ujson\nexcept (ImportError, OSError):\n    pass\n";
+    let matches = detect_python_exceptions(src, path());
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].kind, ExceptionKind::EmptyHandler);
+}

@@ -99,6 +99,18 @@ pub fn is_likely_minified(path: &Path, content: Option<&str>) -> bool {
     }
 }
 
+/// Removes likely minified files, inspecting their contents in parallel.
+/// The remaining files keep their order.
+pub(crate) fn retain_unminified(files: &mut Vec<std::path::PathBuf>) {
+    use rayon::prelude::*;
+    let minified: Vec<bool> = files
+        .par_iter()
+        .map(|path| is_likely_minified(path, None))
+        .collect();
+    let mut minified = minified.into_iter();
+    files.retain(|_| !minified.next().unwrap_or(false));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

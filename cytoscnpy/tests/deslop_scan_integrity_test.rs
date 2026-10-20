@@ -29,7 +29,7 @@ fn unified_report_keeps_findings_and_configured_gates() {
     let temp = TempDir::new().unwrap();
     fs::write(
         temp.path().join("app.py"),
-        "from os import *\nITEMS = []\n# TODO: remove this\ntry:\n    pass\nexcept:\n    pass\n",
+        "from os import *\nitems = []\n# TODO: remove this\ntry:\n    pass\nexcept:\n    pass\n",
     )
     .unwrap();
     fs::write(
@@ -224,7 +224,7 @@ fn multi_root_globals_target_is_not_the_first_root() {
     let temp = TempDir::new().unwrap();
     for dir in ["a", "b"] {
         fs::create_dir(temp.path().join(dir)).unwrap();
-        fs::write(temp.path().join(dir).join("m.py"), "ITEMS = []\n").unwrap();
+        fs::write(temp.path().join(dir).join("m.py"), "items = []\n").unwrap();
     }
     let mut args = vec!["deslop".to_owned()];
     args.extend(["a", "b"].map(|d| temp.path().join(d).to_string_lossy().into_owned()));
@@ -236,4 +236,52 @@ fn multi_root_globals_target_is_not_the_first_root() {
     assert_eq!(value["globals"]["stats"]["total_globals"], 2);
     let target = std::path::Path::new(value["globals"]["target"].as_str().unwrap());
     assert!(!target.ends_with("a"), "{}", target.display());
+}
+
+#[test]
+fn fixture_directories_are_skipped_unless_tests_are_included() {
+    let temp = TempDir::new().unwrap();
+    fs::write(temp.path().join("app.py"), "def run():\n    return 1\n").unwrap();
+    for dir in ["examples", "fixtures/nested"] {
+        fs::create_dir_all(temp.path().join(dir)).unwrap();
+        fs::write(
+            temp.path().join(dir).join("bad.py"),
+            "try:\n    pass\nexcept:\n    pass\n",
+        )
+        .unwrap();
+    }
+
+    let (_, default) = report(temp.path(), &[]);
+    assert_eq!(default["scan_integrity"]["files_discovered"], 1);
+    assert_eq!(default["exceptions"]["stats"]["bare_except_count"], 0);
+
+    // Pointing deslop at a fixture directory still scans it.
+    let (_, direct) = report(&temp.path().join("examples"), &[]);
+    assert_eq!(direct["scan_integrity"]["files_discovered"], 1);
+
+    fs::write(
+        temp.path().join("pyproject.toml"),
+        "[tool.cytoscnpy]\ninclude_tests = true\n",
+    )
+    .unwrap();
+    let (_, included) = report(temp.path(), &[]);
+    assert_eq!(included["scan_integrity"]["files_discovered"], 3);
+}
+
+#[test]
+fn recommendations_rank_by_raw_reduction_and_drop_dot_prefix() {
+    let temp = TempDir::new().unwrap();
+    fs::write(temp.path().join("app.py"), "def run():\n    return 1\n").unwrap();
+    let (_, value) = report(temp.path(), &[]);
+    let recs = value["recommendations"].as_array().unwrap();
+    let raw: Vec<f64> = recs
+        .iter()
+        .map(|r| r["raw_reduction"].as_f64().unwrap())
+        .collect();
+    assert!(raw.windows(2).all(|w| w[0] >= w[1]), "{raw:?}");
+    for rec in recs {
+        for file in rec["affected_files"].as_array().unwrap() {
+            assert!(!file.as_str().unwrap().starts_with("./"), "{file}");
+        }
+    }
 }

@@ -20,6 +20,10 @@ pub fn find_god_modules<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         let fan_in = fan_in_map.get(&node.name).copied().unwrap_or(0);
         let fan_out = fan_out_map.get(&node.name).copied().unwrap_or(0);
         let percentage = (fan_in as f64 / (total - 1) as f64) * 100.0;
+        // Leaf modules (models, types, constants) are stable foundations, not hubs.
+        if fan_out == 0 {
+            continue;
+        }
 
         // Condition 1: Imported by >= 40% of all other modules (when total >= 5)
         if total >= 5 && percentage >= 40.0 && fan_in >= 3 {

@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Dimension rating treated as a critical failure hazard.
+pub const CRITICAL_RATING: u32 = 5;
+
 /// Qualitative verdict band based on the 0-100 Slop Index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Verdict {
@@ -26,6 +29,20 @@ impl Verdict {
             41..=60 => Self::Messy,
             61..=80 => Self::Sloppy,
             _ => Self::Disaster,
+        }
+    }
+
+    /// Prevents a critical dimension from being reported as `Clean`.
+    ///
+    /// The size multiplier can scale a small codebase's index close to zero even when
+    /// a dimension is at maximum slop. The index and gates are unchanged; only the
+    /// label is raised to `Acceptable`, which still passes in CI mode.
+    #[must_use]
+    pub fn with_critical_floor(self, has_critical: bool) -> Self {
+        if has_critical && self == Self::Clean {
+            Self::Acceptable
+        } else {
+            self
         }
     }
 

@@ -1,6 +1,6 @@
 //! Analyzer for unreferenced large functions in isolated files.
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::path::PathBuf;
 
 use rayon::prelude::*;
@@ -61,7 +61,7 @@ pub(crate) fn analyze_unreferenced_with_sources(
         })
         .collect();
     let mut valid_files = Vec::new();
-    let mut extracted_files = HashMap::new();
+    let mut extracted_files = FxHashMap::default();
     let mut scan_issues = Vec::new();
     let mut total_scanned_lines = 0;
     for result in scanned {
@@ -94,7 +94,9 @@ pub(crate) fn analyze_unreferenced_with_sources(
         let mut file_unref_lines = 0usize;
 
         for func in &extracted.functions {
-            if should_skip_function(&func.name, func.line_count, options) {
+            if func.registered_by_decorator
+                || should_skip_function(&func.name, func.line_count, options)
+            {
                 continue;
             }
 
@@ -165,8 +167,8 @@ pub(crate) fn analyze_unreferenced_with_sources(
 /// Identifies files that have incoming references (via imports or word occurrences) from other files.
 fn find_connected_files(
     valid_files: &[PathBuf],
-    extracted_files: &HashMap<PathBuf, ExtractedFile>,
-) -> HashSet<PathBuf> {
+    extracted_files: &FxHashMap<PathBuf, ExtractedFile>,
+) -> FxHashSet<PathBuf> {
     // Map each file to its stem
     let file_stems: Vec<(&PathBuf, String)> = valid_files
         .iter()

@@ -2,11 +2,11 @@ use super::{collect_name_targets, create_finding, LoopDepth, ScopedNames, META_G
 use crate::rules::{Context, Finding, Rule, RuleMetadata};
 use ruff_python_ast::{Expr, ExprContext, Stmt};
 use ruff_text_size::Ranged;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 pub(in crate::rules::quality) struct GlobalUsageInLoopRule {
     loop_depth: LoopDepth,
-    module_globals: HashSet<String>,
+    module_globals: FxHashSet<String>,
     local_scopes: ScopedNames,
     scope_depth: usize,
 }
@@ -14,7 +14,7 @@ impl GlobalUsageInLoopRule {
     pub fn new() -> Self {
         Self {
             loop_depth: LoopDepth::new(),
-            module_globals: HashSet::new(),
+            module_globals: FxHashSet::default(),
             local_scopes: ScopedNames::new(),
             scope_depth: 0,
         }

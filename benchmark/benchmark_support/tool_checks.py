@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .models import ToolCheckInfo, ToolStatus
+from .values import warn
 
 
 def get_tool_path(tool_name: str) -> str | None:
@@ -60,7 +61,7 @@ def _check_python_module(module: str, arg: str) -> ToolStatus:
             "reason": f"Not installed (pip install {module})",
         }
     except Exception as e:  # noqa: BLE001
-        print(f"[-] Check failed for {module}: {e}")
+        warn(f"[-] Check failed for {module}: {e}")
         return {"available": False, "reason": f"Not installed (pip install {module})"}
 
 

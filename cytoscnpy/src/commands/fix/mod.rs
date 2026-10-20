@@ -139,10 +139,7 @@ fn write_fix_mode_header<W: Write>(writer: &mut W, options: &DeadCodeFixOptions)
 
 fn apply_fix_work_items<W: Write>(
     writer: &mut W,
-    items_by_file: std::collections::HashMap<
-        PathBuf,
-        Vec<(&'static str, &crate::visitor::Definition)>,
-    >,
+    items_by_file: rustc_hash::FxHashMap<PathBuf, Vec<(&'static str, &crate::visitor::Definition)>>,
     options: &DeadCodeFixOptions,
 ) -> Result<Vec<FixResult>> {
     let mut work_items: Vec<_> = items_by_file.into_iter().collect();

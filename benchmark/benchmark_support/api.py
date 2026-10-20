@@ -1,6 +1,6 @@
 """Explicit exports retained by the benchmark script for import compatibility."""
 
-from .cli import run_main as run_main
+from .benchmark_cli import run_main as run_main
 from .issues import (
     _count_cytoscnpy_issues as count_cytoscnpy_issues,
 )

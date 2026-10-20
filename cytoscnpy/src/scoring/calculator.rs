@@ -1,4 +1,4 @@
-use super::types::{DimensionScore, ScoreResult, ScoringOptions, Verdict};
+use super::types::{DimensionScore, ScoreResult, ScoringOptions, Verdict, CRITICAL_RATING};
 
 /// Compute the effective size multiplier [0.0, 1.0] based on tokens vs context capacity.
 ///
@@ -43,6 +43,29 @@ pub fn calculate_slop_index(raw_score: f64, size_multiplier: f64) -> u32 {
     (adjusted.round() as u32).min(100)
 }
 
+/// Simulate the raw score reduction (before the size multiplier) if a dimension rating is reduced.
+#[must_use]
+pub fn simulate_raw_reduction(
+    dimensions: &[DimensionScore],
+    dimension_name: &str,
+    proposed_rating: u32,
+) -> f64 {
+    let Some(dim) = dimensions.iter().find(|d| d.name == dimension_name) else {
+        return 0.0;
+    };
+    if proposed_rating >= dim.rating {
+        return 0.0;
+    }
+    let total_weight: u32 = dimensions.iter().map(|d| d.weight).sum();
+    let old_contrib = dim.raw_contribution;
+    let new_contrib = f64::from(dim.weight) * (f64::from(proposed_rating) / 5.0);
+    if total_weight > 100 {
+        ((old_contrib - new_contrib) / f64::from(total_weight)) * 100.0
+    } else {
+        old_contrib - new_contrib
+    }
+}
+
 /// Simulate the score reduction (in index points) if a dimension rating is reduced.
 #[must_use]
 pub fn simulate_reduction(
@@ -51,21 +74,8 @@ pub fn simulate_reduction(
     proposed_rating: u32,
     size_multiplier: f64,
 ) -> u32 {
-    let Some(dim) = dimensions.iter().find(|d| d.name == dimension_name) else {
-        return 0;
-    };
-    if proposed_rating >= dim.rating {
-        return 0;
-    }
-    let total_weight: u32 = dimensions.iter().map(|d| d.weight).sum();
-    let old_contrib = dim.raw_contribution;
-    let new_contrib = f64::from(dim.weight) * (f64::from(proposed_rating) / 5.0);
-    let delta_raw = if total_weight > 100 {
-        ((old_contrib - new_contrib) / f64::from(total_weight)) * 100.0
-    } else {
-        old_contrib - new_contrib
-    };
-    let delta = delta_raw * size_multiplier;
+    let delta =
+        simulate_raw_reduction(dimensions, dimension_name, proposed_rating) * size_multiplier;
     delta.round() as u32
 }
 
@@ -79,7 +89,8 @@ pub fn finalize_score_result(
 ) -> ScoreResult {
     let raw_score = calculate_raw_score(&dimensions);
     let slop_index = calculate_slop_index(raw_score, size_multiplier);
-    let verdict = Verdict::from_index(slop_index);
+    let has_critical = dimensions.iter().any(|d| d.rating >= CRITICAL_RATING);
+    let verdict = Verdict::from_index(slop_index).with_critical_floor(has_critical);
 
     let mut passed_gate = true;
     let mut failure_reason = None;

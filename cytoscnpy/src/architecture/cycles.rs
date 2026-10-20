@@ -1,7 +1,8 @@
 //! Tarjan's Strongly Connected Components (SCC) and elementary cycle extraction.
 
 use super::types::{CycleInfo, ModuleEdge, ModuleNode};
-use std::collections::{HashMap, HashSet, VecDeque};
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::VecDeque;
 
 /// Detects all circular dependency cycles within the directed module graph.
 pub fn detect_cycles(nodes: &[ModuleNode], edges: &[ModuleEdge]) -> (usize, usize, Vec<CycleInfo>) {
@@ -12,7 +13,7 @@ pub fn detect_cycles(nodes: &[ModuleNode], edges: &[ModuleEdge]) -> (usize, usiz
 
     // Build adjacency list and edge lookup: (from_id, to_id) -> &ModuleEdge
     let mut adj = vec![Vec::new(); n];
-    let mut edge_lookup: HashMap<(usize, usize), &ModuleEdge> = HashMap::new();
+    let mut edge_lookup: FxHashMap<(usize, usize), &ModuleEdge> = FxHashMap::default();
 
     for edge in edges {
         if edge.from_id < n && edge.to_id < n && edge.from_id != edge.to_id {
@@ -113,7 +114,7 @@ fn strongconnect(v: usize, t: &mut Tarjan) {
 
 /// Finds a directed cycle path within an SCC starting and ending at the canonical node.
 fn reconstruct_cycle_path(scc: &[usize], adj: &[Vec<usize>]) -> Vec<usize> {
-    let scc_set: HashSet<usize> = scc.iter().copied().collect();
+    let scc_set: FxHashSet<usize> = scc.iter().copied().collect();
     let &start = scc.iter().min().unwrap_or(&0);
 
     // BFS to find shortest path from any neighbor of `start` back to `start`
@@ -127,8 +128,8 @@ fn reconstruct_cycle_path(scc: &[usize], adj: &[Vec<usize>]) -> Vec<usize> {
 
         // BFS from first_hop back to start
         let mut queue = VecDeque::new();
-        let mut parent: HashMap<usize, usize> = HashMap::new();
-        let mut visited: HashSet<usize> = HashSet::new();
+        let mut parent: FxHashMap<usize, usize> = FxHashMap::default();
+        let mut visited: FxHashSet<usize> = FxHashSet::default();
 
         queue.push_back(first_hop);
         visited.insert(first_hop);
@@ -177,7 +178,7 @@ fn reconstruct_cycle_path(scc: &[usize], adj: &[Vec<usize>]) -> Vec<usize> {
 fn build_cycle_info(
     path: &[usize],
     nodes: &[ModuleNode],
-    edge_lookup: &HashMap<(usize, usize), &ModuleEdge>,
+    edge_lookup: &FxHashMap<(usize, usize), &ModuleEdge>,
 ) -> Option<CycleInfo> {
     if path.len() < 2 {
         return None;

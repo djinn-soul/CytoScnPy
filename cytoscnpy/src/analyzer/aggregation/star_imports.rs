@@ -1,10 +1,14 @@
 use super::state::AggregationState;
+use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 impl AggregationState {
     /// Resolves `from x import *` using explicit `__all__` when present and Python's
     /// public-name fallback otherwise. Repeated propagation supports star-import chains.
     pub(super) fn apply_star_import_bindings(&mut self) {
+        if self.all_star_imports.is_empty() {
+            return;
+        }
         let mut public_names = self.collect_public_top_level_names();
         let explicit_exports: FxHashMap<&str, &[String]> = self
             .all_module_exports
@@ -53,18 +57,23 @@ impl AggregationState {
             .iter()
             .map(|(_, source)| source.as_str())
             .collect();
+        // Match in parallel; `collect` keeps definition order, so
+        // the sets below see the same insertion order as a serial scan.
+        let public: Vec<(&str, &str)> = self
+            .all_defs
+            .par_iter()
+            .filter_map(|definition| {
+                let (module, local_name) = definition.full_name.rsplit_once('.')?;
+                (!local_name.starts_with('_') && source_modules.contains(module))
+                    .then_some((module, local_name))
+            })
+            .collect();
         let mut names: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-
-        for definition in &self.all_defs {
-            let Some((module, local_name)) = definition.full_name.rsplit_once('.') else {
-                continue;
-            };
-            if !local_name.starts_with('_') && source_modules.contains(module) {
-                names
-                    .entry(module.to_owned())
-                    .or_default()
-                    .insert(local_name.to_owned());
-            }
+        for (module, local_name) in public {
+            names
+                .entry(module.to_owned())
+                .or_default()
+                .insert(local_name.to_owned());
         }
 
         names

@@ -14,6 +14,13 @@ CACHE = {}
 UNIQUE = set()
 REGISTRY = defaultdict(list)
 CONFIG = dict()
+
+def register(key):
+    ITEMS.append(key)
+    CACHE[key] = key
+    UNIQUE.add(key)
+    REGISTRY[key].append(key)
+    CONFIG.update(key=key)
 ";
     let matches = detect_python_globals(code, Path::new("app.py"));
     assert_eq!(matches.len(), 5);
@@ -25,6 +32,22 @@ CONFIG = dict()
         names,
         vec!["ITEMS", "CACHE", "UNIQUE", "REGISTRY", "CONFIG"]
     );
+}
+
+#[test]
+fn test_python_unmutated_constants_and_dunders_not_flagged() {
+    let code = r#"
+__all__ = ["run"]
+TOOL_NAMES = ["ruff", "mypy"]
+LOOKUP: dict[str, int] = {"a": 1}
+registry = []
+
+class Model:
+    __slots__ = ["name"]
+"#;
+    let matches = detect_python_globals(code, Path::new("api.py"));
+    let names: Vec<_> = matches.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(names, vec!["registry"]);
 }
 
 #[test]
@@ -86,6 +109,8 @@ fn test_python_del_global_and_comprehension() {
     let code = r#"
 COMP_LIST = [x * 2 for x in range(5)]
 COMP_DICT = {k: v for k, v in [("a", 1)]}
+COMP_LIST += [10]
+del COMP_DICT["a"]
 
 def clear_cache():
     global CACHE

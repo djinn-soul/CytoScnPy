@@ -1,7 +1,7 @@
 use super::suggestions::generate_clone_suggestion;
 use crate::clones::{CloneFinding, ClonePair, ConfidenceScorer, FixContext, FixDecision};
 use rayon::prelude::*;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 
 /// Helper to generate findings from clone pairs.
@@ -30,7 +30,7 @@ pub fn generate_clone_findings_with_thresholds(
     use crate::cst::{AstCstMapper, CstParser};
 
     #[cfg(feature = "cst")]
-    let mappers: HashMap<&PathBuf, AstCstMapper> = if with_cst {
+    let mappers: FxHashMap<&PathBuf, AstCstMapper> = if with_cst {
         all_files
             .iter()
             .filter_map(|(p, c)| {
@@ -41,7 +41,7 @@ pub fn generate_clone_findings_with_thresholds(
             })
             .collect()
     } else {
-        HashMap::new()
+        FxHashMap::default()
     };
 
     let scorer = ConfidenceScorer::new(auto_fix_threshold, suggest_threshold);
@@ -99,7 +99,8 @@ pub fn generate_clone_findings_with_thresholds(
         ));
     }
 
-    let mut best_by_location: HashMap<(String, usize, usize, usize), CloneFinding> = HashMap::new();
+    let mut best_by_location: FxHashMap<(String, usize, usize, usize), CloneFinding> =
+        FxHashMap::default();
     for finding in findings {
         let key = (
             finding.file.display().to_string(),
@@ -124,11 +125,11 @@ pub fn generate_clone_findings_with_thresholds(
     }
 
     // Read suppressions only from files that have clone findings.
-    let files_with_findings: std::collections::HashSet<_> = best_by_location
+    let files_with_findings: rustc_hash::FxHashSet<_> = best_by_location
         .values()
         .map(|finding| &finding.file)
         .collect();
-    let ignored_by_file: HashMap<_, _> = all_files
+    let ignored_by_file: FxHashMap<_, _> = all_files
         .iter()
         .filter(|(path, _)| files_with_findings.contains(path))
         .map(|(path, content)| (path, crate::utils::get_ignored_lines(content)))

@@ -31,35 +31,31 @@ def _count_cytoscnpy_issues(stdout: str) -> int:
         return 0
 
 
+def _load_json(stdout: str) -> object | None:
+    """Parse tool output as JSON, or return ``None`` when it is plain text."""
+    try:
+        return cast(object, json.loads(stdout))
+    except json.JSONDecodeError:
+        return None
+
+
 def _count_ruff_issues(stdout: str, output: str) -> int:
     """Count issues from Ruff output."""
-    try:
-        data = cast(object, json.loads(stdout))
-        if isinstance(data, list):
-            data_list = cast(list[object], data)
-            return len(data_list)
-        if isinstance(data, dict):
-            data_dict = cast(dict[str, object], data)
-            issues = data_dict.get("issues")
-            if isinstance(issues, list):
-                issues_list = cast(list[object], issues)
-                return len(issues_list)
-    except (json.JSONDecodeError, KeyError, TypeError):
-        # Preserve the existing text count when the tool does not emit JSON.
-        pass
+    data = _load_json(stdout)
+    if isinstance(data, list):
+        return len(cast(list[object], data))
+    if isinstance(data, dict):
+        issues = cast(dict[str, object], data).get("issues")
+        if isinstance(issues, list):
+            return len(cast(list[object], issues))
     return len(output.strip().splitlines())
 
 
 def _count_pylint_issues(stdout: str, output: str) -> int:
     """Count issues from Pylint output."""
-    try:
-        data = cast(object, json.loads(stdout))
-        if isinstance(data, list):
-            data_list = cast(list[object], data)
-            return len(data_list)
-    except (json.JSONDecodeError, KeyError, TypeError):
-        # Preserve the existing text count when the tool does not emit JSON.
-        pass
+    data = _load_json(stdout)
+    if isinstance(data, list):
+        return len(cast(list[object], data))
     return len([line for line in output.splitlines() if ": " in line])
 
 

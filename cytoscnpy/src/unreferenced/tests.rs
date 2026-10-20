@@ -126,3 +126,24 @@ fn test_analyzer_detects_unreferenced_in_isolated_file() {
     let json_str = String::from_utf8(json_out).unwrap();
     assert!(json_str.contains("\"total_unreferenced_functions\": 1"));
 }
+
+#[test]
+fn test_analyzer_skips_framework_invoked_functions() {
+    let dir = tempdir().unwrap();
+    let main_py = dir.path().join("main.py");
+    let plugin_py = dir.path().join("plugin_hooks.py");
+    fs::write(&main_py, "def start():\n    print('hello')\n").unwrap();
+
+    let body: String = (0..20).map(|_| "    total = len(config.args)\n").collect();
+    let plugin_code = format!(
+        "def pytest_sessionstart(session):\n{body}\n\
+         def pytest_custom_report(config):\n{body}\n\
+         @app.route('/billing')\ndef invoice_listing_view():\n{body}\n\
+         @staticmethod\ndef compute_abandoned_metric_score():\n{body}"
+    );
+    fs::write(&plugin_py, plugin_code).unwrap();
+
+    let res = analyze_unreferenced_files(&[main_py, plugin_py], &UnreferencedOptions::default());
+    let names: Vec<_> = res.items.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(names, vec!["compute_abandoned_metric_score"]);
+}

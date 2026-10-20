@@ -46,7 +46,11 @@ pub(crate) fn convert_byte_range_to_line(error_msg: &str, source: &str) -> Strin
     use regex::Regex;
 
     // Match "at byte range X..Y" or "byte range X..Y"
-    let Ok(re) = Regex::new(r"(?:at )?byte range (\d+)\.\.(\d+)") else {
+    static BYTE_RANGE_RE: std::sync::OnceLock<Option<Regex>> = std::sync::OnceLock::new();
+    let Some(re) = BYTE_RANGE_RE
+        .get_or_init(|| Regex::new(r"(?:at )?byte range (\d+)\.\.(\d+)").ok())
+        .as_ref()
+    else {
         return error_msg.to_owned();
     };
 

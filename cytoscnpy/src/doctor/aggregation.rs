@@ -1,6 +1,6 @@
 //! Aggregation of multiple DoctorResult reports across scan targets.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::Path;
 
 use super::types::{
@@ -25,7 +25,7 @@ pub fn aggregate_doctor_results(
     }
 
     // 1. Merge and deduplicate configs deterministically
-    let mut config_map = HashMap::new();
+    let mut config_map = FxHashMap::default();
     for r in results {
         for c in &r.configs {
             let key = (c.category, c.name.clone(), c.path.clone());
@@ -113,7 +113,7 @@ pub fn aggregate_doctor_results(
         })
         .unwrap_or_default();
 
-    let mut lang_map: HashMap<String, (usize, usize, u64)> = HashMap::new();
+    let mut lang_map: FxHashMap<String, (usize, usize, u64)> = FxHashMap::default();
     for r in results {
         for l in &r.structure.languages {
             let entry = lang_map.entry(l.language.clone()).or_insert((0, 0, 0));
@@ -146,6 +146,13 @@ pub fn aggregate_doctor_results(
     top_level_directories.sort();
     top_level_directories.dedup();
 
+    let mut test_directories: Vec<String> = results
+        .iter()
+        .flat_map(|r| r.structure.test_directories.iter().cloned())
+        .collect();
+    test_directories.sort();
+    test_directories.dedup();
+
     let structure = RepoStructureStats {
         total_files,
         total_lines,
@@ -162,6 +169,7 @@ pub fn aggregate_doctor_results(
         languages,
         top_level_directory_count: top_level_directories.len(),
         top_level_directories,
+        test_directories,
     };
 
     // 4. Merge setup reliability

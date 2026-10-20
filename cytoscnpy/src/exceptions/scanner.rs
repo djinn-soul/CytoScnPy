@@ -3,7 +3,7 @@
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::{Path, PathBuf};
 
 use crate::utils::LineIndex;
@@ -43,6 +43,16 @@ fn is_empty_handler_body(body: &[Stmt]) -> bool {
     })
 }
 
+/// Returns `true` for `except ImportError`-style handlers, the optional-dependency
+/// idiom where execution intentionally falls through to a fallback implementation.
+fn is_import_fallback(type_: &Expr) -> bool {
+    match type_ {
+        Expr::Name(name) => matches!(name.id.as_str(), "ImportError" | "ModuleNotFoundError"),
+        Expr::Tuple(tuple) => !tuple.elts.is_empty() && tuple.elts.iter().all(is_import_fallback),
+        _ => false,
+    }
+}
+
 /// Recursively walks all statements and appends exception-handler anti-patterns.
 fn visit_stmts(
     stmts: &[Stmt],
@@ -69,7 +79,9 @@ fn visit_stmts(
                             description: ExceptionKind::BareExcept.description().to_owned(),
                             snippet: snippet_display.clone(),
                         });
-                    } else if is_empty_handler_body(&h.body) {
+                    } else if is_empty_handler_body(&h.body)
+                        && !h.type_.as_deref().is_some_and(is_import_fallback)
+                    {
                         // Only flag EmptyHandler for typed handlers; bare-excepts are
                         // already captured above and must not inflate empty_handler_count.
                         out.push(ExceptionMatch {
@@ -146,7 +158,7 @@ pub(crate) fn detect_python_exceptions_ast(
 fn aggregate(mut all: Vec<ExceptionMatch>) -> ExceptionsResult {
     all.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
     let mut stats = ExceptionStats::default();
-    let mut affected: HashSet<&PathBuf> = HashSet::new();
+    let mut affected: FxHashSet<&PathBuf> = FxHashSet::default();
     for m in &all {
         stats.increment(m.kind);
         affected.insert(&m.file);

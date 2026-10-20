@@ -60,7 +60,7 @@ pub(crate) fn find_python_files_with_options_and_issues(
                 !crate::utils::is_path_ignored(rel, exclude)
             });
         }
-        files.retain(|path| !crate::utils::is_likely_minified(path, None));
+        crate::utils::retain_unminified(&mut files);
         all_files.extend(files);
     }
     // Overlapping inputs must measure each physical source once.

@@ -1,5 +1,6 @@
 //! Python AST visitor for detecting mutable global state.
 
+mod constants;
 pub(crate) mod mutations;
 
 use ruff_python_ast::{self as ast, Expr, Stmt};
@@ -31,6 +32,7 @@ pub(crate) fn detect_python_globals_ast(
     let mut matches = Vec::new();
 
     scan_statements(body, source, file, &line_index, true, &mut matches);
+    constants::retain_mutable_collections(body, &mut matches);
 
     matches
 }

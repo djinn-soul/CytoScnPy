@@ -3,7 +3,7 @@
 use ruff_python_ast::Stmt;
 use ruff_python_parser::parse_module;
 use ruff_text_size::Ranged;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::{Path, PathBuf};
 
 use crate::utils::LineIndex;
@@ -129,7 +129,7 @@ pub(crate) fn detect_wildcard_imports_ast(
 fn aggregate(mut all: Vec<WildcardMatch>) -> WildcardsResult {
     all.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
     let mut stats = WildcardStats::default();
-    let mut affected: HashSet<&PathBuf> = HashSet::new();
+    let mut affected: FxHashSet<&PathBuf> = FxHashSet::default();
     for m in &all {
         stats.increment();
         affected.insert(&m.file);

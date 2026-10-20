@@ -2,7 +2,12 @@
 use super::super::types::{TodoKind, TodoMatch};
 use std::path::Path;
 
-const OUTPUT_STEMS: &[&str] = &["main", "cli", "cmd", "output", "console", "render"];
+#[path = "python_syntax.rs"]
+mod python_syntax;
+
+const OUTPUT_STEMS: &[&str] = &[
+    "main", "cli", "cmd", "output", "console", "render", "report", "reports", "reporter",
+];
 
 const OUTPUT_PARENT_DIRS: &[&str] = &["output", "cli", "console", "render"];
 
@@ -47,15 +52,8 @@ fn truncate_snippet(s: &str) -> &str {
 /// does not contain a comment. Ignores comment markers inside string literals.
 fn extract_comment(line: &str) -> Option<&str> {
     let t = line.trim_start();
-    if let Some(s) = t
-        .strip_prefix("//")
-        .or_else(|| t.strip_prefix('#'))
-        .or_else(|| t.strip_prefix("/*"))
-    {
+    if let Some(s) = t.strip_prefix('#') {
         return Some(s);
-    }
-    if t.starts_with('*') && !t.starts_with("**") {
-        return Some(&t[1..]);
     }
 
     let (mut in_q, mut prev) = (None, '\0');
@@ -68,13 +66,8 @@ fn extract_comment(line: &str) -> Option<&str> {
             } else {
                 in_q
             };
-        } else if in_q.is_none() {
-            if c == '#' {
-                return Some(&line[i + 1..]);
-            }
-            if line[i..].starts_with("//") {
-                return Some(&line[i + 2..]);
-            }
+        } else if in_q.is_none() && c == '#' {
+            return Some(&line[i + 1..]);
         }
         prev = c;
     }
@@ -89,32 +82,21 @@ fn is_commented_code_line(line: &str) -> bool {
     if body.is_empty() {
         return false;
     }
-    if ["def ", "class ", "fn ", "func "]
-        .iter()
-        .any(|k| body.starts_with(k))
-    {
-        return body.contains('(') || body.ends_with(':') || body.ends_with('{');
+    if ["def ", "class "].iter().any(|k| body.starts_with(k)) {
+        return body.contains('(') || body.ends_with(':');
     }
-    if body.starts_with("import ") {
-        return !body.contains(" from ") && !body.contains(" to ") && !body.contains(',');
-    }
-    if body.starts_with("from ") {
-        return body.contains(" import ");
+    if body.starts_with("import ") || body.starts_with("from ") {
+        return python_syntax::is_import_statement(body);
     }
     if body.starts_with("if ") || body.starts_with("while ") || body.starts_with("for ") {
         return body.ends_with(':')
-            || body.ends_with('{')
             || body.contains("==")
             || body.contains("!=")
             || body.contains("<=")
             || body.contains(">=");
     }
-    if body.starts_with("let ") || body.starts_with("var ") || body.starts_with("const ") {
-        return body.contains('=') || body.ends_with(';');
-    }
     if body.starts_with("return ") {
-        return body.ends_with(';')
-            || body.contains('(')
+        return body.contains('(')
             || body.contains("None")
             || body.contains("True")
             || body.contains("False");
@@ -125,16 +107,7 @@ fn is_commented_code_line(line: &str) -> bool {
 /// Returns `true` when `line` looks like a debug print in a non-output context.
 fn is_debug_print_line(line: &str) -> bool {
     let t = line.trim_start();
-    const PRINTS: &[&str] = &[
-        "print(",
-        "console.log(",
-        "fmt.Print",
-        "System.out.print",
-        "puts ",
-        "dbg!(",
-        "println!(",
-    ];
-    PRINTS.iter().any(|&p| t.starts_with(p))
+    t.starts_with("print(")
 }
 
 /// Returns the `TodoKind` for a `TODO`/`FIXME`/`HACK`/`XXX` marker if one
@@ -178,6 +151,8 @@ fn contains_word(text: &str, word: &str) -> bool {
 
 /// Scans a single source file's text and appends matches to `out`.
 pub fn scan_file_content(path: &Path, content: &str, skip_ctx: bool, out: &mut Vec<TodoMatch>) {
+    // Prints in command-line scripts are their output, not leftover debugging.
+    let skip_ctx = skip_ctx || python_syntax::is_script_source(content);
     let mut push_match = |line_num: usize, line: &str, kind: TodoKind| {
         out.push(TodoMatch {
             file: path.to_path_buf(),

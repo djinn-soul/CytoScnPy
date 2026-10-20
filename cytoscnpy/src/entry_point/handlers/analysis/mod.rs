@@ -151,6 +151,7 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
 
     let exit_code = apply_gates(cli_var, config, analysis_root, &context, &run, writer)?;
     writer.flush()?;
+    crate::utils::drop_in_background(run);
     Ok(exit_code)
 }
 

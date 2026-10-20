@@ -40,6 +40,7 @@ fn test_aggregate_doctor_results_symmetry() {
             languages: vec![],
             top_level_directories: vec![name.to_owned()],
             top_level_directory_count: 1,
+            test_directories: vec![format!("{name}/tests/")],
         },
         reliability: SetupReliabilityScore {
             score: 20,

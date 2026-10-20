@@ -135,45 +135,48 @@ impl TaintAnalyzer {
     /// Analyzes a single file.
     #[must_use]
     pub fn analyze_file(&self, source: &str, file_path: &PathBuf) -> Vec<TaintFinding> {
-        let mut findings = Vec::new();
-
-        let stmts = match ruff_python_parser::parse_module(source) {
-            Ok(parsed) => parsed.into_syntax().body,
-            Err(_) => return findings,
+        let Ok(parsed) = ruff_python_parser::parse_module(source) else {
+            return Vec::new();
         };
+        self.analyze_module(
+            &parsed.into_syntax().body,
+            file_path,
+            &LineIndex::new(source),
+        )
+    }
 
-        let line_index = LineIndex::new(source);
+    /// Analyzes the statements of an already parsed file.
+    #[must_use]
+    pub fn analyze_module(
+        &self,
+        stmts: &[Stmt],
+        file_path: &PathBuf,
+        line_index: &LineIndex,
+    ) -> Vec<TaintFinding> {
+        let mut findings = Vec::new();
 
         if self.config.intraprocedural {
             let mut module_state = super::propagation::TaintState::new();
-            for stmt in &stmts {
+            for stmt in stmts {
                 intraprocedural::analyze_stmt_public(
                     stmt,
                     self,
                     &mut module_state,
                     &mut findings,
                     file_path,
-                    &line_index,
+                    line_index,
                 );
             }
 
-            for stmt in &stmts {
+            for stmt in stmts {
                 if let Stmt::FunctionDef(func) = stmt {
                     if func.is_async {
                         findings.extend(intraprocedural::analyze_async_function(
-                            func,
-                            self,
-                            file_path,
-                            &line_index,
-                            None,
+                            func, self, file_path, line_index, None,
                         ));
                     } else {
                         findings.extend(intraprocedural::analyze_function(
-                            func,
-                            self,
-                            file_path,
-                            &line_index,
-                            None,
+                            func, self, file_path, line_index, None,
                         ));
                     }
                 }
@@ -182,16 +185,13 @@ impl TaintAnalyzer {
 
         if self.config.interprocedural {
             findings.extend(interprocedural::analyze_module(
-                &stmts,
-                self,
-                file_path,
-                &line_index,
+                stmts, self, file_path, line_index,
             ));
         }
 
         if self.config.crossfile {
             let mut cross_file = CrossFileAnalyzer::new();
-            findings.extend(cross_file.analyze_file(self, file_path, &stmts, &line_index));
+            findings.extend(cross_file.analyze_file(self, file_path, stmts, line_index));
         }
 
         findings.sort_by(|a, b| {

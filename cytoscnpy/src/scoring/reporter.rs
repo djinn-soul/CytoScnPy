@@ -37,6 +37,7 @@ pub fn format_terminal_report(result: &ScoreResult, verbose: bool) -> String {
         result.size_multiplier
     )));
     out.push_str("+-------------------------------------------------------------------------+\n\n");
+    out.push_str(&critical_note(result));
 
     if let Some(summary) = &result.summary {
         out.push_str(&summary.format_terminal_summary());
@@ -124,7 +125,10 @@ pub fn format_terminal_report(result: &ScoreResult, verbose: bool) -> String {
             .enumerate()
         {
             let impact = if rec.estimated_reduction > 0 {
-                format!("[-{} pts] ", rec.estimated_reduction)
+                format!(
+                    "[-{} pts, {:.1} raw] ",
+                    rec.estimated_reduction, rec.raw_reduction
+                )
             } else {
                 String::new()
             };
@@ -193,4 +197,24 @@ pub fn print_json_report<W: Write>(result: &ScoreResult, writer: &mut W) -> Resu
     let json_str = serde_json::to_string_pretty(result)?;
     writeln!(writer, "{json_str}")?;
     Ok(())
+}
+
+/// Explains when the size multiplier hides critical dimensions behind a low index.
+fn critical_note(result: &ScoreResult) -> String {
+    let critical: Vec<&str> = result
+        .dimensions
+        .iter()
+        .filter(|d| d.rating >= super::types::CRITICAL_RATING)
+        .map(|d| d.name.as_str())
+        .collect();
+    if critical.is_empty() || result.size_multiplier >= 1.0 {
+        return String::new();
+    }
+    format!(
+        "Note: {} critical dimension(s) ({}) contribute {:.2} raw points; the {:.2}x size multiplier scales the index down.\n\n",
+        critical.len(),
+        critical.join(", "),
+        result.raw_score,
+        result.size_multiplier
+    )
 }

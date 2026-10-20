@@ -77,6 +77,9 @@ pub struct CytoScnPy {
     /// Secret scanner built from `config` on first use and shared by every
     /// file, so custom patterns compile once per run.
     secret_scanner: std::sync::OnceLock<SecretScanner>,
+    /// Taint analyzer built from `config` on first use; `None` when taint
+    /// analysis is disabled.
+    taint_analyzer: std::sync::OnceLock<Option<crate::taint::analyzer::TaintAnalyzer>>,
 }
 
 impl Default for CytoScnPy {
@@ -101,6 +104,7 @@ impl Default for CytoScnPy {
             whitelist_matcher: None,
             per_file_ignore_rules: Vec::new(),
             secret_scanner: std::sync::OnceLock::new(),
+            taint_analyzer: std::sync::OnceLock::new(),
         }
     }
 }
@@ -113,9 +117,10 @@ impl CytoScnPy {
             .get_or_init(|| SecretScanner::new(&self.config.cytoscnpy.secrets_config))
     }
 
-    /// Drops the cached secret scanner so the next scan reads `config` again.
-    pub(crate) fn reset_secret_scanner(&mut self) {
+    /// Drops the cached scanners so the next scan reads `config` again.
+    pub(crate) fn reset_cached_scanners(&mut self) {
         self.secret_scanner = std::sync::OnceLock::new();
+        self.taint_analyzer = std::sync::OnceLock::new();
     }
 
     /// Returns whether a rule id should be ignored for a given file path.

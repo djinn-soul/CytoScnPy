@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import cast
+
+
+def warn(message: str) -> None:
+    """Write a diagnostic to stderr so it never mixes with report output."""
+    sys.stderr.write(f"{message}\n")
 
 
 def normalize_path(p: str) -> str:

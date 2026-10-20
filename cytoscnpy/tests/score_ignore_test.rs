@@ -21,7 +21,7 @@ fn test_score_repeatable_ignore_patterns() {
     fs::create_dir_all(root.join("src/legacy")).unwrap();
     let mut globals_code = String::new();
     for i in 0..25 {
-        let _ = writeln!(globals_code, "GLOBAL_{i} = [{i}]");
+        let _ = writeln!(globals_code, "global_{i} = [{i}]");
     }
     globals_code.push_str("def fail():\n    pass\n");
     fs::write(root.join("src/legacy/dirty.py"), globals_code).unwrap();

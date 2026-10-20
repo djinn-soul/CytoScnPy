@@ -7,7 +7,7 @@ use std::path::Path;
 #[test]
 fn only_exact_main_equalities_suppress_import_time_findings() {
     for condition in ["__name__ == '__main__'", "'__main__' == __name__"] {
-        let source = format!("if {condition}:\n    STATE = []\n    sys.exit(1)\n");
+        let source = format!("if {condition}:\n    state = []\n    sys.exit(1)\n");
         let globals =
             cytoscnpy::globals::python::detect_python_globals(&source, Path::new("app.py"));
         assert!(globals.is_empty(), "expected empty, got {globals:?}");
@@ -27,7 +27,7 @@ fn only_exact_main_equalities_suppress_import_time_findings() {
         "__name__ in ['app']",
         "__name__ == '__main__' == 'app'",
     ] {
-        let source = format!("if {condition}:\n    STATE = []\n    sys.exit(1)\n");
+        let source = format!("if {condition}:\n    state = []\n    sys.exit(1)\n");
         assert_eq!(
             cytoscnpy::globals::python::detect_python_globals(&source, Path::new("app.py")).len(),
             1,
@@ -130,7 +130,7 @@ mypy = '*'
 
 #[test]
 fn main_guard_else_branch_still_runs_during_import() {
-    let source = "if __name__ == '__main__':\n    pass\nelse:\n    STATE = []\n    sys.exit(1)\n";
+    let source = "if __name__ == '__main__':\n    pass\nelse:\n    state = []\n    sys.exit(1)\n";
     assert_eq!(
         cytoscnpy::globals::python::detect_python_globals(source, Path::new("app.py")).len(),
         1

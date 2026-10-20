@@ -98,8 +98,13 @@ pub(crate) fn run_analysis<W: std::io::Write>(
         analyzer.debug_delay_ms = Some(delay_ms);
     }
 
-    // Count files first to create progress bar with accurate total
-    let total_files = analyzer.count_files(effective_paths);
+    // Count files first to create progress bar with accurate total. Structured
+    // output shows no progress, so skip the extra directory walk.
+    let total_files = if context.is_structured {
+        0
+    } else {
+        analyzer.count_files(effective_paths)
+    };
 
     // Create progress bar with file count for visual feedback
     let progress: Option<indicatif::ProgressBar> = if context.is_structured {

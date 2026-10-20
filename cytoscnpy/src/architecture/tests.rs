@@ -88,6 +88,18 @@ fn test_three_node_cycle() {
 }
 
 #[test]
+fn test_leaf_module_with_high_fan_in_is_not_god_module() {
+    let nodes: Vec<_> = (0..20)
+        .map(|i| make_node(i, &format!("pkg.mod{i}"), "pkg"))
+        .collect();
+    let fan_in_map = HashMap::from([("pkg.mod0".to_owned(), 12)]);
+    let fan_out_map = HashMap::from([("pkg.mod0".to_owned(), 0)]);
+
+    let god_modules = find_god_modules(&nodes, &fan_in_map, &fan_out_map);
+    assert_eq!(god_modules.len(), 0, "{god_modules:?}");
+}
+
+#[test]
 fn test_god_module_detection_high_percentage() {
     let mut nodes = Vec::new();
     for i in 0..10 {

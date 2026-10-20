@@ -1,5 +1,5 @@
 use super::types::{ConfigCategory, DetectedConfig};
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::fs;
 use std::path::Path;
 
@@ -44,7 +44,7 @@ pub(super) fn detect_ini_tool_configs(repo_root: &Path) -> Vec<DetectedConfig> {
     detected
 }
 
-fn ini_sections(contents: &str) -> HashSet<String> {
+fn ini_sections(contents: &str) -> FxHashSet<String> {
     contents
         .lines()
         .filter_map(|line| {

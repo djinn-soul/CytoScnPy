@@ -1,11 +1,11 @@
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Return repository-relative paths committed at HEAD. An unavailable inventory
 /// must not make uncommitted files look like mature, frozen modules.
-pub(crate) fn tracked_paths(git_root: &Path) -> io::Result<HashSet<PathBuf>> {
+pub(crate) fn tracked_paths(git_root: &Path) -> io::Result<FxHashSet<PathBuf>> {
     let output = Command::new("git")
         .args(["ls-tree", "-r", "-z", "--name-only", "HEAD"])
         .current_dir(git_root)

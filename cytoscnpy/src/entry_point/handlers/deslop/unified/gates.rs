@@ -279,3 +279,21 @@ fn failure(check: &'static str, actual: String, limit: String) -> GateFailure {
         limit,
     }
 }
+
+/// Makes the score's gate verdict reflect every unified gate, not only the slop index.
+pub(super) fn apply_gate_outcome(
+    scoring: &mut crate::scoring::ScoreResult,
+    failures: &[GateFailure],
+) {
+    scoring.passed_gate = failures.is_empty();
+    if scoring.passed_gate {
+        scoring.failure_reason = None;
+    } else if failures.iter().any(|f| f.check != "slop_index") {
+        let checks: Vec<&str> = failures.iter().map(|f| f.check).collect();
+        scoring.failure_reason = Some(format!(
+            "{} DeSlopify gate(s) failed: {}",
+            failures.len(),
+            checks.join(", ")
+        ));
+    }
+}

@@ -1,7 +1,7 @@
 //! Parallel Python file scanner for singleton pattern detection.
 
 use rayon::prelude::*;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::PathBuf;
 
 use super::python::detect_python_singletons_ast;
@@ -12,7 +12,7 @@ fn aggregate(mut matches: Vec<SingletonMatch>, files_scanned: usize) -> Singleto
     matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
     let mut stats = SingletonStats::default();
-    let mut affected_files = HashSet::new();
+    let mut affected_files = FxHashSet::default();
 
     for m in &matches {
         stats.record(m.kind);

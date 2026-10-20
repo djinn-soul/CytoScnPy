@@ -59,8 +59,8 @@ def get_file_stats(binary: Path, dataset: Path) -> tuple[int, int]:
             summary = data.get("analysis_summary", {})
             files = summary.get("total_files", 0)
             lines = summary.get("total_lines_analyzed", 0)
-    except (json.JSONDecodeError, subprocess.SubprocessError, OSError):
-        pass
+    except (json.JSONDecodeError, subprocess.SubprocessError, OSError) as e:
+        print(f"[-] Could not collect file stats for {dataset}: {e}", file=sys.stderr)
 
     return files, lines
 

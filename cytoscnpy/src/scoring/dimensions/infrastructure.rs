@@ -4,11 +4,11 @@ use crate::scoring::types::DimensionScore;
 
 /// Dimension 1: Setup reliability (weight: 10)
 ///
-/// Evaluates presence of package managers, lockfiles, containerization,
-/// build scripts, and ignore rules.
+/// Rates one point per missing signal: dependency manager, lockfile, Docker
+/// config, and `.gitignore`. Build scripts are optional and not scored.
 #[must_use]
 pub fn setup_reliability(ctx: &ScoringContext<'_>) -> DimensionScore {
-    let mut rating = 5u32;
+    let mut rating = 0u32;
     let mut evidence_parts = Vec::new();
 
     if let Some(doc) = ctx.doctor {
@@ -16,46 +16,27 @@ pub fn setup_reliability(ctx: &ScoringContext<'_>) -> DimensionScore {
             .configs
             .iter()
             .any(|c| c.category == ConfigCategory::DependencyManager);
-        let has_lock = doc.reliability.has_lockfile;
-        let has_docker = doc.reliability.has_docker;
-        let has_build = doc.reliability.has_build_script;
-        let has_ignore = doc.reliability.has_gitignore;
-
-        if has_dep {
-            rating = rating.saturating_sub(1);
-        } else {
-            evidence_parts.push("no dependency manager".to_owned());
-        }
-
-        if has_lock {
-            rating = rating.saturating_sub(1);
-        } else {
-            evidence_parts.push("no lockfile".to_owned());
-        }
-
-        if has_docker {
-            rating = rating.saturating_sub(1);
-            evidence_parts.push("Docker configured".to_owned());
-        } else {
-            evidence_parts.push("no Docker config".to_owned());
-        }
-
-        if has_build {
-            rating = rating.saturating_sub(1);
-            evidence_parts.push("build script present".to_owned());
-        }
-
-        if has_ignore {
-            rating = rating.saturating_sub(1);
-        } else {
-            evidence_parts.push("no .gitignore".to_owned());
+        // A task runner (Makefile, justfile, noxfile) is optional: Cargo, uv and npm
+        // projects already build through their dependency manager.
+        let required = [
+            (has_dep, "no dependency manager"),
+            (doc.reliability.has_lockfile, "no lockfile"),
+            (doc.reliability.has_docker, "no Docker config"),
+            (doc.reliability.has_gitignore, "no .gitignore"),
+        ];
+        for (present, missing) in required {
+            if !present {
+                rating += 1;
+                evidence_parts.push(missing.to_owned());
+            }
         }
     } else {
+        rating = 5;
         evidence_parts.push("no repository tooling scan data".to_owned());
     }
 
     let evidence = if evidence_parts.is_empty() {
-        "All setup signals present and valid".to_owned()
+        "dependency manager, lockfile, Docker and .gitignore present".to_owned()
     } else {
         evidence_parts.join(", ")
     };

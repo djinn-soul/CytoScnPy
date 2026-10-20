@@ -2,7 +2,7 @@
 
 use ruff_python_ast::{self as ast, Stmt};
 use ruff_text_size::Ranged;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::Path;
 
 use super::super::types::{GlobalKind, GlobalMatch};
@@ -17,7 +17,7 @@ pub(crate) fn detect_function_global_statements(
     line_index: &LineIndex,
     matches: &mut Vec<GlobalMatch>,
 ) {
-    let mut declared_globals = HashSet::new();
+    let mut declared_globals = FxHashSet::default();
     collect_declared_globals(body, &mut declared_globals);
 
     if declared_globals.is_empty() {
@@ -27,7 +27,7 @@ pub(crate) fn detect_function_global_statements(
     find_global_mutations(body, &declared_globals, source, file, line_index, matches);
 }
 
-fn collect_declared_globals(stmts: &[Stmt], declared: &mut HashSet<String>) {
+fn collect_declared_globals(stmts: &[Stmt], declared: &mut FxHashSet<String>) {
     for stmt in stmts {
         match stmt {
             Stmt::Global(g) => {
@@ -73,7 +73,7 @@ fn collect_declared_globals(stmts: &[Stmt], declared: &mut HashSet<String>) {
 
 fn find_global_mutations(
     stmts: &[Stmt],
-    declared: &HashSet<String>,
+    declared: &FxHashSet<String>,
     source: &str,
     file: &Path,
     line_index: &LineIndex,
@@ -146,7 +146,7 @@ fn find_global_mutations(
 
 fn record_matching_targets(
     target: &ruff_python_ast::Expr,
-    declared: &HashSet<String>,
+    declared: &FxHashSet<String>,
     source: &str,
     file: &Path,
     line_index: &LineIndex,

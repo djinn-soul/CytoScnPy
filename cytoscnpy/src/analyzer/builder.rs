@@ -45,6 +45,7 @@ impl CytoScnPy {
             whitelist_matcher: None,
             per_file_ignore_rules,
             secret_scanner: std::sync::OnceLock::new(),
+            taint_analyzer: std::sync::OnceLock::new(),
         }
     }
 
@@ -129,7 +130,7 @@ impl CytoScnPy {
     #[must_use]
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = config;
-        self.reset_secret_scanner();
+        self.reset_cached_scanners();
         self.per_file_ignore_rules =
             build_per_file_ignore_rules(self.config.cytoscnpy.per_file_ignores.as_ref());
         self

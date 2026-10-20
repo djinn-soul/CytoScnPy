@@ -56,7 +56,7 @@ pub(crate) fn analyze_context_with_sources(
     config: &ContextConfig,
     sources: Option<&crate::utils::sources::SourceCache>,
 ) -> ContextAnalysisResult {
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = rustc_hash::FxHashSet::default();
     let scanned_infos: Vec<ScannedFileInfo> = file_paths
         .iter()
         .filter(|path| seen.insert(path.canonicalize().unwrap_or_else(|_| (*path).clone())))

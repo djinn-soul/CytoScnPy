@@ -24,7 +24,7 @@ pub fn collect_runtime_candidates(
             .matches
             .iter()
             .map(|item| item.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();
@@ -59,7 +59,7 @@ pub fn collect_runtime_candidates(
             .matches
             .iter()
             .map(|item| item.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();
@@ -89,7 +89,7 @@ pub fn collect_runtime_candidates(
             .matches
             .iter()
             .map(|item| item.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();
@@ -120,7 +120,7 @@ pub fn collect_runtime_candidates(
             .iter()
             .filter(|m| m.kind == crate::anti_patterns::AntiPatternKind::MagicNumber)
             .map(|item| item.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();
@@ -150,7 +150,7 @@ pub fn collect_runtime_candidates(
             .iter()
             .filter(|m| m.kind == crate::anti_patterns::AntiPatternKind::DeeplyNestedCallback)
             .map(|item| item.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();
@@ -179,7 +179,7 @@ pub fn collect_runtime_candidates(
             .matches
             .iter()
             .map(|item| item.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();

@@ -24,7 +24,7 @@ pub fn collect_context_candidates(
             .items
             .iter()
             .map(|f| f.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();
@@ -128,7 +128,7 @@ pub fn collect_context_candidates(
         let worst_files: Vec<String> = complex_funcs
             .iter()
             .map(|f| f.file.to_string_lossy().into_owned())
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<rustc_hash::FxHashSet<_>>()
             .into_iter()
             .take(5)
             .collect();

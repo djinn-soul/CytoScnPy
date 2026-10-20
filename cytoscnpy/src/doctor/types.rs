@@ -136,9 +136,9 @@ pub struct RepoStructureStats {
     pub test_to_source_ratio: f64,
     /// Average lines per file.
     pub avg_file_lines: usize,
-    /// Path of the largest file.
+    /// Path of the largest Python file.
     pub largest_file_path: String,
-    /// Lines in the largest file.
+    /// Lines in the largest Python file.
     pub largest_file_lines: usize,
     /// Maximum directory depth in the project.
     pub max_directory_depth: usize,
@@ -150,6 +150,9 @@ pub struct RepoStructureStats {
     /// Number of top-level project directories.
     #[serde(default)]
     pub top_level_directory_count: usize,
+    /// Directories that hold test files, relative to the repository root.
+    #[serde(default)]
+    pub test_directories: Vec<String>,
 }
 
 /// Verdict on repository setup readiness.

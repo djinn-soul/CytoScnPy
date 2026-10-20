@@ -17,7 +17,7 @@ pub struct SecretsConfig {
     /// Secrets in comments are often accidentally committed credentials.
     #[serde(default = "default_scan_comments")]
     pub scan_comments: bool,
-    /// Whether to skip docstrings in entropy scanning (default: true).
+    /// Whether to skip docstrings in entropy scanning (default: false).
     /// Uses AST-based detection to identify actual docstrings.
     #[serde(default = "default_skip_docstrings")]
     pub skip_docstrings: bool,

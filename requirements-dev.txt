@@ -5,7 +5,7 @@ backrefs==6.2
 basedpyright==1.38.1
 boolean-py==5.0
 cachecontrol==0.14.4
-certifi==2026.1.4
+certifi==2026.10.19
 charset-normalizer==3.4.4
 click==8.4.2
 colorama==0.4.6

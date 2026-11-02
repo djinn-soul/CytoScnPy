@@ -2,7 +2,7 @@ psutil==7.2.2
 uncalled==0.1.8
 vulture==2.16
 flake8==7.3.0
-pylint==4.0.8
+pylint==4.0.9
 ruff==0.16.7
 dead==2.1.0
 skylos==4.36.1

@@ -24,7 +24,7 @@ CytoScnPy statically analyzes your code to find unused symbols. It detects:
 - **Variables**: Local variables assigned but never read.
 - **Parameters**: Function parameters that are never used.
 
-Dead code findings use the rule ID `CSP-V001`. Each kind also has its own ID for
+Dead code findings use the rule ID [`CSP-V001`](rule/CSP-V001.md). Each kind also has its own ID for
 suppression: `unused-function`, `unused-method`, `unused-class`,
 `unused-import`, `unused-variable`, and `unused-parameter`.
 

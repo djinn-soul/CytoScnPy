@@ -405,6 +405,10 @@ name = "another_symbol"
 pattern = "wildcard"
 ```
 
+An invalid `regex` name or `file` glob, whether in the config or in a TOML file
+passed with `--whitelist`, stops the scan with an error that names the entry.
+Before this, such entries were dropped without a warning.
+
 ### Advanced Configuration
 
 #### Secret Scanning

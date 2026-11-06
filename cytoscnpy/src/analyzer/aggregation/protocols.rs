@@ -1,9 +1,8 @@
 //! Structural protocol matching: methods a class implements implicitly.
 
+use crate::constants::RUNTIME_PROTOCOL_REF_PREFIX;
 use crate::visitor::Definition;
 use rustc_hash::{FxHashMap, FxHashSet};
-
-const RUNTIME_PROTOCOL_REF_PREFIX: &str = "__csp_runtime_protocol__.";
 
 pub(super) fn collect_class_methods(
     definitions: &[Definition],

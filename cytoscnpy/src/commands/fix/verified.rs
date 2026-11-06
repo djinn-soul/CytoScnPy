@@ -25,10 +25,9 @@ pub(super) struct VerifiedFix {
 }
 
 impl<'a> FixSource<'a> {
+    #[cfg_attr(not(feature = "cst"), allow(unused_variables))]
     pub(super) fn parse(content: &'a str, with_cst: bool) -> Result<Self> {
         let module = ruff_python_parser::parse_module(content)?.into_syntax();
-        #[cfg(not(feature = "cst"))]
-        let _ = with_cst;
         Ok(Self {
             content,
             module_names: ModuleNames::new(&module),

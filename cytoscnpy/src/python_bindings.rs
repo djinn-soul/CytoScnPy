@@ -111,6 +111,11 @@ fn scan_json(
     let config = crate::config::Config::try_load_from_path(&root).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Configuration error: {e}"))
     })?;
+    for entry in &config.cytoscnpy.whitelist {
+        entry.validate().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Configuration error: {e}"))
+        })?;
+    }
 
     let conf = confidence.or(config.cytoscnpy.confidence).unwrap_or(60);
     validate_confidence(conf)?;

@@ -108,6 +108,9 @@ fn load_toml_whitelist_from_str(content: &str, _path: &Path) -> io::Result<White
     let entries = extract_toml_whitelist_entries(&value);
 
     for entry in entries {
+        entry
+            .validate()
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
         whitelist.add_entry(entry);
     }
 

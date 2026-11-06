@@ -16,6 +16,7 @@ pub fn generate_clone_findings(
 
 /// Generates clone findings with explicit confidence thresholds.
 #[must_use]
+#[cfg_attr(not(feature = "cst"), allow(unused_variables))]
 pub fn generate_clone_findings_with_thresholds(
     pairs: &[ClonePair],
     all_files: &[(PathBuf, String)],
@@ -23,9 +24,6 @@ pub fn generate_clone_findings_with_thresholds(
     auto_fix_threshold: u8,
     suggest_threshold: u8,
 ) -> Vec<CloneFinding> {
-    #[cfg(not(feature = "cst"))]
-    let _ = with_cst;
-
     #[cfg(feature = "cst")]
     use crate::cst::{AstCstMapper, CstParser};
 
@@ -68,9 +66,6 @@ pub fn generate_clone_findings_with_thresholds(
                     }
                     ctx
                 };
-
-                #[cfg(not(feature = "cst"))]
-                let _ = inst;
 
                 let confidence = scorer.score(pair, &ctx);
                 (confidence.score, confidence.decision)

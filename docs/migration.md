@@ -1,5 +1,24 @@
 # Migration Guide
 
+## Upgrading to v1.3.1
+
+### Compatibility
+
+- **Pre-commit Hooks**: Update the hook `rev` to `v1.3.1`.
+
+### Behavioral Changes
+
+- **Notebook cell locations**: With `--include-ipynb --ipynb-cells`, finding lines and the byte offsets of suggested fixes are now relative to the finding's cell (`cell_number`, counting markdown cells as nbformat does), and stable IDs of cell findings include the cell. Tools that read these lines as positions in the joined notebook code must use the cell instead.
+- **VS Code settings override project config both ways**: A scan, `includeTests`, or `includeIpynb` setting explicitly set to `false` now disables it even when project configuration enables it. Unset settings still leave the choice to the project configuration.
+- **Monorepos in VS Code**: Each folder with its own `.cytoscnpy.toml`, or a `pyproject.toml` with a `[tool.cytoscnpy]` table, is scanned separately with its own configuration.
+
+### New Options
+
+- `--no-secrets`, `--no-danger`, `--no-quality`, `--no-clones`, `--no-include-tests`, and `--no-include-ipynb` turn off what project configuration turns on.
+- `--force-exclude` applies folder exclusions to files passed directly by path, as pre-commit hooks pass them.
+- `--html-theme <auto|dark|light>` sets the theme the HTML report opens with; `cytoscnpy deslop --html` adds a Slop Index page to the report.
+- `cytoscnpy projects` lists the projects under a folder.
+
 ## Upgrading to v1.3.0
 
 ### Compatibility

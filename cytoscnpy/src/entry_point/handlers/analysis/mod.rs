@@ -120,6 +120,10 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         run.result.unused_parameters.clear();
     }
 
+    if cli_var.include.ipynb_cells {
+        crate::ipynb::assign_cells(&mut run.result, Some(analysis_root));
+    }
+
     let json_fix_mode = cli_var.fix && cli_var.output.json && !cli_var.clones;
     if cli_var.make_whitelist {
         anyhow::ensure!(
@@ -139,6 +143,18 @@ pub(crate) fn handle_analysis<W: std::io::Write>(
         return Ok(0);
     }
     if !json_fix_mode {
+        #[cfg(feature = "html_report")]
+        let html_output_requested = cli_var.output.html;
+        #[cfg(not(feature = "html_report"))]
+        let html_output_requested = false;
+        if cli_var.output.json
+            || cli_var.output.format == crate::cli::OutputFormat::Json
+            || html_output_requested
+        {
+            // Editors apply suggested fixes verbatim and the HTML report marks
+            // findings as auto-fixable; only offer ones that parse.
+            crate::commands::verify_fix_suggestions(&mut run.result, Some(analysis_root));
+        }
         report_results(cli_var, analysis_root, &context, &run, writer)?;
     }
     run_fix_if_requested(

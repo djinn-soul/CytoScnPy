@@ -99,18 +99,21 @@ pub fn print_report_grouped(
     result: &AnalysisResult,
 ) -> std::io::Result<()> {
     print_header(writer)?;
-    let mut grouped: BTreeMap<String, Vec<(usize, String, String)>> = BTreeMap::new();
+    // (notebook cell, line, message, severity) per file.
+    let mut grouped: BTreeMap<String, Vec<(Option<usize>, usize, String, String)>> =
+        BTreeMap::new();
 
-    let mut add = |file: &str, line: usize, msg: String, severity: &str| {
+    let mut add = |file: &str, cell: Option<usize>, line: usize, msg: String, severity: &str| {
         grouped
             .entry(file.to_owned())
             .or_default()
-            .push((line, msg, severity.to_owned()));
+            .push((cell, line, msg, severity.to_owned()));
     };
 
     for finding in &result.danger {
         add(
             &finding.file.to_string_lossy(),
+            finding.cell_number,
             finding.line,
             format!("[SECURITY] {}", finding.message),
             &finding.severity,
@@ -119,6 +122,7 @@ pub fn print_report_grouped(
     for secret in &result.secrets {
         add(
             &secret.file.to_string_lossy(),
+            secret.cell_number,
             secret.line,
             format!("[SECRET] {}", secret.message),
             &secret.severity,
@@ -127,6 +131,7 @@ pub fn print_report_grouped(
     for finding in &result.quality {
         add(
             &finding.file.to_string_lossy(),
+            finding.cell_number,
             finding.line,
             format!("[QUALITY] {}", finding.message),
             &finding.severity,
@@ -135,6 +140,7 @@ pub fn print_report_grouped(
     for finding in &result.taint_findings {
         add(
             &finding.file.to_string_lossy(),
+            finding.cell_number,
             finding.sink_line,
             format!("[TAINT] {} (Source: {})", finding.vuln_type, finding.source),
             &finding.severity.to_string(),
@@ -143,6 +149,7 @@ pub fn print_report_grouped(
     for item in &result.unused_functions {
         add(
             &item.file.to_string_lossy(),
+            item.cell_number,
             item.line,
             format!("[UNUSED] Function '{}'", item.name),
             "LOW",
@@ -151,6 +158,7 @@ pub fn print_report_grouped(
     for item in &result.unused_methods {
         add(
             &item.file.to_string_lossy(),
+            item.cell_number,
             item.line,
             format!("[UNUSED] Method '{}'", item.name),
             "LOW",
@@ -159,6 +167,7 @@ pub fn print_report_grouped(
     for item in &result.unused_classes {
         add(
             &item.file.to_string_lossy(),
+            item.cell_number,
             item.line,
             format!("[UNUSED] Class '{}'", item.name),
             "LOW",
@@ -167,6 +176,7 @@ pub fn print_report_grouped(
     for item in &result.unused_imports {
         add(
             &item.file.to_string_lossy(),
+            item.cell_number,
             item.line,
             format!("[UNUSED] Import '{}'", item.name),
             "LOW",
@@ -175,6 +185,7 @@ pub fn print_report_grouped(
     for item in &result.unused_variables {
         add(
             &item.file.to_string_lossy(),
+            item.cell_number,
             item.line,
             format!("[UNUSED] Variable '{}'", item.simple_name),
             "LOW",
@@ -183,6 +194,7 @@ pub fn print_report_grouped(
     for item in &result.unused_parameters {
         add(
             &item.file.to_string_lossy(),
+            item.cell_number,
             item.line,
             format!("[UNUSED] Parameter '{}'", item.simple_name),
             "LOW",
@@ -192,6 +204,7 @@ pub fn print_report_grouped(
         let (file, line) = finding.location_or_manifest(None);
         add(
             &file,
+            None,
             line,
             format!("[DEPENDENCY:{}] {}", finding.rule_id, finding.message),
             &finding.severity,
@@ -200,6 +213,7 @@ pub fn print_report_grouped(
     for error in &result.parse_errors {
         add(
             &error.file.to_string_lossy(),
+            None,
             0,
             format!("[ERROR] Parse Error: {}", error.error),
             "HIGH",
@@ -212,19 +226,18 @@ pub fn print_report_grouped(
             "\nFile: {}",
             normalize_display_path(Path::new(&file)).bold().underline()
         )?;
-        for (line, msg, severity) in issues {
+        for (cell, line, msg, severity) in issues {
             let color = match severity.to_uppercase().as_str() {
                 "CRITICAL" | "HIGH" => colored::Color::Red,
                 "MEDIUM" => colored::Color::Yellow,
                 "LOW" => colored::Color::Blue,
                 _ => colored::Color::White,
             };
-            writeln!(
-                writer,
-                "  Line {}: {}",
-                line.to_string().cyan(),
-                msg.color(color)
-            )?;
+            let location = match cell {
+                Some(cell) => format!("Cell {cell}, line {line}"),
+                None => format!("Line {line}"),
+            };
+            writeln!(writer, "  {}: {}", location.cyan(), msg.color(color))?;
         }
     }
 

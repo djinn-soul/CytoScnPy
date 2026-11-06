@@ -1,5 +1,5 @@
 use super::import_plan::plan_import_edits;
-use super::names::DiscardNames;
+use super::names::{DiscardNames, ModuleNames};
 use super::ranges::{find_def_range, find_method_edit};
 use crate::fix::Edit;
 
@@ -21,11 +21,12 @@ pub(super) struct PlannedEdit {
 pub(super) fn plan_edits(
     items: &[(&'static str, &crate::visitor::Definition)],
     module: &ruff_python_ast::ModModule,
+    module_names: &ModuleNames,
     content: &str,
     cst_mapper: Option<&crate::cst::AstCstMapper>,
 ) -> Vec<PlannedEdit> {
     let mut planned = plan_import_edits(items, module, content);
-    let mut names = DiscardNames::new(module);
+    let mut names = DiscardNames::new(module_names);
     for (item_type, def) in items.iter().filter(|(kind, _)| *kind != "import") {
         if let Some(edit) = plan_item_edit(item_type, def, module, cst_mapper, &mut names) {
             planned.push(edit);
@@ -38,10 +39,11 @@ pub(super) fn plan_edits(
 pub(super) fn plan_edits(
     items: &[(&'static str, &crate::visitor::Definition)],
     module: &ruff_python_ast::ModModule,
+    module_names: &ModuleNames,
     content: &str,
 ) -> Vec<PlannedEdit> {
     let mut planned = plan_import_edits(items, module, content);
-    let mut names = DiscardNames::new(module);
+    let mut names = DiscardNames::new(module_names);
     for (item_type, def) in items.iter().filter(|(kind, _)| *kind != "import") {
         if let Some(edit) = plan_item_edit(item_type, def, module, &mut names) {
             planned.push(edit);
@@ -56,7 +58,7 @@ fn plan_item_edit(
     def: &crate::visitor::Definition,
     module: &ruff_python_ast::ModModule,
     cst_mapper: Option<&crate::cst::AstCstMapper>,
-    names: &mut DiscardNames,
+    names: &mut DiscardNames<'_>,
 ) -> Option<PlannedEdit> {
     let mut edit_range = None;
     let mut replacement: Option<String> = None;
@@ -110,7 +112,7 @@ fn plan_item_edit(
     item_type: &'static str,
     def: &crate::visitor::Definition,
     module: &ruff_python_ast::ModModule,
-    names: &mut DiscardNames,
+    names: &mut DiscardNames<'_>,
 ) -> Option<PlannedEdit> {
     let mut edit_range = None;
     let mut replacement: Option<String> = None;

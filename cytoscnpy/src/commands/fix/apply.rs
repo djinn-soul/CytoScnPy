@@ -1,6 +1,7 @@
-use super::apply_plan::{build_edits, normalize_planned_edits, plan_edits, write_dry_run};
-use super::{syntax::preserve_syntax, DeadCodeFixOptions, FixPlanItem, FixResult};
-use crate::fix::{ByteRangeRewriter, Edit};
+use super::apply_plan::{build_edits, write_dry_run};
+use super::verified::{FixSource, VerifiedFix};
+use super::{DeadCodeFixOptions, FixPlanItem, FixResult};
+use crate::ipynb::NotebookSource;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -14,61 +15,36 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
     items: &[(&'static str, &crate::visitor::Definition)],
     options: &DeadCodeFixOptions,
 ) -> Result<Option<FixResult>> {
-    let file_path = crate::utils::validate_output_path(file_path, Some(&options.analysis_root))?;
+    let file_path = crate::utils::validate_source_path(file_path, Some(&options.analysis_root))?;
 
-    let content = fs::read_to_string(&file_path)
+    // Notebook findings index the joined code cells, not the JSON on disk.
+    let notebook = file_path
+        .extension()
+        .is_some_and(|ext| ext == "ipynb")
+        .then(|| NotebookSource::read(&file_path, Some(&options.analysis_root)))
+        .transpose()
         .with_context(|| format!("Failed to read fix source {}", file_path.display()))?;
-    let module = ruff_python_parser::parse_module(&content)
-        .with_context(|| format!("Failed to parse fix source {}", file_path.display()))?
-        .into_syntax();
-
-    #[cfg(feature = "cst")]
-    let cst_mapper = build_cst_mapper(&content, options);
-
-    let planned = {
-        #[cfg(feature = "cst")]
-        {
-            plan_edits(items, &module, &content, cst_mapper.as_ref())
-        }
-        #[cfg(not(feature = "cst"))]
-        {
-            plan_edits(items, &module, &content)
-        }
+    let content = match &notebook {
+        Some(notebook) => notebook.code.clone(),
+        None => fs::read_to_string(&file_path)
+            .with_context(|| format!("Failed to read fix source {}", file_path.display()))?,
     };
-
-    let mut planned = normalize_planned_edits(planned)
-        .with_context(|| format!("Failed to plan fixes for {}", file_path.display()))?;
-    anyhow::ensure!(
-        !planned.is_empty(),
-        "No fixes could be planned for selected definitions in {}",
-        file_path.display()
-    );
-    anyhow::ensure!(
-        planned
-            .iter()
-            .map(|edit| edit.removed_names.len())
-            .sum::<usize>()
-            == items.len(),
-        "Some selected definitions could not be located in {}",
-        file_path.display()
-    );
-    preserve_syntax(&module, &content, &mut planned);
-    let planned = normalize_planned_edits(planned)
-        .with_context(|| format!("Failed to preserve syntax for {}", file_path.display()))?;
-    let mut preview = ByteRangeRewriter::new(&content);
-    preview.add_edits(planned.iter().map(|edit| {
-        Edit::new(
-            edit.start_byte,
-            edit.end_byte,
-            edit.replacement.as_deref().unwrap_or(""),
-        )
-    }));
-    let fixed = preview.apply_verified().with_context(|| {
-        format!(
-            "Failed to fix {}: generated invalid Python",
-            file_path.display()
-        )
-    })?;
+    let source = FixSource::parse(&content, options.with_cst)
+        .with_context(|| format!("Failed to parse fix source {}", file_path.display()))?;
+    let VerifiedFix { planned, fixed } = source.plan(&file_path, items)?;
+    let fixed_cells = notebook
+        .as_ref()
+        .map(|notebook| {
+            notebook.apply_edits(planned.iter().map(|edit| {
+                (
+                    edit.start_byte,
+                    edit.end_byte,
+                    edit.replacement.as_deref().unwrap_or(""),
+                )
+            }))
+        })
+        .transpose()
+        .with_context(|| format!("Failed to fix {}", file_path.display()))?;
 
     if options.dry_run {
         if options.json_output {
@@ -76,19 +52,41 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
                 .iter()
                 .flat_map(|item| item.removed_names.iter().cloned())
                 .collect();
+            // `--ipynb-cells` has already made definition lines cell-relative.
+            let lines_in_cells = items.iter().any(|(_, def)| def.cell_number.is_some());
             let planned_edits = planned
                 .iter()
-                .map(|item| FixPlanItem {
-                    stable_id: format!(
-                        "{}:{}:{}:{}",
-                        item.item_type, item.name, item.start_byte, item.end_byte
-                    ),
-                    item_type: item.item_type.to_owned(),
-                    name: item.name.clone(),
-                    line: item.line,
-                    start_byte: item.start_byte,
-                    end_byte: item.end_byte,
-                    replacement: item.replacement.clone(),
+                .map(|item| {
+                    // Notebook edits are reported relative to their cell: the
+                    // offsets, the line and the stable ID alike.
+                    let cell = notebook.as_ref().and_then(|notebook| {
+                        notebook.cell_containing(item.start_byte, item.end_byte)
+                    });
+                    let start_byte = item.start_byte - cell.map_or(0, |cell| cell.start);
+                    let end_byte = item.end_byte - cell.map_or(0, |cell| cell.start);
+                    let (line, location) = match cell {
+                        Some(cell) if lines_in_cells => {
+                            (item.line, format!("[cell {}]", cell.index))
+                        }
+                        Some(cell) => (
+                            cell.relative_line(item.line),
+                            format!("[cell {}]", cell.index),
+                        ),
+                        None => (item.line, String::new()),
+                    };
+                    FixPlanItem {
+                        stable_id: format!(
+                            "{}:{}{location}:{start_byte}:{end_byte}",
+                            item.item_type, item.name
+                        ),
+                        item_type: item.item_type.to_owned(),
+                        name: item.name.clone(),
+                        line,
+                        cell_number: cell.map(|cell| cell.index),
+                        start_byte,
+                        end_byte,
+                        replacement: item.replacement.clone(),
+                    }
                 })
                 .collect::<Vec<_>>();
             return Ok(Some(FixResult {
@@ -110,7 +108,12 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
     let lines_removed = original_line_count.saturating_sub(fixed_line_count);
 
     let count = removed_names.len();
-    fs::write(&file_path, fixed)?;
+    match &fixed_cells {
+        Some(cells) => {
+            crate::ipynb::write_cell_sources(&file_path, Some(&options.analysis_root), cells)?;
+        }
+        None => fs::write(&file_path, fixed)?,
+    }
     writeln!(
         writer,
         "  {} {} ({} removed, {} lines)",
@@ -126,21 +129,4 @@ pub(super) fn apply_dead_code_fix_to_file<W: Write>(
         removed_names,
         planned_edits: None,
     }))
-}
-
-#[cfg(feature = "cst")]
-fn build_cst_mapper(
-    content: &str,
-    options: &DeadCodeFixOptions,
-) -> Option<crate::cst::AstCstMapper> {
-    use crate::cst::CstParser;
-
-    if !options.with_cst {
-        return None;
-    }
-
-    CstParser::new()
-        .ok()
-        .and_then(|mut parser| parser.parse(content).ok())
-        .map(crate::cst::AstCstMapper::new)
 }

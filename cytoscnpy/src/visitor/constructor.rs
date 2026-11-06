@@ -52,11 +52,14 @@ impl<'a> CytoScnPyVisitor<'a> {
             protocol_class_stack: SmallVec::new(),
             enum_class_stack: SmallVec::new(),
             in_import_error_block: false,
+            in_annotation: false,
             abc_class_stack: SmallVec::new(),
             abc_abstract_methods: FxHashMap::default(),
             protocol_methods: FxHashMap::default(),
             optional_dependency_flags: FxHashSet::default(),
             star_imports: Vec::new(),
+            submodule_imports: FxHashMap::default(),
+            import_statement_lines: FxHashMap::default(),
         }
     }
 }

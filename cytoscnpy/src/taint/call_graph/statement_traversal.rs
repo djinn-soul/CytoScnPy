@@ -36,20 +36,52 @@ fn visit_definition_stmt(
     match stmt {
         Stmt::FunctionDef(func) => {
             let func_name = graph.get_qualified_name(&func.name, module_name);
-            graph.nodes.insert(
-                func_name.clone(),
-                CallGraphNode {
+            // A property setter or `@overload` stub shares its name with the
+            // other definitions; keep the edges of all of them.
+            graph
+                .nodes
+                .entry(func_name.clone())
+                .or_insert_with(|| CallGraphNode {
                     name: func_name.clone(),
                     line: func.range().start().to_u32() as usize,
                     calls: FxHashSet::default(),
+                    references: FxHashSet::default(),
                     called_by: FxHashSet::default(),
                     params: CallGraph::extract_params(&func.parameters),
                     is_root: false,
-                },
-            );
+                });
+            if let Some(caller) = current_func {
+                // Decorators and defaults run where the function is defined.
+                for decorator in &func.decorator_list {
+                    graph.visit_expr_for_calls(&decorator.expression, caller, module_name);
+                }
+                for default in func
+                    .parameters
+                    .iter_non_variadic_params()
+                    .filter_map(|p| p.default())
+                {
+                    graph.visit_expr_for_calls(default, caller, module_name);
+                }
+                // A nested function runs only through the function defining it.
+                if !caller.ends_with("<module>") {
+                    graph.add_reference_edge(caller, &func_name);
+                }
+            }
+            visit_annotation_refs(graph, func, &func_name, module_name);
             visit_stmts(graph, &func.body, Some(&func_name), module_name);
         }
         Stmt::ClassDef(class) => {
+            if let Some(caller) = current_func {
+                for decorator in &class.decorator_list {
+                    graph.visit_expr_for_calls(&decorator.expression, caller, module_name);
+                }
+                // `metaclass=` and other class keywords run at definition.
+                // Bases are left to reachability, which keeps the bases of
+                // a reachable class alive.
+                for keyword in class.keywords() {
+                    graph.visit_expr_for_calls(&keyword.value, caller, module_name);
+                }
+            }
             graph.class_stack.push(class.name.to_string());
             visit_stmts(graph, &class.body, current_func, module_name);
             graph.class_stack.pop();
@@ -225,6 +257,54 @@ fn visit_exception_stmt(
     visit_stmts(graph, &try_stmt.orelse, current_func, module_name);
     visit_stmts(graph, &try_stmt.finalbody, current_func, module_name);
     true
+}
+
+/// Types named in a function's annotations stay alive while the function does.
+/// String annotations (forward references) are parsed.
+fn visit_annotation_refs(
+    graph: &mut CallGraph,
+    func: &ast::StmtFunctionDef,
+    func_name: &str,
+    module_name: &str,
+) {
+    let params = &func.parameters;
+    let annotations = params
+        .iter()
+        .filter_map(ast::AnyParameterRef::annotation)
+        .chain(func.returns.as_deref());
+    for annotation in annotations {
+        visit_annotation_expr(graph, annotation, func_name, module_name);
+    }
+}
+
+fn visit_annotation_expr(
+    graph: &mut CallGraph,
+    annotation: &ast::Expr,
+    caller: &str,
+    module_name: &str,
+) {
+    if let ast::Expr::StringLiteral(s) = annotation {
+        if let Ok(parsed) = ruff_python_parser::parse_expression(s.value.to_str().trim()) {
+            visit_annotation_expr(graph, parsed.expr(), caller, module_name);
+        }
+        return;
+    }
+    graph.visit_expr_for_calls(annotation, caller, module_name);
+    // Strings nested in subscripts, e.g. `Optional["Foo"]`.
+    if let ast::Expr::Subscript(subscript) = annotation {
+        let elements: &[ast::Expr] = match &*subscript.slice {
+            ast::Expr::Tuple(tuple) => &tuple.elts,
+            slice => std::slice::from_ref(slice),
+        };
+        for element in elements {
+            if matches!(
+                element,
+                ast::Expr::StringLiteral(_) | ast::Expr::Subscript(_)
+            ) {
+                visit_annotation_expr(graph, element, caller, module_name);
+            }
+        }
+    }
 }
 
 fn visit_stmts(

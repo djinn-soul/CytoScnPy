@@ -205,5 +205,7 @@ fn create_finding(
             sink_info.severity,
             taint_info.path.len(),
         ),
+        cell_number: None,
+        source_cell_number: None,
     }
 }

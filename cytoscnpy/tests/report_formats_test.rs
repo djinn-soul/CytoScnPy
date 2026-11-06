@@ -56,6 +56,7 @@ fn create_mock_result() -> AnalysisResult {
         file: file.clone(),
         line: 10,
         col: 5,
+        cell_number: None,
     });
 
     result.secrets.push(SecretFinding {
@@ -68,6 +69,7 @@ fn create_mock_result() -> AnalysisResult {
         matched_value: None,
         entropy: None,
         confidence: 100,
+        cell_number: None,
     });
 
     result.quality.push(Finding {
@@ -78,6 +80,7 @@ fn create_mock_result() -> AnalysisResult {
         file: file.clone(),
         line: 5,
         col: 0,
+        cell_number: None,
     });
 
     result.taint_findings.push(TaintFinding {
@@ -94,6 +97,8 @@ fn create_mock_result() -> AnalysisResult {
         category: "Taint Analysis".to_owned(),
         remediation: "Use parameterized queries".to_owned(),
         exploitability_score: 88,
+        cell_number: None,
+        source_cell_number: None,
     });
 
     let def_base = Definition {
@@ -402,6 +407,7 @@ fn test_github_reporter_escaping() {
         file: file.clone(),
         line: 10,
         col: 5,
+        cell_number: None,
     });
 
     let mut buffer = Vec::new();

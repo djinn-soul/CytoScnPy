@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use crate::analyzer::types::FixSuggestion;
+use crate::analyzer::types::{FixEdit, FixSuggestion};
 use crate::visitor::{Definition, DefinitionType, UnusedCategory};
 
 /// Fields are declared in key order and mirror the serde attributes on
@@ -49,8 +49,14 @@ pub(super) struct SortedDefinition<'a> {
 
 #[derive(Serialize)]
 struct SortedFix<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cell_number: Option<usize>,
     end_byte: usize,
+    #[serde(skip_serializing_if = "<[FixEdit]>::is_empty")]
+    file_fix_all: &'a [FixEdit],
     replacement: &'a str,
+    #[serde(skip_serializing_if = "<[FixEdit]>::is_empty")]
+    rule_fix_all: &'a [FixEdit],
     start_byte: usize,
 }
 
@@ -98,8 +104,11 @@ impl<'a> From<&'a Definition> for SortedDefinition<'a> {
             end_line: *end_line,
             file,
             fix: fix.as_deref().map(|fix: &FixSuggestion| SortedFix {
+                cell_number: fix.cell_number,
                 end_byte: fix.end_byte,
+                file_fix_all: &fix.file_fix_all,
                 replacement: &fix.replacement,
+                rule_fix_all: &fix.rule_fix_all,
                 start_byte: fix.start_byte,
             }),
             full_name,
@@ -126,7 +135,7 @@ impl<'a> From<&'a Definition> for SortedDefinition<'a> {
 #[cfg(test)]
 mod tests {
     use super::SortedDefinition;
-    use crate::analyzer::types::FixSuggestion;
+    use crate::analyzer::types::{FixEdit, FixSuggestion};
     use crate::visitor::{Definition, DefinitionType, UnusedCategory};
 
     fn assert_matches_value(definition: &Definition) {
@@ -172,6 +181,13 @@ mod tests {
                 start_byte: 10,
                 end_byte: 90,
                 replacement: "pass\n".to_owned(),
+                cell_number: Some(4),
+                rule_fix_all: vec![FixEdit {
+                    end_byte: 90,
+                    replacement: "pass".to_owned(),
+                    start_byte: 10,
+                }],
+                file_fix_all: vec![FixEdit::default()],
             })),
             is_enum_member: true,
             is_constant: true,

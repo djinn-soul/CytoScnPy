@@ -124,6 +124,8 @@ pub(super) fn analyze_module_level(
                                     sink_match.severity,
                                     0,
                                 ),
+                                cell_number: None,
+                                source_cell_number: None,
                             });
                         }
                     }

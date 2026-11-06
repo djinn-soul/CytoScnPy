@@ -15,13 +15,29 @@ use super::parser::{CstNode, CstTree};
 /// Maps between Ruff AST and Tree-sitter CST using byte ranges
 pub struct AstCstMapper {
     tree: CstTree,
+    /// Every comment in source order. Fixes look these up once per
+    /// definition, so they are extracted once per file.
+    comments: Vec<Comment>,
+    /// Byte ranges of every `decorated_definition` node.
+    decorated: Vec<(usize, usize)>,
 }
 
 impl AstCstMapper {
     /// Create a new mapper from a parsed CST tree
     #[must_use]
     pub fn new(tree: CstTree) -> Self {
-        Self { tree }
+        let comments = extract_comments(&tree);
+        let decorated = tree
+            .root
+            .find_by_kind("decorated_definition")
+            .into_iter()
+            .map(|node| (node.start_byte, node.end_byte))
+            .collect();
+        Self {
+            tree,
+            comments,
+            decorated,
+        }
     }
 
     /// Get the underlying CST tree
@@ -52,19 +68,14 @@ impl AstCstMapper {
             // Look for decorated_definition parent
             if def_node.kind == "function_definition" || def_node.kind == "class_definition" {
                 // Walk up to find decorated_definition
-                for parent_candidate in self.find_decorated_definitions() {
-                    if parent_candidate.start_byte <= start && parent_candidate.end_byte >= end {
-                        return (parent_candidate.start_byte, parent_candidate.end_byte);
+                for &(parent_start, parent_end) in &self.decorated {
+                    if parent_start <= start && parent_end >= end {
+                        return (parent_start, parent_end);
                     }
                 }
             }
         }
         (start, end)
-    }
-
-    /// Find all `decorated_definition` nodes
-    fn find_decorated_definitions(&self) -> Vec<&CstNode> {
-        self.tree.root.find_by_kind("decorated_definition")
     }
 
     /// Get precise byte range for a definition, including decorators
@@ -78,11 +89,15 @@ impl AstCstMapper {
         let (with_decorators_start, with_decorators_end) =
             self.expand_for_decorators(ast_start, ast_end);
 
-        // Check for contiguous comments before
-        let comments = extract_comments(&self.tree);
+        // Check for contiguous comments before. Only comments ending before
+        // the definition can be attached; comments are in source order and
+        // never overlap, so those are a prefix of the list.
+        let before = self
+            .comments
+            .partition_point(|comment| comment.end_byte < with_decorators_start);
         let mut final_start = with_decorators_start;
 
-        for comment in comments.iter().rev() {
+        for comment in self.comments[..before].iter().rev() {
             if comment.is_attached_before(final_start, &self.tree.source) {
                 final_start = comment.start_byte;
             } else if comment.end_byte < final_start {

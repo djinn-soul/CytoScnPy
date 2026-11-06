@@ -97,3 +97,33 @@ fn test_collect_python_files_no_substring_unexclude() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_excluded_dir_check_ignores_folders_above_empty_root() -> anyhow::Result<()> {
+    // `--force-exclude` with a config found from a relative path passes the
+    // empty path as root. Folders above the working directory must not count.
+    let _lock = super::CWD_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let cwd = std::env::current_dir()?;
+    let ancestor = cwd
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .ok_or_else(|| anyhow::anyhow!("working directory has no name"))?;
+    let file = cwd.join("Cargo.toml");
+
+    assert!(!is_file_in_excluded_dir(
+        &file,
+        std::path::Path::new(""),
+        std::slice::from_ref(&ancestor),
+        &[]
+    ));
+    // The same folder name inside the project is still excluded.
+    assert!(is_file_in_excluded_dir(
+        &cwd.join(&ancestor).join("mod.py"),
+        std::path::Path::new(""),
+        &[ancestor],
+        &[]
+    ));
+    Ok(())
+}

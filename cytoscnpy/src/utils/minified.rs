@@ -84,6 +84,12 @@ pub fn is_likely_minified(path: &Path, content: Option<&str>) -> bool {
         return is_likely_minified_content(text);
     }
 
+    // A notebook on disk is JSON, often written on a single line; its code is
+    // checked once extracted from the cells.
+    if path.extension().is_some_and(|ext| ext == "ipynb") {
+        return false;
+    }
+
     let Ok(metadata) = fs::metadata(path) else {
         return false;
     };

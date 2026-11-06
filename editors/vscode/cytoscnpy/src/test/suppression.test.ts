@@ -1,5 +1,6 @@
 import * as assert from "assert";
-import { suppressesFinding } from "../extensionDiagnostics";
+import { findingSuppressionCodes, suppressesFinding } from "../extensionDiagnostics";
+import { transformRawResult } from "../analyzerResult";
 import { covers, directivesByLine, parseDirective } from "../suppression";
 
 // Mirrors cytoscnpy/tests/suppression_logic_test.rs so the editor and the
@@ -62,12 +63,20 @@ suite("Suppression comments", () => {
     assert.strictEqual(directive?.codesEnd, 10 + comment.indexOf(" reviewed"));
   });
 
-  test("dead code answers to CSP-V001 and its own kind, as in the CLI", () => {
+  test("findings answer to the suppression codes the CLI reports", () => {
     const suppression = (source: string) => directivesByLine(source).get(0)!.suppression!;
-    assert.ok(suppressesFinding(suppression("import os  # noqa: CSP-V001"), "unused-import"));
-    assert.ok(suppressesFinding(suppression("import os  # noqa: unused-import"), "unused-import"));
-    assert.ok(!suppressesFinding(suppression("import os  # noqa: unused-function"), "unused-import"));
-    // CSP-V001 is for dead code only.
-    assert.ok(!suppressesFinding(suppression("x = 1  # noqa: CSP-V001"), "CSP-D101"));
+    const { findings } = transformRawResult({
+      suppression_codes: { "unused-import": ["unused-import", "CSP-V001", "F401"] },
+      unused_imports: [{ file: "a.py", line: 1 }],
+      danger: [{ file: "a.py", line: 1, rule_id: "CSP-D101" }],
+    });
+    const [importCodes, dangerCodes] = findings.map(findingSuppressionCodes);
+    assert.ok(suppressesFinding(suppression("import os  # noqa: CSP-V001"), importCodes));
+    assert.ok(suppressesFinding(suppression("import os  # noqa: unused-import"), importCodes));
+    assert.ok(suppressesFinding(suppression("import os  # noqa: F401"), importCodes));
+    assert.ok(!suppressesFinding(suppression("import os  # noqa: unused-function"), importCodes));
+    // Without codes from the CLI only the finding's own rule ID applies.
+    assert.ok(suppressesFinding(suppression("x = 1  # noqa: CSP-D101"), dangerCodes));
+    assert.ok(!suppressesFinding(suppression("x = 1  # noqa: CSP-V001"), dangerCodes));
   });
 });

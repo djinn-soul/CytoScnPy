@@ -117,9 +117,8 @@ impl ClassifyContext<'_> {
             && !reachability.reachable
         {
             let loose_ref_exists = effective_refs.contains_key(&format!(".{}", def.simple_name));
-            let captured_as_value_only = def.is_captured && !reachability.explicitly_called;
 
-            if !loose_ref_exists && !is_nested_under_callable && !captured_as_value_only {
+            if !loose_ref_exists && !is_nested_under_callable {
                 def.is_unreachable = true;
                 def.references = 0;
             }

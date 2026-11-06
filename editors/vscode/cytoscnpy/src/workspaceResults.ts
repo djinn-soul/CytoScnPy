@@ -22,17 +22,27 @@ export function emptyWorkspaceResults(): MergedWorkspaceResults {
   };
 }
 
+/**
+ * Adds `result` to `target`, keeping only files `owns` accepts: when nested
+ * projects are scanned on their own, each file's results come from the scan
+ * of the project it belongs to.
+ */
 export function mergeWorkspaceResult(
   target: MergedWorkspaceResults,
   result: WorkspaceAnalysisResult,
+  owns: (filePath: string) => boolean = () => true,
 ): void {
   for (const [filePath, findings] of result.findingsByFile) {
-    target.findingsByFile.set(getCacheKey(filePath), findings);
-    target.sourcePaths.set(getCacheKey(filePath), filePath);
+    if (owns(filePath)) {
+      target.findingsByFile.set(getCacheKey(filePath), findings);
+      target.sourcePaths.set(getCacheKey(filePath), filePath);
+    }
   }
   for (const [filePath, errors] of result.parseErrorsByFile) {
-    target.parseErrorsByFile.set(getCacheKey(filePath), errors);
-    target.sourcePaths.set(getCacheKey(filePath), filePath);
+    if (owns(filePath)) {
+      target.parseErrorsByFile.set(getCacheKey(filePath), errors);
+      target.sourcePaths.set(getCacheKey(filePath), filePath);
+    }
   }
-  target.scanErrors.push(...result.scanErrors);
+  target.scanErrors.push(...result.scanErrors.filter((error) => owns(error.file)));
 }

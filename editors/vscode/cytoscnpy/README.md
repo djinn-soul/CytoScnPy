@@ -108,4 +108,4 @@ Simply ask Copilot to use CytoScnPy:
 
 ## Release Notes
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+See [GitHub Releases](https://github.com/djinn-soul/CytoScnPy/releases) for detailed release notes.

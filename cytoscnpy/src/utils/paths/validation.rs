@@ -120,7 +120,7 @@ pub fn validate_output_path(
             .to_owned();
 
         anyhow::bail!(
-            "Output path '{clean_path}' is outside the current working directory '{clean_root}'.\n\
+            "Output path '{clean_path}' is outside the allowed directory '{clean_root}'.\n\
              Hint: Use a relative path like './report.json' or run the command from the target directory."
         );
     }
@@ -153,6 +153,30 @@ pub fn validate_output_path(
     //
     // Let's rely on returning the original absolute path, now that we've verified it's safe.
     Ok(absolute_path)
+}
+
+/// Resolves an analyzed source file's path and checks that it stays inside
+/// `root`.
+///
+/// Source paths come from file discovery and are relative to the working
+/// directory. `validate_output_path` would instead resolve them against
+/// `root`, turning `proj/a.py` analyzed with root `proj` into `proj/proj/a.py`,
+/// so they are made absolute first.
+///
+/// # Errors
+///
+/// Returns an error if the working directory cannot be read or the path is
+/// outside `root`.
+pub fn validate_source_path(
+    path: &std::path::Path,
+    root: Option<&std::path::Path>,
+) -> anyhow::Result<std::path::PathBuf> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+    validate_output_path(&absolute, root)
 }
 
 #[cfg(test)]

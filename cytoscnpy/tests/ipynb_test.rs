@@ -179,3 +179,37 @@ fn test_extract_notebook_cells_invalid_json() {
     let result = extract_notebook_cells(&notebook_path, None);
     assert!(result.is_err());
 }
+
+#[test]
+fn test_extract_notebook_relative_to_cwd_inside_subdirectory_root() {
+    // Analyzing `proj` from its parent reports `proj/nb.ipynb`, relative to the
+    // working directory. It must not be resolved against the root again.
+    let dir = project_tempdir();
+    let root = dir.path().join("proj");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(
+        root.join("nb.ipynb"),
+        create_v4_notebook(&[("code", "x = 1")]),
+    )
+    .unwrap();
+
+    let cwd = std::env::current_dir().unwrap();
+    let relative_root = root.strip_prefix(&cwd).unwrap();
+    let relative_notebook = relative_root.join("nb.ipynb");
+
+    let code = extract_notebook_code(&relative_notebook, Some(relative_root)).unwrap();
+    assert!(code.contains("x = 1"));
+    let cells = extract_notebook_cells(&relative_notebook, Some(relative_root)).unwrap();
+    assert_eq!(cells.len(), 1);
+}
+
+#[test]
+fn test_extract_notebook_outside_root_is_rejected() {
+    let dir = project_tempdir();
+    let root = dir.path().join("proj");
+    fs::create_dir_all(&root).unwrap();
+    let outside = dir.path().join("outside.ipynb");
+    fs::write(&outside, create_v4_notebook(&[("code", "x = 1")])).unwrap();
+
+    assert!(extract_notebook_code(&outside, Some(&root)).is_err());
+}

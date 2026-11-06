@@ -1,64 +1,105 @@
 {% extends "base.html" %} {% block head %}
-<link
-  href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css"
-  rel="stylesheet"
-  integrity="sha512-mIs9kKbaw6JZFfSuo+MovjU+Ntggfoj8RwAmJbVXQ5mkAX5LlgETQEweFPI18humSPHymTb5iikEOKWF7I8ncQ=="
-  crossorigin="anonymous"
-  referrerpolicy="no-referrer"
-/>
-<link
-  href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css"
-  rel="stylesheet"
-  integrity="sha512-cbQXwDFK7lj2Fqfkuxbo5iD1dSbLlJGXGpfTDqbggqjHJeyzx88I3rfwjS38WJag/ihH7lzuGlGHpDBymLirZQ=="
-  crossorigin="anonymous"
-  referrerpolicy="no-referrer"
-/>
-<link
-  href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-highlight/prism-line-highlight.min.css"
-  rel="stylesheet"
-  integrity="sha512-nXlJLUeqPMp1Q3+Bd8Qds8tXeRVQscMscwysJm821C++9w6WtsFbJjPenZ8cQVMXyqSAismveQJc0C1splFDCA=="
-  crossorigin="anonymous"
-  referrerpolicy="no-referrer"
-/>
-  /* Shared indicators */
-  .complexity-high { color: var(--danger); }
-  .complexity-medium { color: var(--warning); }
-  .complexity-low { color: var(--success); }
-  .mi-a { color: var(--success); }
-  .mi-b { color: var(--warning); }
-  .mi-c { color: var(--danger); }
-</style>
-{% endblock %} {% block content %}
-<div
-  style="
+<link rel="stylesheet" href="{{ root_path }}/css/prism.css" />
+<style>
+  .file-header {
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-  "
->
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .breadcrumbs a {
+    color: var(--text-muted);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: color 0.2s;
+  }
+  .breadcrumbs a:hover {
+    color: var(--primary);
+  }
+  .breadcrumb-current {
+    color: var(--text-main);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+  .file-title {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--primary);
+    overflow-wrap: anywhere;
+  }
+  .file-metrics {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+  .file-metric {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .file-metric-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .code-card {
+    padding: 0;
+    overflow: hidden;
+  }
+  .code-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface-subtle);
+    border-bottom: 1px solid var(--border-color);
+  }
+  .cell-jump {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+  .cell-jump a {
+    text-decoration: none;
+  }
+  .cell-jump a:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+  .issue-marker {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background-color: var(--severity-medium);
+  }
+  .issue-marker.is-high {
+    background-color: var(--severity-high);
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="file-header">
   <!-- Breadcrumbs -->
-  <div
-    style="
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: #9ca3af;
-      font-size: 0.95rem;
-    "
-  >
-    <a
-      href="../index.html"
-      style="
-        color: #9ca3af;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      "
-      onmouseover="this.style.color='var(--primary)'"
-      onmouseout="this.style.color='#9ca3af'"
-    >
+  <div class="breadcrumbs">
+    <a href="../index.html">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="14"
@@ -69,6 +110,7 @@
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden="true"
       >
         <rect x="3" y="3" width="7" height="7"></rect>
         <rect x="14" y="3" width="7" height="7"></rect>
@@ -78,33 +120,14 @@
       Dashboard
     </a>
     <span>/</span>
-    <a
-      href="../files.html"
-      style="color: #9ca3af; text-decoration: none"
-      onmouseover="this.style.color='var(--primary)'"
-      onmouseout="this.style.color='#9ca3af'"
-      >Files</a
-    >
+    <a href="../files.html">Files</a>
     <span>/</span>
-    <span
-      id="breadcrumb-path"
-      style="color: var(--text-light); font-weight: 500"
+    <span id="breadcrumb-path" class="breadcrumb-current"
       >{{ relative_path }}</span
     >
   </div>
 
-  <!-- Back Button (Restored) -->
-  <button
-    onclick="history.back()"
-    class="pagination-btn"
-    style="
-      padding: 0.4rem 0.8rem;
-      font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    "
-  >
+  <button type="button" onclick="history.back()" class="btn btn-sm no-print">
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="14"
@@ -115,6 +138,7 @@
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      aria-hidden="true"
     >
       <path d="M19 12H5M12 19l-7-7 7-7" />
     </svg>
@@ -122,63 +146,42 @@
   </button>
 </div>
 
-<h2 style="margin-bottom: 0.5rem; color: var(--text-main); font-weight: 300">
-  <span id="title-path" style="color: var(--primary); font-weight: 600"
-    >{{ relative_path }}</span
-  >
-</h2>
+<h2 class="file-title"><span id="title-path">{{ relative_path }}</span></h2>
 
 <!-- File Metrics -->
-<div
-  style="
-    display: flex;
-    gap: 1.5rem;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-    color: #9ca3af;
-  "
->
-  <div style="display: flex; gap: 0.5rem; align-items: center">
-    <span style="font-weight: 600; color: #d1d5db">SLOC:</span>
+<div class="file-metrics">
+  <div class="file-metric">
+    <span class="file-metric-label">SLOC:</span>
     <span>{{ sloc }}</span>
   </div>
-  <div style="display: flex; gap: 0.5rem; align-items: center">
-    <span style="font-weight: 600; color: #d1d5db">Complexity:</span>
-    <span class="{% if complexity > 25.0 %}complexity-high{% elif complexity > 10.0 %}complexity-medium{% else %}complexity-low{% endif %}"
+  <div class="file-metric">
+    <span class="file-metric-label">Complexity:</span>
+    <span
+      class="{% if complexity > 25.0 %}complexity-high{% elif complexity > 10.0 %}complexity-medium{% else %}complexity-low{% endif %}"
       >{{ complexity }}</span
     >
   </div>
-  <div style="display: flex; gap: 0.5rem; align-items: center">
-    <span style="font-weight: 600; color: #d1d5db">MI:</span>
-    <span class="{% if raw_mi >= 80.0 %}mi-a{% elif raw_mi >= 60.0 %}mi-b{% else %}mi-c{% endif %}"
-      style="font-weight: 600;"
+  <div class="file-metric">
+    <span class="file-metric-label">MI:</span>
+    <span
+      class="file-metric-label {% if raw_mi >= 80.0 %}mi-a{% elif raw_mi >= 60.0 %}mi-b{% else %}mi-c{% endif %}"
       >{{ mi }}</span
     >
   </div>
 </div>
 
-<div
-  class="card"
-  style="padding: 0; overflow: hidden; border: 1px solid #374151"
->
-  <div class="code-toolbar">
-    <button
-      onclick="copyCode()"
-      id="copyBtn"
-      style="
-        background: transparent;
-        border: 1px solid #4b5563;
-        color: #d1d5db;
-        padding: 0.25rem 0.75rem;
-        border-radius: 0.375rem;
-        font-size: 0.8rem;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        transition: all 0.2s;
-      "
-    >
+{% if !cells.is_empty() %}
+<nav class="cell-jump no-print" aria-label="Notebook cells">
+  <span class="text-subtle">Notebook cells:</span>
+  {% for (index, line) in cells %}
+  <a href="#L{{ line }}" class="meta-chip">cell {{ index }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<div class="card code-card">
+  <div class="code-toolbar no-print">
+    <button type="button" onclick="copyCode()" id="copyBtn" class="btn btn-sm">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="14"
@@ -189,6 +192,7 @@
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden="true"
       >
         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
         <path
@@ -203,17 +207,31 @@
   ><code id="codeBlock" class="language-python">{{ code }}</code></pre>
 </div>
 
-<!-- Prism JS -->
+<!-- Issue markers, read by the script below. Attributes carry the text, so
+     messages need only HTML escaping. -->
+<ul id="file-issues" hidden>
+  {% for issue in issues %}
+  <li
+    data-line="{{ issue.view_line }}"
+    data-severity="{{ issue.severity }}"
+    data-message="{% if !issue.rule_id.is_empty() %}[{{ issue.rule_id }}] {% endif %}{{ issue.message }}"
+  ></li>
+  {% endfor %}
+</ul>
+
 <!-- Prism JS (Local) -->
 <script src="{{ root_path }}/js/prism.js"></script>
 
 <script>
   // Issue Highlighting Data
-  const fileIssues = [
-    {% for issue in issues %}
-    { line: {{ issue.line }}, severity: "{{ issue.severity }}", message: "{{ issue.message|e }}" },
-    {% endfor %}
-  ];
+  const fileIssues = Array.from(
+    document.querySelectorAll("#file-issues li"),
+    (item) => ({
+      line: Number(item.dataset.line),
+      severity: item.dataset.severity,
+      message: item.dataset.message,
+    }),
+  );
 
   // Path Normalization & Line Highlighting
   document.addEventListener("DOMContentLoaded", () => {
@@ -261,24 +279,15 @@
             if (index >= 0 && index < lines.length) {
                 const lineEl = lines[index];
 
-                // Styling based on severity
-                const rootStyle = getComputedStyle(document.documentElement);
-                const color = issue.severity === 'HIGH' || issue.severity === 'CRITICAL'
-                    ? rootStyle.getPropertyValue('--danger').trim()
-                    : rootStyle.getPropertyValue('--warning').trim();
-
-                // Add marker
-                lineEl.style.position = 'relative';
-
+                // Marker color comes from the theme via CSS classes
                 const marker = document.createElement('div');
-                marker.style.position = 'absolute';
-                marker.style.left = '0';
-                marker.style.top = '0';
-                marker.style.bottom = '0';
-                marker.style.width = '4px';
-                marker.style.backgroundColor = color;
+                marker.className = 'issue-marker';
+                if (issue.severity === 'HIGH' || issue.severity === 'CRITICAL') {
+                    marker.classList.add('is-high');
+                }
                 marker.title = issue.message; // Tooltip
 
+                lineEl.style.position = 'relative';
                 lineEl.appendChild(marker);
                 lineEl.style.cursor = 'help'; // Indicate tooltip
                 lineEl.title = issue.message;
@@ -294,14 +303,12 @@
       const btn = document.getElementById("copyBtn");
       const originalContent = btn.innerHTML;
 
-      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #4ade80"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
-      btn.style.borderColor = "#4ade80";
-      btn.style.color = "#4ade80";
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
+      btn.classList.add("is-success");
 
       setTimeout(() => {
         btn.innerHTML = originalContent;
-        btn.style.borderColor = "#4b5563";
-        btn.style.color = "#d1d5db";
+        btn.classList.remove("is-success");
       }, 2000);
     });
   }

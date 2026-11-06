@@ -33,4 +33,6 @@ mod targets;
 mod types;
 
 pub use state::CytoScnPyVisitor;
-pub use types::{Definition, DefinitionInfo, DefinitionType, Scope, ScopeType, UnusedCategory};
+pub use types::{
+    Definition, DefinitionInfo, DefinitionType, Scope, ScopeType, UnusedCategory, DEAD_CODE_RULE_ID,
+};

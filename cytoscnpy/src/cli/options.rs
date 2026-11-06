@@ -6,16 +6,28 @@ use std::path::PathBuf;
 #[allow(clippy::struct_excessive_bools)] // CLI flags are legitimately booleans
 pub struct ScanOptions {
     /// Scan for API keys/secrets.
-    #[arg(short = 's', long)]
+    #[arg(short = 's', long, overrides_with = "no_secrets")]
     pub secrets: bool,
 
+    /// Disable the secrets scan, even when project configuration enables it.
+    #[arg(long, overrides_with = "secrets")]
+    pub no_secrets: bool,
+
     /// Scan for dangerous code (includes taint analysis).
-    #[arg(short = 'd', long)]
+    #[arg(short = 'd', long, overrides_with = "no_danger")]
     pub danger: bool,
 
+    /// Disable the danger scan, even when project configuration enables it.
+    #[arg(long, overrides_with = "danger")]
+    pub no_danger: bool,
+
     /// Scan for code quality issues.
-    #[arg(short = 'q', long)]
+    #[arg(short = 'q', long, overrides_with = "no_quality")]
     pub quality: bool,
+
+    /// Disable the quality scan, even when project configuration enables it.
+    #[arg(long, overrides_with = "quality")]
+    pub no_quality: bool,
 
     /// Skip dead code detection (only run security/quality scans).
     #[arg(short = 'n', long = "no-dead")]
@@ -103,18 +115,31 @@ pub struct OutputOptions {
     #[arg(long)]
     #[cfg(feature = "html_report")]
     pub html: bool,
+
+    /// Default color theme for the HTML report (viewers can still toggle it).
+    #[arg(long, value_enum, default_value_t, requires = "html")]
+    #[cfg(feature = "html_report")]
+    pub html_theme: crate::report::generator::ReportTheme,
 }
 
 /// Options for including additional files in analysis.
 #[derive(Args, Debug, Default, Clone)]
 pub struct IncludeOptions {
     /// Include test files in analysis.
-    #[arg(long)]
+    #[arg(long, overrides_with = "no_include_tests")]
     pub include_tests: bool,
 
+    /// Exclude test files, even when project configuration includes them.
+    #[arg(long, overrides_with = "include_tests")]
+    pub no_include_tests: bool,
+
     /// Include `IPython` Notebooks (.ipynb files) in analysis.
-    #[arg(long)]
+    #[arg(long, overrides_with = "no_include_ipynb")]
     pub include_ipynb: bool,
+
+    /// Skip notebooks, even when project configuration includes them.
+    #[arg(long, overrides_with = "include_ipynb")]
+    pub no_include_ipynb: bool,
 
     /// Report findings at cell level for notebooks.
     #[arg(long)]
@@ -175,6 +200,18 @@ pub struct RankArgs {
     /// Set maximum rank (A-F or A-C depending on command).
     #[arg(long, short = 'x', alias = "max")]
     pub max_rank: Option<char>,
+}
+
+/// Options for the projects subcommand.
+#[derive(Args, Debug, Default, Clone)]
+pub struct ProjectsArgs {
+    /// Path options (paths vs root).
+    #[command(flatten)]
+    pub paths: PathArgs,
+
+    /// Output JSON.
+    #[arg(long)]
+    pub json: bool,
 }
 
 /// Common options for the files subcommand.

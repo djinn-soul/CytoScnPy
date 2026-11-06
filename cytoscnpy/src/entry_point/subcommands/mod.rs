@@ -106,6 +106,30 @@ pub(super) fn run_subcommand<W: std::io::Write>(
             &context.config,
             writer,
         ),
+        Commands::Projects { args } => {
+            let roots = context
+                .effective_paths
+                .iter()
+                .filter(|path| path.is_dir())
+                .flat_map(|path| {
+                    crate::utils::find_project_roots(
+                        path,
+                        &context.exclude_folders,
+                        &context.include_folders,
+                    )
+                })
+                .collect::<Vec<_>>();
+            if args.json || root_json {
+                let projects: Vec<_> = roots.iter().map(|root| root.to_string_lossy()).collect();
+                serde_json::to_writer(&mut *writer, &serde_json::json!({ "projects": projects }))?;
+                writeln!(writer)?;
+            } else {
+                for root in &roots {
+                    writeln!(writer, "{}", crate::utils::normalize_display_path(root))?;
+                }
+            }
+            Ok(0)
+        }
         Commands::Init => {
             crate::commands::run_init_in(&context.analysis_root, writer)?;
             Ok(0)

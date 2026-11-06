@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { documentKey, findingsForDocument, isUnsaved } from "./notebookCells";
 import * as crypto from "crypto";
 import { CytoScnPyFinding } from "./analyzer";
 import { analysisState } from "./extensionState";
@@ -36,19 +37,24 @@ export function getCacheKey(fsPath: string): string {
   return process.platform === "win32" ? fsPath.toLowerCase() : fsPath;
 }
 
+/** Key of `document` in {@link fileCache}. */
+export function documentCacheKey(document: vscode.TextDocument): string {
+  return documentKey(document, getCacheKey);
+}
+
 export function cacheDocumentAnalysis(
   document: vscode.TextDocument,
   diagnostics: vscode.Diagnostic[],
   findings: CytoScnPyFinding[],
 ): void {
-  if (document.isDirty) {
+  if (isUnsaved(document)) {
     return;
   }
-  const cacheKey = getCacheKey(document.uri.fsPath);
+  const cacheKey = documentCacheKey(document);
   const cacheEntry: CacheEntry = {
     hash: hashForDocument(document),
     diagnostics,
-    findings,
+    findings: findingsForDocument(document, findings),
     timestamp: Date.now(),
   };
   const history = fileCache.get(cacheKey) || [];
@@ -77,7 +83,7 @@ export function clearDocumentAnalysis(document: vscode.TextDocument): void {
 export function restoreDocumentAnalysis(document: vscode.TextDocument): boolean {
   const hash = hashForDocument(document);
   const entry = fileCache
-    .get(getCacheKey(document.uri.fsPath))
+    .get(documentCacheKey(document))
     ?.find((candidate) => candidate.hash === hash);
   if (!entry) {
     return false;

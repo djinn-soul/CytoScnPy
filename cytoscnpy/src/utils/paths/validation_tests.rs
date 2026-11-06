@@ -36,6 +36,9 @@ fn run_in_dir<F>(dir: &Path, f: F) -> anyhow::Result<()>
 where
     F: FnOnce() -> anyhow::Result<()>,
 {
+    let _lock = crate::utils::paths::CWD_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let original = std::env::current_dir()?;
     std::env::set_current_dir(dir)?;
     let result = f();

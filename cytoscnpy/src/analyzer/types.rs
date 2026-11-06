@@ -23,17 +23,37 @@ pub struct FixSuggestion {
     pub end_byte: usize,
     /// The replacement content. Empty string means deletion.
     pub replacement: String,
+    /// Notebook cell the offsets of this fix, and of its combined edits, are
+    /// relative to. Unset for Python files, whose offsets index the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_number: Option<usize>,
+    /// Edits fixing every finding of this rule in the file together, carried
+    /// by one of them. Composing the findings' own fixes can leave an empty
+    /// suite, so a "fix all" must apply these instead.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rule_fix_all: Vec<FixEdit>,
+    /// Edits fixing every fixable dead-code finding in the file together,
+    /// carried by one of them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub file_fix_all: Vec<FixEdit>,
+}
+
+/// One edit of a combined fix. Fields are declared in key order.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct FixEdit {
+    /// The ending byte offset (exclusive) in the file.
+    pub end_byte: usize,
+    /// The replacement content. Empty string means deletion.
+    pub replacement: String,
+    /// The starting byte offset (0-indexed) in the file.
+    pub start_byte: usize,
 }
 
 impl FixSuggestion {
     /// Creates a new fix suggestion for deletion (empty replacement).
     #[must_use]
     pub fn deletion(start_byte: usize, end_byte: usize) -> Self {
-        Self {
-            start_byte,
-            end_byte,
-            replacement: String::new(),
-        }
+        Self::replacement(start_byte, end_byte, String::new())
     }
 
     /// Creates a new fix suggestion with replacement content.
@@ -43,6 +63,7 @@ impl FixSuggestion {
             start_byte,
             end_byte,
             replacement,
+            ..Self::default()
         }
     }
 }

@@ -1,9 +1,12 @@
+import * as path from "path";
 import * as vscode from "vscode";
-import { runWorkspaceAnalysis } from "./analyzer";
+import { listProjectRoots, runWorkspaceAnalysis } from "./analyzer";
 import { getCytoScnPyConfiguration } from "./configuration";
 import { analysisState } from "./extensionState";
-import { getCacheKey, fileCache, cacheDocumentAnalysis, invalidateWorkspaceCache } from "./extensionCache";
+import { getCacheKey, fileCache, cacheDocumentAnalysis, documentCacheKey, invalidateWorkspaceCache } from "./extensionCache";
 import { findingsToDiagnostics, parseErrorsToDiagnostics, buildClosedFileDiagnosticFromFinding, buildClosedFileDiagnosticFromParseError } from "./extensionDiagnostics";
+import { isUnsaved } from "./notebookCells";
+import { ownerRoot } from "./projectRoots";
 import { emptyWorkspaceResults, mergeWorkspaceResult } from "./workspaceResults";
 import { setStatus, cytoscnpyDiagnostics, cytoscnpyOutputChannel, applyGutterDecorations, reportAnalysisFailure, resetAnalysisFailure, setDiagnosticsBatched } from "./extensionUi";
 
@@ -34,15 +37,20 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
           const startTime = Date.now();
           const merged = emptyWorkspaceResults();
           for (const folder of workspaceFolders) {
-            progress.report({ message: `Scanning ${folder.name}...` });
-            mergeWorkspaceResult(
-              merged,
-              await runWorkspaceAnalysis(
-                folder.uri.fsPath,
-                getCytoScnPyConfiguration(context, folder.uri),
-                { signal: abort.signal },
-              ),
-            );
+            // Each project scans with its own pyproject.toml/.cytoscnpy.toml.
+            const folderConfig = getCytoScnPyConfiguration(context, folder.uri);
+            const roots = await listProjectRoots(folder.uri.fsPath, folderConfig.path, {
+              signal: abort.signal,
+            });
+            for (const root of roots) {
+              const name = path.relative(path.dirname(folder.uri.fsPath), root);
+              progress.report({ message: `Scanning ${name}...` });
+              mergeWorkspaceResult(
+                merged,
+                await runWorkspaceAnalysis(root, folderConfig, { signal: abort.signal }),
+                (filePath) => ownerRoot(filePath, roots) === root,
+              );
+            }
           }
           const { findingsByFile, parseErrorsByFile, sourcePaths, scanErrors } = merged;
           analysisState.workspaceCache = findingsByFile;
@@ -67,11 +75,15 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
           progress.report({ message: `Updating diagnostics...` });
 
           cytoscnpyDiagnostics.clear();
-          const openDocuments = new Map(
-            vscode.workspace.textDocuments
-              .filter((document) => document.languageId === "python")
-              .map((document) => [getCacheKey(document.uri.fsPath), document]),
-          );
+          // A notebook's cells are separate documents sharing its path.
+          const openDocuments = new Map<string, vscode.TextDocument[]>();
+          for (const document of vscode.workspace.textDocuments) {
+            if (document.languageId !== "python") {
+              continue;
+            }
+            const key = getCacheKey(document.uri.fsPath);
+            openDocuments.set(key, [...(openDocuments.get(key) ?? []), document]);
+          }
           const filesWithDiagnostics = new Set<string>([
             ...analysisState.workspaceCache.keys(),
             ...(analysisState.workspaceParseErrorsCache?.keys() ?? []),
@@ -87,15 +99,20 @@ export function createWorkspaceAnalysis(context: vscode.ExtensionContext): () =>
             const parseErrors =
               analysisState.workspaceParseErrorsCache?.get(filePath) || [];
             const diagnostics = [
-              ...findings.map(buildClosedFileDiagnosticFromFinding),
+              // Cell-relative lines cannot be placed in the notebook's JSON.
+              ...findings
+                .filter((finding) => finding.cell_number === undefined)
+                .map(buildClosedFileDiagnosticFromFinding),
               ...parseErrors.map(buildClosedFileDiagnosticFromParseError),
             ];
             updates.push([uri, diagnostics]);
           }
 
-          for (const [filePath, document] of openDocuments) {
-            if (document.isDirty) {
-              fileCache.delete(filePath);
+          for (const [filePath, document] of [...openDocuments].flatMap(
+            ([key, documents]) => documents.map((document) => [key, document] as const),
+          )) {
+            if (isUnsaved(document)) {
+              fileCache.delete(documentCacheKey(document));
               continue;
             }
             const findings = analysisState.workspaceCache.get(filePath) || [];

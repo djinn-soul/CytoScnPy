@@ -24,9 +24,10 @@ impl CytoScnPyVisitor<'_> {
         for decorator in &node.decorator_list {
             self.visit_expr(&decorator.expression);
         }
+        self.visit_type_params(node.type_params.as_deref());
         self.visit_arguments(&node.parameters);
         if let Some(returns) = &node.returns {
-            self.visit_expr(returns);
+            self.visit_annotation(returns);
         }
         self.visit_function_def(
             &node.name,
@@ -112,6 +113,7 @@ impl CytoScnPyVisitor<'_> {
         });
         self.add_local_def(name.to_string(), qualified_name.clone());
 
+        self.visit_type_params(node.type_params.as_deref());
         for base in node.bases() {
             self.visit_expr(base);
             if let Expr::Name(base_name) = base {

@@ -6,10 +6,14 @@ mod import_plan;
 mod names;
 mod plan;
 mod ranges;
+mod suggest;
 mod syntax;
+mod verified;
 
 #[cfg(test)]
 mod tests;
+
+pub use suggest::{verify_fix_suggestions, verify_fix_suggestions_with};
 
 use anyhow::Result;
 use colored::Colorize;
@@ -72,6 +76,9 @@ pub struct FixPlanItem {
     pub name: String,
     /// Source line
     pub line: usize,
+    /// Notebook cell holding the edit; its offsets are then relative to the cell.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cell_number: Option<usize>,
     /// Start byte offset (inclusive)
     pub start_byte: usize,
     /// End byte offset (exclusive)

@@ -22,7 +22,10 @@ pub use clones::{
     generate_clone_findings, generate_clone_findings_with_thresholds, run_clones, CloneOptions,
 };
 pub use deps::run_deps;
-pub use fix::{run_fix_deadcode, DeadCodeFixOptions, FixResult};
+pub use fix::{
+    run_fix_deadcode, verify_fix_suggestions, verify_fix_suggestions_with, DeadCodeFixOptions,
+    FixResult,
+};
 pub use hal::{run_hal, run_hal_with_tests};
 pub use init::{run_init, run_init_in};
 pub use mi::{run_mi, run_mi_with_tests, MiOptions};

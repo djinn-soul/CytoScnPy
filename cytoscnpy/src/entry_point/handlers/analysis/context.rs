@@ -19,10 +19,10 @@ pub(crate) fn build_analysis_context(
     base_exclude_folders: &[String],
     base_include_folders: &[String],
 ) -> AnalysisContext {
-    let include_tests =
-        cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
-    let include_ipynb =
-        cli_var.include.include_ipynb || config.cytoscnpy.include_ipynb.unwrap_or(false);
+    let include_tests = !cli_var.include.no_include_tests
+        && (cli_var.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false));
+    let include_ipynb = !cli_var.include.no_include_ipynb
+        && (cli_var.include.include_ipynb || config.cytoscnpy.include_ipynb.unwrap_or(false));
     let confidence = cli_var
         .confidence
         .or(config.cytoscnpy.confidence)
@@ -41,21 +41,24 @@ pub(crate) fn build_analysis_context(
     #[cfg(not(feature = "html_report"))]
     let html_enabled = false;
 
-    let quality = cli_var.scan.quality
-        || config.cytoscnpy.quality.unwrap_or(false)
-        || cli_var.min_mi.is_some()
-        || cli_var.max_complexity.is_some()
-        || cli_var.max_lines.is_some()
-        || cli_var.max_args.is_some()
-        || cli_var.max_nesting.is_some()
-        || config.cytoscnpy.max_lines.is_some()
-        || config.cytoscnpy.max_args.is_some()
-        || config.cytoscnpy.max_nesting.is_some()
-        || config.cytoscnpy.min_mi.is_some()
-        || config.cytoscnpy.max_complexity.is_some()
-        || cli_var.output.fail_on_any
-        || cli_var.output.fail_on_quality
-        || html_enabled;
+    // An explicit `--no-quality` (as editors pass for a disabled setting)
+    // wins over everything that would enable the scan.
+    let quality = !cli_var.scan.no_quality
+        && (cli_var.scan.quality
+            || config.cytoscnpy.quality.unwrap_or(false)
+            || cli_var.min_mi.is_some()
+            || cli_var.max_complexity.is_some()
+            || cli_var.max_lines.is_some()
+            || cli_var.max_args.is_some()
+            || cli_var.max_nesting.is_some()
+            || config.cytoscnpy.max_lines.is_some()
+            || config.cytoscnpy.max_args.is_some()
+            || config.cytoscnpy.max_nesting.is_some()
+            || config.cytoscnpy.min_mi.is_some()
+            || config.cytoscnpy.max_complexity.is_some()
+            || cli_var.output.fail_on_any
+            || cli_var.output.fail_on_quality
+            || html_enabled);
 
     let is_structured = cli_var.output.json
         || matches!(
@@ -102,13 +105,14 @@ fn secrets_scan_requested(
     config: &crate::config::Config,
     is_vscode_client: bool,
 ) -> bool {
-    crate::entry_point::config::resolve_scan_flag(
-        cli_var.scan.secrets,
-        config.cytoscnpy.secrets,
-        is_vscode_client,
-    ) || cli_var.output.fail_on_any
-        || cli_var.output.fail_on_secrets
-        || config.cytoscnpy.fail_on_secrets.unwrap_or(false)
+    !cli_var.scan.no_secrets
+        && (crate::entry_point::config::resolve_scan_flag(
+            cli_var.scan.secrets,
+            config.cytoscnpy.secrets,
+            is_vscode_client,
+        ) || cli_var.output.fail_on_any
+            || cli_var.output.fail_on_secrets
+            || config.cytoscnpy.fail_on_secrets.unwrap_or(false))
 }
 
 fn danger_scan_requested(
@@ -116,11 +120,12 @@ fn danger_scan_requested(
     config: &crate::config::Config,
     is_vscode_client: bool,
 ) -> bool {
-    crate::entry_point::config::resolve_scan_flag(
-        cli_var.scan.danger,
-        config.cytoscnpy.danger,
-        is_vscode_client,
-    ) || cli_var.output.fail_on_any
-        || cli_var.output.fail_on_danger
-        || config.cytoscnpy.fail_on_danger.unwrap_or(false)
+    !cli_var.scan.no_danger
+        && (crate::entry_point::config::resolve_scan_flag(
+            cli_var.scan.danger,
+            config.cytoscnpy.danger,
+            is_vscode_client,
+        ) || cli_var.output.fail_on_any
+            || cli_var.output.fail_on_danger
+            || config.cytoscnpy.fail_on_danger.unwrap_or(false))
 }

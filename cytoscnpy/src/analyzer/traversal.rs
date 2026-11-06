@@ -96,6 +96,14 @@ impl CytoScnPy {
                     && (self.include_tests
                         || !crate::utils::is_test_path_relative_to(path, &inferred_root))
                     && !crate::utils::is_likely_minified(path, None)
+                    && !self.force_exclude_root.as_ref().is_some_and(|root| {
+                        crate::utils::is_file_in_excluded_dir(
+                            path,
+                            root,
+                            &self.exclude_folders,
+                            &self.include_folders,
+                        )
+                    })
                 {
                     all_files.push(path.clone());
                 }

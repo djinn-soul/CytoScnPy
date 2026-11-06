@@ -16,11 +16,12 @@ pub(crate) use paths::discover_project_root;
 pub use ignore_match::{is_name_or_pattern_ignored, is_path_ignored};
 pub(crate) use minified::retain_unminified;
 pub use minified::{is_likely_minified, is_likely_minified_content, is_likely_minified_path};
-pub(crate) use paths::collect_python_files_within;
 pub use paths::{
-    collect_python_files_gitignore, collect_python_files_gitignore_with_errors, is_excluded,
-    normalize_display_path, validate_output_path, validate_path_within_root,
+    collect_python_files_gitignore, collect_python_files_gitignore_with_errors, display_location,
+    find_project_roots, is_excluded, normalize_display_path, validate_output_path,
+    validate_path_within_root, validate_source_path,
 };
+pub(crate) use paths::{collect_python_files_within, is_file_in_excluded_dir};
 pub use suppression::{
     get_ignored_lines, get_line_suppression, is_line_suppressed, is_rule_suppressed_on_line,
     Suppression,

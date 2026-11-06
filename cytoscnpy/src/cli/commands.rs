@@ -1,6 +1,6 @@
 use clap::Subcommand;
 
-use super::{FilesArgs, MetricArgs, PathArgs, RankArgs};
+use super::{FilesArgs, MetricArgs, PathArgs, ProjectsArgs, RankArgs};
 
 #[derive(Subcommand, Debug)]
 /// Available subcommands for specific metric calculations.
@@ -139,6 +139,13 @@ pub enum Commands {
         /// Common options for listing files.
         #[command(flatten)]
         args: FilesArgs,
+    },
+    /// List the projects under a folder: the folder itself and each folder
+    /// below it whose own configuration applies when scanned on its own
+    Projects {
+        /// Folder to search and output options.
+        #[command(flatten)]
+        args: ProjectsArgs,
     },
     /// Analyze unused and missing dependencies
     Deps {

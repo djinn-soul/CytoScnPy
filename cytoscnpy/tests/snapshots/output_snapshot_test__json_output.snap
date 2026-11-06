@@ -104,6 +104,34 @@ expression: output
     }
   ],
   "stdlib_dependencies": [],
+  "suppression_codes": {
+    "unused-class": [
+      "unused-class",
+      "CSP-V001"
+    ],
+    "unused-function": [
+      "unused-function",
+      "CSP-V001"
+    ],
+    "unused-import": [
+      "unused-import",
+      "CSP-V001",
+      "F401"
+    ],
+    "unused-method": [
+      "unused-method",
+      "CSP-V001"
+    ],
+    "unused-parameter": [
+      "unused-parameter",
+      "CSP-V001"
+    ],
+    "unused-variable": [
+      "unused-variable",
+      "CSP-V001",
+      "F841"
+    ]
+  },
   "taint_findings": [],
   "transitive_dependencies": [],
   "unused_classes": [],
@@ -120,6 +148,28 @@ expression: output
       "file": "[FILE]",
       "fix": {
         "end_byte": 66,
+        "file_fix_all": [
+          {
+            "end_byte": 10,
+            "replacement": "",
+            "start_byte": 1
+          },
+          {
+            "end_byte": 21,
+            "replacement": "",
+            "start_byte": 11
+          },
+          {
+            "end_byte": 66,
+            "replacement": "",
+            "start_byte": 23
+          },
+          {
+            "end_byte": 94,
+            "replacement": "_",
+            "start_byte": 84
+          }
+        ],
         "replacement": "",
         "start_byte": 23
       },
@@ -155,7 +205,19 @@ expression: output
       "fix": {
         "end_byte": 10,
         "replacement": "",
-        "start_byte": 8
+        "rule_fix_all": [
+          {
+            "end_byte": 10,
+            "replacement": "",
+            "start_byte": 1
+          },
+          {
+            "end_byte": 21,
+            "replacement": "",
+            "start_byte": 11
+          }
+        ],
+        "start_byte": 1
       },
       "full_name": "[MOD].os",
       "in_init": false,
@@ -187,7 +249,7 @@ expression: output
       "fix": {
         "end_byte": 21,
         "replacement": "",
-        "start_byte": 18
+        "start_byte": 11
       },
       "full_name": "[MOD].sys",
       "in_init": false,
@@ -222,7 +284,7 @@ expression: output
       "file": "[FILE]",
       "fix": {
         "end_byte": 94,
-        "replacement": "",
+        "replacement": "_",
         "start_byte": 84
       },
       "full_name": "[MOD].main.unused_var",

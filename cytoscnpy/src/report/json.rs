@@ -30,8 +30,10 @@ pub fn write_machine_json<W: Write>(
 ) -> Result<()> {
     let stable = stable_findings(result);
     let schema_version = Value::String("2".to_owned());
+    let suppression_codes = suppression_codes();
     let mut sections = result_sections(result);
     sections.push(("schema_version", json_render::value(&schema_version)));
+    sections.push(("suppression_codes", json_render::value(&suppression_codes)));
     sections.push(("stable_findings", json_render::sorted_keys(&stable)));
 
     let mut out = std::io::BufWriter::with_capacity(1 << 20, writer);
@@ -40,6 +42,15 @@ pub fn write_machine_json<W: Write>(
     drop(out);
     stable.into_par_iter().for_each(drop);
     Ok(())
+}
+
+/// Maps each dead-code rule ID to every code whose `# noqa` suppresses it, so
+/// clients such as the editor extension need no copy of the rules.
+fn suppression_codes() -> std::collections::BTreeMap<&'static str, &'static [&'static str]> {
+    crate::visitor::DefinitionType::ALL
+        .into_iter()
+        .map(|kind| (kind.unused_rule_id(), kind.suppression_codes()))
+        .collect()
 }
 
 /// One section per serialized `AnalysisResult` field. The exhaustive

@@ -171,6 +171,7 @@ impl SecretScanner {
                 matched_value: finding.matched_value,
                 entropy: finding.entropy,
                 confidence,
+                cell_number: None,
             });
         }
 

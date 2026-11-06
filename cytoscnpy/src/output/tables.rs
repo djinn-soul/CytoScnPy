@@ -1,5 +1,5 @@
 use crate::rules::Finding;
-use crate::utils::normalize_display_path;
+use crate::utils::{display_location, normalize_display_path};
 use crate::visitor::Definition;
 use colored::Colorize;
 use comfy_table::presets::UTF8_FULL;
@@ -46,7 +46,7 @@ pub fn print_findings(
     let mut table = create_table(vec!["Rule ID", "Message", "Location", "Severity"]);
 
     for finding in findings {
-        let location = format!("{}:{}", normalize_display_path(&finding.file), finding.line);
+        let location = display_location(&finding.file, finding.cell_number, finding.line);
         let severity_color = get_severity_color(&finding.severity);
 
         table.add_row(vec![
@@ -79,11 +79,7 @@ pub fn print_taint_findings(
     let mut table = create_table(vec!["Rule ID", "Message", "Location", "Severity"]);
 
     for finding in findings {
-        let location = format!(
-            "{}:{}",
-            normalize_display_path(&finding.file),
-            finding.sink_line
-        );
+        let location = display_location(&finding.file, finding.cell_number, finding.sink_line);
         let severity_str = finding.severity.to_string();
         let severity_color = get_severity_color(&severity_str);
         let hint = hint_for_vuln(&finding.vuln_type);
@@ -122,7 +118,7 @@ pub fn print_secrets(
     let mut table = create_table(vec!["Rule ID", "Message", "Location", "Severity"]);
 
     for secret in secrets {
-        let location = format!("{}:{}", normalize_display_path(&secret.file), secret.line);
+        let location = display_location(&secret.file, secret.cell_number, secret.line);
         let severity_color = get_severity_color(&secret.severity);
 
         table.add_row(vec![
@@ -172,7 +168,7 @@ pub fn print_unused_items(
             item.simple_name.clone()
         };
 
-        let location = format!("{}:{}", normalize_display_path(&item.file), item.line);
+        let location = display_location(&item.file, item.cell_number, item.line);
         table.add_row(vec![
             Cell::new(item_type_label),
             Cell::new(name_display).add_attribute(Attribute::Bold),

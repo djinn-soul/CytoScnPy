@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { findingsForDocument, parseErrorsForDocument } from "./notebookCells";
 import { CytoScnPyFinding, ParseError } from "./analyzer";
 import { Directive, Suppression, covers, directivesByLine } from "./suppression";
 
@@ -35,6 +36,7 @@ export function buildClosedFileDiagnosticFromFinding(
   );
   diagnostic.source = "CytoScnPy";
   diagnostic.code = finding.rule_id;
+  diagnosticSuppressionCodes.set(diagnostic, findingSuppressionCodes(finding));
   if (UNUSED_RULE_IDS.has(finding.rule_id)) {
     diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
   }
@@ -77,15 +79,30 @@ export function documentDirectives(
   return directives;
 }
 
-/** Rule ID that suppresses every kind of unused definition, as in the CLI. */
-export const DEAD_CODE_RULE_ID = "CSP-V001";
+/** Codes whose `# noqa` suppresses each diagnostic built from a finding. */
+const diagnosticSuppressionCodes = new WeakMap<vscode.Diagnostic, readonly string[]>();
 
-/** Matches the CLI: dead code also answers to `CSP-V001`. */
-export function suppressesFinding(suppression: Suppression, ruleId: string): boolean {
-  return (
-    covers(suppression, ruleId) ||
-    (UNUSED_RULE_IDS.has(ruleId) && covers(suppression, DEAD_CODE_RULE_ID))
-  );
+/**
+ * Every code whose `# noqa` suppresses the finding. The CLI decides these
+ * (e.g. `CSP-V001` and `F401` for an unused import); without them only the
+ * rule ID does.
+ */
+export function findingSuppressionCodes(finding: CytoScnPyFinding): readonly string[] {
+  return finding.suppression_codes ?? [finding.rule_id];
+}
+
+/** Suppression codes of a diagnostic built from a finding, if known. */
+export function suppressionCodesForDiagnostic(
+  diagnostic: vscode.Diagnostic,
+): readonly string[] | undefined {
+  return diagnosticSuppressionCodes.get(diagnostic);
+}
+
+export function suppressesFinding(
+  suppression: Suppression,
+  codes: readonly string[],
+): boolean {
+  return codes.some((code) => covers(suppression, code));
 }
 
 export function findingsToDiagnostics(
@@ -93,10 +110,10 @@ export function findingsToDiagnostics(
   findings: CytoScnPyFinding[],
 ): vscode.Diagnostic[] {
   const directives = documentDirectives(document);
-  return findings
+  return findingsForDocument(document, findings)
     .filter((finding) => {
       const suppression = directives.get(finding.line_number - 1)?.suppression;
-      return !suppression || !suppressesFinding(suppression, finding.rule_id);
+      return !suppression || !suppressesFinding(suppression, findingSuppressionCodes(finding));
     })
     .map((finding) => {
       const lineIndex = finding.line_number - 1;
@@ -126,6 +143,7 @@ export function findingsToDiagnostics(
 
       diagnostic.source = `CytoScnPy [${finding.category}]`;
       diagnostic.code = finding.rule_id;
+      diagnosticSuppressionCodes.set(diagnostic, findingSuppressionCodes(finding));
 
       return diagnostic;
     });
@@ -135,7 +153,7 @@ export function parseErrorsToDiagnostics(
   document: vscode.TextDocument,
   parseErrors: ParseError[],
 ): vscode.Diagnostic[] {
-  return parseErrors.map((parseError) => {
+  return parseErrorsForDocument(document, parseErrors).map((parseError) => {
     const lineIndex = Math.max(
       0,
       Math.min(document.lineCount - 1, parseError.line - 1),

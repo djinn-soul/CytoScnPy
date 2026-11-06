@@ -72,6 +72,9 @@ pub struct CytoScnPyVisitor<'a> {
     pub enum_class_stack: SmallVec<[bool; 4]>,
     /// Whether we are currently inside a try...except ``ImportError`` block.
     pub in_import_error_block: bool,
+    /// Whether we are currently visiting a type annotation (string literals are
+    /// parsed as forward references).
+    pub in_annotation: bool,
     /// Stack to track if we are inside an ABC-inheriting class.
     pub abc_class_stack: SmallVec<[bool; 4]>,
     /// Map of ABC class name -> set of abstract method names defined in that class.
@@ -83,4 +86,10 @@ pub struct CytoScnPyVisitor<'a> {
     /// Resolved source module names for each `from x import *` in this file.
     /// Populated during import handling; consumed by aggregation to synthesize bindings.
     pub star_imports: Vec<String>,
+    /// Dotted imports keyed by the name they bind: `import os.path` binds `os`,
+    /// so any use of `os` also uses it.
+    pub submodule_imports: FxHashMap<String, Vec<String>>,
+    /// Line of the enclosing statement for each import alias on a later line,
+    /// so a suppression on `from x import (  # noqa` covers every name.
+    pub import_statement_lines: FxHashMap<usize, usize>,
 }

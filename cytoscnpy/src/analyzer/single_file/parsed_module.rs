@@ -134,6 +134,22 @@ pub(super) fn analyze_parsed_module(
         );
         apply_heuristics(def);
 
+        if def.def_type == DefinitionType::Import
+            && output
+                .visitor
+                .import_statement_lines
+                .get(&def.line)
+                .is_some_and(|&line| {
+                    crate::analyzer::confidence_penalties::is_definition_suppressed_at(
+                        def,
+                        line,
+                        ctx.ignored_lines,
+                    )
+                })
+        {
+            def.confidence = 0;
+        }
+
         if def.def_type == DefinitionType::Method
             && output
                 .visitor

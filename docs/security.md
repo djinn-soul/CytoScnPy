@@ -23,8 +23,36 @@ Detects hardcoded secrets, API keys, and credentials using a combination of rege
 
 ### Secret Rules
 
-- [CSP-S200: Secret Pattern Match](rule/CSP-S200.md)
-- [CSP-S300: Suspicious Hardcoded Secret Assignment](rule/CSP-S300.md)
+| Rule ID | Detects | Severity |
+|---|---|---|
+| `CSP-S101` | AWS access key | HIGH |
+| `CSP-S102` | AWS secret key | CRITICAL |
+| `CSP-S103` | Generic API key | HIGH |
+| `CSP-S104` | GitHub token | CRITICAL |
+| `CSP-S105` | GitHub OAuth token | CRITICAL |
+| `CSP-S106` | GitHub App token | CRITICAL |
+| `CSP-S107` | GitLab personal access token | CRITICAL |
+| `CSP-S108` | Slack bot token | HIGH |
+| `CSP-S109` | Slack user token | HIGH |
+| `CSP-S110` | Stripe live key | CRITICAL |
+| `CSP-S111` | Stripe test key | MEDIUM |
+| `CSP-S112` | Private key | CRITICAL |
+| `CSP-S113` | Google API key | HIGH |
+| `CSP-S114` | Heroku API key | HIGH |
+| `CSP-S115` | SendGrid API key | HIGH |
+| `CSP-S116` | Twilio API key | HIGH |
+| `CSP-S117` | npm token | HIGH |
+| `CSP-S118` | PyPI token | HIGH |
+| `CSP-S119` | Discord token | HIGH |
+| `CSP-S120` | Database connection string with credentials | CRITICAL |
+| `CSP-S121` | Anthropic API key | CRITICAL |
+| `CSP-S122` | JWT secret | CRITICAL |
+| [`CSP-S200`](rule/CSP-S200.md) | High-entropy string that looks like a secret | HIGH |
+| [`CSP-S300`](rule/CSP-S300.md) | Hardcoded value assigned to a suspicious name (`password`, `token`, ...) | varies |
+| `CSP-CUSTOM-<name>` | A custom pattern from `secrets_config.patterns` without its own `rule_id` | as configured |
+
+`CSP-S101`–`CSP-S122` are the built-in pattern detectors. Suppress one with its
+own ID, for example `# noqa: CSP-S104`.
 
 ### Secret Scanning Configuration
 
@@ -44,7 +72,19 @@ suspicious_names = ["db_password", "oauth_token"]
 name = "Slack Token"
 regex = "xox[baprs]-([0-9a-zA-Z]{10,48})"
 severity = "HIGH"
+rule_id = "CSP-S900"  # optional; defaults to CSP-CUSTOM-<name with dashes>
 ```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `entropy_threshold` | `4.5` | Minimum Shannon entropy (0.0–8.0) for `CSP-S200` |
+| `min_length` | `16` | Shortest string checked for entropy |
+| `entropy_enabled` | `true` | Turn the entropy detector on or off |
+| `scan_comments` | `true` | Also scan comments |
+| `skip_docstrings` | `false` | Skip docstrings in entropy scanning |
+| `min_score` | `50` | Minimum confidence (0–100) to report |
+| `suspicious_names` | `[]` | Extra variable names for `CSP-S300`, added to the built-in list |
+| `patterns` | `[]` | Custom detectors: `name`, `regex`, `severity` (default `HIGH`), optional `rule_id` |
 
 ---
 
@@ -62,14 +102,17 @@ For a complete list of all rules organized by category, see: **[Dangerous Code R
 - [Cryptography & Randomness](danger/cryptography.md) (CSP-D3xx)
 - [Network & HTTP Security](danger/network.md) (CSP-D4xx)
 - [File Operations & Path Traversal](danger/filesystem.md) (CSP-D5xx)
-- [Modern Python & Frameworks](danger/modern-python.md) (CSP-D9xx)
+- [Type Safety](danger/type-safety.md) (CSP-D6xx)
+- [Best Practices](danger/best-practices.md) (CSP-D7xx)
+- [Open Redirect](danger/open-redirect.md) (CSP-D8xx)
+- [Privacy](danger/privacy.md) and [Modern Python & Frameworks](danger/modern-python.md) (CSP-D9xx)
 
 ## Rule Count
 
 The current security rule set includes:
 
-- 44 dangerous code rules (`CSP-D*`)
-- 2 secret rules (`CSP-S*`)
+- 53 dangerous code rules (`CSP-D*`)
+- 24 secret rules (`CSP-S101`–`CSP-S122`, `CSP-S200`, `CSP-S300`), plus any custom patterns
 
 ### Danger + Taint Configuration
 
@@ -97,7 +140,16 @@ return_value = ["build_parameterized_query"]
 
 [cytoscnpy.danger_config.sanitizers.command_injection]
 return_value = ["quote_shell_argument"]
+
+[cytoscnpy.danger_config.sanitizers.code_injection]  # eval, exec, compile
+guard = ["is_trusted_expression"]
 ```
+
+The sanitizer groups are `ssrf`, `path_traversal`, `sql_injection`,
+`command_injection`, and `code_injection`. The older top-level
+`custom_sanitizers = ["clean"]` list still works: it treats each function as a
+`return_value` sanitizer for every vulnerability type. Prefer the scoped groups,
+which cannot hide unrelated findings.
 
 Sanitizers are never inferred from names such as `validated_url`. `return_value`
 applies only to the returned value, `guard` only to the truthy branch, and

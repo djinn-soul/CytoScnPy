@@ -18,6 +18,11 @@ pub struct CallGraphNode {
     pub line: usize,
     /// Functions called by this function
     pub calls: FxHashSet<String>,
+    /// Functions and classes this function uses without calling them: stored
+    /// in a registry, passed as a callback, defined as a nested function, or
+    /// named in a decorator, default or annotation. Reachability follows these
+    /// like calls; taint analysis does not.
+    pub references: FxHashSet<String>,
     /// Functions that call this function
     pub called_by: FxHashSet<String>,
     /// Parameter names
@@ -56,6 +61,7 @@ impl CallGraph {
                 name: module_node_name.clone(),
                 line: 0,
                 calls: FxHashSet::default(),
+                references: FxHashSet::default(),
                 called_by: FxHashSet::default(),
                 params: Vec::new(),
                 is_root: true,
@@ -87,6 +93,17 @@ impl CallGraph {
         }
         if let Some(callee_node) = self.nodes.get_mut(callee) {
             callee_node.called_by.insert(caller.to_owned());
+        }
+    }
+
+    /// Records that `caller` uses `name` without calling it: a bare name, or
+    /// `.attr` for an attribute. Reachability expands a bare name to every
+    /// function or class so named, so no qualified form is stored.
+    fn add_reference_edge(&mut self, caller: &str, name: &str) {
+        if let Some(caller_node) = self.nodes.get_mut(caller) {
+            if !caller_node.references.contains(name) {
+                caller_node.references.insert(name.to_owned());
+            }
         }
     }
 
@@ -174,6 +191,7 @@ impl CallGraph {
                 Entry::Occupied(mut entry) => {
                     let entry = entry.get_mut();
                     entry.calls.extend(node.calls);
+                    entry.references.extend(node.references);
                     entry.called_by.extend(node.called_by);
                     entry.is_root |= node.is_root;
                 }

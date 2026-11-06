@@ -48,6 +48,13 @@ impl Config {
     pub fn try_load_from_path(path: &Path) -> anyhow::Result<Self> {
         loader::try_load_from_path(path)
     }
+
+    /// Whether the `pyproject.toml` at `path` configures CytoScnPy, so that
+    /// its folder is a project with settings of its own.
+    #[must_use]
+    pub fn configures_cytoscnpy(path: &Path) -> bool {
+        loader::pyproject_configures(path)
+    }
 }
 
 #[cfg(test)]

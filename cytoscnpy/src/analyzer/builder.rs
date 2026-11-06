@@ -43,6 +43,7 @@ impl CytoScnPy {
             verbose: false,
             analysis_root: std::path::PathBuf::from("."),
             whitelist_matcher: None,
+            force_exclude_root: None,
             per_file_ignore_rules,
             secret_scanner: std::sync::OnceLock::new(),
             taint_analyzer: std::sync::OnceLock::new(),

@@ -1,8 +1,10 @@
 mod assets;
+mod deslop;
 mod file_views;
 mod issues;
 mod paths;
 mod scoring;
+pub use deslop::generate_deslop_report;
 use paths::ReportPaths;
 
 use crate::analyzer::AnalysisResult;
@@ -14,15 +16,58 @@ use askama::Template;
 use std::fs;
 use std::path::Path;
 
+/// Color theme the HTML report opens with.
+///
+/// Viewers can still switch themes with the toggle in the report's navigation
+/// bar; their choice is remembered in browser storage and takes precedence.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+pub enum ReportTheme {
+    /// Follow the viewer's system light/dark preference.
+    #[default]
+    Auto,
+    /// Always open in the dark theme.
+    Dark,
+    /// Always open in the light theme.
+    Light,
+}
+
+impl ReportTheme {
+    /// Returns the theme name used in the report's `data-theme` attribute.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Dark => "dark",
+            Self::Light => "light",
+        }
+    }
+}
+
 /// Generates a comprehensive HTML report based on the analysis results.
 ///
 /// This function creates a report directory, copies static assets (CSS, JS),
 /// and generates the main dashboard, issues view, and individual file views.
+/// The report follows the viewer's system theme; use
+/// [`generate_report_with_theme`] to choose a default theme.
 ///
 /// # Errors
 ///
 /// Returns an error if directory creation, file I/O, or template rendering fails.
 pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) -> Result<()> {
+    generate_report_with_theme(result, root, output_dir, ReportTheme::Auto)
+}
+
+/// Generates the HTML report like [`generate_report`], opening in `theme`.
+///
+/// # Errors
+///
+/// Returns an error if directory creation, file I/O, or template rendering fails.
+pub fn generate_report_with_theme(
+    result: &AnalysisResult,
+    root: &Path,
+    output_dir: &Path,
+    theme: ReportTheme,
+) -> Result<()> {
     let output_dir = crate::utils::validate_output_path(output_dir, Some(root))?;
 
     if !output_dir.exists() {
@@ -34,26 +79,27 @@ pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) 
     let version = env!("CARGO_PKG_VERSION").to_owned();
 
     let mut issue_items = issues::flatten_issues(result);
+    file_views::map_notebook_lines(&mut issue_items, root);
     let report_paths = ReportPaths::new(result, &issue_items);
     for issue in &mut issue_items {
         issue.link = format!(
             "files/{}#L{}",
             report_paths.filename(&issue.file)?,
-            issue.line
+            issue.view_line
         );
     }
     let file_metrics_view = build_file_metrics_view(result, &report_paths)?;
 
     let score_color = if score.total_score >= 80 {
-        "#4ade80".to_owned()
+        "var(--success)".to_owned()
     } else {
-        "#f87171".to_owned()
+        "var(--danger)".to_owned()
     };
 
     let average_mi_color = if result.analysis_summary.average_mi >= 65.0 {
-        "#4ade80".to_owned()
+        "var(--success)".to_owned()
     } else {
-        "#f87171".to_owned()
+        "var(--danger)".to_owned()
     };
 
     let total_issues_color = if issue_items.is_empty() {
@@ -114,7 +160,8 @@ pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) 
     };
     fs::write(output_dir.join("clones.html"), clones_page.render()?)?;
 
-    assets::write_assets(&output_dir)?;
+    assets::write_assets(&output_dir, theme)?;
+    deslop::write_report_page(&output_dir, &generated_at, &version)?;
     file_views::generate_file_views(
         result,
         &issue_items,
@@ -122,6 +169,7 @@ pub fn generate_report(result: &AnalysisResult, root: &Path, output_dir: &Path) 
         &generated_at,
         &version,
         &report_paths,
+        root,
     )?;
 
     Ok(())
@@ -173,6 +221,9 @@ fn build_clone_items(result: &AnalysisResult, paths: &ReportPaths) -> Result<Vec
                 related_file: clone.related_clone.file.to_string_lossy().to_string(),
                 related_line: clone.related_clone.line,
                 related_link: format!("files/{}#L{}", safe_related, clone.related_clone.line),
+                // Clone findings honour only their own rule ID since 1.3.0.
+                noqa: format!("# noqa: {}", clone.rule_id),
+                rule_id: clone.rule_id.clone(),
             })
         })
         .collect()

@@ -2,10 +2,12 @@ use super::{ast, CytoScnPyVisitor, DefinitionInfo, DefinitionType, SmallVec};
 
 impl CytoScnPyVisitor<'_> {
     pub(super) fn handle_import_stmt(&mut self, node: &ast::StmtImport) {
+        let stmt_line = self.get_range_info(node).0;
         for alias in &node.names {
             let simple_name = alias.asname.as_ref().unwrap_or(&alias.name);
             let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
             let qualified_name = self.get_qualified_name(simple_name.as_str());
+            self.record_import_alias(alias, line, stmt_line, &qualified_name);
 
             self.add_definition(DefinitionInfo {
                 name: qualified_name.clone(),
@@ -18,6 +20,22 @@ impl CytoScnPyVisitor<'_> {
                 full_start_byte: start_byte,
                 base_classes: SmallVec::new(),
             });
+            // `import a.b` binds `a` in the current scope.
+            if alias.asname.is_none() {
+                if let Some((head, _)) = alias.name.split_once('.') {
+                    self.submodule_imports
+                        .entry(head.to_owned())
+                        .or_default()
+                        .push(qualified_name.clone());
+                    let already_bound = self
+                        .scope_stack
+                        .last()
+                        .is_some_and(|scope| scope.local_var_map.contains_key(head));
+                    if !already_bound {
+                        self.add_local_def(head.to_owned(), qualified_name.clone());
+                    }
+                }
+            }
             self.add_local_def(simple_name.as_str().to_owned(), qualified_name);
 
             self.alias_map
@@ -58,10 +76,12 @@ impl CytoScnPyVisitor<'_> {
             return;
         }
 
+        let stmt_line = self.get_range_info(node).0;
         for alias in &node.names {
             let asname = alias.asname.as_ref().unwrap_or(&alias.name);
             let (line, end_line, col, start_byte, end_byte) = self.get_range_info(alias);
             let qualified_name = self.get_qualified_name(asname.as_str());
+            self.record_import_alias(alias, line, stmt_line, &qualified_name);
 
             self.add_definition(DefinitionInfo {
                 name: qualified_name.clone(),
@@ -100,6 +120,27 @@ impl CytoScnPyVisitor<'_> {
                 self.add_ref(&qualified_name);
                 self.add_ref(asname.as_str());
             }
+        }
+    }
+
+    /// Records where an import alias's statement starts and treats the
+    /// redundant alias `import x as x` as an explicit re-export (PEP 484).
+    fn record_import_alias(
+        &mut self,
+        alias: &ast::Alias,
+        line: usize,
+        stmt_line: usize,
+        qualified_name: &str,
+    ) {
+        if line != stmt_line {
+            self.import_statement_lines.insert(line, stmt_line);
+        }
+        if alias
+            .asname
+            .as_ref()
+            .is_some_and(|asname| asname.as_str() == alias.name.as_str())
+        {
+            self.add_ref(qualified_name);
         }
     }
 

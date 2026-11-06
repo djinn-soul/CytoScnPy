@@ -71,6 +71,7 @@ pub fn create_finding(
         line,
         col: 0,
         severity: severity.to_owned(),
+        cell_number: None,
     }
 }
 

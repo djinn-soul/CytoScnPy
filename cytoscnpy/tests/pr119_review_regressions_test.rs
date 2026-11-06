@@ -163,6 +163,7 @@ fn gitlab_secret_fingerprints_disambiguate_same_line_findings() {
             matched_value: Some(matched.to_owned()),
             entropy: None,
             confidence,
+            cell_number: None,
         });
     }
 

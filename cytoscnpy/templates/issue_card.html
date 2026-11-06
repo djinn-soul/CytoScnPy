@@ -1,0 +1,82 @@
+{% macro issue_card(issue) %}
+<div
+  class="report-item border-{{ issue.severity|lower }}"
+  data-severity="{{ issue.severity }}"
+  data-group="{{ issue.group }}"
+  data-rule="{{ issue.rule_id|lower }}"
+  data-file="{{ issue.file|lower }}"
+>
+  <div class="report-item-header">
+    <span class="report-item-title">{{ issue.message }}</span>
+    <div class="report-item-badges">
+      {% if !issue.rule_id.is_empty() %}
+      <span class="rule-chip" title="Rule ID">{{ issue.rule_id }}</span>
+      {% endif %}
+      <span class="badge badge-{{ issue.severity }}">{{ issue.severity }}</span>
+    </div>
+  </div>
+  <div class="report-item-meta">
+    <div class="report-item-location">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+        <polyline points="13 2 13 9 20 9"></polyline>
+      </svg>
+      <a href="{{ issue.link }}">{{ issue.location() }}</a>
+    </div>
+    <span class="meta-chip">{{ issue.group }}</span>
+    {% if let Some(confidence) = issue.confidence %}
+    <span class="meta-chip" title="Detection confidence">{{ confidence }}% confidence</span>
+    {% endif %}
+    {% if issue.fixable %}
+    <span class="meta-chip tone-green is-tinted">Auto-fix available</span>
+    {% endif %}
+  </div>
+  {% if !issue.flow.is_empty() %}
+  <ol class="taint-flow" aria-label="Taint flow from source to sink">
+    {% for step in issue.flow %}
+    <li>{{ step }}</li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  {% if !issue.details.is_empty() %}
+  <dl class="issue-details">
+    {% for item in issue.details %}
+    <div>
+      <dt>{{ item.label }}</dt>
+      <dd>{{ item.value }}</dd>
+    </div>
+    {% endfor %}
+  </dl>
+  {% endif %}
+  <div class="report-item-footer">
+    {% if !issue.noqa.is_empty() %}
+    <div class="noqa-hint">
+      <span class="text-subtle">Suppress:</span>
+      <code>{{ issue.noqa }} &lt;reason&gt;</code>
+      <button
+        type="button"
+        class="copy-btn no-print"
+        data-copy="{{ issue.noqa }}"
+        title="Copy the suppression comment"
+      >
+        Copy
+      </button>
+    </div>
+    {% endif %}
+    <span class="stable-id" title="Stable finding ID, as in the JSON report"
+      >{{ issue.stable_id }}</span
+    >
+  </div>
+</div>
+{% endmacro %}

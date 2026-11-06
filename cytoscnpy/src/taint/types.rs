@@ -183,6 +183,12 @@ pub struct TaintFinding {
     /// Confidence-scored exploitability (0-100).
     #[serde(default)]
     pub exploitability_score: u8,
+    /// Notebook cell holding the sink, for findings in a notebook.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_number: Option<usize>,
+    /// Notebook cell holding the source, for findings in a notebook.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_cell_number: Option<usize>,
 }
 
 /// Information about a matched sink.

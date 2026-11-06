@@ -1,15 +1,24 @@
 # Migration Guide
 
-## Unreleased
+## Upgrading to v1.3.0
 
 ### Compatibility
 
 - **Python 3.14 Support**: Wheels are built and tested on Linux, Windows, and macOS. The minimum supported version remains Python 3.10.
-
+- **Windows**: The binaries statically link the C runtime, so `VCRUNTIME140.dll` no longer needs to be installed.
+- **Pre-commit Hooks**: Update the hook `rev` to `v1.3.0`.
 
 ### Breaking Changes
 
 - **JSON schema**: The CLI JSON output field `clone_findings` has been renamed to `clones`. Update consumers to read `clones` instead.
+
+### Behavioral Changes
+
+- **Rule-aware suppressions**: `# noqa: <codes>` now hides only the findings whose rule ID is listed. A comment written for another tool, such as `# noqa: E501`, no longer hides CytoScnPy findings, including clone findings. Use bare `# noqa`, `# noqa: CSP`, or the finding's own rule ID instead.
+- **Dead code suppression**: Dead code findings honour `CSP-V001` and per-kind IDs such as `unused-import` and `unused-function`.
+- **Suppression parsing**: A `#` inside a string or docstring is no longer read as a comment. Text after the codes is treated as an explanation (`# noqa: CSP-D003 input is validated`), and `ignore` must be a whole word (`# ignored` does not suppress).
+- **Deslop on an empty scan**: `cytoscnpy deslop` on a path with no Python files now fails the `no_python_files` gate and exits with code `1` instead of reporting a clean score.
+- **Deslop output format**: An explicit `--format` decides the output even when `--json` is also passed.
 
 ## Upgrading to v1.2.5
 

@@ -1,0 +1,293 @@
+{% extends "base.html" %} {% block html_attrs %}{% if let Some(theme) = theme %} data-default-theme="{{ theme }}"{% endif %}{% endblock %} {% block nav_links %}{% if standalone %}
+<a href="{{ root_path }}/deslop.html">Deslop</a>
+{% else %}{% call super() %}{% endif %}{% endblock %} {% block head %}
+<title>CytoScnPy - Slop Index</title>
+<style>
+  .deslop-hero {
+    grid-template-columns: 1fr 1.5fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+  .slop-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-bottom: 0;
+  }
+  .slop-value {
+    font-size: 5.5rem;
+    font-weight: 800;
+    line-height: 1;
+    margin: 0.75rem 0;
+  }
+  .slop-scale {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  .verdict-badge {
+    font-size: 1.1rem;
+    padding: 0.4rem 1.25rem;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .fact {
+    margin-bottom: 0;
+  }
+  .fact-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+  }
+  .fact-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+  .dimension {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .dimension:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .dimension-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  .dimension-name {
+    font-weight: 600;
+  }
+  .dimension-score {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+  }
+  .dimension-evidence {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0.5rem 0 0;
+  }
+  .rating-0 {
+    --tone: var(--grade-a);
+  }
+  .rating-1 {
+    --tone: var(--grade-b);
+  }
+  .rating-2 {
+    --tone: var(--grade-c);
+  }
+  .rating-3 {
+    --tone: var(--grade-d);
+  }
+  .rating-4,
+  .rating-5 {
+    --tone: var(--grade-f);
+  }
+  .recommendation h3 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+  }
+  .recommendation-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .recommendation p {
+    color: var(--text-secondary);
+    margin: 0 0 0.75rem;
+  }
+  .recommendation ol {
+    margin: 0 0 0.75rem;
+    padding-left: 1.25rem;
+    color: var(--text-secondary);
+  }
+  .affected {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+  }
+  .gate-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .gate-table th,
+  .gate-table td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .gate-table th {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .empty-deslop {
+    text-align: center;
+    padding: 3rem 1.5rem;
+  }
+  .empty-deslop pre {
+    display: inline-block;
+    text-align: left;
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0 0;
+  }
+</style>
+{% endblock %} {% block content %}
+<h1 class="page-title">Slop Index</h1>
+<p class="page-subtitle">
+  How much friction the codebase puts in front of people and coding agents,
+  from 0 (clean) to 100 (disaster). Lower is better.
+</p>
+
+{% if let Some(d) = deslop %}
+<div class="grid deslop-hero">
+  <div class="card slop-card">
+    <h2>Slop Index</h2>
+    <div class="slop-value" style="color: {{ d.verdict_color() }}">
+      {{ d.slop_index }}
+    </div>
+    <div class="slop-scale">out of 100</div>
+    <div class="badge verdict-badge" style="--tone: {{ d.verdict_color() }}">
+      {{ d.verdict }}
+    </div>
+  </div>
+  <div class="facts">
+    <div class="card fact">
+      <div class="fact-label">CI gates</div>
+      <div class="fact-value {% if d.passed_gate %}text-success{% else %}text-danger{% endif %}">
+        {% if d.passed_gate %}Passed{% else %}Failed{% endif %}
+      </div>
+    </div>
+    <div class="card fact">
+      <div class="fact-label">Files checked</div>
+      <div class="fact-value">{{ d.files_checked }} / {{ d.files_discovered }}</div>
+    </div>
+    <div class="card fact">
+      <div class="fact-label">Raw score</div>
+      <div class="fact-value">{{ d.raw_score }}</div>
+    </div>
+    <div class="card fact">
+      <div class="fact-label">Size multiplier</div>
+      <div class="fact-value">×{{ d.size_multiplier }}</div>
+    </div>
+  </div>
+</div>
+
+{% if !d.gate_failures.is_empty() %}
+<div class="card">
+  <h2>Failed Gates</h2>
+  <table class="gate-table">
+    <thead>
+      <tr>
+        <th>Gate</th>
+        <th>Actual</th>
+        <th>Limit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for gate in d.gate_failures %}
+      <tr>
+        <td class="mono">{{ gate.check }}</td>
+        <td class="text-danger">{{ gate.actual }}</td>
+        <td class="text-muted">{{ gate.limit }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Dimensions</h2>
+  {% for dim in d.dimensions %}
+  <div class="dimension rating-{{ dim.rating }}">
+    <div class="dimension-head">
+      <span class="dimension-name">{{ dim.name }}</span>
+      <span class="dimension-score"
+        >rating {{ dim.rating }}/5 · weight {{ dim.weight }} · +{{
+        dim.contribution }}</span
+      >
+    </div>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: {{ dim.rating * 20 }}%"></div>
+    </div>
+    {% if !dim.evidence.is_empty() %}
+    <p class="dimension-evidence">{{ dim.evidence }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if !d.recommendations.is_empty() %}
+<h2>Recommendations</h2>
+{% for rec in d.recommendations %}
+<div class="card recommendation">
+  <h3>{{ rec.title }}</h3>
+  <div class="recommendation-meta">
+    <span class="meta-chip">{{ rec.dimension }}</span>
+    <span class="meta-chip tone-green is-tinted"
+      >−{{ rec.estimated_reduction }} points</span
+    >
+    <span class="meta-chip">{{ rec.effort }} effort</span>
+  </div>
+  <p>{{ rec.description }}</p>
+  {% if !rec.action_steps.is_empty() %}
+  <ol>
+    {% for step in rec.action_steps %}
+    <li>{{ step }}</li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  {% if !rec.affected_files.is_empty() %}
+  <div class="affected">{{ rec.affected_files.join(", ") }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if !d.skipped_files.is_empty() %}
+<div class="card">
+  <h2>Incomplete Scan</h2>
+  <p class="text-muted">
+    {{ d.files_checked }} of {{ d.files_discovered }} files were checked. These
+    were skipped:
+  </p>
+  <table class="gate-table">
+    <tbody>
+      {% for (path, reason) in d.skipped_files %}
+      <tr>
+        <td class="mono">{{ path }}</td>
+        <td class="text-muted">{{ reason }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% else %}
+<div class="card empty-deslop">
+  <h2>No Slop Index yet</h2>
+  <p class="text-muted">
+    Run the DeSlopify assessment with <code class="inline-code">--html</code> to
+    add it to this report:
+  </p>
+  <pre><code>cytoscnpy deslop . --html</code></pre>
+</div>
+{% endif %}
+{% endblock %}

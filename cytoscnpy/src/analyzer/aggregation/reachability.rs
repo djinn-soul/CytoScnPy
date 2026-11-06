@@ -18,8 +18,6 @@ pub(super) struct ReachabilityFlags {
     pub(super) implicitly_used: bool,
     /// The definition is reachable from a root through the call graph.
     pub(super) reachable: bool,
-    /// Some call site names the definition directly.
-    pub(super) explicitly_called: bool,
 }
 
 pub(super) fn build_reachability(
@@ -34,50 +32,26 @@ pub(super) fn build_reachability(
     let runtime_protocol_hints = collect_runtime_protocol_hints(ref_counts);
     let implicitly_used_methods =
         collect_implicitly_used_methods(&class_methods, protocol_methods, &runtime_protocol_hints);
-    let (reachable, explicitly_called) = rayon::join(
-        || {
-            collect_reachable_nodes(
-                definitions,
-                &class_methods,
-                &implicitly_used_methods,
-                dynamic_imported_modules,
-                call_graph,
-                include_tests,
-            )
-        },
-        || collect_explicitly_called_nodes(definitions, call_graph),
+    let reachable = collect_reachable_nodes(
+        definitions,
+        &class_methods,
+        &implicitly_used_methods,
+        dynamic_imported_modules,
+        call_graph,
+        include_tests,
     );
 
     let flags = definitions
         .par_iter()
         .zip(reachable)
-        .zip(explicitly_called)
-        .map(|((def, reachable), explicitly_called)| ReachabilityFlags {
+        .map(|(def, reachable)| ReachabilityFlags {
             implicitly_used: implicitly_used_methods.contains(&def.full_name),
             reachable,
-            explicitly_called,
         })
         .collect();
     ReachabilityContext { flags }
 }
 
-/// Whether each definition is named by a direct (non-attribute) call.
-fn collect_explicitly_called_nodes(
-    definitions: &[Definition],
-    call_graph: &CallGraph,
-) -> Vec<bool> {
-    let called: FxHashSet<&str> = call_graph
-        .nodes
-        .values()
-        .flat_map(|node| &node.calls)
-        .filter(|call| !call.starts_with('.'))
-        .map(String::as_str)
-        .collect();
-    definitions
-        .par_iter()
-        .map(|def| called.contains(def.full_name.as_str()))
-        .collect()
-}
 fn collect_reachable_nodes(
     definitions: &[Definition],
     class_methods: &FxHashMap<String, FxHashSet<String>>,
@@ -93,7 +67,7 @@ fn collect_reachable_nodes(
     let mut class_bases: FxHashMap<&str, &[String]> = FxHashMap::default();
     let mut class_simple_to_full: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
     let mut roots: Vec<&str> = Vec::new();
-    let mut root_methods: Vec<String> = Vec::new();
+    let mut root_classes: Vec<&str> = Vec::new();
 
     // Hoist prefix-form once instead of `format!("{module}.")` per definition.
     let dynamic_module_prefixes: Vec<(String, String)> = dynamic_imported_modules
@@ -136,16 +110,43 @@ fn collect_reachable_nodes(
             roots.push(&def.full_name);
 
             if def.def_type == "class" {
-                if let Some(methods) = class_methods.get(&def.full_name) {
-                    for method in methods {
-                        if !method.starts_with('_') {
-                            root_methods.push(format!("{}.{}", def.full_name, method));
-                        }
-                    }
-                }
+                root_classes.push(&def.full_name);
             }
         }
     }
+
+    // A class extending a base from outside the project has its methods,
+    // private hooks included, called by that base (`textwrap.TextWrapper`
+    // calls `_handle_long_word`). A base matching only the class itself, as
+    // in `class TextWrapper(textwrap.TextWrapper)`, is external too.
+    let extends_external = |class: &str| {
+        class_bases.get(class).is_some_and(|bases| {
+            bases.iter().any(|base| {
+                !matches!(base.as_str(), "object" | "ABC" | "Generic")
+                    && class_simple_to_full
+                        .get(base.as_str())
+                        .map_or(true, |candidates| candidates.iter().all(|c| *c == class))
+            })
+        })
+    };
+    let class_method_names = |class: &str, include_private: bool| -> Vec<String> {
+        class_methods.get(class).map_or_else(Vec::new, |methods| {
+            methods
+                .iter()
+                .filter(|method| include_private || !method.starts_with('_'))
+                .map(|method| format!("{class}.{method}"))
+                .collect()
+        })
+    };
+    let mut root_methods: Vec<String> = Vec::new();
+    for class in &root_classes {
+        root_methods.extend(class_method_names(class, extends_external(class)));
+    }
+    let external_class_methods: FxHashMap<&str, Vec<String>> = class_bases
+        .keys()
+        .filter(|class| extends_external(class))
+        .map(|class| (*class, class_method_names(class, true)))
+        .collect();
 
     roots.extend(
         call_graph
@@ -171,6 +172,15 @@ fn collect_reachable_nodes(
             continue;
         }
 
+        if let Some(methods) = external_class_methods.get(current) {
+            stack.extend(
+                methods
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|method| !reachable_nodes.contains(method)),
+            );
+        }
+
         // Propagate reachability through base classes: a reachable class implicitly
         // keeps its bases alive (subclassing is a usage edge the call graph misses).
         if let Some(bases) = class_bases.get(current) {
@@ -192,7 +202,9 @@ fn collect_reachable_nodes(
         }
 
         if let Some(node) = call_graph.nodes.get(current) {
-            for call in &node.calls {
+            // References (callbacks, registries, nested functions) keep their
+            // targets alive just as calls do.
+            for call in node.calls.iter().chain(&node.references) {
                 if let Some(attr_name) = call.strip_prefix('.') {
                     if !expanded_attrs.insert(attr_name) {
                         continue;
@@ -218,6 +230,20 @@ fn collect_reachable_nodes(
                                 .iter()
                                 .filter(|candidate| !reachable_nodes.contains(*candidate)),
                         );
+                    }
+                } else if let Some((_, simple)) = call.rsplit_once('.') {
+                    // `a.helper()` after `from . import a`: match definitions
+                    // whose qualified name ends with `.a.helper`.
+                    if !expanded_callables.insert(call) {
+                        continue;
+                    }
+                    if let Some(candidates) = callable_simple_to_full.get(simple) {
+                        stack.extend(candidates.iter().filter(|candidate| {
+                            candidate
+                                .strip_suffix(call.as_str())
+                                .is_some_and(|prefix| prefix.ends_with('.'))
+                                && !reachable_nodes.contains(*candidate)
+                        }));
                     }
                 }
             }

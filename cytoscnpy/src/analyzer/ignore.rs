@@ -90,6 +90,7 @@ mod tests {
             file: "sample.py".into(),
             line: 1,
             col: 1,
+            cell_number: None,
         }
     }
 

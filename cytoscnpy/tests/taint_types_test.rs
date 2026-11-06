@@ -181,6 +181,8 @@ fn test_taint_finding_flow_path_str_empty() {
         file: PathBuf::from("test.py"),
         remediation: "Don't use eval".to_string(),
         exploitability_score: 95,
+        cell_number: None,
+        source_cell_number: None,
     };
 
     assert_eq!(finding.flow_path_str(), "input() → eval()");
@@ -202,6 +204,8 @@ fn test_taint_finding_flow_path_str_with_path() {
         file: PathBuf::from("app.py"),
         remediation: "Use parameterized queries".to_string(),
         exploitability_score: 82,
+        cell_number: None,
+        source_cell_number: None,
     };
 
     assert_eq!(

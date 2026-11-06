@@ -13,6 +13,7 @@ fn test_fix_suggestion_serialization() {
         start_byte: 100,
         end_byte: 150,
         replacement: String::new(), // Empty string means "delete"
+        ..FixSuggestion::default()
     };
 
     let json = serde_json::to_string(&fix).expect("should serialize");
@@ -158,6 +159,7 @@ fn test_definition_with_fix_serializes() {
             start_byte: 200,
             end_byte: 350,
             replacement: String::new(),
+            ..FixSuggestion::default()
         })),
         is_enum_member: false,
         is_constant: false,

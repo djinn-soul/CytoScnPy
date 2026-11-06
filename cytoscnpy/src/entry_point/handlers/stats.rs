@@ -28,15 +28,11 @@ pub(crate) fn handle_stats<W: std::io::Write>(
     let excludes = merge_excludes(exclude, exclude_folders);
     let output_file = prepare_output_path(output, analysis_root)?;
 
+    // `root` only bounds the output file. It must be the boundary the output
+    // was just validated against, not the first scanned path, or `-o` would be
+    // rejected whenever the scanned path is a subdirectory.
     let quality_count = crate::commands::run_stats_v2(
-        if paths.paths.is_empty() {
-            match paths.root {
-                Some(ref p) => p,
-                None => analysis_root,
-            }
-        } else {
-            &paths.paths[0]
-        },
+        analysis_root,
         &effective_paths,
         options,
         output_file,

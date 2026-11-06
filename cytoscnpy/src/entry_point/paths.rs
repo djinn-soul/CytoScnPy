@@ -65,41 +65,33 @@ pub(crate) fn validate_path_args(args: &crate::cli::PathArgs) -> Result<(), i32>
 }
 
 /// Collects all target paths from global and subcommand arguments.
+/// The path arguments of the subcommand being run, if it takes any.
+fn subcommand_path_args(cli: &Cli) -> Option<&crate::cli::PathArgs> {
+    match cli.command.as_ref()? {
+        Commands::Raw { common, .. }
+        | Commands::Cc { common, .. }
+        | Commands::Hal { common, .. }
+        | Commands::Mi { common, .. } => Some(&common.paths),
+        Commands::Projects { args } => Some(&args.paths),
+        Commands::Files { args, .. } => Some(&args.paths),
+        Commands::Stats { paths, .. }
+        | Commands::Deslop {
+            args: crate::cli::DeslopArgs { paths, .. },
+        }
+        | Commands::Deps {
+            args: crate::cli::DepsArgs { paths, .. },
+        } => Some(paths),
+        Commands::McpServer | Commands::Init => None,
+    }
+}
+
 pub(crate) fn collect_all_target_paths(cli: &Cli) -> Vec<std::path::PathBuf> {
     let mut all_target_paths = cli.paths.paths.clone();
-    if let Some(ref command) = cli.command {
-        match command {
-            Commands::Raw { common, .. }
-            | Commands::Cc { common, .. }
-            | Commands::Hal { common, .. }
-            | Commands::Mi { common, .. } => {
-                if let Some(r) = &common.paths.root {
-                    all_target_paths.push(r.clone());
-                } else {
-                    all_target_paths.extend(common.paths.paths.iter().cloned());
-                }
-            }
-            Commands::Files { args, .. } => {
-                if let Some(r) = &args.paths.root {
-                    all_target_paths.push(r.clone());
-                } else {
-                    all_target_paths.extend(args.paths.paths.iter().cloned());
-                }
-            }
-            Commands::Stats { paths, .. }
-            | Commands::Deslop {
-                args: crate::cli::DeslopArgs { paths, .. },
-            }
-            | Commands::Deps {
-                args: crate::cli::DepsArgs { paths, .. },
-            } => {
-                if let Some(r) = &paths.root {
-                    all_target_paths.push(r.clone());
-                } else {
-                    all_target_paths.extend(paths.paths.iter().cloned());
-                }
-            }
-            Commands::McpServer | Commands::Init => {}
+    if let Some(paths) = subcommand_path_args(cli) {
+        if let Some(r) = &paths.root {
+            all_target_paths.push(r.clone());
+        } else {
+            all_target_paths.extend(paths.paths.iter().cloned());
         }
     }
     all_target_paths
@@ -110,8 +102,14 @@ pub(crate) fn resolve_analysis_context(
     cli: &Cli,
     all_target_paths: &[std::path::PathBuf],
 ) -> (Vec<std::path::PathBuf>, std::path::PathBuf) {
-    if let Some(ref root) = cli.paths.root {
-        // --root was provided: use it as the analysis path AND containment boundary
+    // --root, global or on the subcommand, is the analysis path AND the
+    // containment boundary for everything the command writes.
+    let root = cli
+        .paths
+        .root
+        .as_ref()
+        .or_else(|| subcommand_path_args(cli).and_then(|paths| paths.root.as_ref()));
+    if let Some(root) = root {
         return (vec![root.clone()], root.clone());
     }
 
@@ -152,4 +150,42 @@ pub(crate) fn resolve_analysis_context(
     };
 
     (paths, root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{collect_all_target_paths, resolve_analysis_context};
+    use crate::cli::Cli;
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    fn analysis_root(args: &[&str]) -> PathBuf {
+        let cli = Cli::try_parse_from(args).unwrap();
+        let targets = collect_all_target_paths(&cli);
+        resolve_analysis_context(&cli, &targets).1
+    }
+
+    #[test]
+    fn subcommand_root_bounds_output_like_global_root() {
+        assert_eq!(
+            analysis_root(&["cytoscnpy", "--root", "proj"]),
+            PathBuf::from("proj")
+        );
+        assert_eq!(
+            analysis_root(&["cytoscnpy", "stats", "--root", "proj"]),
+            PathBuf::from("proj")
+        );
+        assert_eq!(
+            analysis_root(&["cytoscnpy", "deslop", "--root", "proj"]),
+            PathBuf::from("proj")
+        );
+    }
+
+    #[test]
+    fn relative_paths_keep_working_directory_as_root() {
+        assert_eq!(
+            analysis_root(&["cytoscnpy", "stats", "proj"]),
+            PathBuf::from(".")
+        );
+    }
 }

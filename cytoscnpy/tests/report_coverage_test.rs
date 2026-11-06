@@ -51,6 +51,7 @@ fn test_generate_report_full_coverage() -> Result<(), Box<dyn std::error::Error>
         severity: "HIGH".to_owned(),
         rule_id: "CSP-Q001".to_owned(),
         col: 0,
+        cell_number: None,
     });
     result.quality.push(Finding {
         file: dummy_file_path.clone(),
@@ -60,6 +61,7 @@ fn test_generate_report_full_coverage() -> Result<(), Box<dyn std::error::Error>
         severity: "MEDIUM".to_owned(),
         rule_id: "CSP-Q002".to_owned(),
         col: 0,
+        cell_number: None,
     });
     result.quality.push(Finding {
         file: dummy_file_path.clone(),
@@ -69,6 +71,7 @@ fn test_generate_report_full_coverage() -> Result<(), Box<dyn std::error::Error>
         severity: "HIGH".to_owned(),
         rule_id: "CSP-Q003".to_owned(),
         col: 0,
+        cell_number: None,
     });
     result.quality.push(Finding {
         file: dummy_file_path.clone(),
@@ -78,6 +81,7 @@ fn test_generate_report_full_coverage() -> Result<(), Box<dyn std::error::Error>
         severity: "LOW".to_owned(),
         rule_id: "CSP-Q004".to_owned(),
         col: 0,
+        cell_number: None,
     });
 
     // 4. Security Issues
@@ -91,6 +95,7 @@ fn test_generate_report_full_coverage() -> Result<(), Box<dyn std::error::Error>
         confidence: 100,
         matched_value: None,
         entropy: None,
+        cell_number: None,
     });
 
     // Set some summary values to trigger branches

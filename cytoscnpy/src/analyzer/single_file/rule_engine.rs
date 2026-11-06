@@ -102,6 +102,7 @@ pub(super) fn apply_raw_rules(ctx: &RuleEngineContext<'_>, output: &mut Pipeline
                     line: 1,
                     col: 0,
                     severity: "HIGH".to_owned(),
+                    cell_number: None,
                 });
             }
         }

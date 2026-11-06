@@ -94,21 +94,31 @@ export function buildAnalyzerArgs(
   target: string,
   config: CytoScnPyConfig,
 ): string[] {
-  const args: string[] = ["--client", "vscode", target, "--json"];
+  // Editors name files directly, so apply the project's folder exclusions to
+  // them too; notebook findings report cell lines so each cell can place them.
+  const args: string[] = [
+    "--client",
+    "vscode",
+    target,
+    "--json",
+    "--force-exclude",
+    "--ipynb-cells",
+  ];
 
-  if (config.enableSecretsScan) {
-    args.push("--secrets");
+  // An explicit false must override a project that enables the scan.
+  const scanSwitches: [boolean | undefined, string][] = [
+    [config.enableSecretsScan, "secrets"],
+    [config.enableDangerScan, "danger"],
+    [config.enableQualityScan, "quality"],
+    [config.enableCloneScan, "clones"],
+  ];
+  for (const [enabled, scan] of scanSwitches) {
+    if (enabled !== undefined) {
+      args.push(enabled ? `--${scan}` : `--no-${scan}`);
+    }
   }
-  if (config.enableDangerScan) {
-    args.push("--danger");
-  }
-  if (config.enableCloneScan) {
-    args.push("--clones");
-  }
-  if (
-    config.confidenceThreshold !== undefined &&
-    config.confidenceThreshold > 0
-  ) {
+  // Unset settings are undefined, so an explicit 0 overrides the project's.
+  if (config.confidenceThreshold !== undefined) {
     args.push("--confidence", config.confidenceThreshold.toString());
   }
   if (config.excludeFolders && config.excludeFolders.length > 0) {
@@ -121,15 +131,17 @@ export function buildAnalyzerArgs(
       args.push("--include-folders", folder);
     }
   }
-  if (config.includeTests) {
-    args.push("--include-tests");
-  }
-  if (config.includeIpynb) {
-    args.push("--include-ipynb");
+  for (const [included, files] of [
+    [config.includeTests, "tests"],
+    [config.includeIpynb, "ipynb"],
+  ] as [boolean | undefined, string][]) {
+    if (included !== undefined) {
+      args.push(included ? `--include-${files}` : `--no-include-${files}`);
+    }
   }
 
-  if (config.enableQualityScan) {
-    args.push("--quality");
+  // Thresholds enable quality analysis on their own, unless it is disabled.
+  if (config.enableQualityScan !== false) {
     if (config.maxComplexity !== undefined) {
       args.push("--max-complexity", config.maxComplexity.toString());
     }
@@ -239,5 +251,36 @@ export async function runWorkspaceAnalysis(
       `CytoScnPy workspace analysis failed for ${workspacePath} (exit ${code}): ${message}. Stderr: ${stderr}`,
       { cause: error },
     );
+  }
+}
+
+/**
+ * The projects to scan within `folderPath`, as the CLI finds them: the folder
+ * itself plus each nested folder whose own `pyproject.toml` (with a
+ * `[tool.cytoscnpy]` table) or `.cytoscnpy.toml` applies when it is scanned
+ * on its own. Falls back to the folder alone if the binary predates
+ * `projects`, so older installs scan as before.
+ */
+export async function listProjectRoots(
+  folderPath: string,
+  binaryPath: string,
+  options: AnalyzerRunOptions = {},
+): Promise<string[]> {
+  try {
+    const output = await runAnalyzerStreaming(
+      binaryPath,
+      ["projects", folderPath, "--json"],
+      { timeoutMs: FILE_ANALYSIS_TIMEOUT_MS, ...options },
+    );
+    const parsed = JSON.parse(output.stdout.trim()) as { projects?: unknown };
+    const roots = Array.isArray(parsed.projects)
+      ? parsed.projects.filter((root): root is string => typeof root === "string")
+      : [];
+    return roots.length > 0 ? roots : [folderPath];
+  } catch (error: unknown) {
+    if (options.signal?.aborted) {
+      throw error;
+    }
+    return [folderPath];
   }
 }

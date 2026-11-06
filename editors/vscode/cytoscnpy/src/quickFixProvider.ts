@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
-import { CytoScnPyFinding } from "./analyzer";
+import { CytoScnPyFinding, FixEdit, FixSuggestion } from "./analyzer";
 import { findingResolver } from "./findingResolver";
-import { fileCache, getCacheKey, hashForDocument } from "./extensionCache";
-import { UNUSED_RULE_LABELS, filterOverlappingFixes, fixRangeMapper, createSuppressionAction } from "./quickFixHelpers";
+import { documentCacheKey, fileCache, hashForDocument } from "./extensionCache";
+import { notebookCellOf } from "./notebookCells";
+import { UNUSED_RULE_LABELS, fixRangeMapper, createSuppressionAction } from "./quickFixHelpers";
 
 export class QuickFixProvider implements vscode.CodeActionProvider {
   public provideCodeActions(
@@ -34,7 +35,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
     // over the full document on every lightbulb invocation showed up as a
     // measurable hotspot on large files.
     const currentHash = hashForDocument(document);
-    const cacheKey = getCacheKey(document.uri.fsPath);
+    const cacheKey = documentCacheKey(document);
     const cachedHistory = fileCache.get(cacheKey) || [];
     const cachedEntry = cachedHistory.find((e) => e.hash === currentHash);
     const resolve = cachedEntry ? findingResolver(cachedEntry.findings) : undefined;
@@ -107,9 +108,12 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
             diagnostic.message.match(/'([^']+)'/) ||
             diagnostic.message.match(/`([^`]+)`/);
 
-          const actionTitle = symbolMatch
-            ? `Remove unused ${labels.singular} '${symbolMatch[1]}'`
-            : `Remove unused ${labels.singular}`;
+          const symbol = symbolMatch ? ` '${symbolMatch[1]}'` : "";
+          // Variables are renamed to a discard binding rather than deleted.
+          const actionTitle =
+            ruleId === "unused-variable" && /^\w+$/.test(finding.fix.replacement)
+              ? `Rename unused ${labels.singular}${symbol} to '${finding.fix.replacement}'`
+              : `Remove unused ${labels.singular}${symbol}`;
 
           const fixAction = new vscode.CodeAction(
             actionTitle,
@@ -138,81 +142,62 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
       }
     }
 
-    // 3. Add "Fix All" actions for rules with multiple findings
+    // 3. "Fix All" actions apply the analyzer's combined plan. Applying each
+    // finding's own fix at once could leave an empty suite or class body, so
+    // there is no fallback to stitching single fixes together.
+    const cachedFindings = cachedEntry?.findings ?? [];
+    // Notebook plans cover one cell, as each cell is edited on its own.
+    const scope = notebookCellOf(document) ? "cell" : "file";
+    const addFixAllAction = (
+      title: string,
+      items: { finding: CytoScnPyFinding; diagnostic: vscode.Diagnostic }[],
+      covers: (finding: CytoScnPyFinding) => boolean,
+      plan: (fix: FixSuggestion) => FixEdit[] | undefined,
+    ) => {
+      const findings = new Set(items.map((item) => item.finding));
+      if (findings.size < 2) {
+        return;
+      }
+      // The plan fixes every finding it covers; a finding hidden by `# noqa`
+      // here would be changed without the user seeing it.
+      const covered = cachedFindings.filter((finding) => finding.fix && covers(finding));
+      if (covered.some((finding) => !findings.has(finding))) {
+        return;
+      }
+      const edits = items
+        .map((item) => plan(item.finding.fix!))
+        .find((candidate) => candidate && candidate.length > 0);
+      if (!edits) {
+        return;
+      }
+      const edit = new vscode.WorkspaceEdit();
+      for (const fix of edits) {
+        const range = rangeFromFixBytes(fix.start_byte, fix.end_byte);
+        if (!range) {
+          return;
+        }
+        edit.replace(document.uri, range, fix.replacement);
+      }
+      const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
+      action.diagnostics = items.map((item) => item.diagnostic);
+      action.edit = edit;
+      actions.push(action);
+    };
+
     for (const [ruleId, items] of fixableByRule.entries()) {
-      const filteredItems = filterOverlappingFixes(items);
-      if (filteredItems.length < 2) {
-        continue;
-      }
-
-      const labels = UNUSED_RULE_LABELS[ruleId];
-      if (!labels) {
-        continue;
-      }
-
-      const fixAllAction = new vscode.CodeAction(
-        `Remove all unused ${labels.plural} in this file`,
-        vscode.CodeActionKind.QuickFix,
+      addFixAllAction(
+        `Remove all unused ${UNUSED_RULE_LABELS[ruleId].plural} in this ${scope}`,
+        items,
+        (finding) => finding.rule_id === ruleId,
+        (fix) => fix.rule_fix_all,
       );
-      fixAllAction.diagnostics = filteredItems.map((i) => i.diagnostic);
-
-      const edit = new vscode.WorkspaceEdit();
-      // Sort by start_byte descending to apply fixes from end of file first
-      // This prevents byte offset shifts from invalidating later fixes
-      const sortedItems = [...filteredItems].sort(
-        (a, b) => b.finding.fix!.start_byte - a.finding.fix!.start_byte,
-      );
-
-      let hasAllRanges = true;
-      for (const { finding } of sortedItems) {
-        const range = rangeFromFixBytes(
-          finding.fix!.start_byte,
-          finding.fix!.end_byte,
-        );
-        if (!range) {
-          hasAllRanges = false;
-          break;
-        }
-        edit.replace(document.uri, range, finding.fix!.replacement);
-      }
-      if (hasAllRanges) {
-        fixAllAction.edit = edit;
-        actions.push(fixAllAction);
-      }
     }
-
-    const filteredUnused = filterOverlappingFixes(fixableUnused);
-    if (filteredUnused.length >= 2) {
-      const fixAllDeadCodeAction = new vscode.CodeAction(
-        "Remove all dead code in this file",
-        vscode.CodeActionKind.QuickFix,
-      );
-      fixAllDeadCodeAction.diagnostics = filteredUnused.map(
-        (i) => i.diagnostic,
-      );
-
-      const edit = new vscode.WorkspaceEdit();
-      const sortedItems = [...filteredUnused].sort(
-        (a, b) => b.finding.fix!.start_byte - a.finding.fix!.start_byte,
-      );
-
-      let hasAllRanges = true;
-      for (const { finding } of sortedItems) {
-        const range = rangeFromFixBytes(
-          finding.fix!.start_byte,
-          finding.fix!.end_byte,
-        );
-        if (!range) {
-          hasAllRanges = false;
-          break;
-        }
-        edit.replace(document.uri, range, finding.fix!.replacement);
-      }
-      if (hasAllRanges) {
-        fixAllDeadCodeAction.edit = edit;
-        actions.push(fixAllDeadCodeAction);
-      }
-    }
+    addFixAllAction(
+      `Remove all dead code in this ${scope}`,
+      fixableUnused,
+      (finding) => finding.rule_id in UNUSED_RULE_LABELS,
+      (fix) => fix.file_fix_all,
+    );
 
     return actions;
   }

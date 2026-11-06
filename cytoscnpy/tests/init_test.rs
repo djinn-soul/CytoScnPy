@@ -99,3 +99,51 @@ fn test_init_skips_pyproject_if_cytoscnpy_toml_exists() -> Result<()> {
 
     Ok(())
 }
+
+/// Uncomments every commented-out TOML setting in an init template, leaving prose comments.
+fn uncomment_settings(template: &str) -> String {
+    let is_setting = |text: &str| {
+        text.starts_with('[')
+            || (text.starts_with('"') && text.contains("\" = "))
+            || text.starts_with("  {")
+            || text.trim_end() == "]"
+            || text.split_once(" = ").is_some_and(|(key, _)| {
+                !key.is_empty() && key.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+            })
+    };
+    template
+        .lines()
+        .map(|line| match line.strip_prefix("# ") {
+            Some(text) if is_setting(text) => text,
+            _ => line,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn test_init_templates_load_with_every_setting_uncommented() -> Result<()> {
+    // Each key below a [table] header belongs to that table, so a template that
+    // puts a top-level key after a header breaks as soon as the user enables both.
+    for (file, initial) in [
+        (".cytoscnpy.toml", None),
+        ("pyproject.toml", Some("[project]\nname = \"test\"\n")),
+    ] {
+        let temp = tempdir()?;
+        if let Some(content) = initial {
+            fs::write(temp.path().join(file), content)?;
+        }
+        cytoscnpy::commands::run_init_in(temp.path(), &mut Vec::new())?;
+
+        let path = temp.path().join(file);
+        let enabled = uncomment_settings(&fs::read_to_string(&path)?);
+        assert!(enabled.contains("max_slop_index = 40"), "{file}: {enabled}");
+        fs::write(&path, enabled)?;
+
+        let config = cytoscnpy::config::Config::try_load_from_path(temp.path())
+            .map_err(|err| anyhow::anyhow!("{file}: {err:#}"))?;
+        assert_eq!(config.cytoscnpy.deslop.max_slop_index, Some(40), "{file}");
+        assert_eq!(config.cytoscnpy.whitelist.len(), 3, "{file}");
+    }
+    Ok(())
+}

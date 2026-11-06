@@ -9,8 +9,10 @@
 - **Taint Analysis**: Tracks data flow from untrusted sources to dangerous sinks to detect SQL injection, command injection, and code execution vulnerabilities.
 - **Clone Detection**: Finds duplicate or similar code blocks to reduce technical debt.
 - **Quality Metrics**: Calculates Cyclomatic Complexity, Halstead Metrics, and Maintainability Index.
-- **Quick Fixes**: One-click actions to remove or comment out unused code, with CST-precise deletions.
+- **Quick Fixes**: One-click actions to remove or comment out unused code, with CST-precise deletions. Every suggested fix is verified to leave valid Python before it is offered.
 - **Workspace Analysis**: Analyze entire directories or workspaces at once.
+- **Monorepo Support**: Each folder with its own `.cytoscnpy.toml` (or a `pyproject.toml` with a `[tool.cytoscnpy]` table) is scanned separately with its own configuration.
+- **Jupyter Notebooks**: With `includeIpynb` enabled, findings appear on the right cell and line, and quick fixes edit that cell directly.
 
 ## Requirements
 
@@ -58,7 +60,11 @@ This extension contributes the following settings:
 | `cytoscnpy.maxArguments`            | `5`           | Maximum function arguments before warning.                    |
 | `cytoscnpy.maxLines`                | `50`          | Maximum function lines before warning.                        |
 
-Note: The VS Code extension runs the CLI with `--client vscode`. Project config from `.cytoscnpy.toml` or `pyproject.toml` is honored when present, including scan enablement, thresholds, fail gates, excludes, and advanced tuning. Explicit VS Code settings are passed as CLI flags and override matching thresholds.
+Note: The VS Code extension runs the CLI with `--client vscode`. Project config from `.cytoscnpy.toml` or `pyproject.toml` is honored when present, including scan enablement, thresholds, fail gates, excludes, and advanced tuning.
+
+Settings you leave unset defer to the project config. Settings you set explicitly override it in both directions: `true` enables a scan, and `false` disables it even if the project config enables it. This applies to the scan toggles, `includeTests`, and `includeIpynb`.
+
+In a monorepo, configuration is read from the nearest project folder above each file, so a nested project's settings apply to its own files.
 
 ## Commands
 
@@ -97,7 +103,7 @@ Simply ask Copilot to use CytoScnPy:
 
 ## Known Issues
 
-- Jupyter notebook support (`.ipynb`) requires the `includeIpynb` setting to be enabled.
+- Jupyter notebook support (`.ipynb`) requires the `includeIpynb` setting (or `include_ipynb` in project config) to be enabled.
 
 ## Links
 

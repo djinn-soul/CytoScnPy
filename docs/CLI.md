@@ -27,13 +27,15 @@ Configured `--max-lines`, `--max-args`, and `--max-nesting` limits (or their con
 - `--fail-on-missing-deps`: Enables dependency analysis if needed and exits with code `1` if any missing dependency findings are detected.
 - `--fail-on-unused-deps`: Enables dependency analysis if needed and exits with code `1` if any unused dependency findings are detected.
 - `--html`: Generates a self-contained, interactive HTML report. Each source receives a distinct file-view filename, shared by metrics, issue, and clone links. Note that this feature may require additional dependencies and automatically enables quality scanning.
-- `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, project config from `.cytoscnpy.toml` or `pyproject.toml` is still honored, and explicit VS Code settings are passed as CLI flags that override matching thresholds.
+- `--html-theme <auto|dark|light>`: Sets the theme the HTML report opens with (default `auto`, which follows the viewer's system setting). Viewers can still switch themes from the report. Requires `--html`.
+- `--client <CLIENT>`: Identify the calling editor/client. Currently only `vscode` is supported. When `vscode` is set, project config from `.cytoscnpy.toml` or `pyproject.toml` is still honored, and explicit VS Code settings are passed as CLI flags that override it, in both directions: a setting set to `false` passes the matching `--no-` flag.
 
 ### Scan Types
 
 - `--secrets`, `-s`: Actively scans for high-entropy strings, API keys, and hardcoded credentials. It checks variables, strings, and even comments (depending on configuration).
 - `--danger`, `-d`: Enables security scanning for dangerous patterns like `eval()`, `exec()`, and insecure temporary file creation. It also activates **taint analysis** to track user-controlled data flowing into dangerous sinks (e.g., SQL injection or command injection points). See [Dangerous Code](dangerous-code.md) for a full rule list.
 - `--quality`, `-q`: Runs code quality checks including Cyclomatic Complexity, Maintainability Index, block nesting depth, and function length/argument counts.
+- `--no-secrets`, `--no-danger`, `--no-quality`, `--no-clones`: Disable a scan even when project configuration enables it (including through `fail_on_*` gates or quality thresholds). Of a flag and its `--no-` form, the last one given wins. The VS Code extension passes these for settings explicitly set to `false`; unset settings leave the choice to the project configuration.
 - `--no-dead`, `-n`: Skips the default dead code detection. Use this if you only care about security vulnerabilities or quality metrics and want to speed up the analysis.
 - `--deps`: Analyze unused and missing dependencies by cross-referencing `pyproject.toml` / `requirements.txt` against imports found in the code. Opt-in — not run by default.
 
@@ -42,9 +44,11 @@ Configured `--max-lines`, `--max-args`, and `--max-nesting` limits (or their con
 - `--confidence <N>`, `-c`: Sets a minimum confidence threshold (0-100). CytoScnPy uses a scoring system for dead code; setting this to `80`, for example, will suppress "noisy" findings where the tool isn't certain the code is unused.
 - `--exclude-folders <DIRS>`: Exclude specific folders from analysis. Can be used multiple times.
 - `--include-folders <DIRS>`: Force-include specific folders in analysis. Can be used multiple times.
+- `--force-exclude`: Apply folder exclusions (`exclude_folders` and the defaults) to files passed directly by path, as editors and pre-commit hooks pass them. Only folders below the project root (the folder of the configuration file in use) count, so a checkout under a folder such as `build/` still analyzes its own files. Without this flag, a file named on the command line is always analyzed.
 - `--include-tests`: By default, CytoScnPy excludes `tests/`, `test/`, `test_*.py`, `*_test.py`, `conftest.py`, and `noxfile.py` from main analysis, `deslop`, metrics, file statistics, and clone detection. Use this flag to include them. Dependency analysis still scans test/dev files intentionally so it can distinguish development-only imports from production imports.
+- `--no-include-tests`, `--no-include-ipynb`: Skip test files or notebooks even when project configuration includes them; the last of a flag and its `--no-` form wins.
 - `--include-ipynb`: Enables scanning of Jupyter Notebook files. CytoScnPy extracts the Python code from cells and analyzes it as a virtual module.
-- `--ipynb-cells`: When combined with `--include-ipynb`, this reports findings with cell numbers instead of just line numbers, making it easier to locate issues in the Notebook UI.
+- `--ipynb-cells`: When combined with `--include-ipynb`, this reports findings with cell numbers instead of just line numbers, making it easier to locate issues in the Notebook UI. Lines, and the byte offsets of suggested fixes, are then relative to the finding's cell (`cell_number`, counting markdown cells as nbformat does). Stable IDs of cell findings include the cell.
 - `--clones`: Activates **duplicate code detection**. It uses AST-based hashing to find code blocks that are identical or nearly identical across your codebase.
 - `--clone-similarity <N>`: Sets the similarity threshold for clone detection (0.0 to 1.0). A value of `1.0` finds only exact duplicates; a lower value like `0.8` (default) finds similar logic that might be refactored.
 - `--fix`: Enables "Dead Code Auto-Fix" mode. By default, this is a **dry-run**—it will show you exactly what code would be removed without touching your files.
@@ -98,7 +102,7 @@ root-level manifests and tooling remain visible. Its JSON `scoring.passed_gate`
 and `gates.passed` fields both describe the final exit decision.
 
 Every analysis subcommand (`raw`, `cc`, `hal`, `mi`, `stats`, `deslop`, `files`,
-`deps`) takes one or more paths, or `--root <PATH>` in place of them. With
+`projects`, `deps`) takes one or more paths, or `--root <PATH>` in place of them. With
 neither, the current directory is analyzed.
 
 
@@ -251,6 +255,22 @@ cytoscnpy files [OPTIONS] <PATH>
 
 - `-j`, `--json`: Output only JSON.
 - `--exclude-folders <DIRS>`: Exclude specific folders from analysis.
+
+### `projects`
+
+List the projects under a folder: the folder itself plus each folder below it
+with its own `.cytoscnpy.toml`, or a `pyproject.toml` with a `[tool.cytoscnpy]`
+table. Configuration is read from a scan target's nearest ancestor, so in a
+monorepo each nested project's settings apply only when that project is
+scanned on its own; editors scan each listed project separately. Folders a
+scan skips (excluded, default-excluded such as `.venv` or `node_modules`, or
+gitignored) are not searched.
+
+```bash
+cytoscnpy projects [OPTIONS] <PATH>
+```
+
+- `--json`: Output `{"projects": [...]}` with absolute paths.
 
 ### `deps`
 

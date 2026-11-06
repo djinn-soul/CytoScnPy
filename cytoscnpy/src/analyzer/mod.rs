@@ -73,6 +73,9 @@ pub struct CytoScnPy {
     pub analysis_root: std::path::PathBuf,
     /// Optional whitelist matcher for dead-code suppression.
     pub whitelist_matcher: Option<WhitelistMatcher>,
+    /// Project root below which folder exclusions also apply to files passed
+    /// directly (`--force-exclude`). `None` analyzes every named file.
+    pub force_exclude_root: Option<std::path::PathBuf>,
     per_file_ignore_rules: Vec<PerFileIgnoreRule>,
     /// Secret scanner built from `config` on first use and shared by every
     /// file, so custom patterns compile once per run.
@@ -102,6 +105,7 @@ impl Default for CytoScnPy {
             verbose: false,
             analysis_root: std::path::PathBuf::from("."),
             whitelist_matcher: None,
+            force_exclude_root: None,
             per_file_ignore_rules: Vec::new(),
             secret_scanner: std::sync::OnceLock::new(),
             taint_analyzer: std::sync::OnceLock::new(),

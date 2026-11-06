@@ -177,10 +177,7 @@ impl CytoScnPyVisitor<'_> {
             self.visit_expr(&node.target);
         }
 
-        self.visit_expr(&node.annotation);
-        if let Some(value) = &node.value {
-            self.visit_expr(value);
-        }
+        self.visit_annotation(&node.annotation);
 
         let mut is_type_alias = false;
         if let Expr::Name(ann_name) = &*node.annotation {
@@ -190,6 +187,14 @@ impl CytoScnPyVisitor<'_> {
         } else if let Expr::Attribute(ann_attr) = &*node.annotation {
             if ann_attr.attr.as_str() == "TypeAlias" {
                 is_type_alias = true;
+            }
+        }
+
+        if let Some(value) = &node.value {
+            if is_type_alias {
+                self.visit_annotation(value);
+            } else {
+                self.visit_expr(value);
             }
         }
 
@@ -222,6 +227,7 @@ impl CytoScnPyVisitor<'_> {
             self.visit_expr(&node.name);
         }
 
-        self.visit_expr(&node.value);
+        self.visit_type_params(node.type_params.as_deref());
+        self.visit_annotation(&node.value);
     }
 }

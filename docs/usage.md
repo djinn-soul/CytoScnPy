@@ -185,6 +185,10 @@ cytoscnpy . --html --secrets --danger
 
 (Note: `--html` automatically enables `--quality` but strictly security scans need explicit flags).
 
+Each issue shows its rule ID, its real severity, and the `# noqa: <rule-id>` comment that suppresses it, with a copy button. Issues in notebooks link to their cell and line. Run `cytoscnpy deslop . --html` to add the Slop Index page to the same report.
+
+The report has light and dark themes. By default it follows the viewer's system setting; use `--html-theme dark` or `--html-theme light` to choose the theme it opens with. Viewers can switch with the toggle in the navigation bar, and printing always uses a light, ink-friendly layout.
+
 **Features:**
 
 - **Dashboard**: High-level summary of issues.
@@ -432,6 +436,7 @@ cytoscnpy [PATHS]... [OPTIONS]
 | `--format <FMT>`   | Output format: `text`, `json`, `junit`, `github`, `gitlab`, `markdown`, `sarif`. |
 | `--json`           | Output detection results as JSON (shorthand for `--format json`).                |
 | `--html`           | Generate interactive HTML report.                                                |
+| `--html-theme <T>` | Default HTML report theme: `auto` (follow system, default), `dark`, `light`.     |
 | `--quiet`          | Summary only, no detailed tables.                                                |
 | `--verbose` (`-v`) | Debug output.                                                                    |
 

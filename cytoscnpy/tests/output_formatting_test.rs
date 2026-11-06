@@ -59,6 +59,7 @@ fn create_mock_result() -> AnalysisResult {
             line: 5,
             col: 0,
             severity: "MEDIUM".to_owned(),
+            cell_number: None,
         }],
         taint_findings: vec![],
         parse_errors: vec![],
@@ -216,6 +217,7 @@ fn test_print_findings_with_items() {
         line: 10,
         col: 0,
         severity: "HIGH".to_owned(),
+        cell_number: None,
     }];
     let result = print_findings(&mut buffer, "Security Issues", &findings);
     assert!(result.is_ok());

@@ -38,15 +38,18 @@ export function transformRawResult(
     }
 
     for (const rawFinding of categoryItems) {
+      const ruleId = rawFinding.rule_id || defaultRuleId;
       findings.push({
         file_path: rawFinding.file,
         line_number: rawFinding.line,
         col: rawFinding.col,
         message: rawFinding.message || messageFormatter(rawFinding),
-        rule_id: rawFinding.rule_id || defaultRuleId,
+        rule_id: ruleId,
+        suppression_codes: rawResult.suppression_codes?.[ruleId],
         category: rawFinding.category || defaultCategory,
         severity: normalizeSeverity(rawFinding.severity) ?? defaultSeverity,
         fix: rawFinding.fix,
+        cell_number: rawFinding.cell_number ?? undefined,
       });
     }
   };
@@ -159,7 +162,12 @@ export function transformRawResult(
           ? `${f.source} -> ${flowPath.join(" -> ")} -> ${f.sink}`
           : `${f.source} -> ${f.sink}`;
 
-      const message = `${f.vuln_type}: Tainted data from ${f.source} (line ${f.source_line}) reaches sink ${f.sink}.\n\nFlow: ${flowStr}\n\nRemediation: ${f.remediation}`;
+      // In a notebook the source may sit in an earlier cell than the sink.
+      const sourceCell =
+        f.source_cell_number !== undefined && f.source_cell_number !== f.cell_number
+          ? `cell ${f.source_cell_number}, `
+          : "";
+      const message = `${f.vuln_type}: Tainted data from ${f.source} (${sourceCell}line ${f.source_line}) reaches sink ${f.sink}.\n\nFlow: ${flowStr}\n\nRemediation: ${f.remediation}`;
 
       findings.push({
         file_path: f.file,
@@ -169,6 +177,7 @@ export function transformRawResult(
         rule_id: f.rule_id || `taint-${f.vuln_type.toLowerCase()}`,
         category: "Security",
         severity: normalizeSeverity(f.severity) ?? "warning",
+        cell_number: f.cell_number,
       });
     }
   }

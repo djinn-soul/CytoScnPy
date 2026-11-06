@@ -332,6 +332,8 @@ and switch to `--fail-on-any` as the codebase improves.
 | `--no-git` | Skip Git history; score against all bytes |
 | `--git-months <N>` | Maximum Git lookback in months (1 or more) |
 | `--context-budget <TOKENS>` | Usable LLM context in tokens (default `176000`) |
+| `--html` | Add a Slop Index page (`deslop.html`) to the HTML report in `.cytoscnpy/report` |
+| `--html-theme <auto\|dark\|light>` | Theme the page opens with (default: the report's theme); requires `--html` |
 
 Global flags go **before** `deslop`:
 

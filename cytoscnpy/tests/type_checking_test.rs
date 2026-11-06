@@ -98,3 +98,160 @@ def helper(h: Helper):
         "Should NOT report 'Helper' as unused (used in normal annotation)"
     );
 }
+
+fn unused_import_names(code: &str) -> Vec<String> {
+    let cytoscnpy = CytoScnPy::default().with_confidence(100).with_tests(false);
+    cytoscnpy
+        .analyze_code(code, &PathBuf::from("annotations_example.py"))
+        .unused_imports
+        .into_iter()
+        .map(|i| i.simple_name)
+        .collect()
+}
+
+#[test]
+fn test_string_annotations_with_spaces_mark_imports_used() {
+    let code = r#"
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias, TypeVar, cast
+
+if TYPE_CHECKING:
+    from collections import OrderedDict
+    from decimal import Decimal
+    from fractions import Fraction
+    from numpy import ndarray
+    from pathlib import Path
+
+Alias: TypeAlias = "dict[str, Path]"
+T = TypeVar("T", bound="Optional[Fraction]")
+
+class Cfg:
+    field: "OrderedDict[str, int] | None" = None
+
+def process(x: "ndarray | None") -> "dict[str, Any]":
+    return cast("Optional[Decimal]", x)
+"#;
+    let unused = unused_import_names(code);
+    assert!(unused.is_empty(), "unexpected unused imports: {unused:?}");
+}
+
+#[test]
+fn test_invalid_string_annotation_does_not_mark_imports_used() {
+    let code = r#"
+from typing import Any
+
+def process(x: "not a valid type") -> None:
+    pass
+
+note = "dict[str, Any]"
+"#;
+    assert_eq!(unused_import_names(code), vec!["Any".to_owned()]);
+}
+
+#[test]
+fn test_pep695_type_param_bounds_mark_imports_used() {
+    let code = r"
+from typing import Any
+from numbers import Number
+
+def first[T: Any](items: list[T]) -> T:
+    return items[0]
+
+class Box[N: Number]:
+    pass
+";
+    let unused = unused_import_names(code);
+    assert!(unused.is_empty(), "unexpected unused imports: {unused:?}");
+}
+
+#[test]
+fn test_dotted_module_imports_used_via_attribute_chain() {
+    let code = r#"
+import collections.abc
+import os.path
+import xml.etree.ElementTree
+
+def check(x: collections.abc.Iterable) -> str:
+    return os.path.join("a", xml.etree.ElementTree.tostring(x))
+"#;
+    let unused = unused_import_names(code);
+    assert!(unused.is_empty(), "unexpected unused imports: {unused:?}");
+}
+
+#[test]
+fn test_dotted_module_import_used_when_parent_name_used() {
+    // `import os.path` binds `os`, so using `os` uses it (as in pyflakes/ruff).
+    let code = r"
+import os
+import os.path
+import importlib.util
+
+print(os.getcwd(), importlib.import_module)
+";
+    let unused = unused_import_names(code);
+    assert!(unused.is_empty(), "unexpected unused imports: {unused:?}");
+}
+
+#[test]
+fn test_dotted_module_import_unused_when_never_used() {
+    let unused = unused_import_names("import os.path\n");
+    assert_eq!(unused.len(), 1, "unexpected unused imports: {unused:?}");
+}
+
+#[test]
+fn test_strings_in_runtime_generic_types_mark_imports_used() {
+    let code = r#"
+import os
+import typing as t
+from typing import Union
+from decimal import Decimal
+from fractions import Fraction
+
+PathLike = Union[str, "os.PathLike[str]"]
+Number = t.Optional["Decimal | None"]
+Items = list["Fraction"]
+"#;
+    let unused = unused_import_names(code);
+    assert!(unused.is_empty(), "unexpected unused imports: {unused:?}");
+}
+
+#[test]
+fn test_functional_typed_dict_and_named_tuple_mark_imports_used() {
+    let code = r#"
+from typing import NamedTuple, TypedDict
+from decimal import Decimal
+from fractions import Fraction
+
+Point = TypedDict("Point", {"x": "Decimal | None"})
+Pair = NamedTuple("Pair", [("a", "list[Fraction]")])
+"#;
+    let unused = unused_import_names(code);
+    assert!(unused.is_empty(), "unexpected unused imports: {unused:?}");
+}
+
+#[test]
+fn test_redundant_alias_is_explicit_reexport() {
+    let code = r"
+import os as os
+from collections import OrderedDict as OrderedDict
+from decimal import Decimal as D
+";
+    assert_eq!(unused_import_names(code), vec!["D".to_owned()]);
+}
+
+#[test]
+fn test_pyflakes_noqa_codes_suppress_unused_imports() {
+    let code = r"
+from typing import Any  # noqa: F401
+from typing import (  # noqa: F401
+    List,
+    Set,
+)
+from typing import (  # noqa
+    Dict,
+)
+from typing import (  # noqa: E501
+    Tuple,
+)
+";
+    assert_eq!(unused_import_names(code), vec!["Tuple".to_owned()]);
+}

@@ -135,6 +135,13 @@ impl CytoScnPyVisitor<'_> {
                 self.visit_definition_target(&node.target);
                 self.visit_expr(&node.value);
             }
+            Expr::Subscript(node) if self.in_annotation => self.visit_annotation_subscript(node),
+            // `Alias = Union[str, "os.PathLike[str]"]` is a type outside an annotation.
+            Expr::Subscript(node) if self.is_generic_type(&node.value) => {
+                self.in_annotation = true;
+                self.visit_annotation_subscript(node);
+                self.in_annotation = false;
+            }
             Expr::Subscript(node) => {
                 self.visit_expr(&node.value);
                 self.visit_expr(&node.slice);

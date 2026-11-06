@@ -41,17 +41,27 @@ pub fn apply_penalties<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     def.confidence = def.confidence.min(100);
 }
 
-/// Rule ID that suppresses every kind of unused definition.
-pub const DEAD_CODE_RULE_ID: &str = "CSP-V001";
-
 /// Returns whether the definition's line suppresses it: a blanket
-/// suppression, `CSP-V001`, or the kind's own ID such as `unused-import`.
+/// suppression or any of the kind's
+/// [`suppression_codes`](crate::visitor::DefinitionType::suppression_codes).
 pub fn is_definition_suppressed<S: std::hash::BuildHasher>(
     def: &Definition,
     ignored_lines: &std::collections::HashMap<usize, Suppression, S>,
 ) -> bool {
-    ignored_lines.get(&def.line).is_some_and(|suppression| {
-        suppression.covers(DEAD_CODE_RULE_ID) || suppression.covers(def.def_type.unused_rule_id())
+    is_definition_suppressed_at(def, def.line, ignored_lines)
+}
+
+/// Same as [`is_definition_suppressed`], reading the suppression on `line`.
+pub fn is_definition_suppressed_at<S: std::hash::BuildHasher>(
+    def: &Definition,
+    line: usize,
+    ignored_lines: &std::collections::HashMap<usize, Suppression, S>,
+) -> bool {
+    ignored_lines.get(&line).is_some_and(|suppression| {
+        def.def_type
+            .suppression_codes()
+            .iter()
+            .any(|code| suppression.covers(code))
     })
 }
 

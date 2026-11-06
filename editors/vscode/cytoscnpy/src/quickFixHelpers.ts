@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import { CytoScnPyFinding } from "./analyzer";
-import { UNUSED_RULE_IDS, documentDirectives, suppressesFinding } from "./extensionDiagnostics";
+import {
+  UNUSED_RULE_IDS,
+  documentDirectives,
+  suppressesFinding,
+  suppressionCodesForDiagnostic,
+} from "./extensionDiagnostics";
 
 export const UNUSED_RULE_LABELS: Record<string, { singular: string; plural: string }> =
   {
@@ -11,30 +16,6 @@ export const UNUSED_RULE_LABELS: Record<string, { singular: string; plural: stri
     "unused-variable": { singular: "variable", plural: "variables" },
     "unused-parameter": { singular: "parameter", plural: "parameters" },
   };
-
-export function filterOverlappingFixes<T extends { finding: CytoScnPyFinding }>(
-  items: T[],
-): T[] {
-  const sorted = [...items].sort((a, b) => {
-    const aStart = a.finding.fix!.start_byte;
-    const bStart = b.finding.fix!.start_byte;
-    if (aStart !== bStart) {
-      return aStart - bStart;
-    }
-    return b.finding.fix!.end_byte - a.finding.fix!.end_byte;
-  });
-  const filtered: T[] = [];
-  let lastEnd = 0;
-  for (const item of sorted) {
-    const start = item.finding.fix!.start_byte;
-    const end = item.finding.fix!.end_byte;
-    if (start >= lastEnd) {
-      filtered.push(item);
-      lastEnd = end;
-    }
-  }
-  return filtered;
-}
 
 type FixRangeMapper = (startByte: number, endByte: number) => vscode.Range | undefined;
 
@@ -110,7 +91,10 @@ export function createSuppressionAction(
   const directive = documentDirectives(document).get(lineIndex);
   if (
     directive?.suppression &&
-    suppressesFinding(directive.suppression, suppressionCode)
+    suppressesFinding(
+      directive.suppression,
+      suppressionCodesForDiagnostic(diagnostic) ?? [suppressionCode],
+    )
   ) {
     return undefined; // Already suppressed
   }

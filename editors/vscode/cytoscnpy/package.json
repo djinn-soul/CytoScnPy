@@ -3,7 +3,7 @@
   "publisher": "djinn09",
   "displayName": "CytoScnPy",
   "description": "Python static analyzer with MCP server for GitHub Copilot. Real-time dead code detection, security scanning, and code quality metrics.",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
@@ -103,22 +103,22 @@
         "cytoscnpy.enableSecretsScan": {
           "type": "boolean",
           "default": false,
-          "description": "Enable scanning for hardcoded secrets in VS Code. Project config can also enable this scan."
+          "description": "Scan for hardcoded secrets. When unset, project config (pyproject.toml/.cytoscnpy.toml) decides; an explicit false disables the scan even if project config enables it."
         },
         "cytoscnpy.enableDangerScan": {
           "type": "boolean",
           "default": false,
-          "description": "Enable scanning for dangerous code patterns in VS Code. Project config can also enable this scan."
+          "description": "Scan for dangerous code patterns. When unset, project config decides; an explicit false disables the scan even if project config enables it."
         },
         "cytoscnpy.enableQualityScan": {
           "type": "boolean",
           "default": false,
-          "description": "Enable scanning for code quality issues in VS Code. Project config or threshold settings can also enable quality analysis."
+          "description": "Scan for code quality issues. When unset, project config or threshold settings can enable it; an explicit false disables quality analysis even if they do."
         },
         "cytoscnpy.enableCloneScan": {
           "type": "boolean",
           "default": false,
-          "description": "Enable code clone detection to find duplicate/similar code blocks."
+          "description": "Detect duplicate/similar code blocks. When unset, project config decides; an explicit false disables clone detection even if project config enables it."
         },
         "cytoscnpy.confidenceThreshold": {
           "type": "number",
@@ -146,12 +146,12 @@
         "cytoscnpy.includeTests": {
           "type": "boolean",
           "default": false,
-          "description": "Include test files in analysis."
+          "description": "Include test files in analysis. When unset, project config decides; an explicit false excludes them even if project config includes them."
         },
         "cytoscnpy.includeIpynb": {
           "type": "boolean",
           "default": false,
-          "description": "Include Jupyter Notebooks (.ipynb files) in analysis."
+          "description": "Include Jupyter Notebooks (.ipynb files) in analysis. When unset, project config decides; an explicit false skips them even if project config includes them."
         },
         "cytoscnpy.maxComplexity": {
           "type": "number",

@@ -18,5 +18,6 @@ pub(super) fn create_finding(
         line,
         col,
         severity: severity.to_owned(),
+        cell_number: None,
     }
 }

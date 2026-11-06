@@ -73,6 +73,15 @@ fn load_cytoscnpy_toml(path: &Path) -> Result<Config> {
     Ok(config)
 }
 
+/// Whether the `pyproject.toml` at `path` has the `[tool.cytoscnpy]` table
+/// that makes [`try_load_from_path`] use it.
+pub(super) fn pyproject_configures(path: &Path) -> bool {
+    read_config(path)
+        .ok()
+        .and_then(|content| toml::from_str::<toml::Value>(&content).ok())
+        .is_some_and(|value| value_at_path(&value, &["tool", "cytoscnpy"]).is_some())
+}
+
 fn load_pyproject_toml(path: &Path) -> Result<Option<Config>> {
     let content = read_config(path)?;
     let value = toml::from_str::<toml::Value>(&content)

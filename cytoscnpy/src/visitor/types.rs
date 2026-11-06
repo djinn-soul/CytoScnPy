@@ -153,7 +153,36 @@ impl DefinitionType {
             Self::Parameter => "unused-parameter",
         }
     }
+
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; 6] = [
+        Self::Function,
+        Self::Method,
+        Self::Class,
+        Self::Import,
+        Self::Variable,
+        Self::Parameter,
+    ];
+
+    /// Returns every rule ID whose `# noqa` suppresses an unused definition of
+    /// this kind: its own ID, [`DEAD_CODE_RULE_ID`], and the pyflakes/ruff code
+    /// existing comments commonly use. The JSON report publishes this so the
+    /// editor extension applies the same suppressions.
+    #[must_use]
+    pub const fn suppression_codes(self) -> &'static [&'static str] {
+        match self {
+            Self::Function => &["unused-function", DEAD_CODE_RULE_ID],
+            Self::Method => &["unused-method", DEAD_CODE_RULE_ID],
+            Self::Class => &["unused-class", DEAD_CODE_RULE_ID],
+            Self::Import => &["unused-import", DEAD_CODE_RULE_ID, "F401"],
+            Self::Variable => &["unused-variable", DEAD_CODE_RULE_ID, "F841"],
+            Self::Parameter => &["unused-parameter", DEAD_CODE_RULE_ID],
+        }
+    }
 }
+
+/// Rule ID that suppresses every kind of unused definition.
+pub const DEAD_CODE_RULE_ID: &str = "CSP-V001";
 
 impl fmt::Display for DefinitionType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

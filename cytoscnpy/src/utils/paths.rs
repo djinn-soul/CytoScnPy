@@ -10,7 +10,7 @@ use crate::constants::{CONFIG_FILENAME, DEFAULT_EXCLUDE_FOLDERS, PYPROJECT_FILEN
 mod validation;
 
 use rayon::prelude::*;
-pub use validation::{validate_output_path, validate_path_within_root};
+pub use validation::{validate_output_path, validate_path_within_root, validate_source_path};
 
 /// Finds a project boundary for file-only analysis without inspecting absolute
 /// ancestors for test names. An unmarked input keeps its containing directory.
@@ -51,6 +51,17 @@ pub fn normalize_display_path(path: &std::path::Path) -> String {
         .strip_prefix("./")
         .unwrap_or(&normalized)
         .to_owned()
+}
+
+/// Formats `path:line` for display, naming the notebook cell when the line
+/// counts from the start of one (`nb.ipynb[cell 3]:2`).
+#[must_use]
+pub fn display_location(path: &std::path::Path, cell: Option<usize>, line: usize) -> String {
+    let path = normalize_display_path(path);
+    match cell {
+        Some(cell) => format!("{path}[cell {cell}]:{line}"),
+        None => format!("{path}:{line}"),
+    }
 }
 
 /// Checks if a name matches any exclusion pattern.
@@ -101,34 +112,70 @@ pub fn collect_python_files_gitignore_with_errors(
 /// Like [`collect_python_files_gitignore_with_errors`], but symlinked sources
 /// may resolve anywhere inside `boundary` instead of only inside `root`. Used
 /// when `root` is nested inside another directory input of the same scan.
-pub(crate) fn collect_python_files_within(
+/// User excludes plus the default ones, minus force-included folders.
+fn effective_excludes(exclude: &[String], include: &[String]) -> Vec<String> {
+    let mut excludes: Vec<String> = exclude
+        .iter()
+        .cloned()
+        .chain(DEFAULT_EXCLUDE_FOLDERS().iter().map(|&s| s.to_owned()))
+        .collect();
+    excludes.retain(|ex| !include.iter().any(|inc| ex == inc));
+    excludes
+}
+
+/// Whether a directory walk skips the directory `name` at `rel` below its root.
+fn is_dir_excluded(name: &str, rel: &std::path::Path, excludes: &[String]) -> bool {
+    is_excluded(name, excludes) || super::is_path_ignored(rel, excludes)
+}
+
+/// Whether `file`, named directly as an input, lies in a directory that a
+/// walk from `root` would skip. Only directories below `root` count, so an
+/// unrelated ancestor such as `build/` cannot exclude a whole project.
+pub(crate) fn is_file_in_excluded_dir(
+    file: &std::path::Path,
     root: &std::path::Path,
-    boundary: Option<&std::path::Path>,
     exclude: &[String],
     include: &[String],
-    include_ipynb: bool,
-    verbose: bool,
-) -> (Vec<std::path::PathBuf>, usize, Vec<String>) {
+) -> bool {
+    // `Path::parent` of a bare file name is the empty path, which means the
+    // working directory. Left empty it fails to canonicalize and strips from
+    // any path, so every directory above the project would be checked.
+    let root = if root.as_os_str().is_empty() {
+        std::path::Path::new(".")
+    } else {
+        root
+    };
+    let file = file.canonicalize().unwrap_or_else(|_| file.to_path_buf());
+    let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let Ok(rel) = file.strip_prefix(&root) else {
+        return false;
+    };
+    let excludes = effective_excludes(exclude, include);
+    let mut dir = std::path::PathBuf::new();
+    for component in rel
+        .parent()
+        .into_iter()
+        .flat_map(std::path::Path::components)
+    {
+        let std::path::Component::Normal(name) = component else {
+            continue;
+        };
+        dir.push(name);
+        if is_dir_excluded(&name.to_string_lossy(), &dir, &excludes) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Walks `root` the way source collection does: respecting `.gitignore` and
+/// skipping excluded directories at traversal time, so the walk never descends
+/// into `node_modules`, `.venv`, `target` and the like.
+fn source_walker(root: &std::path::Path, excludes_for_filter: Vec<String>) -> ignore::Walk {
     use ignore::WalkBuilder;
 
-    // Merge user excludes with default excludes
-    let default_excludes: Vec<String> = DEFAULT_EXCLUDE_FOLDERS()
-        .iter()
-        .map(|&s| s.to_owned())
-        .collect();
-    let mut all_excludes: Vec<String> = exclude.iter().cloned().chain(default_excludes).collect();
-
-    // Remove force-included folders from exclusion list
-    all_excludes.retain(|ex| !include.iter().any(|inc| ex == inc));
-
-    // Clone excludes for use in filter closure
-    let excludes_for_filter = all_excludes.clone();
     let root_for_filter = root.to_path_buf();
-
-    // Use ignore crate's WalkBuilder for gitignore support
-    // Add filter_entry to skip excluded directories at traversal time,
-    // preventing descent into node_modules, .venv, target, etc.
-    let walker = WalkBuilder::new(root)
+    WalkBuilder::new(root)
         .hidden(false) // Don't skip hidden files (we handle that with defaults)
         .git_ignore(true) // Respect .gitignore files
         .git_global(true) // Respect global gitignore
@@ -150,16 +197,55 @@ pub(crate) fn collect_python_files_within(
                     .path()
                     .strip_prefix(&root_for_filter)
                     .unwrap_or(entry.path());
-                if is_excluded(name, &excludes_for_filter)
-                    || super::is_path_ignored(rel_entry, &excludes_for_filter)
-                {
+                if is_dir_excluded(name, rel_entry, &excludes_for_filter) {
                     return false;
                 }
             }
 
             true
         })
-        .build();
+        .build()
+}
+
+/// Folders below `root`, and `root` itself, that hold their own CytoScnPy
+/// configuration: a `.cytoscnpy.toml`, or a `pyproject.toml` with a
+/// `[tool.cytoscnpy]` table. Folders a scan of `root` skips are not searched.
+#[must_use]
+pub fn find_project_roots(
+    root: &std::path::Path,
+    exclude: &[String],
+    include: &[String],
+) -> Vec<std::path::PathBuf> {
+    let mut roots = vec![root.to_path_buf()];
+    for entry in source_walker(root, effective_excludes(exclude, include)).flatten() {
+        let path = entry.path();
+        let configures = match path.file_name().and_then(|name| name.to_str()) {
+            Some(crate::constants::CONFIG_FILENAME) => true,
+            Some(crate::constants::PYPROJECT_FILENAME) => {
+                crate::config::Config::configures_cytoscnpy(path)
+            }
+            _ => false,
+        };
+        if let Some(dir) = path.parent().filter(|_| configures) {
+            if !roots.iter().any(|known| known == dir) {
+                roots.push(dir.to_path_buf());
+            }
+        }
+    }
+    roots.sort();
+    roots
+}
+
+pub(crate) fn collect_python_files_within(
+    root: &std::path::Path,
+    boundary: Option<&std::path::Path>,
+    exclude: &[String],
+    include: &[String],
+    include_ipynb: bool,
+    verbose: bool,
+) -> (Vec<std::path::PathBuf>, usize, Vec<String>) {
+    let all_excludes = effective_excludes(exclude, include);
+    let walker = source_walker(root, all_excludes.clone());
 
     let mut dir_count = 0;
     let boundary = if let Some(boundary) = boundary {
@@ -281,6 +367,11 @@ enum Discovered {
     },
     Error(String),
 }
+
+/// Serializes unit tests that read or change the process working directory,
+/// which is shared across the threads the test harness runs them on.
+#[cfg(test)]
+pub(crate) static CWD_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
 #[path = "paths_tests.rs"]

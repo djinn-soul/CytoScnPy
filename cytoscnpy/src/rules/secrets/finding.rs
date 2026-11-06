@@ -24,4 +24,7 @@ pub struct SecretFinding {
     pub entropy: Option<f64>,
     /// Confidence score (0-100). Higher = more confident it's a real secret.
     pub confidence: u8,
+    /// Notebook cell index, for findings in a notebook.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_number: Option<usize>,
 }

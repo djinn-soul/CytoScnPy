@@ -34,6 +34,9 @@ pub struct Finding {
     pub line: usize,
     /// Column number.
     pub col: usize,
+    /// Notebook cell index, for findings in a notebook.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_number: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]

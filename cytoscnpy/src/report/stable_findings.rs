@@ -56,45 +56,49 @@ pub(super) fn stable_findings(result: &crate::analyzer::AnalysisResult) -> Vec<S
     let mut other = Vec::new();
     other.par_extend(result.danger.par_iter().map(|finding| {
         let file = crate::utils::normalize_display_path(&finding.file);
-        let stable_id = format!(
-            "danger:{}:{}:{}:{}",
-            finding.rule_id, file, finding.line, finding.col
-        );
-        serde_json::json!({
-            "stable_id": stable_id, "kind": "danger", "rule_id": finding.rule_id,
-            "file": file, "line": finding.line, "col": finding.col,
-            "severity": finding.severity,
-        })
+        let stable_id = rule_finding_stable_id("danger", finding);
+        with_cell(
+            serde_json::json!({
+                "stable_id": stable_id, "kind": "danger", "rule_id": finding.rule_id,
+                "file": file, "line": finding.line, "col": finding.col,
+                "severity": finding.severity,
+            }),
+            "cell_number",
+            finding.cell_number,
+        )
     }));
     other.par_extend(result.secrets.par_iter().map(stable_secret_item));
     other.par_extend(result.quality.par_iter().map(|finding| {
         let file = crate::utils::normalize_display_path(&finding.file);
-        let stable_id = format!(
-            "quality:{}:{}:{}:{}",
-            finding.rule_id, file, finding.line, finding.col
-        );
-        serde_json::json!({
-            "stable_id": stable_id, "kind": "quality", "rule_id": finding.rule_id,
-            "file": file, "line": finding.line, "col": finding.col,
-            "severity": finding.severity,
-        })
+        let stable_id = rule_finding_stable_id("quality", finding);
+        with_cell(
+            serde_json::json!({
+                "stable_id": stable_id, "kind": "quality", "rule_id": finding.rule_id,
+                "file": file, "line": finding.line, "col": finding.col,
+                "severity": finding.severity,
+            }),
+            "cell_number",
+            finding.cell_number,
+        )
     }));
     other.par_extend(result.taint_findings.par_iter().map(|finding| {
         let file = crate::utils::normalize_display_path(&finding.file);
-        let stable_id = format!(
-            "taint:{}:{}:{}:{}",
-            finding.rule_id, file, finding.source_line, finding.sink_line
-        );
-        serde_json::json!({
+        let stable_id = taint_stable_id(finding);
+        let item = serde_json::json!({
             "stable_id": stable_id, "kind": "taint", "rule_id": finding.rule_id,
             "file": file, "source_line": finding.source_line,
             "sink_line": finding.sink_line, "severity": finding.severity.to_string(),
             "exploitability_score": finding.exploitability_score,
-        })
+        });
+        with_cell(
+            with_cell(item, "cell_number", finding.cell_number),
+            "source_cell_number",
+            finding.source_cell_number,
+        )
     }));
     other.par_extend(result.parse_errors.par_iter().map(|error| {
         let file = crate::utils::normalize_display_path(&error.file);
-        let stable_id = format!("parse_error:{file}:{}", error.error);
+        let stable_id = parse_error_stable_id(error);
         serde_json::json!({
             "stable_id": stable_id, "kind": "parse_error", "file": file,
             "error": error.error,
@@ -131,7 +135,7 @@ fn stable_dead_code_item<'a>(
     def: &'a crate::visitor::Definition,
 ) -> StableDeadCodeItem<'a> {
     let file = crate::utils::normalize_display_path(&def.file);
-    let stable_id = format!("{kind}:{}:{}:{}", def.name, file, def.start_byte);
+    let stable_id = dead_code_stable_id(kind, def);
     StableDeadCodeItem {
         confidence: def.confidence,
         end_byte: def.end_byte,
@@ -146,20 +150,90 @@ fn stable_dead_code_item<'a>(
 
 fn stable_secret_item(finding: &crate::rules::secrets::SecretFinding) -> Value {
     let file = crate::utils::normalize_display_path(&finding.file);
+    let stable_id = secret_stable_id(finding);
+    with_cell(
+        serde_json::json!({
+            "stable_id": stable_id, "kind": "secret", "rule_id": finding.rule_id,
+            "file": file, "line": finding.line, "severity": finding.severity,
+            "confidence": finding.confidence,
+        }),
+        "cell_number",
+        finding.cell_number,
+    )
+}
+
+/// Stable ID of a dead-code finding; `kind` is e.g. `unused_function`.
+pub(crate) fn dead_code_stable_id(kind: &str, def: &crate::visitor::Definition) -> String {
+    let file = crate::utils::normalize_display_path(&def.file);
+    format!("{kind}:{}:{}:{}", def.name, file, def.start_byte)
+}
+
+/// Stable ID of a rule finding; `kind` is `danger` or `quality`.
+pub(crate) fn rule_finding_stable_id(kind: &str, finding: &crate::rules::Finding) -> String {
+    let file = crate::utils::normalize_display_path(&finding.file);
+    format!(
+        "{kind}:{}:{}:{}:{}",
+        finding.rule_id,
+        in_cell(&file, finding.cell_number),
+        finding.line,
+        finding.col
+    )
+}
+
+/// Stable ID of a taint finding.
+pub(crate) fn taint_stable_id(finding: &crate::taint::types::TaintFinding) -> String {
+    let file = crate::utils::normalize_display_path(&finding.file);
+    format!(
+        "taint:{}:{}:{}:{}",
+        finding.rule_id,
+        in_cell(&file, finding.cell_number),
+        in_cell(&finding.source_line.to_string(), finding.source_cell_number),
+        finding.sink_line
+    )
+}
+
+/// Stable ID of a parse error.
+pub(crate) fn parse_error_stable_id(error: &crate::analyzer::types::ParseError) -> String {
+    let file = crate::utils::normalize_display_path(&error.file);
+    format!("parse_error:{file}:{}", error.error)
+}
+
+/// Stable ID of a secret finding. The matched value is already redacted.
+pub(crate) fn secret_stable_id(finding: &crate::rules::secrets::SecretFinding) -> String {
+    let file = crate::utils::normalize_display_path(&finding.file);
     let matched = finding.matched_value.as_deref().unwrap_or("-");
     let entropy = finding
         .entropy
         .map(|value| format!("{value:.4}"))
         .unwrap_or_else(|| "-".to_owned());
-    let stable_id = format!(
+    format!(
         "secret:{}:{}:{}:{}:{}:{}:{}",
-        finding.rule_id, file, finding.line, finding.confidence, finding.message, matched, entropy
-    );
-    serde_json::json!({
-        "stable_id": stable_id, "kind": "secret", "rule_id": finding.rule_id,
-        "file": file, "line": finding.line, "severity": finding.severity,
-        "confidence": finding.confidence,
-    })
+        finding.rule_id,
+        in_cell(&file, finding.cell_number),
+        finding.line,
+        finding.confidence,
+        finding.message,
+        matched,
+        entropy
+    )
+}
+
+/// `location` qualified by its notebook cell. Cell lines restart in every
+/// cell, so IDs built from them need the cell to stay unique; without a cell
+/// the ID is unchanged, keeping existing baselines valid.
+fn in_cell(location: &str, cell: Option<usize>) -> String {
+    match cell {
+        Some(cell) => format!("{location}[cell {cell}]"),
+        None => location.to_owned(),
+    }
+}
+
+/// Adds `key: cell` to `item` when the finding has a cell.
+fn with_cell(mut item: Value, key: &str, cell: Option<usize>) -> Value {
+    if let (Some(cell), Some(object)) = (cell, item.as_object_mut()) {
+        object.insert(key.to_owned(), cell.into());
+    }
+    item
 }
 
 #[cfg(test)]
@@ -215,6 +289,43 @@ mod tests {
         assert_ne!(stable_ids[0], stable_ids[1]);
     }
 
+    #[test]
+    fn notebook_cell_findings_keep_distinct_stable_ids() {
+        // Cell lines restart in every cell: line 1 of cells 1 and 2 differ.
+        let mut result = crate::analyzer::AnalysisResult::default();
+        for cell in [Some(1), Some(2), None] {
+            result.danger.push(crate::rules::Finding {
+                rule_id: "CSP-D001".to_owned(),
+                category: "Security".to_owned(),
+                severity: "CRITICAL".to_owned(),
+                message: "Avoid using eval".to_owned(),
+                file: "nb.ipynb".into(),
+                line: 1,
+                col: 0,
+                cell_number: cell,
+            });
+        }
+
+        let items: Vec<Value> = stable_findings(&result)
+            .into_iter()
+            .map(|item| serde_json::to_value(item).unwrap())
+            .collect();
+        let ids: Vec<&str> = items
+            .iter()
+            .filter_map(|item| item["stable_id"].as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                "danger:CSP-D001:nb.ipynb:1:0",
+                "danger:CSP-D001:nb.ipynb[cell 1]:1:0",
+                "danger:CSP-D001:nb.ipynb[cell 2]:1:0",
+            ]
+        );
+        assert_eq!(items[1]["cell_number"], 1);
+        assert!(items[0].get("cell_number").is_none());
+    }
+
     fn secret_finding(
         file: &std::path::Path,
         message: &str,
@@ -230,6 +341,7 @@ mod tests {
             matched_value: Some(message.to_owned()),
             entropy: None,
             confidence,
+            cell_number: None,
         }
     }
 }

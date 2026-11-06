@@ -9,7 +9,7 @@ pub use deps::DepsArgs;
 pub use deslop::DeslopArgs;
 pub use options::{
     ClientKind, FilesArgs, IncludeOptions, MetricArgs, OutputFormat, OutputOptions, PathArgs,
-    RankArgs, ScanOptions,
+    ProjectsArgs, RankArgs, ScanOptions,
 };
 
 use clap::Parser;
@@ -141,6 +141,11 @@ pub struct Cli {
     #[arg(long, alias = "include-folder")]
     pub include_folders: Vec<String>,
 
+    /// Apply folder exclusions to files passed directly, as editors and
+    /// pre-commit hooks pass them. Without it, a named file is always analyzed.
+    #[arg(long)]
+    pub force_exclude: bool,
+
     /// Exit with code 1 if finding percentage exceeds this threshold (0-100).
     /// For CI/CD integration: --fail-threshold 5 fails if >5% of definitions are unused.
     #[arg(long)]
@@ -174,8 +179,12 @@ pub struct Cli {
 
     /// Enable code clone detection (Type-1/2/3).
     /// Finds duplicate or near-duplicate code fragments.
-    #[arg(long)]
+    #[arg(long, overrides_with = "no_clones")]
     pub clones: bool,
+
+    /// Disable clone detection, even when project configuration enables it.
+    #[arg(long, overrides_with = "clones")]
+    pub no_clones: bool,
 
     /// Minimum similarity threshold for clone detection (0.0-1.0).
     /// Default is 0.8 (80% similarity). Overrides the config file value.

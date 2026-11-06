@@ -110,11 +110,11 @@ pub(super) fn calculate_score(result: &AnalysisResult) -> OverallScore {
 
     let grade_color = |grade: &str| -> String {
         match grade {
-            "A" => "#4ade80".to_owned(),
-            "B" => "#a3e635".to_owned(),
-            "C" => "#facc15".to_owned(),
-            "D" => "#fb923c".to_owned(),
-            _ => "#f87171".to_owned(),
+            "A" => "var(--grade-a)".to_owned(),
+            "B" => "var(--grade-b)".to_owned(),
+            "C" => "var(--grade-c)".to_owned(),
+            "D" => "var(--grade-d)".to_owned(),
+            _ => "var(--grade-f)".to_owned(),
         }
     };
 

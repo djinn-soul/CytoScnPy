@@ -1,4 +1,4 @@
-use super::{ast, CytoScnPyVisitor, Scope, ScopeType};
+use super::{ast, CytoScnPyVisitor, FxHashMap, Scope, ScopeType};
 
 impl CytoScnPyVisitor<'_> {
     pub(super) fn enter_scope(&mut self, scope_type: ScopeType) {
@@ -132,11 +132,7 @@ impl CytoScnPyVisitor<'_> {
     /// probing with a borrowed key first, paying the `to_owned` only on
     /// first insertion.
     pub fn add_ref(&mut self, name: &str) {
-        if let Some(count) = self.references.get_mut(name) {
-            *count += 1;
-        } else {
-            self.references.insert(name.to_owned(), 1);
-        }
+        bump_ref(&mut self.references, name);
     }
 
     /// Returns the fully qualified ID of the current scope.
@@ -202,7 +198,7 @@ impl CytoScnPyVisitor<'_> {
         // Visit positional-only args
         for arg in &args.posonlyargs {
             if let Some(ann) = &arg.parameter.annotation {
-                self.visit_expr(ann);
+                self.visit_annotation(ann);
             }
             if let Some(default) = &arg.default {
                 self.visit_expr(default);
@@ -211,7 +207,7 @@ impl CytoScnPyVisitor<'_> {
         // Visit regular args
         for arg in &args.args {
             if let Some(ann) = &arg.parameter.annotation {
-                self.visit_expr(ann);
+                self.visit_annotation(ann);
             }
             if let Some(default) = &arg.default {
                 self.visit_expr(default);
@@ -220,13 +216,13 @@ impl CytoScnPyVisitor<'_> {
         // Visit *args
         if let Some(arg) = &args.vararg {
             if let Some(ann) = &arg.annotation {
-                self.visit_expr(ann);
+                self.visit_annotation(ann);
             }
         }
         // Visit keyword-only args
         for arg in &args.kwonlyargs {
             if let Some(ann) = &arg.parameter.annotation {
-                self.visit_expr(ann);
+                self.visit_annotation(ann);
             }
             if let Some(default) = &arg.default {
                 self.visit_expr(default);
@@ -235,8 +231,17 @@ impl CytoScnPyVisitor<'_> {
         // Visit **kwargs
         if let Some(arg) = &args.kwarg {
             if let Some(ann) = &arg.annotation {
-                self.visit_expr(ann);
+                self.visit_annotation(ann);
             }
         }
+    }
+}
+
+/// Increments the reference count for `name`, allocating only on first use.
+pub(super) fn bump_ref(references: &mut FxHashMap<String, usize>, name: &str) {
+    if let Some(count) = references.get_mut(name) {
+        *count += 1;
+    } else {
+        references.insert(name.to_owned(), 1);
     }
 }

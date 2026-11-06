@@ -2,8 +2,9 @@
 <title>CytoScnPy - Detected Clones</title>
 <style>
   .similarity-badge {
-    background: rgba(251, 191, 36, 0.2);
-    color: #fbbf24;
+    background: color-mix(in srgb, var(--warning) 18%, transparent);
+    color: var(--warning);
+    white-space: nowrap;
     padding: 0.2rem 0.6rem;
     border-radius: 9999px;
     font-weight: 600;
@@ -14,21 +15,32 @@
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
     margin-top: 0.5rem;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--surface-subtle);
+    border: 1px solid var(--border-color);
     padding: 1rem;
     border-radius: 0.375rem;
   }
   .comparison-side h4 {
     margin: 0 0 0.5rem 0;
     font-size: 0.85rem;
-    color: #6b7280;
+    color: var(--text-subtle);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
+  .clone-type {
+    font-size: 0.8rem;
+    color: var(--text-subtle);
+    margin-left: 0.5rem;
+  }
+  @media (max-width: 700px) {
+    .clone-comparison {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 {% endblock %} {% block content %}
-<h1 style="margin-bottom: 0.5rem">Code Duplication Analysis</h1>
-<p style="color: var(--text-muted); margin-bottom: 1rem">
+<h1 class="page-title">Code Duplication Analysis</h1>
+<p class="page-subtitle">
   Detected {{ clones.len() }} code clones. High duplication affects
   maintainability.
 </p>
@@ -38,9 +50,8 @@
   <input
     type="text"
     id="searchInput"
-    placeholder="Search files or names..."
+    placeholder="Search files, names or rule IDs..."
     class="form-input"
-    style="flex: 1; min-width: 200px"
   />
 
   <select id="sortOrder" class="form-select">
@@ -50,11 +61,7 @@
   </select>
 
   <label class="group-toggle-btn">
-    <input
-      type="checkbox"
-      id="groupByFile"
-      style="accent-color: var(--primary)"
-    />
+    <input type="checkbox" id="groupByFile" />
     <span class="label-text">Group by File</span>
   </label>
 </div>
@@ -74,6 +81,8 @@
       data-related-file="{{ clone.related_file }}"
       data-related-line="{{ clone.related_line }}"
       data-related-link="{{ clone.related_link }}"
+      data-rule="{{ clone.rule_id }}"
+      data-noqa="{{ clone.noqa }}"
     ></div>
     {% endfor %}
   </div>
@@ -83,7 +92,7 @@
   <div id="paginationControls" class="pagination-controls"></div>
 
   <template id="file-icon-template">
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
       <polyline points="13 2 13 9 20 9"></polyline>
     </svg>
@@ -91,17 +100,7 @@
 
   <div
     id="emptyState"
-    class="empty-state"
-    style="
-      display: none;
-      text-align: center;
-      padding: 4rem;
-      color: #9ca3af;
-      background: var(--card-bg);
-      border-radius: 0.5rem;
-      border: 1px dashed #374151;
-    "
-  >
+    class="empty-state">
     <p>No clones found matching your filters.</p>
   </div>
 </div>
@@ -130,6 +129,8 @@
       relatedFile: node.dataset.relatedFile,
       relatedLine: parseInt(node.dataset.relatedLine),
       relatedLink: node.dataset.relatedLink,
+      rule: node.dataset.rule || "",
+      noqa: node.dataset.noqa || "",
     }));
 
     render();
@@ -159,6 +160,7 @@
       return (
         !search ||
         c.name.toLowerCase().includes(search) ||
+        c.rule.toLowerCase().includes(search) ||
         c.file.toLowerCase().includes(search) ||
         c.relatedFile.toLowerCase().includes(search)
       );
@@ -211,32 +213,16 @@
 
       pagedKeys.forEach((file) => {
         const groupDiv = document.createElement("div");
-        groupDiv.style.marginBottom = "2rem";
+        groupDiv.className = "file-group";
 
         const header = document.createElement("div");
         header.className = "file-group-header";
-        // Inline styles from issues.html for consistency
-        header.style.background = "rgba(55, 65, 81, 0.3)";
-        header.style.padding = "0.75rem 1rem";
-        header.style.marginBottom = "1rem";
-        header.style.borderRadius = "0.5rem";
-        header.style.fontWeight = "600";
-        header.style.color = "var(--text-light)";
-        header.style.display = "flex";
-        header.style.justifyContent = "space-between";
-        header.style.alignItems = "center";
-        header.style.border = "1px solid #374151";
-
         const fileLabel = document.createElement("span");
+        fileLabel.className = "file-group-basename";
         fileLabel.textContent = file;
 
         const cloneCount = document.createElement("span");
-        cloneCount.className = "badge";
-        cloneCount.style.background = "var(--primary)";
-        cloneCount.style.color = "white";
-        cloneCount.style.padding = "0.25rem 0.75rem";
-        cloneCount.style.borderRadius = "999px";
-        cloneCount.style.fontSize = "0.8rem";
+        cloneCount.className = "badge badge-solid";
         cloneCount.textContent = `${groups[file].length} Clones`;
 
         header.appendChild(fileLabel);
@@ -275,9 +261,7 @@
     title.textContent = clone.name;
 
     const type = document.createElement("span");
-    type.style.fontSize = "0.8rem";
-    type.style.color = "#6b7280";
-    type.style.marginLeft = "0.5rem";
+    type.className = "clone-type";
     type.textContent = clone.type;
 
     titleBlock.appendChild(title);
@@ -287,8 +271,19 @@
     similarity.className = "similarity-badge";
     similarity.textContent = `${(clone.similarity * 100).toFixed(0)}% Similarity`;
 
+    const badges = document.createElement("div");
+    badges.className = "report-item-badges";
+    if (clone.rule) {
+      const rule = document.createElement("span");
+      rule.className = "rule-chip";
+      rule.title = "Rule ID";
+      rule.textContent = clone.rule;
+      badges.appendChild(rule);
+    }
+    badges.appendChild(similarity);
+
     header.appendChild(titleBlock);
-    header.appendChild(similarity);
+    header.appendChild(badges);
 
     const comparison = document.createElement("div");
     comparison.className = "clone-comparison";
@@ -299,8 +294,47 @@
 
     card.appendChild(header);
     card.appendChild(comparison);
+
+    if (clone.noqa) {
+      const footer = document.createElement("div");
+      footer.className = "report-item-footer";
+      const hint = document.createElement("div");
+      hint.className = "noqa-hint";
+      const label = document.createElement("span");
+      label.className = "text-subtle";
+      label.textContent = "Suppress:";
+      const code = document.createElement("code");
+      code.textContent = `${clone.noqa} <reason>`;
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "copy-btn no-print";
+      copy.dataset.copy = clone.noqa;
+      copy.title = "Copy the suppression comment";
+      copy.textContent = "Copy";
+      hint.append(label, code, copy);
+      footer.appendChild(hint);
+      card.appendChild(footer);
+    }
     return card;
   }
+
+  // Copy buttons for suppression comments
+  document.addEventListener("click", (e) => {
+    const button = e.target.closest(".copy-btn");
+    if (!button) return;
+    const done = (label) => {
+      button.textContent = label;
+      setTimeout(() => (button.textContent = "Copy"), 1500);
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(button.dataset.copy || "").then(
+        () => done("Copied"),
+        () => done("Copy failed")
+      );
+    } else {
+      done("Copy failed");
+    }
+  });
 
   function createComparisonSide(label, file, line, link) {
     const side = document.createElement("div");

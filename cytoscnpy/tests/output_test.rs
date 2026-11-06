@@ -56,6 +56,7 @@ fn test_print_report_formatting() {
             line: 5,
             col: 0,
             severity: "CRITICAL".to_owned(),
+            cell_number: None,
         }],
         quality: vec![],
         taint_findings: vec![],

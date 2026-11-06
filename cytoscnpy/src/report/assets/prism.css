@@ -1,0 +1,187 @@
+/* Prism syntax highlighting, line-numbers and line-highlight plugins.
+ * Colors come from the --code-* tokens in style.css, so this follows the
+ * active report theme. */
+code[class*="language-"],
+pre[class*="language-"] {
+  color: var(--code-text);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+  tab-size: 4;
+  hyphens: none;
+}
+pre[class*="language-"] {
+  padding: 1em;
+  margin: 0;
+  overflow: auto;
+  background: var(--code-bg);
+}
+:not(pre) > code[class*="language-"] {
+  background: var(--code-bg);
+  padding: 0.1em;
+  border-radius: 0.3em;
+  white-space: normal;
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: var(--code-comment);
+  font-style: italic;
+}
+.token.punctuation {
+  color: var(--code-punctuation);
+}
+.token.namespace {
+  opacity: 0.7;
+}
+.token.keyword,
+.token.atrule,
+.token.important {
+  color: var(--code-keyword);
+}
+.token.string,
+.token.char,
+.token.attr-value,
+.token.inserted,
+.token.string-interpolation,
+.token.triple-quoted-string {
+  color: var(--code-string);
+}
+.token.number,
+.token.boolean,
+.token.constant,
+.token.symbol {
+  color: var(--code-number);
+}
+.token.function {
+  color: var(--code-function);
+}
+.token.class-name {
+  color: var(--code-class);
+}
+.token.builtin,
+.token.selector,
+.token.attr-name {
+  color: var(--code-builtin);
+}
+.token.decorator,
+.token.annotation,
+.token.regex {
+  color: var(--code-decorator);
+}
+.token.operator,
+.token.entity,
+.token.url,
+.token.variable {
+  color: var(--code-operator);
+}
+.token.property,
+.token.tag,
+.token.deleted {
+  color: var(--code-class);
+}
+.token.interpolation {
+  color: var(--code-text);
+}
+.token.important,
+.token.bold {
+  font-weight: 700;
+}
+.token.italic {
+  font-style: italic;
+}
+.token.entity {
+  cursor: help;
+}
+
+/* line-numbers plugin */
+pre[class*="language-"].line-numbers {
+  position: relative;
+  padding-left: 3.8em;
+  counter-reset: linenumber;
+}
+pre[class*="language-"].line-numbers > code {
+  position: relative;
+  white-space: inherit;
+}
+.line-numbers .line-numbers-rows {
+  position: absolute;
+  pointer-events: none;
+  top: 0;
+  font-size: 100%;
+  left: -3.8em;
+  width: 3em;
+  letter-spacing: -1px;
+  border-right: 1px solid var(--border-color);
+  user-select: none;
+}
+.line-numbers-rows > span {
+  display: block;
+  counter-increment: linenumber;
+}
+.line-numbers-rows > span:before {
+  content: counter(linenumber);
+  color: var(--code-gutter);
+  display: block;
+  padding-right: 0.8em;
+  text-align: right;
+}
+
+/* line-highlight plugin */
+pre[data-line] {
+  position: relative;
+  padding: 1em 0 1em 3em;
+}
+.line-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: inherit 0;
+  margin-top: 1em;
+  background: var(--code-line-highlight);
+  border-left: 3px solid var(--primary);
+  pointer-events: none;
+  line-height: inherit;
+  white-space: pre;
+}
+.line-highlight:before,
+.line-highlight[data-end]:after {
+  content: attr(data-start);
+  position: absolute;
+  top: 0.4em;
+  left: 0.6em;
+  min-width: 1em;
+  padding: 0 0.5em;
+  background-color: var(--primary);
+  color: var(--on-primary);
+  font: bold 65%/1.5 sans-serif;
+  text-align: center;
+  vertical-align: 0.3em;
+  border-radius: 999px;
+}
+.line-highlight[data-end]:after {
+  content: attr(data-end);
+  top: auto;
+  bottom: 0.4em;
+}
+.line-numbers .line-highlight:before,
+.line-numbers .line-highlight:after {
+  content: none;
+}
+pre[id].linkable-line-numbers span.line-numbers-rows {
+  pointer-events: all;
+}
+pre[id].linkable-line-numbers span.line-numbers-rows > span:before {
+  cursor: pointer;
+}
+pre[id].linkable-line-numbers span.line-numbers-rows > span:hover:before {
+  background-color: var(--surface-track);
+}

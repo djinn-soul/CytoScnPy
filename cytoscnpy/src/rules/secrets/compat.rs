@@ -27,6 +27,7 @@ pub fn validate_secrets_config(
                 matched_value: None,
                 entropy: None,
                 confidence: 100,
+                cell_number: None,
             });
         }
     }

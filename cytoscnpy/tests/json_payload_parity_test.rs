@@ -57,6 +57,17 @@ fn assert_matches_serde_json(result: &AnalysisResult) {
     let fields = expected.as_object_mut().unwrap();
     fields.insert("schema_version".to_owned(), Value::from("2"));
     fields.insert(
+        "suppression_codes".to_owned(),
+        serde_json::json!({
+            "unused-class": ["unused-class", "CSP-V001"],
+            "unused-function": ["unused-function", "CSP-V001"],
+            "unused-import": ["unused-import", "CSP-V001", "F401"],
+            "unused-method": ["unused-method", "CSP-V001"],
+            "unused-parameter": ["unused-parameter", "CSP-V001"],
+            "unused-variable": ["unused-variable", "CSP-V001", "F841"],
+        }),
+    );
+    fields.insert(
         "stable_findings".to_owned(),
         parsed["stable_findings"].clone(),
     );

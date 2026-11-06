@@ -6,12 +6,29 @@ export interface CytoScnPyFinding {
   rule_id: string;
   category: string;
   severity: "error" | "warning" | "info" | "hint";
-  // CST-based fix suggestion (if available)
-  fix?: {
-    start_byte: number;
-    end_byte: number;
-    replacement: string;
-  };
+  /** Notebook cell index; the line and fix offsets are then cell-relative. */
+  cell_number?: number;
+  // Fix suggestion verified to leave valid Python (if available)
+  fix?: FixSuggestion;
+  /** Every code whose `# noqa` suppresses this finding, as the CLI reports. */
+  suppression_codes?: readonly string[];
+}
+
+export interface FixEdit {
+  start_byte: number;
+  end_byte: number;
+  replacement: string;
+}
+
+export interface FixSuggestion extends FixEdit {
+  /**
+   * Edits fixing every finding of this rule in the file together, carried by
+   * one of them. Applying each finding's own fix at once can leave an empty
+   * suite, so "fix all" must use these.
+   */
+  rule_fix_all?: FixEdit[];
+  /** Edits fixing every fixable dead-code finding in the file together. */
+  file_fix_all?: FixEdit[];
 }
 
 export interface CytoScnPyAnalysisResult {
@@ -39,10 +56,12 @@ export interface WorkspaceAnalysisResult {
 export interface CytoScnPyConfig {
   path: string;
   analysisMode: "workspace" | "file"; // workspace = full project, file = single file
-  enableSecretsScan: boolean;
-  enableDangerScan: boolean;
-  enableQualityScan: boolean;
-  enableCloneScan: boolean; // Enable code clone detection (--clones flag)
+  // Scan switches: true enables the scan, false disables it even when the
+  // project configuration enables it, and unset leaves it to the project.
+  enableSecretsScan?: boolean;
+  enableDangerScan?: boolean;
+  enableQualityScan?: boolean;
+  enableCloneScan?: boolean;
   confidenceThreshold?: number;
   excludeFolders?: string[];
   includeFolders?: string[];
@@ -66,11 +85,8 @@ export interface RawCytoScnPyFinding {
   severity?: string;
   name?: string;
   simple_name?: string;
-  fix?: {
-    start_byte: number;
-    end_byte: number;
-    replacement: string;
-  };
+  cell_number?: number;
+  fix?: FixSuggestion;
 }
 
 export interface RawTaintFinding {
@@ -86,6 +102,9 @@ export interface RawTaintFinding {
   severity: string;
   file: string;
   remediation: string;
+  /** Notebook cells of the sink and of the source, when in a notebook. */
+  cell_number?: number;
+  source_cell_number?: number;
 }
 
 export interface RawDeclaredDependency {
@@ -96,6 +115,8 @@ export interface RawDeclaredDependency {
 }
 
 export interface RawCytoScnPyResult {
+  /** Rule ID to every code whose `# noqa` suppresses it (dead code only). */
+  suppression_codes?: Record<string, string[]>;
   unused_functions?: RawCytoScnPyFinding[];
   unused_methods?: RawCytoScnPyFinding[];
   unused_imports?: RawCytoScnPyFinding[];

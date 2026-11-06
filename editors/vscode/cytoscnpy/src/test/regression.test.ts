@@ -505,13 +505,10 @@ suite("Regression: hashForDocument memoization", () => {
 });
 
 suite("Regression: buildAnalyzerArgs", () => {
+  // Every optional setting unset, so the project configuration decides.
   const baseConfig: CytoScnPyConfig = {
     path: "cytoscnpy",
     analysisMode: "workspace",
-    enableSecretsScan: false,
-    enableDangerScan: false,
-    enableQualityScan: false,
-    enableCloneScan: false,
   };
 
   test("minimal config emits only the required prefix", () => {
@@ -521,7 +518,40 @@ suite("Regression: buildAnalyzerArgs", () => {
       "vscode",
       "/tmp/foo.py",
       "--json",
+      "--force-exclude",
+      "--ipynb-cells",
     ]);
+  });
+
+  test("explicitly disabled settings override the project configuration", () => {
+    const args = buildAnalyzerArgs("/tmp/foo.py", {
+      ...baseConfig,
+      enableSecretsScan: false,
+      enableDangerScan: false,
+      enableQualityScan: false,
+      enableCloneScan: false,
+      includeTests: false,
+      includeIpynb: false,
+      maxComplexity: 5,
+    });
+    for (const flag of [
+      "--no-secrets",
+      "--no-danger",
+      "--no-quality",
+      "--no-clones",
+      "--no-include-tests",
+      "--no-include-ipynb",
+    ]) {
+      assert.ok(args.includes(flag), `${flag} should be passed`);
+    }
+    // A threshold would enable quality analysis, which is disabled.
+    assert.ok(!args.includes("--max-complexity"));
+  });
+
+  test("a threshold is passed while quality is left to the project", () => {
+    const args = buildAnalyzerArgs("/tmp/foo.py", { ...baseConfig, maxComplexity: 5 });
+    assert.ok(args.includes("--max-complexity"));
+    assert.ok(!args.includes("--quality") && !args.includes("--no-quality"));
   });
 
   test("scan toggles append their flags", () => {
@@ -536,9 +566,10 @@ suite("Regression: buildAnalyzerArgs", () => {
     assert.ok(args.includes("--clones"));
   });
 
-  test("quality toggles are only emitted when enableQualityScan is true", () => {
+  test("quality thresholds are dropped when quality is disabled", () => {
     const off = buildAnalyzerArgs("/tmp/foo.py", {
       ...baseConfig,
+      enableQualityScan: false,
       maxComplexity: 7,
       maxNesting: 4,
     });
@@ -562,12 +593,16 @@ suite("Regression: buildAnalyzerArgs", () => {
     );
   });
 
-  test("zero confidence threshold is dropped, positive value is emitted", () => {
+  test("an explicit confidence threshold is emitted, zero included", () => {
     const zero = buildAnalyzerArgs("/tmp/foo.py", {
       ...baseConfig,
       confidenceThreshold: 0,
     });
-    assert.ok(!zero.includes("--confidence"));
+    assert.deepStrictEqual(
+      zero.slice(zero.indexOf("--confidence"), zero.indexOf("--confidence") + 2),
+      ["--confidence", "0"],
+    );
+    assert.ok(!buildAnalyzerArgs("/tmp/foo.py", baseConfig).includes("--confidence"));
 
     const fifty = buildAnalyzerArgs("/tmp/foo.py", {
       ...baseConfig,

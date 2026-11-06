@@ -224,8 +224,26 @@ fn maybe_generate_html_report<W: std::io::Write>(
     }
 
     writeln!(writer, "Generating HTML report...")?;
-    let report_dir = std::path::Path::new(".cytoscnpy/report");
-    if let Err(e) = crate::report::generator::generate_report(result, analysis_root, report_dir) {
+    // Resolve the folder once, the way the generator does, so the message and
+    // the browser point at where the report was written. A relative folder is
+    // inside the analysis root, which differs from the working directory under
+    // `--root`.
+    let report_dir = match crate::utils::validate_output_path(
+        std::path::Path::new(".cytoscnpy/report"),
+        Some(analysis_root),
+    ) {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("Failed to generate HTML report: {e}");
+            return Ok(());
+        }
+    };
+    if let Err(e) = crate::report::generator::generate_report_with_theme(
+        result,
+        analysis_root,
+        &report_dir,
+        cli_var.output.html_theme,
+    ) {
         eprintln!("Failed to generate HTML report: {e}");
     } else {
         writeln!(writer, "HTML report generated at: {}", report_dir.display())?;

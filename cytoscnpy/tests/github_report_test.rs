@@ -72,6 +72,7 @@ fn github_report_emits_every_feature_with_valid_coordinates() {
         file: PathBuf::from("repo/src/app.py"),
         line: 2,
         col: 0,
+        cell_number: None,
     });
     result.taint_findings.push(TaintFinding {
         rule_id: "CSP-T001".to_owned(),
@@ -87,6 +88,8 @@ fn github_report_emits_every_feature_with_valid_coordinates() {
         category: "Taint Analysis".to_owned(),
         remediation: "Use parameters".to_owned(),
         exploitability_score: 90,
+        cell_number: None,
+        source_cell_number: None,
     });
     result.clones.push(clone_finding());
 

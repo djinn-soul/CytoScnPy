@@ -42,4 +42,13 @@ pub struct DeslopArgs {
     /// Usable LLM context capacity in tokens.
     #[arg(long, default_value_t = 176_000)]
     pub context_budget: usize,
+    /// Add the Slop Index page to the HTML report in `.cytoscnpy/report`.
+    #[arg(long)]
+    #[cfg(feature = "html_report")]
+    pub html: bool,
+    /// Color theme the page opens in (viewers can still toggle it). Defaults
+    /// to the theme of the report the page is added to.
+    #[arg(long, value_enum, requires = "html")]
+    #[cfg(feature = "html_report")]
+    pub html_theme: Option<crate::report::generator::ReportTheme>,
 }

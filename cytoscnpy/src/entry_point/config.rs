@@ -62,8 +62,8 @@ pub(crate) fn setup_configuration(
     let mut exclude_folders = config.cytoscnpy.exclude_folders.clone().unwrap_or_default();
     exclude_folders.extend(cli.exclude_folders.clone());
 
-    let include_tests =
-        cli.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false);
+    let include_tests = !cli.include.no_include_tests
+        && (cli.include.include_tests || config.cytoscnpy.include_tests.unwrap_or(false));
 
     let mut include_folders = config.cytoscnpy.include_folders.clone().unwrap_or_default();
     include_folders.extend(cli.include_folders.clone());

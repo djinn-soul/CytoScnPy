@@ -92,6 +92,16 @@ pub(crate) fn run_analysis<W: std::io::Write>(
     .with_verbose(cli_var.output.verbose)
     .with_root(analysis_root.to_path_buf());
     analyzer.whitelist_matcher = build_whitelist_matcher(config, &cli_var.whitelist_files)?;
+    if cli_var.force_exclude {
+        // Exclusions are relative to the project the configuration belongs to.
+        analyzer.force_exclude_root = Some(
+            config
+                .config_file_path
+                .as_deref()
+                .and_then(std::path::Path::parent)
+                .map_or_else(|| analysis_root.to_path_buf(), std::path::Path::to_path_buf),
+        );
+    }
 
     // Set debug delay if provided
     if let Some(delay_ms) = cli_var.debug_delay {
@@ -150,8 +160,11 @@ pub(crate) fn run_analysis<W: std::io::Write>(
     let html_output_requested = cli_var.output.html;
     #[cfg(not(feature = "html_report"))]
     let html_output_requested = false;
-    let (run_clones, emit_clone_text) =
-        clone_activation(cli_var.clones, clones_from_config, html_output_requested);
+    let (run_clones, emit_clone_text) = if cli_var.no_clones {
+        (false, false)
+    } else {
+        clone_activation(cli_var.clones, clones_from_config, html_output_requested)
+    };
 
     if run_clones {
         clone_similarity_used = Some(clone_similarity);

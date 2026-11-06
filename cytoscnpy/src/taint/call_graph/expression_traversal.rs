@@ -32,7 +32,13 @@ fn visit_call_expr(graph: &mut CallGraph, expr: &Expr, caller: &str, module_name
         add_reflection_call_edges(graph, caller, &callee, &call.arguments.args);
     }
 
-    graph.visit_expr_for_calls(&call.func, caller, module_name);
+    // The callee itself is a call edge, not a reference; visit only what it
+    // is built from.
+    match &*call.func {
+        Expr::Name(_) => {}
+        Expr::Attribute(attr) => graph.visit_expr_for_calls(&attr.value, caller, module_name),
+        func => graph.visit_expr_for_calls(func, caller, module_name),
+    }
     visit_exprs(graph, &call.arguments.args, caller, module_name);
     for keyword in &call.arguments.keywords {
         graph.visit_expr_for_calls(&keyword.value, caller, module_name);
@@ -190,7 +196,21 @@ fn visit_string_or_access_expr(
     match expr {
         Expr::Starred(starred) => graph.visit_expr_for_calls(&starred.value, caller, module_name),
         Expr::Slice(slice) => visit_slice(graph, slice, caller, module_name),
-        Expr::Attribute(attr) => graph.visit_expr_for_calls(&attr.value, caller, module_name),
+        // A value use such as `{int: _helper}` or `target=self.run`.
+        Expr::Name(name) => {
+            if name.ctx.is_load() {
+                graph.add_reference_edge(caller, name.id.as_str());
+            }
+        }
+        Expr::Attribute(attr) => {
+            if attr.ctx.is_load() {
+                let mut loose = String::with_capacity(attr.attr.len() + 1);
+                loose.push('.');
+                loose.push_str(attr.attr.as_str());
+                graph.add_reference_edge(caller, &loose);
+            }
+            graph.visit_expr_for_calls(&attr.value, caller, module_name);
+        }
         Expr::FString(fstring) => visit_fstring(graph, fstring, caller, module_name),
         _ => return false,
     }

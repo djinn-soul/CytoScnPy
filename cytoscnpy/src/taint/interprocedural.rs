@@ -282,6 +282,8 @@ fn check_call_sink_with_state(
                         sink_match.severity,
                         taint_info.path.len(),
                     ),
+                    cell_number: None,
+                    source_cell_number: None,
                 });
             }
         }

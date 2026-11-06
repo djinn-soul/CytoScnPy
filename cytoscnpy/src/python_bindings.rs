@@ -192,6 +192,7 @@ fn scan_json(
         }
 
         crate::analyzer::apply_global_ignores(&mut result, config.cytoscnpy.ignore.as_deref());
+        crate::commands::verify_fix_suggestions(&mut result, Some(&analyzer.analysis_root));
 
         serde_json::to_string(&result).map_err(|e| format!("Serialization error: {e}"))
     });
@@ -245,6 +246,7 @@ fn scan_code_json(
         result.analysis_summary.quality_count = result.quality.len();
         result.analysis_summary.parse_errors_count = result.parse_errors.len();
         result.analysis_summary.taint_count = result.taint_findings.len();
+        crate::commands::verify_fix_suggestions_with(&mut result, |_| Some(code.clone()));
 
         serde_json::to_string(&result).map_err(|e| format!("Serialization error: {e}"))
     });

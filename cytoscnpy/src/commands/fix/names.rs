@@ -4,12 +4,14 @@ use ruff_python_ast::visitor::source_order::{self, SourceOrderVisitor};
 use ruff_python_ast::{Expr, Identifier, ModModule};
 use rustc_hash::FxHashSet;
 
+/// Every name that appears in a module. Collected once per file and shared
+/// by every fix planned against it.
 #[derive(Default)]
-pub(super) struct DiscardNames {
+pub(super) struct ModuleNames {
     reserved: FxHashSet<String>,
 }
 
-impl DiscardNames {
+impl ModuleNames {
     pub(super) fn new(module: &ModModule) -> Self {
         let mut names = Self::default();
         for stmt in &module.body {
@@ -17,11 +19,26 @@ impl DiscardNames {
         }
         names
     }
+}
+
+/// Allocates discard bindings for one fix plan.
+pub(super) struct DiscardNames<'a> {
+    module: &'a ModuleNames,
+    allocated: FxHashSet<String>,
+}
+
+impl<'a> DiscardNames<'a> {
+    pub(super) fn new(module: &'a ModuleNames) -> Self {
+        Self {
+            module,
+            allocated: FxHashSet::default(),
+        }
+    }
 
     pub(super) fn allocate(&mut self) -> String {
         let mut name = "_".to_owned();
         let mut suffix = 0;
-        while self.reserved.contains(&name) {
+        while self.module.reserved.contains(&name) || self.allocated.contains(&name) {
             name = if suffix == 0 {
                 "_unused".to_owned()
             } else {
@@ -29,12 +46,12 @@ impl DiscardNames {
             };
             suffix += 1;
         }
-        self.reserved.insert(name.clone());
+        self.allocated.insert(name.clone());
         name
     }
 }
 
-impl<'a> SourceOrderVisitor<'a> for DiscardNames {
+impl<'a> SourceOrderVisitor<'a> for ModuleNames {
     fn visit_identifier(&mut self, identifier: &'a Identifier) {
         self.reserved.insert(identifier.to_string());
     }

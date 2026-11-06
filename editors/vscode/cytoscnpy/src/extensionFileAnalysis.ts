@@ -5,6 +5,7 @@ import { documentAnalysisMode, getCytoScnPyConfiguration } from "./configuration
 import { analysisState } from "./extensionState";
 import { getCacheKey, clearDocumentAnalysis, cacheDocumentAnalysis } from "./extensionCache";
 import { findingsToDiagnostics, parseErrorsToDiagnostics } from "./extensionDiagnostics";
+import { isUnsaved, notebookCellOf } from "./notebookCells";
 import { setStatus, cytoscnpyDiagnostics, cytoscnpyOutputChannel, applyGutterDecorations, reportAnalysisFailure, resetAnalysisFailure } from "./extensionUi";
 
 export function createFileAnalysis(
@@ -12,48 +13,86 @@ export function createFileAnalysis(
   runFullWorkspaceAnalysis: () => Promise<void>,
 ) {
   const isDevBuild = context.extensionMode === vscode.ExtensionMode.Development;
+  // One analyzer run serves every cell of a notebook.
+  const notebookRuns = new Map<string, Promise<void>>();
+
+  /** The documents one analyzer run of `document`'s file updates. */
+  function documentsOfFile(document: vscode.TextDocument): vscode.TextDocument[] {
+    const cell = notebookCellOf(document);
+    if (!cell) {
+      return [document];
+    }
+    return cell.notebook
+      .getCells()
+      .filter((candidate) => candidate.kind === vscode.NotebookCellKind.Code)
+      .map((candidate) => candidate.document)
+      .filter((candidate) => candidate.languageId === "python");
+  }
+
   async function runIncrementalAnalysis(document: vscode.TextDocument) {
+    if (!notebookCellOf(document)) {
+      return analyzeFile(document);
+    }
+    const key = document.uri.fsPath;
+    let run = notebookRuns.get(key);
+    if (!run) {
+      run = analyzeFile(document).finally(() => notebookRuns.delete(key));
+      notebookRuns.set(key, run);
+    }
+    return run;
+  }
+
+  async function analyzeFile(document: vscode.TextDocument) {
     const filePath = document.uri.fsPath;
-    if (document.isDirty) {
-      clearDocumentAnalysis(document);
+    const documents = documentsOfFile(document);
+    if (documents.some(isUnsaved)) {
+      documents.forEach(clearDocumentAnalysis);
       return;
     }
-    const documentVersion = document.version;
+    const versions = documents.map((candidate) => candidate.version);
     const config = getCytoScnPyConfiguration(context, document.uri);
     setStatus("running", `scanning ${path.basename(filePath)}`);
 
     try {
       // Run single-file analysis
       const result = await runCytoScnPyAnalysis(filePath, config);
-      if (document.isDirty || document.version !== documentVersion) {
-        clearDocumentAnalysis(document);
+      if (
+        documents.some(
+          (candidate, index) => isUnsaved(candidate) || candidate.version !== versions[index],
+        )
+      ) {
+        documents.forEach(clearDocumentAnalysis);
         return;
       }
-      const diagnostics = [
-        ...findingsToDiagnostics(document, result.findings),
-        ...parseErrorsToDiagnostics(document, result.parseErrors),
-      ];
+      let findingCount = 0;
+      for (const target of documents) {
+        const diagnostics = [
+          ...findingsToDiagnostics(target, result.findings),
+          ...parseErrorsToDiagnostics(target, result.parseErrors),
+        ];
+        findingCount += diagnostics.length;
 
-      // Update diagnostics for this file
-      cytoscnpyDiagnostics.set(document.uri, diagnostics);
+        // Update diagnostics for this file
+        cytoscnpyDiagnostics.set(target.uri, diagnostics);
 
-      cacheDocumentAnalysis(document, diagnostics, result.findings);
+        cacheDocumentAnalysis(target, diagnostics, result.findings);
+
+        // Update sidebar and gutter decorations for active document
+        if (
+          vscode.window.activeTextEditor &&
+          vscode.window.activeTextEditor.document.uri.toString() ===
+          target.uri.toString()
+        ) {
+          applyGutterDecorations(vscode.window.activeTextEditor, diagnostics);
+        }
+      }
       resetAnalysisFailure();
       // Single-file results stay out of the workspace cache: they lack
       // cross-file references and would add dead-code false positives there.
 
-      // Update sidebar and gutter decorations for active document
-      if (
-        vscode.window.activeTextEditor &&
-        vscode.window.activeTextEditor.document.uri.toString() ===
-        document.uri.toString()
-      ) {
-        applyGutterDecorations(vscode.window.activeTextEditor, diagnostics);
-      }
-
       setStatus(
         "idle",
-        `${diagnostics.length} finding${diagnostics.length === 1 ? "" : "s"}`,
+        `${findingCount} finding${findingCount === 1 ? "" : "s"}`,
       );
 
       if (isDevBuild) {
@@ -67,7 +106,7 @@ export function createFileAnalysis(
       console.error(
         `[CytoScnPy] Incremental analysis failed for ${filePath}: ${error.message}`,
       );
-      clearDocumentAnalysis(document);
+      documents.forEach(clearDocumentAnalysis);
       setStatus("error", "file analysis failed");
       reportAnalysisFailure(error.message);
     }
@@ -77,7 +116,7 @@ export function createFileAnalysis(
     if (document.languageId !== "python") {
       return; // Only analyze Python files
     }
-    if (document.isDirty) {
+    if (isUnsaved(document)) {
       clearDocumentAnalysis(document);
       setStatus("idle", "save file to analyze");
       return;

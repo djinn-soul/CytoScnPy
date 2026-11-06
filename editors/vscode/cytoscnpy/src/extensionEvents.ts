@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import { documentAnalysisMode } from "./configuration";
 import { analysisState, AnalysisActions } from "./extensionState";
-import { getCacheKey, fileCache, documentHashCache, clearDocumentAnalysis, invalidateWorkspaceCache, restoreDocumentAnalysis } from "./extensionCache";
+import { fileCache, documentCacheKey, documentHashCache, clearDocumentAnalysis, invalidateWorkspaceCache, restoreDocumentAnalysis } from "./extensionCache";
+import { isUnsaved } from "./notebookCells";
 import { watchProjectConfiguration } from "./configWatcher";
 import { cytoscnpyDiagnostics } from "./extensionUi";
 import { periodicScanDue } from "./analysisPolicy";
@@ -69,7 +70,7 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
       if (event.document.languageId !== "python") {
         return;
       }
-      if (event.document.isDirty) {
+      if (isUnsaved(event.document)) {
         // Clearing sends diagnostics and decoration updates to the main
         // process, so do it once per edit session, not on every keystroke.
         if (cytoscnpyDiagnostics.has(event.document.uri)) {
@@ -83,8 +84,7 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
   );
 
   // Analyze document on save - debounced incremental analysis (much faster than full workspace scan)
-  context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument((document) => {
+  function analyzeSavedDocument(document: vscode.TextDocument) {
       if (document.languageId === "python") {
         // Update last change time
         lastFileChangeTime = Date.now();
@@ -110,6 +110,22 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
             });
           }
         });
+      }
+  }
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(analyzeSavedDocument),
+    // Saving a notebook saves no text document; rescan its Python cells.
+    // One cell suffices: analyzing a cell updates all cells of its notebook.
+    vscode.workspace.onDidSaveNotebookDocument((notebook) => {
+      const cell = notebook
+        .getCells()
+        .find(
+          (candidate) =>
+            candidate.kind === vscode.NotebookCellKind.Code &&
+            candidate.document.languageId === "python",
+        );
+      if (cell) {
+        analyzeSavedDocument(cell.document);
       }
     }),
   );
@@ -152,7 +168,7 @@ export function registerAnalysisEvents(context: vscode.ExtensionContext, actions
       if (mode === "file") {
         cytoscnpyDiagnostics.delete(document.uri);
       }
-      fileCache.delete(getCacheKey(document.uri.fsPath)); // Clear cache entry
+      fileCache.delete(documentCacheKey(document)); // Clear cache entry
       documentHashCache.delete(document.uri.toString());
     }),
   );

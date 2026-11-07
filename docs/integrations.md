@@ -129,7 +129,7 @@ The easiest way to integrate CytoScnPy into GitHub Actions is via the official a
 
 ```yaml
 - name: Run CytoScnPy Analysis
-  uses: djinn-soul/CytoScnPy@main
+  uses: djinn-soul/CytoScnPy@v1
   with:
     args: "--secrets --danger --quality"
 ```
@@ -141,7 +141,7 @@ The easiest way to integrate CytoScnPy into GitHub Actions is via the official a
 | `path`           | Path(s) to analyze                       | `.`      |
 | `args`           | Additional arguments (e.g., `--secrets`) | ` `      |
 | `version`        | Version of `cytoscnpy` to install        | `latest` |
-| `python-version` | Version of Python to set up              | `3.x`    |
+| `python-version` | Version of Python to set up              | `3.13`   |
 
 ### Other CI/CD Formats
 

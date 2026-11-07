@@ -93,7 +93,7 @@ Integrate CytoScnPy directly into your GitHub Actions workflow:
 | `path`           | Path(s) to analyze                       | `.`      |
 | `args`           | Additional arguments (e.g., `--secrets`) | ` `      |
 | `version`        | Version of `cytoscnpy` to install        | `latest` |
-| `python-version` | Version of Python to set up              | `3.x`    |
+| `python-version` | Version of Python to set up              | `3.13`   |
 
 ## Features
 

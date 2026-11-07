@@ -1,6 +1,6 @@
 site_name: CytoScnPy
 site_description: High-performance Python static analysis tool powered by Rust
-site_url: https://djinn09.github.io/CytoScnPy/
+site_url: https://djinn-soul.github.io/CytoScnPy/
 repo_url: https://github.com/djinn-soul/CytoScnPy
 repo_name: djinn-soul/CytoScnPy
 edit_uri: edit/main/docs/
@@ -74,6 +74,7 @@ nav:
       - Python API & pytest: python-api.md
   - Reference:
       - CLI Reference: CLI.md
+      - "CSP-V001: Unused Code": rule/CSP-V001.md
       - Quality Rules:
           - Overview: quality.md
           - Best Practices:

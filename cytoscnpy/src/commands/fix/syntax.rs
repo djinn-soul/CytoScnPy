@@ -1,6 +1,7 @@
 //! Preserve required suites and separators when deleting Python statements.
 
 use super::apply_plan::PlannedEdit;
+use super::blank_lines::absorb_blank_lines;
 use ruff_python_ast::visitor::{self, Visitor};
 use ruff_python_ast::{ModModule, Stmt};
 use ruff_text_size::Ranged;
@@ -30,6 +31,7 @@ pub(super) fn preserve_syntax(module: &ModModule, content: &str, planned: &mut V
         }
         merged.push(edit);
     }
+    absorb_blank_lines(content, &mut merged);
     *planned = merged;
 }
 

@@ -2,6 +2,7 @@
 
 mod apply;
 mod apply_plan;
+mod blank_lines;
 mod import_plan;
 mod names;
 mod plan;

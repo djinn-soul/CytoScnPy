@@ -61,6 +61,15 @@ impl CytoScnPyExtension {
             // Offline: keep using a release downloaded earlier.
             Err(error) => return downloaded_binary(asset_name).ok_or(error),
         };
+        if !has_lsp(&release.version) {
+            return Err(format!(
+                "CytoScnPy {} predates the `lsp` subcommand, which ships in the next \
+                 release. Until then, build it with `cargo install --git \
+                 https://github.com/{REPOSITORY} cytoscnpy-cli` and set \
+                 `lsp.cytoscnpy.binary.path` to the installed `cytoscnpy-cli`.",
+                release.version
+            ));
+        }
         let version_dir = format!("{VERSION_DIR_PREFIX}{}", release.version);
         let binary = format!("{version_dir}/{asset_name}");
         if !is_file(&binary) {
@@ -224,3 +233,32 @@ fn remove_other_versions(keep: &str) {
 }
 
 zed::register_extension!(CytoScnPyExtension);
+
+/// Whether release `version` (such as `v1.3.2`) has the `lsp` subcommand,
+/// which first ships after v1.3.1. Unparsable versions are assumed to.
+fn has_lsp(version: &str) -> bool {
+    let parts: Vec<u64> = version
+        .trim_start_matches('v')
+        .split(['.', '-'])
+        .take(3)
+        .map_while(|part| part.parse().ok())
+        .collect();
+    match parts.as_slice() {
+        [major, minor, patch] => (*major, *minor, *patch) > (1, 3, 1),
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_lsp;
+
+    #[test]
+    fn releases_after_v1_3_1_have_lsp() {
+        assert!(!has_lsp("v1.3.1"));
+        assert!(!has_lsp("1.2.9"));
+        assert!(has_lsp("v1.3.2"));
+        assert!(has_lsp("v2.0.0-rc.1"));
+        assert!(has_lsp("nightly"));
+    }
+}

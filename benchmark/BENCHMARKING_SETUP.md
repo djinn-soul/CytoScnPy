@@ -211,6 +211,7 @@ An optimization is successful if:
 | File                              | Purpose                      |
 | --------------------------------- | ---------------------------- |
 | `benchmark/run_benchmarks.py`     | Main hyperfine runner        |
+| `benchmark/hyperfine_results.py`  | Result table, JSON, regression check |
 | `benchmark/compare.py`            | A/B comparison tool          |
 | `benchmark/baseline_results.json` | Saved baseline data          |
 | `benchmark/datasets/`             | Test project repos           |

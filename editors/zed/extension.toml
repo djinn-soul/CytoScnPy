@@ -9,3 +9,5 @@ repository = "https://github.com/djinn-soul/CytoScnPy"
 [language_servers.cytoscnpy]
 name = "CytoScnPy"
 languages = ["Python"]
+
+[context_servers.cytoscnpy]

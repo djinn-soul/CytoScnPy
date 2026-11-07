@@ -1,51 +1,49 @@
-//! The LSP message loop and document state.
+//! The LSP message loop: requests, notifications and debounced analysis.
 
 use std::collections::HashMap;
-use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::time::Duration;
 
+use crossbeam_channel::RecvTimeoutError;
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument,
-    LogMessage, Notification as _, PublishDiagnostics,
+    DidChangeConfiguration, DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument,
+    DidOpenTextDocument, DidSaveTextDocument, Notification as _,
 };
-use lsp_types::request::{CodeActionRequest, Request as _};
+use lsp_types::request::{CodeActionRequest, ExecuteCommand, Request as _};
 use lsp_types::{
     CodeActionKind, CodeActionOptions, CodeActionParams, CodeActionProviderCapability,
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, InitializeParams, InitializeResult, LogMessageParams, MessageType,
-    PublishDiagnosticsParams, SaveOptions, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, Uri,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    ExecuteCommandOptions, ExecuteCommandParams, InitializeParams, InitializeResult, SaveOptions,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
 };
 
 use crate::actions::{code_actions, Context};
-use crate::diagnostics::{entries, Entry};
+use crate::client::{BoxError, Client, Pending};
 use crate::project::Projects;
+use crate::settings::Settings;
+use crate::workspace::{Document, Target};
 
-type BoxError = Box<dyn Error + Send + Sync>;
+/// How long the server waits for more saves before analyzing, so saving
+/// several files at once runs one analysis.
+const DEBOUNCE: Duration = Duration::from_millis(150);
 
-struct Document {
-    path: Option<PathBuf>,
-    /// `path` with symlinks resolved, which project results are keyed by.
-    canonical: Option<PathBuf>,
-    text: String,
-    /// The text the last analysis read and the diagnostics it produced.
-    analysis: Option<(String, Vec<Entry>)>,
-}
-
-struct Server<'a> {
-    connection: &'a Connection,
-    documents: HashMap<Uri, Document>,
-    /// Extra `cytoscnpy` CLI flags from the `args` initialization option.
-    extra_args: Vec<String>,
-    projects: Projects,
+pub(crate) struct Server<'a> {
+    pub client: Client<'a>,
+    pub documents: HashMap<lsp_types::Uri, Document>,
+    pub init_settings: Settings,
+    pub workspace_settings: Settings,
+    pub projects: Projects,
+    /// Analyses waiting for the debounce to pass.
+    pub queue: Vec<Target>,
 }
 
 /// Serves LSP on `connection` until the client shuts the server down.
 ///
-/// The client may pass `{"args": ["--secrets", ...]}` as initialization
-/// options to add CLI flags to every analysis.
+/// Settings named like the VS Code extension's (`enableSecretsScan`, `maxComplexity`, `args` and the rest)
+/// come from the initialization options and the `cytoscnpy` workspace
+/// configuration.
 ///
 /// # Errors
 ///
@@ -63,12 +61,32 @@ pub fn run(connection: &Connection) -> Result<(), BoxError> {
     };
     connection.initialize_finish(id, serde_json::to_value(result)?)?;
     let mut server = Server {
-        connection,
+        client: Client::new(connection, &params.capabilities),
         documents: HashMap::new(),
-        extra_args: extra_args(params.initialization_options.as_ref()),
+        init_settings: Settings::from_value(params.initialization_options.as_ref()),
+        workspace_settings: Settings::default(),
         projects: Projects::new(&params),
+        queue: Vec::new(),
     };
-    for message in &connection.receiver {
+    // `initialize_finish` consumed the client's `initialized` notification.
+    server.client.watch_files()?;
+    server.client.request_configuration()?;
+    loop {
+        let message = if server.queue.is_empty() {
+            match connection.receiver.recv() {
+                Ok(message) => message,
+                Err(_) => break,
+            }
+        } else {
+            match connection.receiver.recv_timeout(DEBOUNCE) {
+                Ok(message) => message,
+                Err(RecvTimeoutError::Timeout) => {
+                    server.run_queue()?;
+                    continue;
+                }
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        };
         match message {
             Message::Request(request) => {
                 if connection.handle_shutdown(&request)? {
@@ -77,7 +95,7 @@ pub fn run(connection: &Connection) -> Result<(), BoxError> {
                 server.on_request(request)?;
             }
             Message::Notification(notification) => server.on_notification(notification)?,
-            Message::Response(_) => {}
+            Message::Response(response) => server.on_response(response),
         }
     }
     Ok(())
@@ -96,51 +114,69 @@ fn capabilities() -> ServerCapabilities {
             },
         )),
         code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
-            code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+            code_action_kinds: Some(vec![CodeActionKind::QUICKFIX, CodeActionKind::SOURCE]),
             ..CodeActionOptions::default()
         })),
+        execute_command_provider: Some(ExecuteCommandOptions {
+            commands: crate::commands::COMMANDS
+                .iter()
+                .map(|(id, _)| (*id).to_owned())
+                .collect(),
+            ..ExecuteCommandOptions::default()
+        }),
         ..ServerCapabilities::default()
     }
 }
 
-fn extra_args(options: Option<&serde_json::Value>) -> Vec<String> {
-    options
-        .and_then(|options| options.get("args"))
-        .and_then(serde_json::Value::as_array)
-        .map(|args| {
-            args.iter()
-                .filter_map(|arg| arg.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 impl Server<'_> {
-    fn on_request(&self, request: Request) -> Result<(), BoxError> {
-        let response = if request.method == CodeActionRequest::METHOD {
-            let (id, params) = request.extract::<CodeActionParams>(CodeActionRequest::METHOD)?;
-            let actions = self
-                .documents
-                .get(&params.text_document.uri)
-                .map(|document| {
-                    let context = Context {
-                        uri: &params.text_document.uri,
-                        text: &document.text,
-                        fresh_entries: document
-                            .analysis
-                            .as_ref()
-                            .filter(|(text, _)| *text == document.text)
-                            .map(|(_, entries)| entries.as_slice()),
-                    };
-                    code_actions(&context, params.range, &params.context.diagnostics)
-                });
-            Response::new_ok(id, actions.unwrap_or_default())
-        } else {
-            let message = format!("cytoscnpy does not handle {}", request.method);
-            Response::new_err(request.id, ErrorCode::MethodNotFound as i32, message)
+    pub(crate) fn settings(&self) -> Settings {
+        self.init_settings.merged(&self.workspace_settings)
+    }
+
+    fn on_request(&mut self, request: Request) -> Result<(), BoxError> {
+        let response = match request.method.as_str() {
+            CodeActionRequest::METHOD => {
+                let (id, params) =
+                    request.extract::<CodeActionParams>(CodeActionRequest::METHOD)?;
+                let uri = &params.text_document.uri;
+                let mut actions = self
+                    .documents
+                    .get(uri)
+                    .map(|document| {
+                        let context = Context {
+                            uri,
+                            text: &document.text,
+                            fresh_entries: document.fresh_entries(),
+                        };
+                        code_actions(&context, params.range, &params.context.diagnostics)
+                    })
+                    .unwrap_or_default();
+                actions.extend(crate::commands::source_actions(uri, &params.context));
+                Response::new_ok(id, actions)
+            }
+            ExecuteCommand::METHOD => {
+                let (id, params) =
+                    request.extract::<ExecuteCommandParams>(ExecuteCommand::METHOD)?;
+                self.execute(&params)?;
+                Response::new_ok(id, serde_json::Value::Null)
+            }
+            _ => {
+                let message = format!("cytoscnpy does not handle {}", request.method);
+                Response::new_err(request.id, ErrorCode::MethodNotFound as i32, message)
+            }
         };
-        self.connection.sender.send(response.into())?;
-        Ok(())
+        self.client.send(response)
+    }
+
+    fn on_response(&mut self, response: Response) {
+        if let Some(Pending::Configuration) = self.client.pending.remove(&response.id) {
+            // The result holds one value per requested section.
+            let value = response
+                .response_result
+                .ok()
+                .and_then(|result| result.as_array().and_then(|items| items.first().cloned()));
+            self.apply_workspace_settings(Settings::from_value(value.as_ref()));
+        }
     }
 
     fn on_notification(&mut self, notification: Notification) -> Result<(), BoxError> {
@@ -149,151 +185,51 @@ impl Server<'_> {
                 let params: DidOpenTextDocumentParams =
                     notification.extract(DidOpenTextDocument::METHOD)?;
                 let uri = params.text_document.uri;
-                let path = crate::uri::to_path(uri.as_str());
-                let document = Document {
-                    canonical: path
-                        .as_ref()
-                        .map(|path| path.canonicalize().unwrap_or_else(|_| path.clone())),
-                    path,
-                    text: params.text_document.text,
-                    analysis: None,
-                };
+                let document = Document::new(&uri, params.text_document.text);
                 self.documents.insert(uri.clone(), document);
-                self.analyze(&uri, true)?;
+                self.on_open(&uri)?;
             }
             DidChangeTextDocument::METHOD => {
                 let params: DidChangeTextDocumentParams =
                     notification.extract(DidChangeTextDocument::METHOD)?;
                 // Full sync: the last change holds the whole text.
-                let text = params
-                    .content_changes
-                    .into_iter()
-                    .last()
-                    .map(|change| change.text);
-                if let (Some(document), Some(text)) =
-                    (self.documents.get_mut(&params.text_document.uri), text)
-                {
-                    document.text = text;
+                if let Some(change) = params.content_changes.into_iter().last() {
+                    self.on_edit(&params.text_document.uri, change.text)?;
                 }
             }
             DidSaveTextDocument::METHOD => {
                 let params: DidSaveTextDocumentParams =
                     notification.extract(DidSaveTextDocument::METHOD)?;
-                self.analyze(&params.text_document.uri, false)?;
+                let target = self.target_of(&params.text_document.uri);
+                self.enqueue(target);
             }
             DidCloseTextDocument::METHOD => {
                 let params: DidCloseTextDocumentParams =
                     notification.extract(DidCloseTextDocument::METHOD)?;
-                let document = self.documents.remove(&params.text_document.uri);
-                // Project findings stay listed for closed files, as in VS Code.
-                let in_project = document
-                    .and_then(|document| document.canonical)
-                    .is_some_and(|file| self.projects.root_of(&file).is_some());
-                if !in_project {
-                    self.publish(params.text_document.uri, Vec::new())?;
+                self.on_close(params.text_document.uri)?;
+            }
+            DidChangeConfiguration::METHOD => {
+                let params: DidChangeConfigurationParams =
+                    notification.extract(DidChangeConfiguration::METHOD)?;
+                // Clients that serve configuration send no settings here.
+                if !self.client.request_configuration()? {
+                    self.apply_workspace_settings(Settings::from_value(Some(&params.settings)));
                 }
+            }
+            DidChangeWatchedFiles::METHOD => {
+                let params: DidChangeWatchedFilesParams =
+                    notification.extract(DidChangeWatchedFiles::METHOD)?;
+                self.on_files_changed(&params);
             }
             _ => {}
         }
         Ok(())
     }
 
-    /// Analyzes the saved file behind an open document, together with the
-    /// rest of its workspace folder when it is in one, and publishes the
-    /// findings. With `reuse`, a folder analyzed before is not analyzed again.
-    fn analyze(&mut self, uri: &Uri, reuse: bool) -> Result<(), BoxError> {
-        let root = self
-            .documents
-            .get(uri)
-            .and_then(|document| document.canonical.as_deref())
-            .and_then(|file| self.projects.root_of(file))
-            .map(Path::to_path_buf);
-        if let Some(root) = root {
-            return self.analyze_project(&root, uri, reuse);
+    fn apply_workspace_settings(&mut self, settings: Settings) {
+        if settings != self.workspace_settings {
+            self.workspace_settings = settings;
+            self.enqueue(Target::Workspace);
         }
-        let Some(document) = self.documents.get_mut(uri) else {
-            return Ok(());
-        };
-        let Some(path) = &document.path else {
-            return Ok(()); // Unsaved or remote buffers have no file to analyze.
-        };
-        match crate::analysis::analyze(path, &self.extra_args) {
-            Ok(analysis) => {
-                let found = entries(&analysis.report, &analysis.text);
-                let diagnostics = found.iter().map(|entry| entry.diagnostic.clone()).collect();
-                document.analysis = Some((analysis.text, found));
-                self.publish(uri.clone(), diagnostics)
-            }
-            Err(message) => self.log_error(message),
-        }
-    }
-
-    fn analyze_project(&mut self, root: &Path, uri: &Uri, reuse: bool) -> Result<(), BoxError> {
-        let changed = if reuse && self.projects.results(root).is_some() {
-            self.documents
-                .get(uri)
-                .and_then(|document| document.canonical.clone())
-                .into_iter()
-                .collect()
-        } else {
-            match self.projects.analyze(root, &self.extra_args) {
-                Ok(changed) => changed,
-                Err(message) => return self.log_error(message),
-            }
-        };
-        let results = self.projects.results(root);
-        // Code actions on open buffers use the analysis their text matches.
-        for document in self.documents.values_mut() {
-            let Some(file) = &document.canonical else {
-                continue;
-            };
-            if !file.starts_with(root) {
-                continue;
-            }
-            document.analysis = Some(match results.and_then(|files| files.get(file)) {
-                Some(result) => (result.text.clone(), result.entries.clone()),
-                None => (document.text.clone(), Vec::new()),
-            });
-        }
-        for file in changed {
-            let found = results.and_then(|files| files.get(&file));
-            let diagnostics = found.map_or_else(Vec::new, |result| {
-                result
-                    .entries
-                    .iter()
-                    .map(|e| e.diagnostic.clone())
-                    .collect()
-            });
-            let open = self
-                .documents
-                .iter()
-                .find(|(_, document)| document.canonical.as_ref() == Some(&file))
-                .map(|(uri, _)| uri.clone());
-            if let Some(uri) = open.or_else(|| crate::uri::from_path(&file)) {
-                self.publish(uri, diagnostics)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn log_error(&self, message: String) -> Result<(), BoxError> {
-        let params = LogMessageParams {
-            typ: MessageType::ERROR,
-            message,
-        };
-        let log = Notification::new(LogMessage::METHOD.to_owned(), params);
-        self.connection.sender.send(log.into())?;
-        Ok(())
-    }
-
-    fn publish(&self, uri: Uri, diagnostics: Vec<lsp_types::Diagnostic>) -> Result<(), BoxError> {
-        let params = PublishDiagnosticsParams {
-            uri,
-            diagnostics,
-            version: None,
-        };
-        let notification = Notification::new(PublishDiagnostics::METHOD.to_owned(), params);
-        self.connection.sender.send(notification.into())?;
-        Ok(())
     }
 }

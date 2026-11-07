@@ -13,15 +13,25 @@
 //! Each finding becomes a diagnostic. Code actions remove or rename unused
 //! code, add `# noqa` comments, and, like the VS Code extension's "Fix All"
 //! actions, remove every unused finding of a kind or all dead code in a file.
+//!
+//! Also as in VS Code: each nested project is analyzed with its own
+//! configuration, files changed on disk are re-analyzed, the extension's
+//! settings map to CLI flags, its commands are LSP
+//! commands and source actions, and analysis reports progress.
 
 mod actions;
 mod analysis;
+mod analyze;
+mod client;
+mod commands;
 mod diagnostics;
 mod position;
 mod project;
 mod report;
 mod server;
+mod settings;
 mod uri;
+mod workspace;
 
 pub use server::run;
 

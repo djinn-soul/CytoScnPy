@@ -56,3 +56,55 @@ fn run(path: &Path, flags: &[&str], extra_args: &[String]) -> Result<Report, Str
     serde_json::from_slice(&output)
         .map_err(|error| format!("Cannot read the report for {}: {error}", path.display()))
 }
+
+/// The projects in the workspace folder `folder`, as VS Code finds them with
+/// `cytoscnpy projects <folder> --json`: the folder itself plus each nested
+/// folder whose own `pyproject.toml` (with a `[tool.cytoscnpy]` table) or
+/// `.cytoscnpy.toml` applies when it is analyzed on its own. Falls back to
+/// the folder alone.
+pub(crate) fn project_roots(folder: &Path) -> Vec<std::path::PathBuf> {
+    let args = vec![
+        "projects".to_owned(),
+        folder.to_string_lossy().into_owned(),
+        "--json".to_owned(),
+    ];
+    let mut output = Vec::new();
+    let roots: Vec<std::path::PathBuf> =
+        cytoscnpy::entry_point::run_with_args_to(args, &mut output)
+            .ok()
+            .and_then(|_| serde_json::from_slice::<serde_json::Value>(&output).ok())
+            .and_then(|value| {
+                value.get("projects")?.as_array().map(|roots| {
+                    roots
+                        .iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(|root| folder.join(root))
+                        .filter_map(|root| root.canonicalize().ok())
+                        .collect()
+                })
+            })
+            .unwrap_or_default();
+    if roots.is_empty() {
+        vec![folder.to_path_buf()]
+    } else {
+        roots
+    }
+}
+
+/// The text `cytoscnpy <metric> <file>` prints, for the `cc`, `hal`, `mi`
+/// and `raw` metric commands.
+///
+/// # Errors
+///
+/// Returns a message when the command fails.
+pub(crate) fn metric_report(metric: &str, file: &Path) -> Result<String, String> {
+    let args = vec![metric.to_owned(), file.to_string_lossy().into_owned()];
+    let mut output = Vec::new();
+    cytoscnpy::entry_point::run_with_args_to(args, &mut output).map_err(|error| {
+        format!(
+            "`cytoscnpy {metric}` failed on {}: {error:#}",
+            file.display()
+        )
+    })?;
+    Ok(String::from_utf8_lossy(&output).into_owned())
+}

@@ -2,88 +2,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::time::Duration;
+mod common;
 
-use lsp_server::{Connection, Message, Notification, Request, RequestId};
+use common::{codes, file_uri, start};
 use serde_json::{json, Value};
 
 const SOURCE: &str = "import os\nimport sys\n\nprint(sys.argv)\neval(\"1\")\n";
-
-struct Client {
-    connection: Connection,
-    next_id: i32,
-}
-
-impl Client {
-    fn request(&mut self, method: &str, params: Value) -> Value {
-        self.next_id += 1;
-        let id = RequestId::from(self.next_id);
-        let request = Request::new(id.clone(), method.to_owned(), params);
-        self.connection.sender.send(request.into()).unwrap();
-        loop {
-            match self.receive() {
-                Message::Response(response) if response.id == id => {
-                    return response.response_result.unwrap_or(Value::Null);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn notify(&self, method: &str, params: Value) {
-        let notification = Notification::new(method.to_owned(), params);
-        self.connection.sender.send(notification.into()).unwrap();
-    }
-
-    /// The next `textDocument/publishDiagnostics` parameters.
-    fn diagnostics(&self) -> Value {
-        loop {
-            if let Message::Notification(notification) = self.receive() {
-                if notification.method == "textDocument/publishDiagnostics" {
-                    return notification.params;
-                }
-                assert_ne!(notification.method, "window/logMessage", "{notification:?}");
-            }
-        }
-    }
-
-    fn receive(&self) -> Message {
-        self.connection
-            .receiver
-            .recv_timeout(Duration::from_secs(60))
-            .expect("the server should answer")
-    }
-}
-
-fn file_uri(path: &std::path::Path) -> String {
-    let uri = format!("file://{}", path.display()).replace('\\', "/");
-    if uri.starts_with("file:///") {
-        uri
-    } else {
-        uri.replacen("file://", "file:///", 1)
-    }
-}
-
-fn start() -> (Client, std::thread::JoinHandle<()>) {
-    let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || cytoscnpy_lsp::run(&server).unwrap());
-    let client = Client {
-        connection: client,
-        next_id: 0,
-    };
-    (client, handle)
-}
-
-fn codes(params: &Value) -> Vec<&str> {
-    let mut codes: Vec<_> = params["diagnostics"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|diagnostic| diagnostic["code"].as_str().unwrap())
-        .collect();
-    codes.sort_unstable();
-    codes
-}
 
 #[test]
 fn publishes_on_open_and_save_and_offers_fixes() {
@@ -144,6 +68,8 @@ fn publishes_on_open_and_save_and_offers_fixes() {
         "textDocument/didChange",
         json!({"textDocument": {"uri": uri, "version": 2}, "contentChanges": [{"text": fixed}]}),
     );
+    // As in VS Code, an edited buffer's findings are cleared until saved.
+    assert_eq!(codes(&client.diagnostics()), Vec::<&str>::new());
     client.notify(
         "textDocument/didSave",
         json!({"textDocument": {"uri": uri}}),

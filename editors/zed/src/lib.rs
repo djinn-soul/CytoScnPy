@@ -1,14 +1,18 @@
-//! Zed extension that runs `cytoscnpy lsp` for Python files.
+//! Zed extension that runs `cytoscnpy lsp` for Python files and
+//! `cytoscnpy mcp-server` as a context server for the agent.
 //!
-//! The server binary comes from the `lsp.cytoscnpy.binary.path` setting when
-//! one is set, and otherwise from the latest CytoScnPy GitHub release, which
-//! the extension downloads once per version.
+//! The binary comes from the `lsp.cytoscnpy.binary.path` (or
+//! `context_servers.cytoscnpy.command.path`) setting when one is set, and
+//! otherwise from the latest CytoScnPy GitHub release, which the extension
+//! downloads once per version.
 
 use std::fs;
 
 use zed_extension_api::{
-    self as zed, settings::LspSettings, Architecture, DownloadedFileType, GithubReleaseOptions,
-    LanguageServerId, LanguageServerInstallationStatus, Os, Result, Worktree,
+    self as zed,
+    settings::{ContextServerSettings, LspSettings},
+    Architecture, ContextServerId, DownloadedFileType, GithubReleaseOptions, LanguageServerId,
+    LanguageServerInstallationStatus, Os, Project, Result, Worktree,
 };
 
 const SERVER_NAME: &str = "cytoscnpy";
@@ -39,17 +43,15 @@ impl CytoScnPyExtension {
 
     /// The path of the downloaded release binary, downloading the latest
     /// release when it is not on disk yet.
-    fn release_binary(&mut self, id: &LanguageServerId) -> Result<String> {
+    /// `id` names the language server whose installation status to report.
+    fn release_binary(&mut self, id: Option<&LanguageServerId>) -> Result<String> {
         if let Some(path) = &self.cached_binary {
             if is_file(path) {
                 return Ok(path.clone());
             }
         }
         let asset_name = Self::asset_name()?;
-        zed::set_language_server_installation_status(
-            id,
-            &LanguageServerInstallationStatus::CheckingForUpdate,
-        );
+        report_status(id, &LanguageServerInstallationStatus::CheckingForUpdate);
         let options = GithubReleaseOptions {
             require_assets: true,
             pre_release: false,
@@ -69,10 +71,7 @@ impl CytoScnPyExtension {
                 .ok_or_else(|| {
                     format!("CytoScnPy release {} has no {asset_name}", release.version)
                 })?;
-            zed::set_language_server_installation_status(
-                id,
-                &LanguageServerInstallationStatus::Downloading,
-            );
+            report_status(id, &LanguageServerInstallationStatus::Downloading);
             fs::create_dir_all(&version_dir)
                 .map_err(|error| format!("Cannot create {version_dir}: {error}"))?;
             zed::download_file(
@@ -84,7 +83,7 @@ impl CytoScnPyExtension {
             zed::make_file_executable(&binary)?;
             remove_other_versions(&version_dir);
         }
-        zed::set_language_server_installation_status(id, &LanguageServerInstallationStatus::None);
+        report_status(id, &LanguageServerInstallationStatus::None);
         self.cached_binary = Some(binary.clone());
         Ok(binary)
     }
@@ -109,6 +108,8 @@ impl zed::Extension for CytoScnPyExtension {
         let args = binary
             .as_ref()
             .and_then(|binary| binary.arguments.clone())
+            // An empty list means none was configured.
+            .filter(|args| !args.is_empty())
             .unwrap_or_else(|| vec!["lsp".to_owned()]);
         let mut env = binary.and_then(|binary| binary.env).unwrap_or_default();
         let command = match configured_path {
@@ -122,7 +123,7 @@ impl zed::Extension for CytoScnPyExtension {
                     env: shell_env,
                 });
             }
-            None => self.release_binary(id)?,
+            None => self.release_binary(Some(id))?,
         };
         Ok(zed::Command {
             command,
@@ -139,6 +140,54 @@ impl zed::Extension for CytoScnPyExtension {
         Ok(LspSettings::for_worktree(SERVER_NAME, worktree)
             .ok()
             .and_then(|settings| settings.initialization_options))
+    }
+
+    /// The `lsp.cytoscnpy.settings` object, named like the VS Code
+    /// extension's settings (`enableSecretsScan`, `confidenceThreshold`, …).
+    /// The server re-analyzes when it changes.
+    fn language_server_workspace_configuration(
+        &mut self,
+        _id: &LanguageServerId,
+        worktree: &Worktree,
+    ) -> Result<Option<zed::serde_json::Value>> {
+        let settings = LspSettings::for_worktree(SERVER_NAME, worktree)
+            .ok()
+            .and_then(|settings| settings.settings)
+            .unwrap_or_else(|| zed::serde_json::json!({}));
+        Ok(Some(zed::serde_json::json!({ SERVER_NAME: settings })))
+    }
+
+    /// `cytoscnpy mcp-server`, which the VS Code extension also registers,
+    /// so the agent can run CytoScnPy analyses.
+    fn context_server_command(
+        &mut self,
+        _id: &ContextServerId,
+        project: &Project,
+    ) -> Result<zed::Command> {
+        let command = ContextServerSettings::for_project(SERVER_NAME, project)
+            .ok()
+            .and_then(|settings| settings.command);
+        let path = command.as_ref().and_then(|command| command.path.clone());
+        let args = command
+            .as_ref()
+            .and_then(|command| command.arguments.clone())
+            .filter(|args| !args.is_empty())
+            .unwrap_or_else(|| vec!["mcp-server".to_owned()]);
+        let env = command
+            .and_then(|command| command.env)
+            .map(|env| env.into_iter().collect())
+            .unwrap_or_default();
+        let command = match path {
+            Some(path) => path,
+            None => self.release_binary(None)?,
+        };
+        Ok(zed::Command { command, args, env })
+    }
+}
+
+fn report_status(id: Option<&LanguageServerId>, status: &LanguageServerInstallationStatus) {
+    if let Some(id) = id {
+        zed::set_language_server_installation_status(id, status);
     }
 }
 

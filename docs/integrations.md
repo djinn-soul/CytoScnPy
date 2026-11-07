@@ -54,20 +54,22 @@ shows CytoScnPy findings as diagnostics in Python files, with quick fixes that
 remove unused code (one finding, every finding of a kind, or all dead code in
 the file) or add `# noqa` comments. It runs the language server
 below, which it downloads from the latest GitHub release. Like the VS Code
-extension, it analyzes the whole workspace folder when you open a Python file
-and each time you save one, so code used from another file is not reported as
-unused. Pass `{"analysisMode": "file"}` in `initialization_options` to analyze
-each file on its own.
+extension, it analyzes each project in the workspace folder when you open a
+Python file, each time you save one and when files change on disk, so code
+used from another file is not reported as unused. It also offers the VS Code
+commands (analyze, and the `cc`, `hal`, `mi` and `raw` metrics) as code
+actions, shows progress in the status bar, and registers the MCP server as a
+context server for Zed's agent.
 
 The project's `pyproject.toml` or `.cytoscnpy.toml` decides which checks run.
-To add CLI flags in Zed only, or to use a binary you installed yourself, set
-them in Zed's `settings.json`:
+The VS Code settings, without the `cytoscnpy.` prefix, override them in Zed's
+`settings.json`, and so does a binary you installed yourself:
 
 ```json
 {
   "lsp": {
     "cytoscnpy": {
-      "initialization_options": { "args": ["--secrets", "--danger"] },
+      "settings": { "enableSecretsScan": true, "maxComplexity": 12 },
       "binary": { "path": "/usr/local/bin/cytoscnpy", "arguments": ["lsp"] }
     }
   }
@@ -83,10 +85,13 @@ for troubleshooting.
 
 `cytoscnpy lsp` is a Language Server Protocol server over stdio, so any
 editor with an LSP client can show CytoScnPy diagnostics and quick fixes. It
-behaves like the Zed extension: analysis of the client's workspace folders on
-open and save (or of the file alone with `{"analysisMode": "file"}`, and
-whenever the file is outside every workspace folder), configuration from the
-project, and extra CLI flags from the `args` initialization option. It is
+behaves like the Zed extension: analysis of each project in the client's
+workspace folders on open, save and file changes (or of the file alone with
+`{"analysisMode": "file"}`, and whenever the file is outside every workspace
+folder), configuration from the project, the VS Code settings (without the
+`cytoscnpy.` prefix) from the initialization options or the `cytoscnpy`
+workspace configuration section, and the VS Code commands as LSP commands
+and source code actions. It is
 part of the standalone CLI binary; the Python package's `cytoscnpy` command
 cannot run it.
 

@@ -1,6 +1,5 @@
-"""Fail when a Rust source file under a crate's ``src/`` exceeds the line limit.
+"""Fail when any tracked Rust file, sources or tests, exceeds the line limit.
 
-Integration tests under ``tests/`` are exempt (legacy cleanup is deferred).
 Run from the repository root: ``python scripts/check_rs_file_length.py``.
 """
 
@@ -11,15 +10,12 @@ import sys
 from pathlib import Path
 
 MAX_LINES = 300
-SOURCE_GLOBS = (
-    "cytoscnpy/src/**/*.rs",
-    "cytoscnpy-cli/src/**/*.rs",
-    "cytoscnpy-mcp/src/**/*.rs",
-)
+# Git pathspec `*` also matches `/`, so this covers every directory.
+SOURCE_GLOBS = ("*.rs",)
 
 
 def tracked_sources() -> list[Path]:
-    """Return git-tracked Rust sources under each crate's ``src`` directory."""
+    """Return every git-tracked Rust file."""
     output = subprocess.run(
         ["git", "ls-files", "--", *SOURCE_GLOBS],
         check=True,
@@ -46,7 +42,7 @@ def main() -> int:
         print(f"{path}: {count} lines (max {MAX_LINES})")
     if oversized:
         print(
-            f"{len(oversized)} Rust source file(s) exceed {MAX_LINES} lines; split them into modules."
+            f"{len(oversized)} Rust file(s) exceed {MAX_LINES} lines; split them into modules."
         )
         return 1
     return 0

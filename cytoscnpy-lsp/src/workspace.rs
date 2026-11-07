@@ -217,7 +217,7 @@ impl Server<'_> {
         self.client.publish(uri.clone(), shown.unwrap_or_default())
     }
 
-    pub(crate) fn warn(&self, message: &str) -> Result<(), BoxError> {
+    pub(crate) fn warn(&mut self, message: &str) -> Result<(), BoxError> {
         self.client.show(MessageType::WARNING, message.to_owned())
     }
 }

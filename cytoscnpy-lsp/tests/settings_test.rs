@@ -93,3 +93,63 @@ fn pulls_settings_watches_files_and_runs_commands() {
     client.notify("exit", Value::Null);
     handle.join().unwrap();
 }
+
+#[test]
+fn shows_a_failed_analysis_once_as_a_prompt() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().canonicalize().unwrap();
+    let file = project.join("app.py");
+    std::fs::write(&file, BRANCHY).unwrap();
+    let uri = file_uri(&file);
+    let (mut client, handle) = start();
+
+    client.request(
+        "initialize",
+        json!({
+            "capabilities": {"window": {"showMessage": {}}},
+            "initializationOptions": {"args": ["--bogus-flag"]},
+            "workspaceFolders": [{"uri": file_uri(&project), "name": "p"}]
+        }),
+    );
+    client.notify("initialized", json!({}));
+    client.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "python", "version": 1, "text": BRANCHY}}),
+    );
+    // Zed shows message requests; it only logs `window/showMessage`.
+    let prompt = answer_next_request(&client, &Value::Null);
+    assert_eq!(prompt.method, "window/showMessageRequest");
+    let message = prompt.params["message"].as_str().unwrap();
+    assert!(
+        message.starts_with("CytoScnPy analysis failed"),
+        "{message}"
+    );
+
+    // Failing again does not prompt again.
+    client.notify(
+        "textDocument/didSave",
+        json!({"textDocument": {"uri": uri}}),
+    );
+    let id = RequestId::from(99);
+    let actions = Request::new(
+        id.clone(),
+        "textDocument/codeAction".to_owned(),
+        json!({"textDocument": {"uri": uri},
+               "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}},
+               "context": {"diagnostics": []}}),
+    );
+    // Sent after the debounce, so the second analysis runs first.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    client.connection.sender.send(actions.into()).unwrap();
+    loop {
+        match client.receive() {
+            Message::Request(request) => panic!("unexpected {}", request.method),
+            Message::Response(response) if response.id == id => break,
+            _ => {}
+        }
+    }
+
+    client.request("shutdown", Value::Null);
+    client.notify("exit", Value::Null);
+    handle.join().unwrap();
+}

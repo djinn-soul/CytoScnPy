@@ -6,14 +6,16 @@ use std::error::Error;
 use lsp_server::{Connection, Notification, Request, RequestId};
 use lsp_types::notification::{LogMessage, Progress, PublishDiagnostics, ShowMessage};
 use lsp_types::request::{
-    RegisterCapability, ShowDocument, WorkDoneProgressCreate, WorkspaceConfiguration,
+    RegisterCapability, ShowDocument, ShowMessageRequest, WorkDoneProgressCreate,
+    WorkspaceConfiguration,
 };
 use lsp_types::{
     ClientCapabilities, ConfigurationItem, ConfigurationParams, Diagnostic,
     DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern, LogMessageParams,
     MessageType, NumberOrString, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams,
-    Registration, RegistrationParams, ShowDocumentParams, ShowMessageParams, Uri, WorkDoneProgress,
-    WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
+    Registration, RegistrationParams, ShowDocumentParams, ShowMessageParams,
+    ShowMessageRequestParams, Uri, WorkDoneProgress, WorkDoneProgressBegin,
+    WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
 
 pub(crate) type BoxError = Box<dyn Error + Send + Sync>;
@@ -30,6 +32,9 @@ pub(crate) struct Client<'a> {
     connection: &'a Connection,
     next_id: i32,
     progress: bool,
+    /// Whether messages can be requests, which Zed shows; it only logs
+    /// `window/showMessage`.
+    message_requests: bool,
     show_document: bool,
     configuration: bool,
     watch_files: bool,
@@ -47,6 +52,7 @@ impl<'a> Client<'a> {
             connection,
             next_id: 0,
             progress: window.and_then(|w| w.work_done_progress) == Some(true),
+            message_requests: window.is_some_and(|w| w.show_message.is_some()),
             show_document: window
                 .and_then(|w| w.show_document.as_ref())
                 .is_some_and(|show| show.support),
@@ -95,7 +101,16 @@ impl<'a> Client<'a> {
         self.notify::<LogMessage>(LogMessageParams { typ, message })
     }
 
-    pub(crate) fn show(&self, typ: MessageType, message: String) -> Result<(), BoxError> {
+    /// Shows `message` to the user, like VS Code's notifications.
+    pub(crate) fn show(&mut self, typ: MessageType, message: String) -> Result<(), BoxError> {
+        if self.message_requests {
+            let params = ShowMessageRequestParams {
+                typ,
+                message,
+                actions: None,
+            };
+            return self.request::<ShowMessageRequest>(params, Pending::Ignored);
+        }
         self.notify::<ShowMessage>(ShowMessageParams { typ, message })
     }
 

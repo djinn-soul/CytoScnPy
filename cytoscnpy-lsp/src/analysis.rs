@@ -49,7 +49,7 @@ fn run(path: &Path, flags: &[&str], extra_args: &[String]) -> Result<Report, Str
     if output.iter().all(u8::is_ascii_whitespace) {
         // The CLI reports bad arguments on stderr and writes no report.
         return Err(format!(
-            "Analysis of {} produced no report; check the `args` initialization option",
+            "Analysis of {} produced no report; check the `args` setting",
             path.display()
         ));
     }

@@ -19,7 +19,9 @@ impl Server<'_> {
         for target in queue {
             match target {
                 Target::Workspace => self.analyze_workspace()?,
-                Target::Project(root) => self.analyze_project(&root)?,
+                Target::Project(root) => {
+                    self.analyze_project(&root)?;
+                }
                 Target::File(uri) => self.analyze_file(&uri)?,
             }
         }
@@ -35,16 +37,21 @@ impl Server<'_> {
         } else {
             self.projects.all_projects()
         };
+        let mut failed = Vec::new();
         for root in &roots {
-            self.analyze_project(root)?;
+            if !self.analyze_project(root)? {
+                failed.push(root);
+            }
         }
         for file in previous {
+            // A failed analysis leaves the findings shown, as VS Code does.
+            let kept = failed.iter().any(|root| file.starts_with(root));
             let covered = roots.iter().any(|root| {
                 self.projects
                     .results(root)
                     .is_some_and(|files| files.contains_key(&file))
             });
-            if !covered {
+            if !covered && !kept {
                 self.publish_file(&file, &[])?;
             }
         }
@@ -57,7 +64,8 @@ impl Server<'_> {
         Ok(())
     }
 
-    fn analyze_project(&mut self, root: &Path) -> Result<(), BoxError> {
+    /// Analyzes `root`, returning whether the analysis succeeded.
+    fn analyze_project(&mut self, root: &Path) -> Result<bool, BoxError> {
         let name = root.file_name().map_or_else(
             || root.display().to_string(),
             |name| name.to_string_lossy().into_owned(),
@@ -68,7 +76,8 @@ impl Server<'_> {
             Ok(changed) => changed,
             Err(message) => {
                 self.client.progress_end(progress, "Failed".to_owned())?;
-                return self.client.report_failure(&message);
+                self.client.report_failure(&message)?;
+                return Ok(false);
             }
         };
         self.client.report_success();
@@ -82,7 +91,7 @@ impl Server<'_> {
             let found = self.file_entries(root, &file);
             self.publish_file(&file, &found)?;
         }
-        Ok(())
+        Ok(true)
     }
 
     fn analyze_file(&mut self, uri: &Uri) -> Result<(), BoxError> {

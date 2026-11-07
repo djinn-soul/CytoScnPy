@@ -3,14 +3,8 @@ name: Security & Quality Checks
 on:
   pull_request:
     branches: ["main"]
-    paths:
-      - "cytoscnpy/**"
-      - "cytoscnpy-cli/**"
-      - "cytoscnpy-mcp/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "deny.toml"
-      - ".github/workflows/security.yml"
+    # No path filter: these jobs are required status checks, and a filtered-out
+    # workflow never reports, which blocks docs-only PRs from merging.
   push:
     branches: ["main"]
   schedule:

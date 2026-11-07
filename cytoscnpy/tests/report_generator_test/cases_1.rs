@@ -1,0 +1,274 @@
+use super::*;
+
+#[test]
+fn test_generate_report_full() {
+    let dir = project_tempdir();
+    let output_dir = dir.path();
+    let analysis_root = Path::new(".");
+
+    let result = AnalysisResult {
+        unused_functions: vec![Definition {
+            name: "unused_func".to_owned(),
+            full_name: "test.unused_func".to_owned(),
+            simple_name: "unused_func".to_owned(),
+            def_type: DefinitionType::Function,
+            file: Arc::new(PathBuf::from("test.py")),
+            line: 10,
+            end_line: 10,
+            col: 0,
+            start_byte: 0,
+            end_byte: 0,
+            confidence: 100,
+            references: 0,
+            is_exported: false,
+            in_init: false,
+            is_framework_managed: false,
+            base_classes: smallvec::smallvec![],
+            is_type_checking: false,
+            is_captured: false,
+            cell_number: None,
+            is_self_referential: false,
+            message: Some("unused".to_owned()),
+            fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
+            is_unreachable: false,
+            category: cytoscnpy::visitor::UnusedCategory::default(),
+        }],
+        unused_methods: vec![],
+        unused_imports: vec![],
+        unused_classes: vec![],
+        unused_variables: vec![],
+        unused_parameters: vec![],
+        secrets: vec![],
+        danger: vec![],
+        quality: vec![Finding {
+            message: "Function is too complex (McCabe=15)".to_owned(),
+            rule_id: "CSP-Q001".to_owned(),
+            category: "Maintainability".to_owned(),
+            file: PathBuf::from("test.py"),
+            line: 5,
+            col: 0,
+            severity: "MEDIUM".to_owned(),
+            cell_number: None,
+        }],
+        taint_findings: vec![],
+        parse_errors: vec![],
+        clones: vec![],
+        file_metrics: vec![FileMetrics {
+            file: PathBuf::from("test.py"),
+            loc: 100,
+            sloc: 80,
+            complexity: 15.0,
+            mi: 70.0,
+            total_issues: 2,
+        }],
+        missing_dependencies: vec![],
+        missing_dependency_details: vec![],
+        unused_dependencies: vec![],
+        transitive_dependencies: vec![],
+        dev_dependencies_in_production: vec![],
+        stdlib_dependencies: vec![],
+        analysis_summary: AnalysisSummary {
+            total_files: 1,
+            secrets_count: 0,
+            danger_count: 0,
+            quality_count: 1,
+            taint_count: 0,
+            parse_errors_count: 0,
+            total_lines_analyzed: 100,
+            total_definitions: 1,
+            average_complexity: 15.0,
+            average_mi: 70.0,
+            total_directories: 0,
+            total_size: 1.0,
+            functions_count: 1,
+            classes_count: 0,
+            raw_metrics: cytoscnpy::raw_metrics::RawMetrics::default(),
+            halstead_metrics: cytoscnpy::halstead::HalsteadMetrics::default(),
+        },
+    };
+
+    // Create the mock file so generate_file_views doesn't skip it
+    let test_py = PathBuf::from("test.py");
+    std::fs::write(&test_py, "def unused_func():\n    pass\n").unwrap();
+
+    let res = generate_report(&result, analysis_root, output_dir);
+
+    // Cleanup the mock file immediately to avoid polluting the repo
+    let _ = std::fs::remove_file(&test_py);
+
+    assert!(res.is_ok(), "Report generation failed: {:?}", res.err());
+
+    // Verify files exist
+    assert!(output_dir.join("index.html").exists());
+    assert!(output_dir.join("issues.html").exists());
+    assert!(output_dir.join("files.html").exists());
+    assert!(output_dir.join("css/style.css").exists());
+    assert!(output_dir.join("css/prism.css").exists());
+    assert!(output_dir.join("js/theme.js").exists());
+    assert!(output_dir.join("js/prism.js").exists());
+
+    // Verify file view was generated (since we created test.py)
+    let views: Vec<_> = fs::read_dir(output_dir.join("files"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(views.len(), 1);
+    assert!(fs::read_to_string(&views[0])
+        .unwrap()
+        .contains("unused_func"));
+}
+
+#[test]
+fn test_calculate_score_logic() {
+    let dir = project_tempdir();
+    let output_dir = dir.path();
+    let analysis_root = Path::new(".");
+
+    let mut result = AnalysisResult {
+        unused_functions: vec![],
+        unused_methods: vec![],
+        unused_imports: vec![],
+        unused_classes: vec![],
+        unused_variables: vec![],
+        unused_parameters: vec![],
+        secrets: vec![],
+        danger: vec![],
+        quality: vec![],
+        taint_findings: vec![],
+        parse_errors: vec![],
+        clones: vec![],
+        file_metrics: vec![],
+        missing_dependencies: vec![],
+        missing_dependency_details: vec![],
+        unused_dependencies: vec![],
+        transitive_dependencies: vec![],
+        dev_dependencies_in_production: vec![],
+        stdlib_dependencies: vec![],
+        analysis_summary: AnalysisSummary {
+            total_files: 0,
+            secrets_count: 0,
+            danger_count: 0,
+            quality_count: 0,
+            taint_count: 0,
+            parse_errors_count: 0,
+            total_lines_analyzed: 0,
+            total_definitions: 0,
+            average_complexity: 0.0,
+            average_mi: 100.0,
+            total_directories: 0,
+            total_size: 0.0,
+            functions_count: 0,
+            classes_count: 0,
+            raw_metrics: cytoscnpy::raw_metrics::RawMetrics::default(),
+            halstead_metrics: cytoscnpy::halstead::HalsteadMetrics::default(),
+        },
+    };
+
+    // 1. Perfect score
+    generate_report(&result, analysis_root, output_dir).unwrap();
+    let html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
+    assert!(html.contains("Grade: A") || html.contains("Grade: B") || html.contains(">A<"));
+    let (baseline_score, baseline_grade) = extract_score_and_grade(&html);
+
+    // 2. High penalty (Unused code)
+    for i in 0..50 {
+        result.unused_functions.push(Definition {
+            name: format!("f{i}"),
+            full_name: format!("f{i}"),
+            simple_name: format!("f{i}"),
+            def_type: DefinitionType::Function,
+
+            file: Arc::new(PathBuf::from("test.py")),
+            line: i,
+            end_line: i,
+            col: 0,
+            start_byte: 0,
+            end_byte: 0,
+            confidence: 100,
+            references: 0,
+            is_exported: false,
+            in_init: false,
+            is_framework_managed: false,
+            base_classes: smallvec::smallvec![],
+            is_type_checking: false,
+            is_captured: false,
+            cell_number: None,
+            is_self_referential: false,
+            message: None,
+            fix: None,
+            is_enum_member: false,
+            is_constant: false,
+            is_potential_secret: false,
+            is_unreachable: false,
+            category: cytoscnpy::visitor::UnusedCategory::default(),
+        });
+    }
+    generate_report(&result, analysis_root, output_dir).unwrap();
+    let html = std::fs::read_to_string(output_dir.join("index.html")).unwrap();
+    let (penalty_score, penalty_grade) = extract_score_and_grade(&html);
+
+    assert!(
+        penalty_score < baseline_score,
+        "Expected degraded score after high-penalty input, baseline={baseline_score}, penalty={penalty_score}"
+    );
+    assert!(
+        grade_rank(&penalty_grade) <= grade_rank(&baseline_grade),
+        "Expected degraded or equal grade after penalties, baseline={baseline_grade}, penalty={penalty_grade}"
+    );
+}
+
+#[test]
+fn test_report_pages_use_shared_theme() {
+    let dir = project_tempdir();
+    let output_dir = dir.path();
+    generate_report(&empty_result(), Path::new("."), output_dir).unwrap();
+
+    let hex_color = Regex::new(r"#[0-9a-fA-F]{6}\b").unwrap();
+    for page in [
+        "index.html",
+        "issues.html",
+        "files.html",
+        "clones.html",
+        "deslop.html",
+    ] {
+        let html = fs::read_to_string(output_dir.join(page)).unwrap();
+        assert!(html.contains("css/style.css"), "{page} must link the theme");
+        assert!(
+            html.contains("js/theme.js"),
+            "{page} must load the theme script"
+        );
+        assert!(
+            html.contains("id=\"theme-toggle\""),
+            "{page} needs a theme toggle"
+        );
+        assert!(
+            !hex_color.is_match(&html),
+            "{page} hardcodes a color instead of using theme variables"
+        );
+    }
+
+    let css = fs::read_to_string(output_dir.join("css/style.css")).unwrap();
+    assert!(css.contains(":root[data-theme=\"light\"]"));
+    assert!(css.contains("prefers-color-scheme: light"));
+    assert!(css.contains("@media print"));
+
+    // Auto leaves the choice to the viewer's system preference.
+    let js = fs::read_to_string(output_dir.join("js/theme.js")).unwrap();
+    assert!(js.contains("var DEFAULT_THEME = \"auto\";"));
+}
+
+#[test]
+fn test_report_theme_default_is_configurable() {
+    for (theme, name) in [(ReportTheme::Dark, "dark"), (ReportTheme::Light, "light")] {
+        let dir = project_tempdir();
+        let output_dir = dir.path();
+        generate_report_with_theme(&empty_result(), Path::new("."), output_dir, theme).unwrap();
+
+        let js = fs::read_to_string(output_dir.join("js/theme.js")).unwrap();
+        assert!(js.contains(&format!("var DEFAULT_THEME = \"{name}\";")));
+        assert!(!js.contains("__CYTOSCNPY_DEFAULT_THEME__"));
+    }
+}

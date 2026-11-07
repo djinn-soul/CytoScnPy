@@ -1,4 +1,5 @@
 //! Report generator coverage tests.
+#![cfg(feature = "html_report")]
 use cytoscnpy::analyzer::types::FileMetrics;
 use cytoscnpy::analyzer::{AnalysisResult, AnalysisSummary};
 use cytoscnpy::report::generator::generate_report;

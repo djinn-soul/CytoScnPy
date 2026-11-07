@@ -44,6 +44,7 @@ pub use matcher::WhitelistMatcher;
 
 use file_specific::FileSpecificEntry;
 
+use crate::config::wildcard_to_regex;
 use crate::config::{WhitelistEntry, WhitelistPattern};
 use rustc_hash::FxHashSet;
 
@@ -158,32 +159,6 @@ impl Whitelist {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
-}
-
-/// Convert a wildcard pattern to a regex.
-///
-/// Supports:
-/// - `*` matches any characters
-/// - `?` matches a single character
-fn wildcard_to_regex(pattern: &str) -> Result<regex::Regex, regex::Error> {
-    let mut regex_pattern = String::with_capacity(pattern.len() * 2);
-    regex_pattern.push('^');
-
-    for ch in pattern.chars() {
-        match ch {
-            '*' => regex_pattern.push_str(".*"),
-            '?' => regex_pattern.push('.'),
-            // Escape regex special characters
-            '.' | '^' | '$' | '+' | '[' | ']' | '(' | ')' | '{' | '}' | '\\' | '|' => {
-                regex_pattern.push('\\');
-                regex_pattern.push(ch);
-            }
-            _ => regex_pattern.push(ch),
-        }
-    }
-
-    regex_pattern.push('$');
-    regex::Regex::new(&regex_pattern)
 }
 
 #[cfg(test)]

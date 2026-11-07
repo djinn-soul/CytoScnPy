@@ -11,6 +11,7 @@ pub use models::{Config, CytoScnPyConfig, ProjectType};
 pub use security::{
     CustomSecretPattern, DangerConfig, SanitizerConfig, SanitizerGroup, SecretsConfig,
 };
+pub(crate) use whitelist::wildcard_to_regex;
 pub use whitelist::{get_builtin_whitelists, WhitelistEntry, WhitelistPattern};
 
 impl Config {

@@ -31,13 +31,12 @@ impl FileSpecificEntry {
         if !WhitelistEntry::file_matches(file, path) {
             return false;
         }
-        match self.pattern {
-            WhitelistPattern::Exact => self.name == symbol_name,
-            WhitelistPattern::Wildcard | WhitelistPattern::Regex => self
-                .name_regex
-                .as_ref()
-                .is_some_and(|re| re.is_match(symbol_name)),
-        }
+        WhitelistEntry::name_matches(
+            self.pattern,
+            &self.name,
+            self.name_regex.as_ref(),
+            symbol_name,
+        )
     }
 }
 

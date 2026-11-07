@@ -16,7 +16,10 @@ static EVAL_IDENTIFIER_RE: OnceLock<Option<Regex>> = OnceLock::new();
 
 mod constructor;
 mod definition;
+mod definition_type;
 mod expr;
+mod expr_annotations;
+mod expr_calls;
 mod expr_traversal;
 mod function_def;
 mod function_def_meta;
@@ -32,7 +35,6 @@ mod stmt_misc;
 mod targets;
 mod types;
 
+pub use definition_type::{DefinitionType, DEAD_CODE_RULE_ID};
 pub use state::CytoScnPyVisitor;
-pub use types::{
-    Definition, DefinitionInfo, DefinitionType, Scope, ScopeType, UnusedCategory, DEAD_CODE_RULE_ID,
-};
+pub use types::{Definition, DefinitionInfo, Scope, ScopeType, UnusedCategory};

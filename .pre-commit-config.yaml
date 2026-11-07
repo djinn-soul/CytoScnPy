@@ -33,6 +33,16 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
 
+  # Project rule: every Rust file stays at or below 300 lines
+  - repo: local
+    hooks:
+      - id: rs-file-length
+        name: Rust files <= 300 lines
+        entry: python3 scripts/check_rs_file_length.py
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
   - repo: https://github.com/crate-ci/typos
     rev: v1.28.4
     hooks:

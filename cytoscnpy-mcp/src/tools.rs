@@ -245,8 +245,6 @@ impl ServerHandler for CytoScnPyServer {
     }
 
     fn get_info(&self) -> ServerInfo {
-        let _ = &self.tool_router;
-
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(
                 env!("CARGO_PKG_NAME"),

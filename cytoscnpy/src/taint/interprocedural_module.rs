@@ -83,18 +83,8 @@ pub(super) fn analyze_module_level(
             _ => {}
         }
 
-        // For module-level statements, do basic taint checking
-        // This is simplified compared to function-level analysis
-        if let Stmt::Assign(assign) = stmt {
-            if let Some(taint_info) =
-                super::super::sources::check_taint_source(&assign.value, line_index)
-            {
-                // Module-level assignment from taint source
-                // We track this but don't report unless there's a sink
-                let _ = taint_info; // Tracked for potential future use
-            }
-        }
-
+        // Module-level variable flows are handled by the intraprocedural
+        // pass; here only direct `sink(source())` calls are checked.
         if let Stmt::Expr(expr_stmt) = stmt {
             // Check for dangerous calls at module level
             if let ast::Expr::Call(call) = &*expr_stmt.value {

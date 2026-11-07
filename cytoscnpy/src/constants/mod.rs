@@ -23,6 +23,10 @@ pub use sets::{
 };
 pub use taint::get_taint_sensitive_rules;
 
+/// Reference-key prefix marking a class checked at runtime, e.g. in
+/// `isinstance(x, Proto)`. Written by the visitor, read by protocol matching.
+pub(crate) const RUNTIME_PROTOCOL_REF_PREFIX: &str = "__csp_runtime_protocol__.";
+
 pub use get_auto_called as AUTO_CALLED;
 pub use get_default_exclude_folders as DEFAULT_EXCLUDE_FOLDERS;
 pub use get_fixture_decor_re as FIXTURE_DECOR_RE;

@@ -2,6 +2,7 @@
 //!
 //! Builds a call graph for interprocedural analysis.
 
+mod annotation_traversal;
 mod expression_traversal;
 mod pattern_traversal;
 mod statement_traversal;

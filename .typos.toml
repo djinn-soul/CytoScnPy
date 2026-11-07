@@ -11,6 +11,8 @@ extend-exclude = [
     ".venv/",
     "dist/",
     "*.lock",
+    # Vendored, minified Prism.js bundle
+    "cytoscnpy/src/report/assets/prism.js",
 ]
 
 [default]

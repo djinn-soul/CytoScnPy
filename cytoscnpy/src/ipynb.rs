@@ -1,7 +1,13 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use nbformat::{parse_notebook, Notebook};
 use std::fs;
 use std::path::Path;
+
+mod cells;
+mod write;
+
+pub use cells::assign_cells;
+pub use write::write_cell_sources;
 
 /// Extract Python code from all code cells in a notebook
 ///
@@ -180,189 +186,6 @@ impl NotebookSource {
     }
 }
 
-/// Replaces the source of the given code cells in the notebook at `path`,
-/// keeping every other byte of its JSON layout that serialization allows.
-///
-/// # Errors
-///
-/// Returns an error if the notebook cannot be read, is not nbformat 4, or
-/// cannot be written.
-pub fn write_cell_sources(
-    path: &Path,
-    root: Option<&Path>,
-    cells: &[(usize, String)],
-) -> Result<()> {
-    let path = crate::utils::validate_source_path(path, root)?;
-    let original = fs::read_to_string(&path)?;
-    let fixed = splice_cell_sources(&original, cells)
-        .with_context(|| format!("Failed to fix {}", path.display()))?;
-    fs::write(&path, fixed)?;
-    Ok(())
-}
-
-/// Replaces the `source` of the given cells in the notebook JSON text,
-/// leaving every other byte as it was. Re-serializing the whole notebook
-/// would reformat numbers and strings in outputs and metadata.
-fn splice_cell_sources(original: &str, cells: &[(usize, String)]) -> Result<String> {
-    use serde::Deserialize;
-    use serde_json::value::RawValue;
-
-    #[derive(Deserialize)]
-    struct RawNotebook<'a> {
-        nbformat: u64,
-        #[serde(borrow)]
-        cells: Vec<&'a RawValue>,
-    }
-    #[derive(Deserialize)]
-    struct RawCell<'a> {
-        #[serde(borrow)]
-        source: &'a RawValue,
-    }
-
-    let notebook: RawNotebook = serde_json::from_str(original)?;
-    anyhow::ensure!(
-        notebook.nbformat == 4,
-        "Only nbformat 4 notebooks can be fixed"
-    );
-    // Jupyter writes one-space indentation; follow whatever the file uses.
-    let unit = original
-        .lines()
-        .nth(1)
-        .map_or(1, |line| line.len() - line.trim_start_matches(' ').len())
-        .max(1);
-
-    let mut edits = Vec::with_capacity(cells.len());
-    for (index, source) in cells {
-        let cell = notebook
-            .cells
-            .get(*index)
-            .ok_or_else(|| anyhow::anyhow!("Notebook has no cell {index}"))?;
-        let raw = serde_json::from_str::<RawCell>(cell.get())?.source.get();
-        // The raw value borrows from `original`, so its address gives its offset.
-        let start = raw.as_ptr() as usize - original.as_ptr() as usize;
-        let value = source_json(original, start, raw, source, unit)?;
-        edits.push((start, start + raw.len(), value));
-    }
-
-    edits.sort_by_key(|(start, _, _)| *start);
-    let mut out = String::with_capacity(original.len());
-    let mut copied = 0;
-    for (start, end, value) in edits {
-        out.push_str(&original[copied..start]);
-        out.push_str(&value);
-        copied = end;
-    }
-    out.push_str(&original[copied..]);
-    Ok(out)
-}
-
-/// Encodes a cell source the way the cell already stores it: one string, or
-/// a list of lines laid out like the existing list.
-fn source_json(
-    original: &str,
-    start: usize,
-    raw: &str,
-    source: &str,
-    unit: usize,
-) -> Result<String> {
-    if raw.starts_with('"') {
-        return Ok(serde_json::to_string(source)?);
-    }
-    let lines: Vec<&str> = source.split_inclusive('\n').collect();
-    if lines.is_empty() {
-        return Ok("[]".to_owned());
-    }
-    if !raw.contains('\n') {
-        return Ok(serde_json::to_string(&lines)?);
-    }
-    // Elements sit one level deeper than the line holding `"source": [`.
-    let line_start = original[..start].rfind('\n').map_or(0, |i| i + 1);
-    let key_indent: String = original[line_start..start]
-        .chars()
-        .take_while(|c| *c == ' ' || *c == '\t')
-        .collect();
-    let item_indent = format!("{key_indent}{}", " ".repeat(unit));
-    let mut out = String::from("[\n");
-    for (i, line) in lines.iter().enumerate() {
-        if i > 0 {
-            out.push_str(",\n");
-        }
-        out.push_str(&item_indent);
-        out.push_str(&serde_json::to_string(line)?);
-    }
-    out.push('\n');
-    out.push_str(&key_indent);
-    out.push(']');
-    Ok(out)
-}
-
-/// Reports notebook findings at cell level (`--ipynb-cells`): records each
-/// finding's cell and makes its lines count from the start of that cell, as
-/// Jupyter and editors number them. Byte offsets keep indexing the joined
-/// code. A finding on no cell's line, such as a file-level finding on line 0,
-/// keeps its line and gets no cell.
-pub fn assign_cells(result: &mut crate::analyzer::AnalysisResult, root: Option<&Path>) {
-    let mut notebooks = Notebooks {
-        root,
-        sources: rustc_hash::FxHashMap::default(),
-    };
-    let definitions = result
-        .unused_functions
-        .iter_mut()
-        .chain(&mut result.unused_methods)
-        .chain(&mut result.unused_classes)
-        .chain(&mut result.unused_imports)
-        .chain(&mut result.unused_variables)
-        .chain(&mut result.unused_parameters);
-    for def in definitions {
-        let Some(cell) = notebooks
-            .get(&def.file)
-            .and_then(|notebook| notebook.cell_containing(def.start_byte, def.start_byte))
-        else {
-            continue;
-        };
-        def.cell_number = Some(cell.index);
-        def.line = cell.relative_line(def.line);
-        def.end_line = cell.relative_line(def.end_line);
-    }
-    for finding in result.danger.iter_mut().chain(&mut result.quality) {
-        finding.cell_number = notebooks.place(&finding.file, &mut finding.line);
-    }
-    for finding in &mut result.secrets {
-        finding.cell_number = notebooks.place(&finding.file, &mut finding.line);
-    }
-    for finding in &mut result.taint_findings {
-        finding.cell_number = notebooks.place(&finding.file, &mut finding.sink_line);
-        finding.source_cell_number = notebooks.place(&finding.file, &mut finding.source_line);
-    }
-}
-
-/// Notebooks read on demand while placing findings in cells.
-struct Notebooks<'a> {
-    root: Option<&'a Path>,
-    sources: rustc_hash::FxHashMap<std::path::PathBuf, Option<NotebookSource>>,
-}
-
-impl Notebooks<'_> {
-    fn get(&mut self, file: &Path) -> Option<&NotebookSource> {
-        if !file.extension().is_some_and(|ext| ext == "ipynb") {
-            return None;
-        }
-        let root = self.root;
-        self.sources
-            .entry(file.to_path_buf())
-            .or_insert_with(|| NotebookSource::read(file, root).ok())
-            .as_ref()
-    }
-
-    /// Returns the cell holding joined-code `line`, making `line` relative to it.
-    fn place(&mut self, file: &Path, line: &mut usize) -> Option<usize> {
-        let cell = self.get(file)?.cell_at_line(*line)?;
-        *line = cell.relative_line(*line);
-        Some(cell.index)
-    }
-}
-
 /// Extract code cells with their indices for cell-level reporting
 ///
 /// # Errors
@@ -409,45 +232,4 @@ pub fn extract_notebook_cells(path: &Path, root: Option<&Path>) -> Result<Vec<(u
 }
 
 #[cfg(test)]
-mod tests {
-    use super::NotebookSource;
-
-    fn source() -> NotebookSource {
-        NotebookSource::from_cells(vec![
-            (1, "import os\nx = 1".to_owned()),
-            (3, "y = 2\n".to_owned()),
-        ])
-    }
-
-    #[test]
-    fn joins_cells_and_maps_offsets_back() {
-        let notebook = source();
-        assert_eq!(notebook.code, "import os\nx = 1\n\ny = 2\n");
-        let second = notebook.cell_containing(17, 18).unwrap();
-        assert_eq!((second.index, second.start, second.start_line), (3, 17, 4));
-        assert_eq!(notebook.cell_source(3), Some("y = 2\n"));
-        // The separator belongs to no cell.
-        assert!(notebook.cell_containing(15, 17).is_none());
-        assert_eq!(notebook.cell_at_line(2).map(|cell| cell.index), Some(1));
-        assert_eq!(notebook.cell_at_line(4).map(|cell| cell.index), Some(3));
-        // The blank separator line and line 0 belong to no cell.
-        assert!(notebook.cell_at_line(3).is_none());
-        assert!(notebook.cell_at_line(0).is_none());
-    }
-
-    #[test]
-    fn applies_edits_per_cell() {
-        let notebook = source();
-        let cells = notebook
-            .apply_edits([(10, 11, "_"), (17, 18, "_")])
-            .unwrap();
-        assert_eq!(
-            cells,
-            vec![
-                (1, "import os\n_ = 1".to_owned()),
-                (3, "_ = 2\n".to_owned())
-            ]
-        );
-        assert!(notebook.apply_edits([(10, 20, "")]).is_err());
-    }
-}
+mod tests;

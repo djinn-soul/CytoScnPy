@@ -9,6 +9,7 @@ use lsp_types::{
 
 use crate::diagnostics::{suppression_code, Entry, SOURCE};
 use crate::position::LineIndex;
+use crate::report::{Fix, FixEdit};
 
 /// What the server knows about the document the actions are for.
 pub(crate) struct Context<'a> {
@@ -44,11 +45,12 @@ pub(crate) fn code_actions(
             index.range(fix.start_byte, fix.end_byte),
             fix.replacement.clone(),
         );
+        let diagnostics = vec![entry.diagnostic.clone()];
         actions.push(action(
             context,
             title.clone(),
-            &entry.diagnostic,
-            edit,
+            diagnostics,
+            vec![edit],
             true,
         ));
     }
@@ -70,9 +72,99 @@ pub(crate) fn code_actions(
         let at = index.position(offset);
         let edit = TextEdit::new(Range::new(at, at), text);
         let title = format!("Suppress with # noqa: {noqa_code}");
-        actions.push(action(context, title, diagnostic, edit, false));
+        let diagnostics = vec![diagnostic.clone()];
+        actions.push(action(context, title, diagnostics, vec![edit], false));
     }
+    actions.extend(fix_all_actions(context, &index));
     actions
+}
+
+/// Like the VS Code extension, "Remove all unused …" for each rule with
+/// several fixable findings and "Remove all dead code" for the whole file,
+/// from the analyzer's combined plans. Fixing each finding on its own at
+/// once could leave an empty suite or class body, so only those plans are
+/// used.
+fn fix_all_actions(context: &Context<'_>, index: &LineIndex<'_>) -> Vec<CodeActionOrCommand> {
+    let fixable: Vec<(&Entry, &Fix)> = context
+        .fresh_entries
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|entry| entry.fix.as_ref().map(|(_, fix)| (entry, fix)))
+        .collect();
+    let mut rules: Vec<&str> = Vec::new();
+    for (entry, _) in &fixable {
+        if let Some(NumberOrString::String(code)) = &entry.diagnostic.code {
+            if !rules.contains(&code.as_str()) {
+                rules.push(code);
+            }
+        }
+    }
+    let mut actions = Vec::new();
+    for rule in rules {
+        let Some(plural) = plural(rule) else {
+            continue;
+        };
+        let group: Vec<_> = fixable
+            .iter()
+            .filter(|(entry, _)| {
+                entry.diagnostic.code == Some(NumberOrString::String(rule.to_owned()))
+            })
+            .copied()
+            .collect();
+        let title = format!("Remove all unused {plural} in this file");
+        actions.extend(fix_all(context, index, title, &group, |fix| {
+            &fix.rule_fix_all
+        }));
+    }
+    let title = "Remove all dead code in this file".to_owned();
+    actions.extend(fix_all(context, index, title, &fixable, |fix| {
+        &fix.file_fix_all
+    }));
+    actions
+}
+
+fn fix_all(
+    context: &Context<'_>,
+    index: &LineIndex<'_>,
+    title: String,
+    group: &[(&Entry, &Fix)],
+    plan: impl Fn(&Fix) -> &Vec<FixEdit>,
+) -> Option<CodeActionOrCommand> {
+    if group.len() < 2 {
+        return None;
+    }
+    let plan = group
+        .iter()
+        .map(|(_, fix)| plan(fix))
+        .find(|edits| !edits.is_empty())?;
+    let edits = plan
+        .iter()
+        .map(|edit| {
+            context.text.get(edit.start_byte..edit.end_byte)?;
+            Some(TextEdit::new(
+                index.range(edit.start_byte, edit.end_byte),
+                edit.replacement.clone(),
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let diagnostics = group
+        .iter()
+        .map(|(entry, _)| entry.diagnostic.clone())
+        .collect();
+    Some(action(context, title, diagnostics, edits, false))
+}
+
+/// The plural VS Code's fix-all titles use for an unused-code rule.
+fn plural(rule: &str) -> Option<&'static str> {
+    Some(match rule {
+        "unused-function" => "functions",
+        "unused-method" => "methods",
+        "unused-class" => "classes",
+        "unused-import" => "imports",
+        "unused-variable" => "variables",
+        "unused-parameter" => "parameters",
+        _ => return None,
+    })
 }
 
 // `WorkspaceEdit::changes` is keyed by `Uri`, whose lazily parsed parts sit
@@ -81,15 +173,15 @@ pub(crate) fn code_actions(
 fn action(
     context: &Context<'_>,
     title: String,
-    diagnostic: &Diagnostic,
-    edit: TextEdit,
+    diagnostics: Vec<Diagnostic>,
+    edits: Vec<TextEdit>,
     preferred: bool,
 ) -> CodeActionOrCommand {
-    let changes = HashMap::from([(context.uri.clone(), vec![edit])]);
+    let changes = HashMap::from([(context.uri.clone(), edits)]);
     CodeActionOrCommand::CodeAction(CodeAction {
         title,
         kind: Some(CodeActionKind::QUICKFIX),
-        diagnostics: Some(vec![diagnostic.clone()]),
+        diagnostics: Some(diagnostics),
         edit: Some(WorkspaceEdit {
             changes: Some(changes),
             ..WorkspaceEdit::default()

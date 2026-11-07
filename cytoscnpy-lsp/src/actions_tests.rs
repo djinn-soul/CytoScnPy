@@ -113,3 +113,92 @@ fn edited_documents_keep_suppressions_but_drop_fixes() {
     assert_eq!(actions[0].0, "Suppress with # noqa: unused-import");
     assert_eq!(actions[0].1.range.start, Position::new(1, 9));
 }
+
+/// Every edit of the action titled `title`.
+fn edits_of(actions: &[CodeActionOrCommand], title: &str) -> Option<Vec<TextEdit>> {
+    actions.iter().find_map(|action| match action {
+        CodeActionOrCommand::CodeAction(action) if action.title == title => action
+            .edit
+            .as_ref()
+            .and_then(|edit| edit.changes.as_ref())
+            .and_then(|changes| changes.values().next().cloned()),
+        _ => None,
+    })
+}
+
+#[test]
+fn offers_fix_all_actions_from_the_analyzer_plans() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("a.py");
+    let text = "import os\nimport sys\n\n\ndef unused():\n    return 1\n\n\nprint(1)\n";
+    std::fs::write(&file, text).unwrap();
+    let analysis = crate::analysis::analyze(&file, &[]).unwrap();
+    let found = entries(&analysis.report, &analysis.text);
+    let uri = Uri::from_str("file:///project/a.py").unwrap();
+    let context = Context {
+        uri: &uri,
+        text,
+        fresh_entries: Some(&found),
+    };
+
+    let actions = code_actions(&context, line(0), &[]);
+    let titles: Vec<_> = summarize(&actions)
+        .into_iter()
+        .map(|(title, _)| title)
+        .collect();
+    // The function is the only unused one, so it gets no rule-wide action.
+    assert_eq!(
+        titles[titles.len() - 2..],
+        [
+            "Remove all unused imports in this file",
+            "Remove all dead code in this file"
+        ]
+    );
+    // The text is ASCII, so a character is a byte.
+    let offset = |at: Position| {
+        let line_start: usize = text
+            .split_inclusive('\n')
+            .take(at.line as usize)
+            .map(str::len)
+            .sum();
+        line_start + at.character as usize
+    };
+    let apply = |edits: Vec<TextEdit>| {
+        let mut fixed = text.to_owned();
+        let mut edits: Vec<_> = edits
+            .into_iter()
+            .map(|edit| {
+                (
+                    offset(edit.range.start),
+                    offset(edit.range.end),
+                    edit.new_text,
+                )
+            })
+            .collect();
+        edits.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+        for (start, end, new_text) in edits {
+            fixed.replace_range(start..end, &new_text);
+        }
+        fixed
+    };
+    let imports = edits_of(&actions, "Remove all unused imports in this file").unwrap();
+    assert_eq!(
+        apply(imports),
+        "def unused():\n    return 1\n\n\nprint(1)\n"
+    );
+    let all = edits_of(&actions, "Remove all dead code in this file").unwrap();
+    assert_eq!(apply(all), "print(1)\n");
+
+    // An edited buffer no longer matches the plans.
+    let edited = format!("# header\n{text}");
+    let context = Context {
+        text: &edited,
+        fresh_entries: None,
+        ..context
+    };
+    assert!(edits_of(
+        &code_actions(&context, line(0), &[]),
+        "Remove all dead code in this file"
+    )
+    .is_none());
+}

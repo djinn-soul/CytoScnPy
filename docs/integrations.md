@@ -51,7 +51,8 @@ Customize behavior in VS Code Settings (`Ctrl+,`):
 
 The [Zed extension](https://github.com/djinn-soul/CytoScnPy/tree/main/editors/zed)
 shows CytoScnPy findings as diagnostics in Python files, with quick fixes that
-remove unused code or add `# noqa` comments. It runs the language server
+remove unused code (one finding, every finding of a kind, or all dead code in
+the file) or add `# noqa` comments. It runs the language server
 below, which it downloads from the latest GitHub release. Like the VS Code
 extension, it analyzes the whole workspace folder when you open a Python file
 and each time you save one, so code used from another file is not reported as

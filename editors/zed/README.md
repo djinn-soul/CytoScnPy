@@ -24,6 +24,12 @@ initialization options.
     file; save to get them back after an edit.
   - **Suppress with `# noqa: <code>`**, which adds the code to the line's
     existing `# noqa` comment or appends a new one.
+  - **Remove all unused … in this file** for each kind with several fixable
+    findings, and **Remove all dead code in this file**, as in VS Code. They
+    apply the analyzer's combined plan, which keeps the file valid where
+    fixing each finding on its own would leave an empty block. Zed lists
+    them after other servers' actions; on a line where Ruff offers many
+    actions they can fall off the menu, so open it on another finding.
 
 ## Which checks run
 

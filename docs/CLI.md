@@ -335,7 +335,7 @@ Start a Language Server Protocol server over stdio for editors (Zed, Neovim, Hel
 cytoscnpy lsp
 ```
 
-When the editor opens a Python file and each time one is saved, the server analyzes the workspace folder holding it, the same way as `cytoscnpy <folder> --json`, and publishes the findings as diagnostics for every file in it. A file outside every workspace folder, or any file when the editor passes `{"analysisMode": "file"}` as initialization options, is analyzed on its own, as `cytoscnpy <file> --json --force-exclude` does. Code actions remove or rename unused code and add `# noqa` comments. Editors can pass extra CLI flags as initialization options, for example `{"args": ["--secrets", "--danger"]}`. See [Integrations](integrations.md#language-server-other-editors).
+When the editor opens a Python file and each time one is saved, the server analyzes the workspace folder holding it, the same way as `cytoscnpy <folder> --json`, and publishes the findings as diagnostics for every file in it. A file outside every workspace folder, or any file when the editor passes `{"analysisMode": "file"}` as initialization options, is analyzed on its own, as `cytoscnpy <file> --json --force-exclude` does. Code actions remove or rename unused code, add `# noqa` comments, and, as in VS Code, remove all unused code of one kind or all dead code in the file at once. Editors can pass extra CLI flags as initialization options, for example `{"args": ["--secrets", "--danger"]}`. See [Integrations](integrations.md#language-server-other-editors).
 
 > Note: Like `mcp-server`, the `lsp` subcommand is handled by the `cytoscnpy-cli` binary. The Python package's `cytoscnpy` command prints an error instead.
 

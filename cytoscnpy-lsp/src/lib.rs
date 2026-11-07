@@ -11,7 +11,8 @@
 //! analyzed alone, as `cytoscnpy <file> --json --force-exclude` does.
 //!
 //! Each finding becomes a diagnostic. Code actions remove or rename unused
-//! code and add `# noqa` comments.
+//! code, add `# noqa` comments, and, like the VS Code extension's "Fix All"
+//! actions, remove every unused finding of a kind or all dead code in a file.
 
 mod actions;
 mod analysis;

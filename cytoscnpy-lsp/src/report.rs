@@ -102,6 +102,21 @@ pub(crate) struct Fix {
     pub start_byte: usize,
     pub end_byte: usize,
     pub replacement: String,
+    /// Edits fixing every finding of this rule in the file together. One
+    /// finding of the rule carries them, when the rule has several.
+    pub rule_fix_all: Vec<FixEdit>,
+    /// Edits fixing every fixable dead-code finding in the file together,
+    /// carried by one finding.
+    pub file_fix_all: Vec<FixEdit>,
+}
+
+/// One edit of a combined fix.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub(crate) struct FixEdit {
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub replacement: String,
 }
 
 /// A secret, danger, quality or clone finding.

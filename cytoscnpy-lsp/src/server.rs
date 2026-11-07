@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::notification::{
@@ -21,11 +21,14 @@ use lsp_types::{
 
 use crate::actions::{code_actions, Context};
 use crate::diagnostics::{entries, Entry};
+use crate::project::Projects;
 
 type BoxError = Box<dyn Error + Send + Sync>;
 
 struct Document {
     path: Option<PathBuf>,
+    /// `path` with symlinks resolved, which project results are keyed by.
+    canonical: Option<PathBuf>,
     text: String,
     /// The text the last analysis read and the diagnostics it produced.
     analysis: Option<(String, Vec<Entry>)>,
@@ -36,6 +39,7 @@ struct Server<'a> {
     documents: HashMap<Uri, Document>,
     /// Extra `cytoscnpy` CLI flags from the `args` initialization option.
     extra_args: Vec<String>,
+    projects: Projects,
 }
 
 /// Serves LSP on `connection` until the client shuts the server down.
@@ -62,6 +66,7 @@ pub fn run(connection: &Connection) -> Result<(), BoxError> {
         connection,
         documents: HashMap::new(),
         extra_args: extra_args(params.initialization_options.as_ref()),
+        projects: Projects::new(&params),
     };
     for message in &connection.receiver {
         match message {
@@ -144,13 +149,17 @@ impl Server<'_> {
                 let params: DidOpenTextDocumentParams =
                     notification.extract(DidOpenTextDocument::METHOD)?;
                 let uri = params.text_document.uri;
+                let path = crate::uri::to_path(uri.as_str());
                 let document = Document {
-                    path: crate::uri::to_path(uri.as_str()),
+                    canonical: path
+                        .as_ref()
+                        .map(|path| path.canonicalize().unwrap_or_else(|_| path.clone())),
+                    path,
                     text: params.text_document.text,
                     analysis: None,
                 };
                 self.documents.insert(uri.clone(), document);
-                self.analyze(&uri)?;
+                self.analyze(&uri, true)?;
             }
             DidChangeTextDocument::METHOD => {
                 let params: DidChangeTextDocumentParams =
@@ -170,22 +179,38 @@ impl Server<'_> {
             DidSaveTextDocument::METHOD => {
                 let params: DidSaveTextDocumentParams =
                     notification.extract(DidSaveTextDocument::METHOD)?;
-                self.analyze(&params.text_document.uri)?;
+                self.analyze(&params.text_document.uri, false)?;
             }
             DidCloseTextDocument::METHOD => {
                 let params: DidCloseTextDocumentParams =
                     notification.extract(DidCloseTextDocument::METHOD)?;
-                self.documents.remove(&params.text_document.uri);
-                self.publish(params.text_document.uri, Vec::new())?;
+                let document = self.documents.remove(&params.text_document.uri);
+                // Project findings stay listed for closed files, as in VS Code.
+                let in_project = document
+                    .and_then(|document| document.canonical)
+                    .is_some_and(|file| self.projects.root_of(&file).is_some());
+                if !in_project {
+                    self.publish(params.text_document.uri, Vec::new())?;
+                }
             }
             _ => {}
         }
         Ok(())
     }
 
-    /// Analyzes the saved file behind an open document and publishes the
-    /// findings.
-    fn analyze(&mut self, uri: &Uri) -> Result<(), BoxError> {
+    /// Analyzes the saved file behind an open document, together with the
+    /// rest of its workspace folder when it is in one, and publishes the
+    /// findings. With `reuse`, a folder analyzed before is not analyzed again.
+    fn analyze(&mut self, uri: &Uri, reuse: bool) -> Result<(), BoxError> {
+        let root = self
+            .documents
+            .get(uri)
+            .and_then(|document| document.canonical.as_deref())
+            .and_then(|file| self.projects.root_of(file))
+            .map(Path::to_path_buf);
+        if let Some(root) = root {
+            return self.analyze_project(&root, uri, reuse);
+        }
         let Some(document) = self.documents.get_mut(uri) else {
             return Ok(());
         };
@@ -199,16 +224,66 @@ impl Server<'_> {
                 document.analysis = Some((analysis.text, found));
                 self.publish(uri.clone(), diagnostics)
             }
-            Err(message) => {
-                let params = LogMessageParams {
-                    typ: MessageType::ERROR,
-                    message,
-                };
-                let log = Notification::new(LogMessage::METHOD.to_owned(), params);
-                self.connection.sender.send(log.into())?;
-                Ok(())
+            Err(message) => self.log_error(message),
+        }
+    }
+
+    fn analyze_project(&mut self, root: &Path, uri: &Uri, reuse: bool) -> Result<(), BoxError> {
+        let changed = if reuse && self.projects.results(root).is_some() {
+            self.documents
+                .get(uri)
+                .and_then(|document| document.canonical.clone())
+                .into_iter()
+                .collect()
+        } else {
+            match self.projects.analyze(root, &self.extra_args) {
+                Ok(changed) => changed,
+                Err(message) => return self.log_error(message),
+            }
+        };
+        let results = self.projects.results(root);
+        // Code actions on open buffers use the analysis their text matches.
+        for document in self.documents.values_mut() {
+            let Some(file) = &document.canonical else {
+                continue;
+            };
+            if !file.starts_with(root) {
+                continue;
+            }
+            document.analysis = Some(match results.and_then(|files| files.get(file)) {
+                Some(result) => (result.text.clone(), result.entries.clone()),
+                None => (document.text.clone(), Vec::new()),
+            });
+        }
+        for file in changed {
+            let found = results.and_then(|files| files.get(&file));
+            let diagnostics = found.map_or_else(Vec::new, |result| {
+                result
+                    .entries
+                    .iter()
+                    .map(|e| e.diagnostic.clone())
+                    .collect()
+            });
+            let open = self
+                .documents
+                .iter()
+                .find(|(_, document)| document.canonical.as_ref() == Some(&file))
+                .map(|(uri, _)| uri.clone());
+            if let Some(uri) = open.or_else(|| crate::uri::from_path(&file)) {
+                self.publish(uri, diagnostics)?;
             }
         }
+        Ok(())
+    }
+
+    fn log_error(&self, message: String) -> Result<(), BoxError> {
+        let params = LogMessageParams {
+            typ: MessageType::ERROR,
+            message,
+        };
+        let log = Notification::new(LogMessage::METHOD.to_owned(), params);
+        self.connection.sender.send(log.into())?;
+        Ok(())
     }
 
     fn publish(&self, uri: Uri, diagnostics: Vec<lsp_types::Diagnostic>) -> Result<(), BoxError> {

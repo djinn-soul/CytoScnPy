@@ -1,4 +1,4 @@
-//! Runs the CytoScnPy CLI analysis in-process on one saved file.
+//! Runs the CytoScnPy CLI analysis in-process on one saved file or a project.
 
 use std::path::Path;
 
@@ -24,11 +24,24 @@ pub(crate) fn analyze(path: &Path, extra_args: &[String]) -> Result<Analysis, St
     // the file changes on disk while the analysis runs.
     let text = std::fs::read_to_string(path)
         .map_err(|error| format!("Cannot read {}: {error}", path.display()))?;
-    let mut args = vec![
-        path.to_string_lossy().into_owned(),
-        "--json".to_owned(),
-        "--force-exclude".to_owned(),
-    ];
+    let report = run(path, &["--force-exclude"], extra_args)?;
+    Ok(Analysis { text, report })
+}
+
+/// Analyzes the project in `root` the way `cytoscnpy <root> --json
+/// <extra_args>` does, so a definition used only from another file is not
+/// reported as unused.
+///
+/// # Errors
+///
+/// Returns a message when the analysis fails.
+pub(crate) fn analyze_project(root: &Path, extra_args: &[String]) -> Result<Report, String> {
+    run(root, &[], extra_args)
+}
+
+fn run(path: &Path, flags: &[&str], extra_args: &[String]) -> Result<Report, String> {
+    let mut args = vec![path.to_string_lossy().into_owned(), "--json".to_owned()];
+    args.extend(flags.iter().map(|&flag| flag.to_owned()));
     args.extend(extra_args.iter().cloned());
     let mut output = Vec::new();
     cytoscnpy::entry_point::run_with_args_to(args, &mut output)
@@ -40,7 +53,6 @@ pub(crate) fn analyze(path: &Path, extra_args: &[String]) -> Result<Analysis, St
             path.display()
         ));
     }
-    let report = serde_json::from_slice(&output)
-        .map_err(|error| format!("Cannot read the report for {}: {error}", path.display()))?;
-    Ok(Analysis { text, report })
+    serde_json::from_slice(&output)
+        .map_err(|error| format!("Cannot read the report for {}: {error}", path.display()))
 }

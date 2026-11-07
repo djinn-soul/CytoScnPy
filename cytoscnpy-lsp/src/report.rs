@@ -3,9 +3,12 @@
 //! Every field defaults, so the server keeps working when the report gains
 //! or drops fields.
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use serde::Deserialize;
 
-/// An analysis report for one file.
+/// An analysis report on one file or a whole project.
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub(crate) struct Report {
@@ -37,12 +40,44 @@ impl Report {
         .into_iter()
         .flatten()
     }
+
+    /// The findings of a project report, split by the file they are in.
+    /// Findings that name no file are dropped.
+    pub(crate) fn by_file(self) -> HashMap<PathBuf, Self> {
+        let mut files: HashMap<PathBuf, Self> = HashMap::new();
+        macro_rules! move_findings {
+            ($($field:ident),*) => {$(
+                for finding in self.$field {
+                    if let Some(file) = finding.file.clone() {
+                        files.entry(file).or_default().$field.push(finding);
+                    }
+                }
+            )*};
+        }
+        move_findings!(
+            unused_functions,
+            unused_methods,
+            unused_imports,
+            unused_classes,
+            unused_variables,
+            unused_parameters,
+            secrets,
+            danger,
+            quality,
+            clones,
+            taint_findings,
+            parse_errors
+        );
+        files
+    }
 }
 
 /// A definition that is never used.
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub(crate) struct Unused {
+    /// The file the finding is in.
+    pub file: Option<PathBuf>,
     pub line: usize,
     pub simple_name: String,
     /// Byte offset of the name.
@@ -73,6 +108,8 @@ pub(crate) struct Fix {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub(crate) struct RuleFinding {
+    /// The file the finding is in.
+    pub file: Option<PathBuf>,
     pub rule_id: String,
     pub message: String,
     pub severity: String,
@@ -83,6 +120,8 @@ pub(crate) struct RuleFinding {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub(crate) struct TaintFinding {
+    /// The file the finding is in.
+    pub file: Option<PathBuf>,
     pub rule_id: String,
     pub severity: String,
     pub vuln_type: String,
@@ -113,6 +152,8 @@ impl TaintFinding {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub(crate) struct ParseFailure {
+    /// The file the finding is in.
+    pub file: Option<PathBuf>,
     pub error: String,
 }
 
@@ -157,6 +198,7 @@ mod tests {
         let at = |error: &str| {
             ParseFailure {
                 error: error.to_owned(),
+                ..ParseFailure::default()
             }
             .line()
         };

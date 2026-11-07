@@ -53,7 +53,10 @@ The [Zed extension](https://github.com/djinn-soul/CytoScnPy/tree/main/editors/ze
 shows CytoScnPy findings as diagnostics in Python files, with quick fixes that
 remove unused code or add `# noqa` comments. It runs the language server
 below, which it downloads from the latest GitHub release. Like the VS Code
-extension, it analyzes a file when you open it and each time you save it.
+extension, it analyzes the whole workspace folder when you open a Python file
+and each time you save one, so code used from another file is not reported as
+unused. Pass `{"analysisMode": "file"}` in `initialization_options` to analyze
+each file on its own.
 
 The project's `pyproject.toml` or `.cytoscnpy.toml` decides which checks run.
 To add CLI flags in Zed only, or to use a binary you installed yourself, set
@@ -79,8 +82,10 @@ for troubleshooting.
 
 `cytoscnpy lsp` is a Language Server Protocol server over stdio, so any
 editor with an LSP client can show CytoScnPy diagnostics and quick fixes. It
-behaves like the Zed extension: analysis on open and save, configuration from
-the project, and extra CLI flags from the `args` initialization option. It is
+behaves like the Zed extension: analysis of the client's workspace folders on
+open and save (or of the file alone with `{"analysisMode": "file"}`, and
+whenever the file is outside every workspace folder), configuration from the
+project, and extra CLI flags from the `args` initialization option. It is
 part of the standalone CLI binary; the Python package's `cytoscnpy` command
 cannot run it.
 

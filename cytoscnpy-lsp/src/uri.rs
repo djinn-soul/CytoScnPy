@@ -1,6 +1,7 @@
-//! `file:` URIs to filesystem paths.
+//! `file:` URIs to filesystem paths and back.
 
-use std::path::PathBuf;
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
 
 /// The local path a `file:` URI names, or `None` for other schemes
 /// (`untitled:` buffers, remote files) and remote hosts.
@@ -32,6 +33,35 @@ fn to_path_for(uri: &str, windows: bool) -> Option<PathBuf> {
     Some(PathBuf::from(decoded))
 }
 
+/// The `file:` URI of an absolute local path.
+pub(crate) fn from_path(path: &Path) -> Option<lsp_types::Uri> {
+    from_path_for(&path.to_string_lossy(), cfg!(windows))?
+        .parse()
+        .ok()
+}
+
+fn from_path_for(path: &str, windows: bool) -> Option<String> {
+    let path = if windows {
+        // `canonicalize` names `C:\x` as `\\?\C:\x`.
+        let path = path.strip_prefix(r"\\?\").unwrap_or(path);
+        format!("/{}", path.replace('\\', "/"))
+    } else {
+        path.to_owned()
+    };
+    if !path.starts_with('/') {
+        return None;
+    }
+    let mut uri = String::from("file://");
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || b"/-._~:".contains(&byte) {
+            uri.push(char::from(byte));
+        } else {
+            write!(uri, "%{byte:02X}").ok()?;
+        }
+    }
+    Some(uri)
+}
+
 fn percent_decode(text: &str) -> Option<String> {
     let bytes = text.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
@@ -51,7 +81,7 @@ fn percent_decode(text: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::to_path_for;
+    use super::{from_path_for, to_path_for};
     use std::path::PathBuf;
 
     #[test]
@@ -84,5 +114,23 @@ mod tests {
         assert_eq!(to_path_for("file://server/share/a.py", false), None);
         assert_eq!(to_path_for("file:///a%2.py", false), None);
         assert_eq!(to_path_for("file:///a%ff.py", false), None);
+    }
+
+    #[test]
+    fn encodes_paths_as_file_uris_that_decode_back() {
+        let uri = from_path_for("/home/me/my project/café.py", false);
+        assert_eq!(
+            uri.as_deref(),
+            Some("file:///home/me/my%20project/caf%C3%A9.py")
+        );
+        assert_eq!(
+            uri.and_then(|uri| to_path_for(&uri, false)),
+            Some(PathBuf::from("/home/me/my project/café.py"))
+        );
+        assert_eq!(
+            from_path_for(r"\\?\C:\Users\me\a.py", true).as_deref(),
+            Some("file:///C:/Users/me/a.py")
+        );
+        assert_eq!(from_path_for("relative/a.py", false), None);
     }
 }

@@ -5,8 +5,14 @@ unused code, security issues (secrets, dangerous calls, taint flows) and
 quality problems in Python files.
 
 The extension runs `cytoscnpy lsp`, the language server built into the
-CytoScnPy CLI. Like the VS Code extension, it analyzes a file when you open it
-and each time you save it. It does not analyze as you type.
+CytoScnPy CLI. It does not analyze as you type.
+
+It analyzes the whole workspace folder, like the VS Code extension's default
+`workspace` mode, so a function another file calls is not reported as unused.
+The project is analyzed when you open its first Python file and each time you
+save one, and findings show for every file in it, open or not. To analyze
+each file on its own instead, pass `{"analysisMode": "file"}` in the
+initialization options.
 
 ## What you get
 

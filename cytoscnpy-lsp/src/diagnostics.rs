@@ -48,6 +48,7 @@ pub(crate) fn entries(report: &Report, text: &str) -> Vec<Entry> {
             message: taint.message(),
             severity: taint.severity.clone(),
             line: taint.sink_line,
+            ..RuleFinding::default()
         };
         entries.push(rule_entry(&finding, &index));
     }

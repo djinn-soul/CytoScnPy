@@ -2,10 +2,13 @@
 //!
 //! `cytoscnpy lsp` speaks LSP over stdio, so any editor with an LSP client
 //! (Zed, Neovim, Helix, Emacs, Sublime Text, ...) shows CytoScnPy findings.
-//! Like the VS Code extension, it analyzes a Python file when it is opened
-//! and each time it is saved, by running the same analysis as
-//! `cytoscnpy <file> --json --force-exclude`, so the project's
-//! `pyproject.toml` or `.cytoscnpy.toml` decides which checks run.
+//! Like the VS Code extension, it analyzes the workspace folder holding a
+//! Python file when the file is opened and each time one is saved, by running
+//! the same analysis as `cytoscnpy <folder> --json`, so the project's
+//! `pyproject.toml` or `.cytoscnpy.toml` decides which checks run and code
+//! used from another file is not reported as unused. Files outside every
+//! workspace folder, or all files with `{"analysisMode": "file"}`, are
+//! analyzed alone, as `cytoscnpy <file> --json --force-exclude` does.
 //!
 //! Each finding becomes a diagnostic. Code actions remove or rename unused
 //! code and add `# noqa` comments.
@@ -14,6 +17,7 @@ mod actions;
 mod analysis;
 mod diagnostics;
 mod position;
+mod project;
 mod report;
 mod server;
 mod uri;

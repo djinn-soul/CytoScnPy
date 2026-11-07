@@ -147,6 +147,22 @@ def test_scan_propagates_config_parsing_failure(tmp_path: Path) -> None:
         cytoscnpy.scan(str(src_file))
 
 
+def test_scan_rejects_invalid_whitelist_regex(tmp_path: Path) -> None:
+    """Test that an invalid whitelist regex raises instead of being dropped."""
+    import pytest
+
+    config_file = tmp_path / ".cytoscnpy.toml"
+    config_file.write_text(
+        '[cytoscnpy]\nwhitelist = [{ name = "keep_(me", pattern = "regex" }]\n',
+        encoding="utf-8",
+    )
+    src_file = tmp_path / "app.py"
+    src_file.write_text("def keep_me():\n    pass\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"Configuration error.*keep_\(me"):
+        cytoscnpy.scan(str(src_file))
+
+
 def test_scan_applies_whitelist_from_config(tmp_path: Path) -> None:
     """Test that whitelist in config suppresses dead code findings."""
     config_file = tmp_path / ".cytoscnpy.toml"

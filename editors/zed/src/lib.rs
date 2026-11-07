@@ -63,8 +63,8 @@ impl CytoScnPyExtension {
         };
         if !has_lsp(&release.version) {
             return Err(format!(
-                "CytoScnPy {} predates the `lsp` subcommand, which ships in the next \
-                 release. Until then, build it with `cargo install --git \
+                "CytoScnPy {} predates the `lsp` subcommand, which first ships in \
+                 v1.3.2. Until then, build it with `cargo install --git \
                  https://github.com/{REPOSITORY} cytoscnpy-cli` and set \
                  `lsp.cytoscnpy.binary.path` to the installed `cytoscnpy-cli`.",
                 release.version
@@ -235,7 +235,7 @@ fn remove_other_versions(keep: &str) {
 zed::register_extension!(CytoScnPyExtension);
 
 /// Whether release `version` (such as `v1.3.2`) has the `lsp` subcommand,
-/// which first ships after v1.3.1. Unparsable versions are assumed to.
+/// which first ships in v1.3.2. Unparsable versions are assumed to.
 fn has_lsp(version: &str) -> bool {
     let parts: Vec<u64> = version
         .trim_start_matches('v')

@@ -1,6 +1,6 @@
 id = "cytoscnpy-lsp"
 name = "CytoScnPy"
-version = "0.1.0"
+version = "1.3.2"
 schema_version = 1
 authors = ["djinn-soul"]
 description = "Dead code, security and quality diagnostics for Python, from the CytoScnPy analyzer."

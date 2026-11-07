@@ -112,7 +112,7 @@ no equivalent in Zed's extension API.
 By default the extension downloads the CLI from the latest
 [GitHub release](https://github.com/djinn-soul/CytoScnPy/releases) for Linux
 x64, macOS (Apple Silicon and Intel) and Windows x64, and keeps it up to date.
-The `lsp` subcommand first ships in the release after v1.3.1.
+The `lsp` subcommand first ships in v1.3.2.
 
 To use a binary you installed yourself (for example with `install.sh`, or on
 another platform), point the extension at it:

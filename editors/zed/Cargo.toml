@@ -1,0 +1,16 @@
+[package]
+name = "zed_cytoscnpy"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+# Zed builds the extension on its own, outside the CytoScnPy workspace.
+[workspace]
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.7.0"

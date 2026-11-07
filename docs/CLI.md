@@ -327,6 +327,18 @@ cytoscnpy mcp-server [--root <PATH>]
 
 > Note: The `mcp-server` subcommand is handled by the `cytoscnpy-cli` binary. If you installed the Python package, `cytoscnpy mcp-server` will print an error. Use the standalone CLI build for MCP.
 
+### `lsp`
+
+Start a Language Server Protocol server over stdio for editors (Zed, Neovim, Helix and others).
+
+```bash
+cytoscnpy lsp
+```
+
+The server analyzes a Python file when the editor opens it and each time it is saved, the same way as `cytoscnpy <file> --json --force-exclude`, and publishes the findings as diagnostics. Code actions remove or rename unused code and add `# noqa` comments. Editors can pass extra CLI flags as initialization options, for example `{"args": ["--secrets", "--danger"]}`. See [Integrations](integrations.md#language-server-other-editors).
+
+> Note: Like `mcp-server`, the `lsp` subcommand is handled by the `cytoscnpy-cli` binary. The Python package's `cytoscnpy` command prints an error instead.
+
 ### `init`
 
 Initialize CytoScnPy configuration in the current directory.

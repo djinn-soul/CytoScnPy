@@ -1,0 +1,11 @@
+id = "cytoscnpy"
+name = "CytoScnPy"
+version = "0.1.0"
+schema_version = 1
+authors = ["djinn-soul"]
+description = "Dead code, security and quality diagnostics for Python, from the CytoScnPy analyzer."
+repository = "https://github.com/djinn-soul/CytoScnPy"
+
+[language_servers.cytoscnpy]
+name = "CytoScnPy"
+languages = ["Python"]

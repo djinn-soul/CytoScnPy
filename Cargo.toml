@@ -1,5 +1,6 @@
 [workspace]
-members = ["cytoscnpy", "cytoscnpy-cli", "cytoscnpy-mcp"]
+members = ["cytoscnpy", "cytoscnpy-cli", "cytoscnpy-mcp", "cytoscnpy-lsp"]
+exclude = ["editors/zed"]
 resolver = "2"
 
 [workspace.package]

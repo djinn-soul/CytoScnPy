@@ -1,0 +1,29 @@
+[package]
+name = "cytoscnpy-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Language Server Protocol server publishing CytoScnPy diagnostics to editors"
+
+[lib]
+name = "cytoscnpy_lsp"
+path = "src/lib.rs"
+
+[dependencies]
+cytoscnpy = { path = "../cytoscnpy", default-features = false }
+lsp-server = "0.10.0"
+lsp-types = "0.97.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[features]
+default = ["cst"]
+# Dead-code quick fixes need the CST byte ranges the analyzer computes with it.
+cst = ["cytoscnpy/cst"]
+
+# Inherit lints from workspace
+[lints]
+workspace = true

@@ -7,6 +7,8 @@ on:
       - "cytoscnpy/**"
       - "cytoscnpy-mcp/**"
       - "cytoscnpy-cli/**"
+      - "cytoscnpy-lsp/**"
+      - "editors/zed/**"
       - "python/**"
       - "editors/vscode/**"
       - "Cargo.toml"
@@ -133,6 +135,27 @@ jobs:
 
       - name: Validate Classifiers (Strict)
         run: python scripts/validate_classifiers.py
+
+  zed-extension:
+    name: Build Zed Extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust environment
+        uses: ./.github/actions/setup-rust
+        with:
+          targets: wasm32-wasip2
+          components: clippy
+          cache-key: "zed-extension"
+          workspaces: "editors/zed -> target"
+
+      # Zed compiles extensions to WebAssembly; this catches API breaks.
+      - name: Build and lint extension
+        working-directory: editors/zed
+        run: |
+          cargo build --release --target wasm32-wasip2
+          cargo clippy --target wasm32-wasip2 -- -D warnings
 
   validate-docs:
     name: Validate Documentation

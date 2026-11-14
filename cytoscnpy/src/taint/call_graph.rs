@@ -4,6 +4,7 @@
 
 mod annotation_traversal;
 mod expression_traversal;
+mod flow_traversal;
 mod pattern_traversal;
 mod statement_traversal;
 
@@ -142,6 +143,26 @@ impl CallGraph {
 
         qualified.push_str(name);
         qualified
+    }
+
+    /// Checks if `name` matches the current enclosing class's qualified name.
+    /// Distinguishes direct class methods from nested helper functions.
+    pub(super) fn is_current_class(&self, name: &str, module_name: &str) -> bool {
+        if self.class_stack.is_empty() {
+            return false;
+        }
+        let mut current_class = if module_name.is_empty() {
+            String::new()
+        } else {
+            format!("{module_name}.")
+        };
+        for (i, class_name) in self.class_stack.iter().enumerate() {
+            if i > 0 {
+                current_class.push('.');
+            }
+            current_class.push_str(class_name);
+        }
+        name == current_class
     }
 
     fn extract_params(args: &ast::Parameters) -> Vec<String> {

@@ -2,11 +2,11 @@
 //!
 //! Builds a call graph for interprocedural analysis.
 
-mod annotation_traversal;
-mod expression_traversal;
-mod flow_traversal;
-mod pattern_traversal;
-mod statement_traversal;
+pub(super) mod annotation_traversal;
+pub(super) mod expression_traversal;
+pub(super) mod flow_traversal;
+pub(super) mod pattern_traversal;
+pub(super) mod statement_traversal;
 
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -70,8 +70,18 @@ impl CallGraph {
             })
             .is_root = true;
 
+        self.visit_stmts(stmts, Some(&module_node_name), module_name);
+    }
+
+    /// Recursively visits a sequence of statements in the call graph.
+    pub(super) fn visit_stmts(
+        &mut self,
+        stmts: &[Stmt],
+        current_func: Option<&str>,
+        module_name: &str,
+    ) {
         for stmt in stmts {
-            self.visit_stmt(stmt, Some(&module_node_name), module_name);
+            self.visit_stmt(stmt, current_func, module_name);
         }
     }
 
@@ -140,7 +150,6 @@ impl CallGraph {
             qualified.push_str(class_name);
             qualified.push('.');
         }
-
         qualified.push_str(name);
         qualified
     }

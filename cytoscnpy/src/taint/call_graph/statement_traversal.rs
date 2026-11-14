@@ -82,7 +82,7 @@ fn visit_definition_stmt(
                 &func_name,
                 module_name,
             );
-            visit_stmts(graph, &func.body, Some(&func_name), module_name);
+            graph.visit_stmts(&func.body, Some(&func_name), module_name);
         }
         Stmt::ClassDef(class) => {
             let class_name = graph.get_qualified_name(&class.name, module_name);
@@ -136,7 +136,7 @@ fn visit_definition_stmt(
             // Pass class_name as the current context (`current_func`) so class-level annotated
             // attributes (e.g. `item: TargetClass` in TypedDict or regular classes) link their
             // types to this class. When the class is alive, its annotated types stay alive.
-            visit_stmts(graph, &class.body, Some(&class_name), module_name);
+            graph.visit_stmts(&class.body, Some(&class_name), module_name);
             graph.class_stack.pop();
         }
         _ => return false,
@@ -231,15 +231,4 @@ fn visit_simple_expr_stmt(
         _ => return false,
     }
     true
-}
-
-pub(super) fn visit_stmts(
-    graph: &mut CallGraph,
-    stmts: &[Stmt],
-    current_func: Option<&str>,
-    module_name: &str,
-) {
-    for stmt in stmts {
-        visit_stmt(graph, stmt, current_func, module_name);
-    }
 }

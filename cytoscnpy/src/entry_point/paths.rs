@@ -81,7 +81,7 @@ fn subcommand_path_args(cli: &Cli) -> Option<&crate::cli::PathArgs> {
         | Commands::Deps {
             args: crate::cli::DepsArgs { paths, .. },
         } => Some(paths),
-        Commands::McpServer | Commands::Init => None,
+        Commands::McpServer | Commands::Lsp | Commands::Init => None,
     }
 }
 

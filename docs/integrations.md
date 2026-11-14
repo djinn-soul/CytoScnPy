@@ -1,6 +1,6 @@
 # Integrations
 
-CytoScnPy integrates with your development workflow via IDE extensions and the Model Context Protocol (MCP).
+CytoScnPy integrates with your development workflow via editor extensions, a language server, and the Model Context Protocol (MCP).
 
 ## VS Code Extension
 
@@ -44,6 +44,81 @@ Customize behavior in VS Code Settings (`Ctrl+,`):
 | `cytoscnpy.maxArguments` | `5` | Maximum allowed function arguments. |
 | `cytoscnpy.maxLines` | `50` | Maximum allowed function lines. |
 | `cytoscnpy.path` | `""` | Custom path to CLI executable. |
+
+---
+
+## Zed Extension
+
+The [Zed extension](https://github.com/djinn-soul/CytoScnPy/tree/main/editors/zed)
+shows CytoScnPy findings as diagnostics in Python files, with quick fixes that
+remove unused code (one finding, every finding of a kind, or all dead code in
+the file) or add `# noqa` comments. It runs the language server
+below, which it downloads from the latest GitHub release. Like the VS Code
+extension, it analyzes each project in the workspace folder when you open a
+Python file, each time you save one and when files change on disk, so code
+used from another file is not reported as unused. It also offers the VS Code
+commands (analyze, and the `cc`, `hal`, `mi` and `raw` metrics) as code
+actions, shows progress in the status bar, and registers the MCP server as a
+context server for Zed's agent.
+
+The project's `pyproject.toml` or `.cytoscnpy.toml` decides which checks run.
+The VS Code settings, without the `cytoscnpy.` prefix, override them in Zed's
+`settings.json`, and so does a binary you installed yourself:
+
+```json
+{
+  "lsp": {
+    "cytoscnpy": {
+      "settings": { "enableSecretsScan": true, "maxComplexity": 12 },
+      "binary": { "path": "/usr/local/bin/cytoscnpy", "arguments": ["lsp"] }
+    }
+  }
+}
+```
+
+See the [extension README](https://github.com/djinn-soul/CytoScnPy/blob/main/editors/zed/README.md)
+for troubleshooting.
+
+---
+
+## Language Server (Other Editors)
+
+`cytoscnpy lsp` is a Language Server Protocol server over stdio, so any
+editor with an LSP client can show CytoScnPy diagnostics and quick fixes. It
+behaves like the Zed extension: analysis of each project in the client's
+workspace folders on open, save and file changes (or of the file alone with
+`{"analysisMode": "file"}`, and whenever the file is outside every workspace
+folder), configuration from the project, the VS Code settings (without the
+`cytoscnpy.` prefix) from the initialization options or the `cytoscnpy`
+workspace configuration section, and the VS Code commands as LSP commands
+and source code actions. It is
+part of the standalone CLI binary; the Python package's `cytoscnpy` command
+cannot run it.
+
+**Neovim (0.11+):**
+
+```lua
+vim.lsp.config("cytoscnpy", {
+  cmd = { "cytoscnpy", "lsp" },
+  filetypes = { "python" },
+  root_markers = { "pyproject.toml", ".cytoscnpy.toml", ".git" },
+  init_options = { args = { "--secrets", "--danger" } },
+})
+vim.lsp.enable("cytoscnpy")
+```
+
+**Helix** (`languages.toml`; `language-servers` replaces the default list, so
+keep the servers you already use):
+
+```toml
+[language-server.cytoscnpy]
+command = "cytoscnpy"
+args = ["lsp"]
+
+[[language]]
+name = "python"
+language-servers = ["pylsp", "cytoscnpy"]
+```
 
 ---
 

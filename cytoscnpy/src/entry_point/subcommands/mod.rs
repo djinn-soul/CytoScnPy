@@ -22,8 +22,8 @@ pub(super) fn run_subcommand<W: std::io::Write>(
         Commands::Raw { .. } | Commands::Cc { .. } | Commands::Hal { .. } | Commands::Mi { .. } => {
             metrics::handle_metric_command(command, context, verbose, writer)
         }
-        Commands::McpServer => {
-            eprintln!("Error: mcp-server command should be handled by cytoscnpy-cli directly.");
+        Commands::McpServer | Commands::Lsp => {
+            eprintln!("Error: mcp-server and lsp should be handled by cytoscnpy-cli directly.");
             eprintln!("If you're seeing this, please use the cytoscnpy-cli binary.");
             Ok(1)
         }

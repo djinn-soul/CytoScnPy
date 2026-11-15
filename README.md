@@ -64,6 +64,12 @@ podman run --rm -v "$PWD:/workspace:z,ro" cytoscnpy:local /workspace --json
 
 The image also accepts the same CLI arguments as the installed `cytoscnpy` command.
 
+### Editors
+
+- **VS Code**: install **CytoScnPy** from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=djinn09.cytoscnpy).
+- **Zed**: the [Zed extension](editors/zed/README.md) runs the built-in language server.
+- **Neovim, Helix and other LSP clients**: run `cytoscnpy lsp` (standalone CLI). See [Integrations](docs/integrations.md#language-server-other-editors).
+
 ### MCP Server (for AI Assistants)
 
 CytoScnPy includes an MCP server for AI assistant integration via the standalone CLI binary (install script or `cytoscnpy-cli` build). The Python package does not run `mcp-server`.

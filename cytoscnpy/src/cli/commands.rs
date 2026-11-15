@@ -92,6 +92,8 @@ pub enum Commands {
     /// Start MCP server for LLM integration (Claude Desktop, VS Code Copilot, etc.)
     #[command(name = "mcp-server")]
     McpServer,
+    /// Start a Language Server Protocol server over stdio (Zed, Neovim, Helix, ...)
+    Lsp,
     /// Initialize CytoScnPy configuration (pyproject.toml/.cytoscnpy.toml and .gitignore)
     Init,
     /// Generate project statistics report

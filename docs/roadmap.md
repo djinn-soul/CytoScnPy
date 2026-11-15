@@ -346,8 +346,9 @@ _Tools to improve the workflow around CytoScnPy._
     - Add Git clone support for `analyze_repo` tool
 
 - [ ] **LSP Server (Language Server Protocol)**
-  - Implement a real-time LSP server for VS Code, Neovim, and Zed.
-  - Provide instant diagnostics without saving or running CLI.
+  - [x] `cytoscnpy lsp`: diagnostics on open and save, dead-code fixes and `# noqa` quick fixes, used by the Zed extension (`editors/zed`) and any LSP client.
+  - [ ] Analyze unsaved buffers as you type.
+  - [ ] Move the VS Code extension onto the same server.
 
 - [ ] **Config File Support for Notebook Cell Reporting**
   - `include_ipynb` is already supported in `.cytoscnpy.toml` / `pyproject.toml`.

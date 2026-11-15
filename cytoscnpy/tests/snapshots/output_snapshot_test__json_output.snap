@@ -1,6 +1,5 @@
 ---
 source: cytoscnpy/tests/output_snapshot_test.rs
-assertion_line: 131
 expression: output
 ---
 {
@@ -147,20 +146,20 @@ expression: output
       "end_line": 6,
       "file": "[FILE]",
       "fix": {
-        "end_byte": 66,
+        "end_byte": 68,
         "file_fix_all": [
           {
-            "end_byte": 10,
+            "end_byte": 11,
             "replacement": "",
-            "start_byte": 1
+            "start_byte": 0
           },
           {
-            "end_byte": 21,
+            "end_byte": 23,
             "replacement": "",
             "start_byte": 11
           },
           {
-            "end_byte": 66,
+            "end_byte": 68,
             "replacement": "",
             "start_byte": 23
           },
@@ -203,21 +202,21 @@ expression: output
       "end_line": 2,
       "file": "[FILE]",
       "fix": {
-        "end_byte": 10,
+        "end_byte": 11,
         "replacement": "",
         "rule_fix_all": [
           {
-            "end_byte": 10,
+            "end_byte": 11,
             "replacement": "",
-            "start_byte": 1
+            "start_byte": 0
           },
           {
-            "end_byte": 21,
+            "end_byte": 23,
             "replacement": "",
             "start_byte": 11
           }
         ],
-        "start_byte": 1
+        "start_byte": 0
       },
       "full_name": "[MOD].os",
       "in_init": false,
@@ -247,7 +246,7 @@ expression: output
       "end_line": 3,
       "file": "[FILE]",
       "fix": {
-        "end_byte": 21,
+        "end_byte": 22,
         "replacement": "",
         "start_byte": 11
       },

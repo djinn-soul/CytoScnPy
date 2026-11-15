@@ -43,7 +43,9 @@ jobs:
             Unlicense,
             CC0-1.0,
             Python-2.0,
-            PSF-2.0
+            PSF-2.0,
+            Unicode-3.0,
+            Zlib
 
           # Handle packages with unknown/complex licenses explicitly (PURL format required)
           allow-dependencies-licenses: >-

@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 cytoscnpy = { path = "../cytoscnpy", default-features = false }      # use library crate
 cytoscnpy-mcp = { path = "../cytoscnpy-mcp" }                        # MCP server integration
+cytoscnpy-lsp = { path = "../cytoscnpy-lsp", default-features = false } # Language server
 anyhow = "1.0"
 tokio = { version = "1", features = ["io-std", "rt-multi-thread"] }
 rmcp = { version = "2.2.0", features = ["server", "transport-io"] }
@@ -21,7 +22,7 @@ workspace = true
 
 [features]
 default = ["cst", "html_report", "cfg"]
-cst = ["cytoscnpy/cst"]
+cst = ["cytoscnpy/cst", "cytoscnpy-lsp/cst"]
 html_report = ["cytoscnpy/html_report"]
 cfg = ["cytoscnpy/cfg"]
 heap-profile = ["cytoscnpy/heap-profile"]

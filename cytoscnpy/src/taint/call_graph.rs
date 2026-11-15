@@ -2,10 +2,11 @@
 //!
 //! Builds a call graph for interprocedural analysis.
 
-mod annotation_traversal;
-mod expression_traversal;
-mod pattern_traversal;
-mod statement_traversal;
+pub(super) mod annotation_traversal;
+pub(super) mod expression_traversal;
+pub(super) mod flow_traversal;
+pub(super) mod pattern_traversal;
+pub(super) mod statement_traversal;
 
 use ruff_python_ast::{self as ast, Expr, Stmt};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -69,8 +70,18 @@ impl CallGraph {
             })
             .is_root = true;
 
+        self.visit_stmts(stmts, Some(&module_node_name), module_name);
+    }
+
+    /// Recursively visits a sequence of statements in the call graph.
+    pub(super) fn visit_stmts(
+        &mut self,
+        stmts: &[Stmt],
+        current_func: Option<&str>,
+        module_name: &str,
+    ) {
         for stmt in stmts {
-            self.visit_stmt(stmt, Some(&module_node_name), module_name);
+            self.visit_stmt(stmt, current_func, module_name);
         }
     }
 
@@ -139,9 +150,28 @@ impl CallGraph {
             qualified.push_str(class_name);
             qualified.push('.');
         }
-
         qualified.push_str(name);
         qualified
+    }
+
+    /// Checks if `name` matches the current enclosing class's qualified name.
+    /// Distinguishes direct class methods from nested helper functions.
+    pub(super) fn is_current_class(&self, name: &str, module_name: &str) -> bool {
+        if self.class_stack.is_empty() {
+            return false;
+        }
+        let mut current_class = if module_name.is_empty() {
+            String::new()
+        } else {
+            format!("{module_name}.")
+        };
+        for (i, class_name) in self.class_stack.iter().enumerate() {
+            if i > 0 {
+                current_class.push('.');
+            }
+            current_class.push_str(class_name);
+        }
+        name == current_class
     }
 
     fn extract_params(args: &ast::Parameters) -> Vec<String> {

@@ -115,7 +115,10 @@ impl CytoScnPyVisitor<'_> {
 
         self.visit_type_params(node.type_params.as_deref());
         for base in node.bases() {
-            self.visit_expr(base);
+            // Bases can be generic types with forward-reference strings (e.g. `Generic["TargetClass"]`
+            // or `BaseRepo["User"]`). Using `visit_annotation` ensures nested string literals are
+            // parsed as type expressions and their identifiers count as used definitions.
+            self.visit_annotation(base);
             if let Expr::Name(base_name) = base {
                 self.add_ref(base_name.id.as_str());
                 if !self.module_name.is_empty() {

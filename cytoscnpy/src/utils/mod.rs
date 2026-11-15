@@ -4,12 +4,14 @@
 
 mod ignore_match;
 mod minified;
+mod noqa_edit;
 pub(crate) mod path_inventory;
 mod paths;
 pub(crate) mod python_guards;
 pub(crate) mod sources;
 mod suppression;
 
+pub use noqa_edit::noqa_insertion;
 pub(crate) use paths::discover_project_root;
 
 // Re-export path, ignore, and minification utilities

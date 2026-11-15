@@ -1,0 +1,14 @@
+# Configuration for cargo-audit
+# https://github.com/rustsec/rustsec/blob/main/cargo-audit/audit.toml.example
+
+[advisories]
+ignore = [
+    # RUSTSEC-2026-0457: rmcp OAuth client SSRF filter checks host strings, not resolved addresses.
+    # Safe to ignore: CytoScnPy only uses rmcp for a local stdio MCP server (features = ["server", "transport-io"]),
+    # and does not use the rmcp OAuth client or HTTP discovery.
+    "RUSTSEC-2026-0457",
+
+    # RUSTSEC-2026-0462: rmcp unbounded response body buffering in Streamable HTTP clients.
+    # Safe to ignore: CytoScnPy does not use Streamable HTTP clients or streamable HTTP transport; it communicates over stdio.
+    "RUSTSEC-2026-0462",
+]

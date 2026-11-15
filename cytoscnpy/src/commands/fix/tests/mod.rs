@@ -11,6 +11,7 @@ use tempfile::TempDir;
 mod apply_basic_tests;
 mod apply_edit_tests;
 mod apply_json_tests;
+mod blank_line_tests;
 mod import_group_tests;
 mod import_tests;
 mod method_edit_tests;

@@ -1,6 +1,5 @@
 ---
 source: cytoscnpy/src/commands/fix/tests/apply_json_tests.rs
-assertion_line: 44
 expression: normalized
 ---
 {
@@ -15,11 +14,11 @@ expression: normalized
       "lines_removed": 0,
       "planned_edits": [
         {
-          "end_byte": 31,
+          "end_byte": 32,
           "item_type": "function",
           "line": 1,
           "name": "unused_function",
-          "stable_id": "function:unused_function:0:31",
+          "stable_id": "function:unused_function:0:32",
           "start_byte": 0
         }
       ],

@@ -186,6 +186,7 @@ jobs:
             cytoscnpy/Cargo.toml
             cytoscnpy-cli/Cargo.toml
             cytoscnpy-mcp/Cargo.toml
+            cytoscnpy-lsp/Cargo.toml
             pyproject.toml
 
       - name: Generate Rust SBOM

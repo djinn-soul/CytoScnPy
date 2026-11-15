@@ -37,7 +37,7 @@ impl Suppression {
 ///
 /// String literals are tracked across lines, so a `#` inside a string,
 /// including a triple-quoted string spanning lines, is not a comment.
-fn comments(source: &str) -> Comments<'_> {
+pub(super) fn comments(source: &str) -> Comments<'_> {
     Comments {
         source,
         line: 1,
@@ -46,7 +46,7 @@ fn comments(source: &str) -> Comments<'_> {
     }
 }
 
-struct Comments<'a> {
+pub(super) struct Comments<'a> {
     source: &'a str,
     line: usize,
     // Open string literal: its quote byte and whether it is triple-quoted.
@@ -122,7 +122,7 @@ impl<'a> Iterator for Comments<'a> {
 
 /// A token that can name a rule (`CSP`, `CSP-D101`, `E501`, `unused-import`).
 /// The first token that cannot is where the explanation begins.
-fn is_rule_code(token: &str) -> bool {
+pub(super) fn is_rule_code(token: &str) -> bool {
     token.starts_with(|c: char| c.is_ascii_alphabetic())
         && token
             .split('-')

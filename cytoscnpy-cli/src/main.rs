@@ -12,7 +12,7 @@ use rmcp::ServiceExt;
 use tokio::io::{stdin, stdout};
 
 fn main() -> ExitCode {
-    // Parse CLI args to check for mcp-server subcommand
+    // Parse CLI args to check for the mcp-server and lsp subcommands
     let args: Vec<String> = std::env::args().collect();
 
     // Check if mcp-server subcommand is being invoked
@@ -25,6 +25,16 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         }
+    }
+
+    if args.len() > 1 && args[1] == "lsp" {
+        return match cytoscnpy_lsp::run_stdio() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("Language server error: {e}");
+                ExitCode::FAILURE
+            }
+        };
     }
 
     // Delegate all other commands to shared entry_point function

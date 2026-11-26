@@ -56,6 +56,12 @@ ignore = [
     # RUSTSEC-2026-0462: rmcp unbounded response body buffering in Streamable HTTP clients.
     # Safe to ignore: CytoScnPy does not use Streamable HTTP clients or streamable HTTP transport; it communicates over stdio.
     "RUSTSEC-2026-0462",
+
+    # RUSTSEC-2026-0543: chrono is unmaintained (no vulnerability; no safe upgrade exists).
+    # Kept for now: it is pulled in transitively by nbformat/jupyter-protocol, rmcp and schemars,
+    # so dropping our own optional html_report use would not remove it. Revisit when upstreams
+    # migrate to jiff/time.
+    "RUSTSEC-2026-0543",
 ]
 
 # =============================================================================

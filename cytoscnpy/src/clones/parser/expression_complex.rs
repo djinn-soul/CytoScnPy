@@ -9,7 +9,7 @@ pub(super) fn extract_complex_expr(expr: &ast::Expr) -> Vec<SubtreeNode> {
             let mut children = node
                 .parameters
                 .as_deref()
-                .map_or_else(Vec::new, parameter_nodes);
+                .map_or_else(Vec::new, |params| parameter_nodes(params, false));
             children.extend(extract_expr_nodes(&node.body));
             wrap("lambda", children)
         }

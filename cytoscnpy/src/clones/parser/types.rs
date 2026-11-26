@@ -99,6 +99,35 @@ impl SubtreeNode {
     pub fn size(&self) -> usize {
         1 + self.children.iter().map(SubtreeNode::size).sum::<usize>()
     }
+
+    /// Unambiguous, length-prefixed encoding of this node and its children.
+    /// Used to fold a whole subtree into a single semantic label.
+    pub(super) fn signature(&self) -> String {
+        let mut signature = String::new();
+        self.append_signature(&mut signature);
+        signature
+    }
+
+    fn append_signature(&self, signature: &mut String) {
+        signature.push_str(&self.kind.len().to_string());
+        signature.push(':');
+        signature.push_str(&self.kind);
+        signature.push('|');
+
+        if let Some(label) = &self.label {
+            signature.push_str(&label.len().to_string());
+            signature.push(':');
+            signature.push_str(label);
+        } else {
+            signature.push('-');
+        }
+
+        signature.push('[');
+        for child in &self.children {
+            child.append_signature(signature);
+        }
+        signature.push(']');
+    }
 }
 
 impl Subtree {

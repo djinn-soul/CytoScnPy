@@ -3,11 +3,12 @@ use super::types::SubtreeNode;
 use ruff_python_ast as ast;
 
 pub(super) fn function_nodes(function: &ast::StmtFunctionDef) -> Vec<SubtreeNode> {
+    let is_init = function.name.as_str() == "__init__";
     let mut nodes = decorator_nodes(&function.decorator_list);
     if let Some(type_params) = &function.type_params {
         nodes.extend(type_parameter_nodes(type_params));
     }
-    nodes.extend(parameter_nodes(&function.parameters));
+    nodes.extend(parameter_nodes(&function.parameters, is_init));
     if let Some(returns) = &function.returns {
         nodes.push(SubtreeNode {
             kind: "returns".into(),
@@ -18,19 +19,24 @@ pub(super) fn function_nodes(function: &ast::StmtFunctionDef) -> Vec<SubtreeNode
     nodes
 }
 
-pub(super) fn parameter_nodes(parameters: &ast::Parameters) -> Vec<SubtreeNode> {
+pub(super) fn parameter_nodes(parameters: &ast::Parameters, is_init: bool) -> Vec<SubtreeNode> {
+    let (param_kind, kwonly_kind, posonly_kind) = if is_init {
+        ("init_param", "init_kwonly_param", "init_posonly_param")
+    } else {
+        ("param", "kwonly_param", "posonly_param")
+    };
     let mut nodes = Vec::new();
     for parameter in &parameters.posonlyargs {
-        nodes.push(parameter_node("posonly_param", parameter));
+        nodes.push(parameter_node(posonly_kind, parameter));
     }
     for parameter in &parameters.args {
-        nodes.push(parameter_node("param", parameter));
+        nodes.push(parameter_node(param_kind, parameter));
     }
     if let Some(parameter) = &parameters.vararg {
         nodes.push(bare_parameter_node("vararg", parameter));
     }
     for parameter in &parameters.kwonlyargs {
-        nodes.push(parameter_node("kwonly_param", parameter));
+        nodes.push(parameter_node(kwonly_kind, parameter));
     }
     if let Some(parameter) = &parameters.kwarg {
         nodes.push(bare_parameter_node("kwarg", parameter));

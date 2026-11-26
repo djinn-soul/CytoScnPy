@@ -1,5 +1,6 @@
 use super::suggestions::generate_clone_suggestion;
-use crate::clones::{CloneFinding, ClonePair, ConfidenceScorer, FixContext, FixDecision};
+use crate::clones::is_enum_class_source;
+use crate::clones::{CloneFinding, ClonePair, ConfidenceScorer, FixContext, FixDecision, NodeKind};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use std::path::PathBuf;
@@ -84,13 +85,22 @@ pub fn generate_clone_findings_with_thresholds(
         })
         .collect::<Vec<_>>();
 
+    let sources: FxHashMap<&PathBuf, &str> =
+        all_files.iter().map(|(p, c)| (p, c.as_str())).collect();
     for finding in &mut findings {
         let name = finding.name.as_deref().unwrap_or("<anonymous>");
+        let is_enum = finding.node_kind == NodeKind::Class
+            && sources.get(&finding.file).is_some_and(|source| {
+                source
+                    .get(finding.start_byte..finding.end_byte)
+                    .is_some_and(|class_src| is_enum_class_source(class_src, source))
+            });
         finding.suggestion = Some(generate_clone_suggestion(
             finding.clone_type,
             finding.node_kind,
             name,
             finding.similarity,
+            is_enum,
         ));
     }
 

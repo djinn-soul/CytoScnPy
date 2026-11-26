@@ -100,7 +100,7 @@ impl CytoScnPyVisitor<'_> {
                 let full_name = format!("{base_module}.{}", alias.name);
                 self.alias_map.insert(asname.to_string(), full_name.clone());
                 self.import_bindings
-                    .insert(self.get_qualified_name(asname.as_str()), full_name.clone());
+                    .insert(self.get_qualified_name(asname.as_str()), full_name);
             } else {
                 self.alias_map
                     .insert(asname.to_string(), alias.name.to_string());

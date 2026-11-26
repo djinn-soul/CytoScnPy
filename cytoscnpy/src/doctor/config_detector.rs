@@ -219,7 +219,7 @@ pub fn detect_configurations(repo_root: &Path) -> Vec<DetectedConfig> {
                 detected.push(DetectedConfig {
                     category: pattern.category,
                     name: display_name,
-                    path: path.clone(),
+                    path,
                     details: None,
                 });
             }

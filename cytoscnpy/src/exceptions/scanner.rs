@@ -77,7 +77,7 @@ fn visit_stmts(
                             line,
                             kind: ExceptionKind::BareExcept,
                             description: ExceptionKind::BareExcept.description().to_owned(),
-                            snippet: snippet_display.clone(),
+                            snippet: snippet_display,
                         });
                     } else if is_empty_handler_body(&h.body)
                         && !h.type_.as_deref().is_some_and(is_import_fallback)

@@ -136,3 +136,26 @@ fn contains_label(nodes: &[super::super::SubtreeNode], label: &str) -> bool {
         .iter()
         .any(|node| node.label.as_deref() == Some(label) || contains_label(&node.children, label))
 }
+
+#[test]
+fn enum_class_source_uses_bases_not_class_names() {
+    use super::is_enum_class_source;
+
+    let module = "from enum import Enum\nfrom app.flags import FeatureFlag\n";
+    assert!(is_enum_class_source(
+        "class Color(Enum):\n    RED = 1\n",
+        module
+    ));
+    assert!(is_enum_class_source(
+        "class Status(models.TextChoices):\n    A = 'a'\n",
+        "from django.db import models\n"
+    ));
+    assert!(!is_enum_class_source(
+        "class FeatureEnum(FeatureFlag):\n    on = True\n",
+        module
+    ));
+    assert!(!is_enum_class_source(
+        "class UserChoices(Form):\n    name = 'x'\n",
+        module
+    ));
+}

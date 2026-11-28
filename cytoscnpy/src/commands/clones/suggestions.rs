@@ -6,11 +6,12 @@ pub(super) fn generate_clone_suggestion(
     node_kind: NodeKind,
     name: &str,
     similarity: f64,
+    is_enum: bool,
 ) -> String {
     let suggestion = match clone_type {
-        CloneType::Type1 => type1_suggestion(node_kind, is_init(name)),
-        CloneType::Type2 => type2_suggestion(node_kind, is_special_method(name)),
-        CloneType::Type3 => type3_suggestion(node_kind, name, similarity),
+        CloneType::Type1 => type1_suggestion(node_kind, is_init(name), is_enum),
+        CloneType::Type2 => type2_suggestion(node_kind, is_special_method(name), is_enum),
+        CloneType::Type3 => type3_suggestion(node_kind, name, similarity, is_enum),
     };
     suggestion.to_owned()
 }
@@ -27,8 +28,9 @@ fn is_dunder(name: &str) -> bool {
     name.starts_with("__") && name.ends_with("__")
 }
 
-fn type1_suggestion(node_kind: NodeKind, is_init: bool) -> &'static str {
+fn type1_suggestion(node_kind: NodeKind, is_init: bool, is_enum: bool) -> &'static str {
     match node_kind {
+        NodeKind::Class if is_enum => "Remove duplicate enum, import from original",
         NodeKind::Class => "Remove duplicate class, import from original",
         NodeKind::Method if is_init => "Extract shared __init__ to base class",
         NodeKind::Method => "Move to base class or mixin",
@@ -38,8 +40,9 @@ fn type1_suggestion(node_kind: NodeKind, is_init: bool) -> &'static str {
     }
 }
 
-fn type2_suggestion(node_kind: NodeKind, is_special_method: bool) -> &'static str {
+fn type2_suggestion(node_kind: NodeKind, is_special_method: bool, is_enum: bool) -> &'static str {
     match node_kind {
+        NodeKind::Class if is_enum => "Consolidate into single enum or shared mapping",
         NodeKind::Class => "Consider inheritance or factory pattern",
         NodeKind::Method if is_special_method => "Extract to mixin or base class",
         NodeKind::Method => "Parameterize and move to base class",
@@ -49,18 +52,24 @@ fn type2_suggestion(node_kind: NodeKind, is_special_method: bool) -> &'static st
     }
 }
 
-fn type3_suggestion(node_kind: NodeKind, name: &str, similarity: f64) -> &'static str {
+fn type3_suggestion(
+    node_kind: NodeKind,
+    name: &str,
+    similarity: f64,
+    is_enum: bool,
+) -> &'static str {
     if similarity >= 0.9 {
-        high_similarity_suggestion(node_kind, is_init(name))
+        high_similarity_suggestion(node_kind, is_init(name), is_enum)
     } else if similarity >= 0.8 {
-        medium_similarity_suggestion(node_kind)
+        medium_similarity_suggestion(node_kind, is_enum)
     } else {
         "Review for potential consolidation"
     }
 }
 
-fn high_similarity_suggestion(node_kind: NodeKind, is_init: bool) -> &'static str {
+fn high_similarity_suggestion(node_kind: NodeKind, is_init: bool, is_enum: bool) -> &'static str {
     match node_kind {
+        NodeKind::Class if is_enum => "Consolidate into single enum or shared mapping",
         NodeKind::Class => "High similarity: use inheritance",
         NodeKind::Method if is_init => "Extract common init to base class",
         NodeKind::Method => "Consider template method pattern",
@@ -70,8 +79,9 @@ fn high_similarity_suggestion(node_kind: NodeKind, is_init: bool) -> &'static st
     }
 }
 
-fn medium_similarity_suggestion(node_kind: NodeKind) -> &'static str {
+fn medium_similarity_suggestion(node_kind: NodeKind, is_enum: bool) -> &'static str {
     match node_kind {
+        NodeKind::Class if is_enum => "Review enum members for consolidation",
         NodeKind::Class => "Review for composition pattern",
         NodeKind::Method => "Consider template method pattern",
         NodeKind::Function | NodeKind::AsyncFunction => "Review for potential abstraction",

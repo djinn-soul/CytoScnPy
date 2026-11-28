@@ -105,12 +105,17 @@ fn write_clone_table<W: Write>(writer: &mut W, findings: &[CloneFinding]) -> Res
             crate::utils::normalize_display_path(&finding.related_clone.file),
             finding.related_clone.line
         );
-        let suggestion = generate_clone_suggestion(
-            finding.clone_type,
-            finding.node_kind,
-            &name,
-            finding.similarity,
-        );
+        // Findings carry a suggestion computed with source context (e.g.
+        // enum detection); fall back to a context-free one otherwise.
+        let suggestion = finding.suggestion.clone().unwrap_or_else(|| {
+            generate_clone_suggestion(
+                finding.clone_type,
+                finding.node_kind,
+                &name,
+                finding.similarity,
+                false,
+            )
+        });
 
         table.add_row(vec![
             Cell::new(type_str).fg(Color::Yellow),

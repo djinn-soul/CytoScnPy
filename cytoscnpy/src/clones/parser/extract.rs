@@ -1,5 +1,9 @@
 use super::definitions::{class_nodes, function_nodes};
 use super::enum_members::preserve_semantics;
+use super::expressions::demote_sparse_subscript_keys;
+use super::interfaces::{is_pure_interface_class, is_simple_exception_class};
+use super::qualnames::ImportAliases;
+use super::schema_fields::preserve_field_semantics;
 use super::statements::extract_stmt_nodes;
 use super::types::{AstParser, Subtree, SubtreeType};
 use crate::clones::CloneError;
@@ -31,19 +35,37 @@ pub(crate) fn extract_subtrees_ast(
     min_lines: usize,
 ) -> Vec<Subtree> {
     let mut subtrees = Vec::new();
-    extract_from_body(body, path, source, &mut subtrees, false, min_lines);
+    let ctx = ExtractContext {
+        path,
+        source,
+        min_lines,
+        imports: ImportAliases::from_module(body),
+    };
+    extract_from_body(&ctx, body, &mut subtrees, false);
     subtrees
+}
+
+/// Per-file state shared by the recursive walk.
+struct ExtractContext<'a> {
+    path: &'a PathBuf,
+    source: &'a str,
+    min_lines: usize,
+    imports: ImportAliases,
 }
 
 /// Recursively extract subtrees from a statement body
 fn extract_from_body(
+    ctx: &ExtractContext<'_>,
     body: &[Stmt],
-    path: &PathBuf,
-    source: &str,
     subtrees: &mut Vec<Subtree>,
     in_class: bool,
-    min_lines: usize,
 ) {
+    let ExtractContext {
+        path,
+        source,
+        min_lines,
+        ..
+    } = *ctx;
     for stmt in body {
         match stmt {
             Stmt::FunctionDef(f) => {
@@ -59,9 +81,10 @@ fn extract_from_body(
                     SubtreeType::Function
                 };
 
-                let mut children = function_nodes(f);
-                children.extend(extract_stmt_nodes(&f.body));
                 if end_line - start_line + 1 >= min_lines {
+                    let mut children = function_nodes(f);
+                    children.extend(extract_stmt_nodes(&f.body));
+                    demote_sparse_subscript_keys(&mut children);
                     subtrees.push(Subtree {
                         node_type,
                         name: Some(f.name.to_string()),
@@ -75,18 +98,24 @@ fn extract_from_body(
                     });
                 }
 
-                extract_from_body(&f.body, path, source, subtrees, false, min_lines);
+                extract_from_body(ctx, &f.body, subtrees, false);
             }
             Stmt::ClassDef(c) => {
                 let start_byte = c.range().start().to_usize();
                 let end_byte = c.range().end().to_usize();
                 let (start_line, end_line) = byte_to_lines(start_byte, end_byte, source);
 
-                let mut children = class_nodes(c);
-                let mut body_nodes = extract_stmt_nodes(&c.body);
-                preserve_semantics(c, &mut body_nodes);
-                children.extend(body_nodes);
-                if end_line - start_line + 1 >= min_lines {
+                // Check exclusions before building the (costly) body subtree.
+                if end_line - start_line + 1 >= min_lines
+                    && !is_pure_interface_class(c)
+                    && !is_simple_exception_class(c)
+                {
+                    let mut children = class_nodes(c);
+                    let mut body_nodes = extract_stmt_nodes(&c.body);
+                    preserve_semantics(c, &ctx.imports, &mut body_nodes);
+                    preserve_field_semantics(c, &ctx.imports, &mut body_nodes);
+                    children.extend(body_nodes);
+                    demote_sparse_subscript_keys(&mut children);
                     subtrees.push(Subtree {
                         node_type: SubtreeType::Class,
                         name: Some(c.name.to_string()),
@@ -100,7 +129,7 @@ fn extract_from_body(
                     });
                 }
 
-                extract_from_body(&c.body, path, source, subtrees, true, min_lines);
+                extract_from_body(ctx, &c.body, subtrees, true);
             }
             _ => {}
         }

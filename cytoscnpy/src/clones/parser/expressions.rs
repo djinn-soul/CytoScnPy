@@ -132,10 +132,19 @@ pub(super) fn extract_expr_nodes(expr: &ast::Expr) -> Vec<SubtreeNode> {
             }]
         }
         ast::Expr::Dict(d) => {
+            let keep_keys = is_record_literal(d);
             let mut children = vec![];
             for item in &d.items {
                 if let Some(key) = &item.key {
-                    children.extend(extract_expr_nodes(key));
+                    if let (true, ast::Expr::StringLiteral(s)) = (keep_keys, key) {
+                        children.push(SubtreeNode {
+                            kind: "dict_key".into(),
+                            label: Some(s.value.to_string()),
+                            children: vec![],
+                        });
+                    } else {
+                        children.extend(extract_expr_nodes(key));
+                    }
                 }
                 children.extend(extract_expr_nodes(&item.value));
             }
@@ -166,7 +175,17 @@ pub(super) fn extract_expr_nodes(expr: &ast::Expr) -> Vec<SubtreeNode> {
         }
         ast::Expr::Subscript(node) => {
             let mut children = extract_expr_nodes(&node.value);
-            children.extend(extract_expr_nodes(&node.slice));
+            if let ast::Expr::StringLiteral(s) = &*node.slice {
+                // Demoted back to `str` by `demote_sparse_subscript_keys`
+                // unless the enclosing definition reads a record.
+                children.push(SubtreeNode {
+                    kind: SUBSCRIPT_KEY.into(),
+                    label: Some(s.value.to_string()),
+                    children: vec![],
+                });
+            } else {
+                children.extend(extract_expr_nodes(&node.slice));
+            }
             vec![SubtreeNode {
                 kind: "subscript".into(),
                 label: None,
@@ -205,4 +224,70 @@ fn wrap(kind: &str, children: Vec<SubtreeNode>) -> Vec<SubtreeNode> {
         label: None,
         children,
     }]
+}
+
+/// Minimum number of distinct string keys for a dict literal, or for the
+/// string subscripts in one definition, to count as record access.
+const RECORD_MIN_STRING_KEYS: usize = 3;
+
+const SUBSCRIPT_KEY: &str = "subscript_key";
+
+/// A dict literal with several string keys describes a data shape (for
+/// example a `to_dict` payload), so its keys carry meaning and must not be
+/// normalised away. Smaller dicts keep ordinary literal normalisation.
+fn is_record_literal(dict: &ast::ExprDict) -> bool {
+    dict.items
+        .iter()
+        .filter(|item| matches!(item.key, Some(ast::Expr::StringLiteral(_))))
+        .count()
+        >= RECORD_MIN_STRING_KEYS
+}
+
+/// String subscripts (`data["id"]`) keep their key as a semantic label only
+/// when the definition reads at least `RECORD_MIN_STRING_KEYS` distinct keys,
+/// i.e. it is (de)serialising a record such as a `from_dict` factory. Sparse
+/// lookups like a single `cfg["host"]` revert to ordinary `str` literals so
+/// Type-2 normalisation still applies.
+///
+/// Each nested function/class is its own scope: keys read by sibling methods
+/// are never pooled, so several single-key lookups spread across a class do
+/// not make that class look record-like.
+pub(super) fn demote_sparse_subscript_keys(nodes: &mut [SubtreeNode]) {
+    let mut keys = rustc_hash::FxHashSet::default();
+    collect_subscript_keys(nodes, &mut keys);
+    let demote = keys.len() < RECORD_MIN_STRING_KEYS;
+    process_scope(nodes, demote);
+}
+
+fn is_definition_scope(node: &SubtreeNode) -> bool {
+    matches!(node.kind.as_str(), "function" | "async_function" | "class")
+}
+
+fn collect_subscript_keys<'a>(nodes: &'a [SubtreeNode], keys: &mut rustc_hash::FxHashSet<&'a str>) {
+    for node in nodes {
+        if is_definition_scope(node) {
+            continue;
+        }
+        if node.kind == SUBSCRIPT_KEY {
+            if let Some(label) = &node.label {
+                keys.insert(label);
+            }
+        }
+        collect_subscript_keys(&node.children, keys);
+    }
+}
+
+/// Demotes keys in the current scope (when `demote`) and evaluates each
+/// nested definition independently.
+fn process_scope(nodes: &mut [SubtreeNode], demote: bool) {
+    for node in nodes {
+        if is_definition_scope(node) {
+            demote_sparse_subscript_keys(&mut node.children);
+            continue;
+        }
+        if demote && node.kind == SUBSCRIPT_KEY {
+            "str".clone_into(&mut node.kind);
+        }
+        process_scope(&mut node.children, demote);
+    }
 }

@@ -108,7 +108,7 @@ impl TaintAwareDangerAnalyzer {
             }
 
             // Mark the sink line as tainted
-            context.mark_line_tainted(finding.sink_line, finding.source.clone());
+            context.mark_line_tainted(finding.sink_line, finding.source);
         }
 
         context

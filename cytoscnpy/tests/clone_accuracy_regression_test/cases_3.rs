@@ -139,3 +139,39 @@ fn feature_flag_subclasses_are_not_enums() {
         "FeatureFlag is not an enum base; member renames remain Type-2 clones"
     );
 }
+
+#[test]
+fn model_prefixed_schema_fields_are_real_fields() {
+    let a = "from pydantic import BaseModel\n\nclass Deployment(BaseModel):\n    model_name: str\n    model_version: str\n    replicas: int\n    region: str\n";
+    let b = "from pydantic import BaseModel\n\nclass Deployment2(BaseModel):\n    model_type: str\n    model_path: str\n    replicas: int\n    region: str\n";
+    assert!(
+        !detects_pair(a, b),
+        "domain fields like model_name/model_type are data, not Pydantic config"
+    );
+}
+
+#[test]
+fn exception_dunders_with_helper_calls_remain_clones() {
+    let body = "    def __init__(self, payload):\n        super().__init__(render_details(payload))\n        self.message = render_details(payload)\n        self.data = normalize(payload)\n        self.code = 400\n";
+    let a = format!("class BadInputError(Exception):\n{body}");
+    let b = format!("class BadOutputError(Exception):\n{body}");
+    assert!(
+        detects_named_pair(&a, &b, "BadInputError", "BadOutputError"),
+        "exception dunders that call helpers carry logic and must stay clone candidates"
+    );
+}
+
+#[test]
+fn sparse_subscripts_across_methods_are_not_pooled() {
+    let make = |name: &str, k1: &str, k2: &str, k3: &str| {
+        format!(
+            "class {name}:\n    def host(self, cfg):\n        value = cfg[\"{k1}\"]\n        return value.strip()\n    def port(self, cfg):\n        value = cfg[\"{k2}\"]\n        return value.strip()\n    def user(self, cfg):\n        value = cfg[\"{k3}\"]\n        return value.strip()\n"
+        )
+    };
+    let a = make("LoaderA", "host", "port", "user");
+    let b = make("LoaderB", "addr", "num", "login");
+    assert!(
+        detects_named_pair(&a, &b, "LoaderA", "LoaderB"),
+        "single-key lookups in separate methods must not make the class record-like"
+    );
+}

@@ -176,9 +176,7 @@ fn is_field_declaration(statement: &ast::Stmt, kind: SchemaKind) -> bool {
 }
 
 fn is_non_field_name(name: &str) -> bool {
-    CONFIG_ATTR_NAMES.contains(&name)
-        || name.starts_with('_')
-        || (name.starts_with("model_") && name != "model_id")
+    CONFIG_ATTR_NAMES.contains(&name) || name.starts_with('_')
 }
 
 /// Returns the simple name of an assignment target, if it is a plain identifier.

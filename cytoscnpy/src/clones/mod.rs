@@ -25,7 +25,7 @@ pub use detector::{CloneDetectionResult, CloneDetector};
 pub use errors::CloneError;
 pub use findings::{CloneFinding, CloneRelation};
 pub use normalizer::Normalizer;
-pub(crate) use parser::is_enum_class_source;
+pub(crate) use parser::EnumClassDetector;
 pub use parser::{extract_subtrees, Subtree, SubtreeNode, SubtreeType};
 pub use similarity::TreeSimilarity;
 pub use types::{CloneGroup, CloneInstance, ClonePair, CloneSummary, CloneType, NodeKind};

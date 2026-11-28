@@ -52,16 +52,95 @@ pub(super) fn is_simple_exception_class(class: &ast::StmtClassDef) -> bool {
     })
 }
 
-/// Straight-line bodies only: docstrings / calls (e.g. `super().__init__(msg)`),
-/// assignments to `self.<attr>`, and `return`. No control flow or locals.
+/// Straight-line bodies only: docstrings, a parent `__init__` call
+/// (e.g. `super().__init__(msg)`), assignments to `self.<attr>`, and
+/// `return`. Every value must be a simple expression (literals, names,
+/// attribute reads, f-strings over those), so dunders that call helpers
+/// such as `render_details(payload)` still count as real logic.
 fn is_simple_exception_method(body: &[ast::Stmt]) -> bool {
     body.len() <= SIMPLE_EXCEPTION_METHOD_MAX_STMTS
         && body.iter().all(|stmt| match stmt {
-            ast::Stmt::Pass(_) | ast::Stmt::Expr(_) | ast::Stmt::Return(_) => true,
-            ast::Stmt::Assign(assign) => assign.targets.iter().all(is_self_attribute),
-            ast::Stmt::AnnAssign(assign) => is_self_attribute(&assign.target),
+            ast::Stmt::Pass(_) => true,
+            ast::Stmt::Expr(expr) => {
+                matches!(&*expr.value, ast::Expr::StringLiteral(_))
+                    || is_parent_init_call(&expr.value)
+            }
+            ast::Stmt::Return(ret) => ret.value.as_deref().map_or(true, is_simple_value),
+            ast::Stmt::Assign(assign) => {
+                assign.targets.iter().all(is_self_attribute) && is_simple_value(&assign.value)
+            }
+            ast::Stmt::AnnAssign(assign) => {
+                is_self_attribute(&assign.target)
+                    && assign.value.as_deref().map_or(true, is_simple_value)
+            }
             _ => false,
         })
+}
+
+/// `super().__init__(...)` or `Base.__init__(self, ...)` with simple arguments.
+fn is_parent_init_call(expr: &ast::Expr) -> bool {
+    let ast::Expr::Call(call) = expr else {
+        return false;
+    };
+    let ast::Expr::Attribute(attr) = &*call.func else {
+        return false;
+    };
+    if attr.attr.as_str() != "__init__" {
+        return false;
+    }
+    let receiver_ok = match &*attr.value {
+        ast::Expr::Name(_) => true,
+        ast::Expr::Call(inner) => {
+            matches!(&*inner.func, ast::Expr::Name(name) if name.id.as_str() == "super")
+                && inner.arguments.args.is_empty()
+                && inner.arguments.keywords.is_empty()
+        }
+        _ => false,
+    };
+    receiver_ok
+        && call.arguments.args.iter().all(|arg| match arg {
+            ast::Expr::Starred(starred) => is_simple_value(&starred.value),
+            other => is_simple_value(other),
+        })
+        && call
+            .arguments
+            .keywords
+            .iter()
+            .all(|kw| is_simple_value(&kw.value))
+}
+
+/// Literals, names, attribute reads on simple values, containers of simple
+/// values, and f-strings whose interpolations are simple. No calls.
+fn is_simple_value(expr: &ast::Expr) -> bool {
+    match expr {
+        ast::Expr::StringLiteral(_)
+        | ast::Expr::BytesLiteral(_)
+        | ast::Expr::NumberLiteral(_)
+        | ast::Expr::BooleanLiteral(_)
+        | ast::Expr::NoneLiteral(_)
+        | ast::Expr::EllipsisLiteral(_)
+        | ast::Expr::Name(_) => true,
+        ast::Expr::Attribute(attr) => is_simple_value(&attr.value),
+        ast::Expr::Tuple(tuple) => tuple.elts.iter().all(is_simple_value),
+        ast::Expr::List(list) => list.elts.iter().all(is_simple_value),
+        ast::Expr::FString(f_string) => f_string.value.iter().all(|part| match part {
+            ast::FStringPart::Literal(_) => true,
+            ast::FStringPart::FString(inner) => inner.elements.iter().all(is_simple_interpolation),
+        }),
+        _ => false,
+    }
+}
+
+fn is_simple_interpolation(element: &ast::InterpolatedStringElement) -> bool {
+    match element {
+        ast::InterpolatedStringElement::Literal(_) => true,
+        ast::InterpolatedStringElement::Interpolation(interpolation) => {
+            is_simple_value(&interpolation.expression)
+                && interpolation.format_spec.as_ref().map_or(true, |spec| {
+                    spec.elements.iter().all(is_simple_interpolation)
+                })
+        }
+    }
 }
 
 fn is_self_attribute(target: &ast::Expr) -> bool {

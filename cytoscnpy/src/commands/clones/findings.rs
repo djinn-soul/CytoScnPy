@@ -1,5 +1,5 @@
 use super::suggestions::generate_clone_suggestion;
-use crate::clones::is_enum_class_source;
+use crate::clones::EnumClassDetector;
 use crate::clones::{CloneFinding, ClonePair, ConfidenceScorer, FixContext, FixDecision, NodeKind};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
@@ -87,14 +87,27 @@ pub fn generate_clone_findings_with_thresholds(
 
     let sources: FxHashMap<&PathBuf, &str> =
         all_files.iter().map(|(p, c)| (p, c.as_str())).collect();
+    // A class can appear in many clone pairs: parse each module's imports
+    // once and each class at most once.
+    let mut detectors: FxHashMap<PathBuf, EnumClassDetector> = FxHashMap::default();
+    let mut enum_by_class: FxHashMap<(PathBuf, usize, usize), bool> = FxHashMap::default();
     for finding in &mut findings {
         let name = finding.name.as_deref().unwrap_or("<anonymous>");
         let is_enum = finding.node_kind == NodeKind::Class
-            && sources.get(&finding.file).is_some_and(|source| {
-                source
-                    .get(finding.start_byte..finding.end_byte)
-                    .is_some_and(|class_src| is_enum_class_source(class_src, source))
-            });
+            && *enum_by_class
+                .entry((finding.file.clone(), finding.start_byte, finding.end_byte))
+                .or_insert_with(|| {
+                    sources.get(&finding.file).is_some_and(|source| {
+                        source
+                            .get(finding.start_byte..finding.end_byte)
+                            .is_some_and(|class_src| {
+                                detectors
+                                    .entry(finding.file.clone())
+                                    .or_insert_with(|| EnumClassDetector::new(source))
+                                    .is_enum_class(class_src)
+                            })
+                    })
+                });
         finding.suggestion = Some(generate_clone_suggestion(
             finding.clone_type,
             finding.node_kind,
